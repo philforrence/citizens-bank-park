@@ -1,4 +1,5 @@
 import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, TubeGeometry, CatmullRomCurve3, Vector3, Color } from '../engine/index.js';
+import { figure } from './Exterior.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
@@ -24,7 +25,8 @@ export class Landmarks {
 		this.group = new Group();
 		this.group.name = 'landmarks';
 		field.group.add( this.group );
-		this.steel = standard( { name: 'landmark-steel', color: new Color( 0.05, 0.06, 0.065 ), roughness: 0.6, metalness: 0.5 } );
+		// structural steel at the park is painted maroon
+		this.steel = standard( { name: 'landmark-steel', color: new Color( 0.12, 0.03, 0.03 ), roughness: 0.6, metalness: 0.4 } );
 		this.steel.underwaterLighting = 'none';
 		this._scoreboard();
 		// the light tower over the Pavilion in right (the one in left stands beside the scoreboard)
@@ -206,11 +208,50 @@ export class Landmarks {
 		const [ x, z ] = fencePoint( 21, 488 );
 		const g = this._facingHome( x, z );
 		const H = 50 * FT, W = 35 * FT, y0 = STREET + 100 * FT;
-		// the mast
-		const mast = new Mesh( new CylinderGeometry( 0.6, 0.8, y0 - STREET + 2, 12 ), this.steel );
-		mast.position.set( 0, STREET + ( y0 - STREET ) / 2, 1.5 );
-		mast.castShadow = true;
-		g.add( mast );
+		// the mast: a maroon steel lattice, and on it the green neon name and the Citizens logo
+		lattice( g, this.steel, 0, 1.6, STREET, y0 + 2, 3.4 );
+		const neon = canvasTexture( 1024, 512, ( ctx, w, h ) => {
+
+			ctx.clearRect( 0, 0, w, h );
+			ctx.shadowColor = '#3cff7a';
+			ctx.shadowBlur = 12;
+			ctx.fillStyle = '#2fcf62';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.font = '700 150px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'Citizens Bank', w / 2, h * 0.52, w - 20 );
+			ctx.fillText( 'Park', w / 2, h * 0.85 );
+			// the logo: four chevrons round a square
+			ctx.save();
+			ctx.translate( w / 2, h * 0.17 );
+			for ( let i = 0; i < 4; i ++ ) {
+
+				ctx.rotate( Math.PI / 2 );
+				ctx.beginPath();
+				ctx.moveTo( 16, - 14 ); ctx.lineTo( 60, 0 ); ctx.lineTo( 16, 14 ); ctx.lineTo( 30, 0 ); ctx.closePath();
+				ctx.fill();
+
+			}
+
+			ctx.restore();
+
+		}, 'bellNeon' );
+		const neonMat = standard( { name: 'bell-neon', roughness: 0.4, alphaTest: 0.3, side: 'double', textures: { bpNeon: neon },
+			surface: 'let t = textureSample( bpNeon, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.3; s.emissive = t.rgb * mix( 0.9, 2.6, frame.night );' } );
+		neonMat.underwaterLighting = 'none';
+		const nq = new Quads();
+		const NW = 14, NH = 7, ny = y0 - NH - 2.5;
+		nq.add( [ - NW / 2, ny, - 0.4 ], [ NW / 2, ny, - 0.4 ], [ NW / 2, ny + NH, - 0.4 ], [ - NW / 2, ny + NH, - 0.4 ], [ 0, 0, - 1 ] );
+		const ng = nq.geometry();
+		const nuv = ng.getAttribute( 'uv' ).array, npos = ng.getAttribute( 'position' ).array;
+		for ( let i = 0; i < nuv.length / 2; i ++ ) {
+
+			nuv[ i * 2 ] = 1 - ( npos[ i * 3 ] + NW / 2 ) / NW;
+			nuv[ i * 2 + 1 ] = 1 - ( npos[ i * 3 + 1 ] - ny ) / NH;
+
+		}
+
+		g.add( new Mesh( ng, neonMat ) );
 		// the bell's outline in lights: half the profile, mirrored, with the yoke, the crack and the clapper
 		const half = [ [ 0.0, 1.0 ], [ 0.13, 0.99 ], [ 0.2, 0.95 ], [ 0.22, 0.86 ], [ 0.25, 0.7 ], [ 0.29, 0.52 ], [ 0.35, 0.35 ], [ 0.43, 0.2 ], [ 0.5, 0.1 ], [ 0.5, 0.06 ] ];
 		const pts = [];
@@ -254,30 +295,6 @@ export class Landmarks {
 		const trim = standard( { name: 'alley-trim', color: new Color( 0.55, 0.5, 0.42 ), roughness: 0.7 } );
 		const rail = standard( { name: 'alley-rail', color: new Color( 0.02, 0.1, 0.06 ), roughness: 0.5, metalness: 0.4 } );
 		for ( const m of [ brick, trim, rail ] ) m.underwaterLighting = 'none';
-		const numbers = canvasTexture( 2048, 256, ( ctx, w, h ) => {
-
-			ctx.fillStyle = '#5b1d12';
-			ctx.fillRect( 0, 0, w, h );
-			ctx.font = '700 170px "Helvetica Neue", Helvetica, Arial, sans-serif';
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			const nums = [ '1', '14', '15', '20', '32', '34', '36', '42' ];
-			nums.forEach( ( n, i ) => {
-
-				const cx = ( i + 0.5 ) * w / nums.length;
-				ctx.fillStyle = '#f4efe4';
-				ctx.beginPath();
-				ctx.arc( cx, h / 2, 104, 0, Math.PI * 2 );
-				ctx.fill();
-				ctx.fillStyle = '#c8102e';
-				ctx.fillText( n, cx, h / 2 + 8 );
-
-			} );
-
-		}, 'retiredNumbers' );
-		const numMat = standard( { name: 'retired-numbers', roughness: 0.6, textures: { bpNums: numbers }, surface: 's.albedo = textureSample( bpNums, smpAnisoClamp, in.uv ).rgb * 0.75;' } );
-		numMat.underwaterLighting = 'none';
-
 		// the buildings sit along the back of the footprint behind center field, facing the field
 		const blocks = [ [ - 62, - 40 ], [ - 34, - 8 ], [ 2, 30 ], [ 36, 60 ] ];
 		const zBack = - 150.5, D = 7.5, Hb = 8.5;
@@ -305,23 +322,95 @@ export class Landmarks {
 
 		}
 
-		// the retired numbers on the center buildings, facing the field
-		const nq = new Quads();
-		const [ nx0, nx1 ] = [ - 30, 26 ];
-		const ny0 = STREET + 4.6, ny1 = ny0 + 3.2, nz = zBack + D + 0.08;
-		nq.add( [ nx0, ny0, nz ], [ nx1, ny0, nz ], [ nx1, ny1, nz ], [ nx0, ny1, nz ], [ 0, 0, 1 ] );
-		const ngeo = nq.geometry();
-		const uv = ngeo.getAttribute( 'uv' ).array, pos = ngeo.getAttribute( 'position' ).array;
-		for ( let i = 0; i < uv.length / 2; i ++ ) {
+		// 2008: the retired numbers on two small brick buildings up on the roofs, either side of the clock:
+		// 1 Ashburn, 14 Bunning, 20 Schmidt; 32 Carlton, 36 Roberts, 42 Robinson (in blue)
+		const zRoof = zBack + D * 0.45;
+		for ( const [ cx, nums ] of [ [ - 24, [ [ '1', 'ASHBURN' ], [ '14', 'BUNNING' ], [ '20', 'SCHMIDT' ] ] ], [ 10, [ [ '32', 'CARLTON' ], [ '36', 'ROBERTS' ], [ '42', 'ROBINSON' ] ] ] ] ) {
 
-			uv[ i * 2 ] = ( pos[ i * 3 ] - nx0 ) / ( nx1 - nx0 );
-			uv[ i * 2 + 1 ] = 1 - ( pos[ i * 3 + 1 ] - ny0 ) / ( ny1 - ny0 );
+			const bw = 16, bh = 5.2, by = STREET + Hb;
+			const b = new Mesh( new BoxGeometry( bw, bh, 5 ), brick );
+			b.position.set( cx, by + bh / 2, zRoof );
+			b.castShadow = true;
+			b.receiveShadow = true;
+			this.group.add( b );
+			const cap = new Mesh( new BoxGeometry( bw + 0.4, 0.4, 5.4 ), trim );
+			cap.position.set( cx, by + bh, zRoof );
+			this.group.add( cap );
+			const tex = canvasTexture( 1536, 512, ( ctx, w, h ) => {
+
+				ctx.clearRect( 0, 0, w, h );
+				nums.forEach( ( [ n, name ], i ) => {
+
+					const x = ( i + 0.5 ) * w / 3;
+					ctx.textAlign = 'center';
+					ctx.fillStyle = n === '42' ? '#1d3f8f' : '#c8102e';
+					ctx.font = '800 300px "Helvetica Neue", Arial, sans-serif';
+					ctx.fillText( n, x, h * 0.62 );
+					ctx.fillStyle = '#f2ede1';
+					ctx.fillRect( x - 170, h * 0.74, 340, 76 );
+					ctx.fillStyle = '#1a1a1a';
+					ctx.font = '700 58px "Helvetica Neue", Arial, sans-serif';
+					ctx.fillText( name, x, h * 0.74 + 58, 320 );
+
+				} );
+
+			}, 'retired' );
+			const m = standard( { name: 'retired-numbers', roughness: 0.7, alphaTest: 0.3, textures: { bpNums: tex }, surface: 'let t = textureSample( bpNums, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.8;' } );
+			m.underwaterLighting = 'none';
+			const q = new Quads();
+			const x0 = cx - bw / 2 + 0.4, x1 = cx + bw / 2 - 0.4, y0 = by + 0.3, y1 = by + bh - 0.5, z = zRoof + 2.52;
+			q.add( [ x0, y0, z ], [ x1, y0, z ], [ x1, y1, z ], [ x0, y1, z ], [ 0, 0, 1 ] );
+			const g = q.geometry();
+			const uv = g.getAttribute( 'uv' ).array, pos = g.getAttribute( 'position' ).array;
+			for ( let i = 0; i < uv.length / 2; i ++ ) {
+
+				uv[ i * 2 ] = ( pos[ i * 3 ] - x0 ) / ( x1 - x0 );
+				uv[ i * 2 + 1 ] = 1 - ( pos[ i * 3 + 1 ] - y0 ) / ( y1 - y0 );
+
+			}
+
+			this.group.add( new Mesh( g, m ) );
 
 		}
 
-		const nm = new Mesh( ngeo, numMat );
-		nm.name = 'retired-numbers';
-		this.group.add( nm );
+		// the clock between them: a square white face with bar markers in a navy frame, on maroon steel over
+		// a brick pier, the Sherwin-Williams sign under it
+		this._clock( - 7, zRoof, STREET + Hb, brick );
+
+		// the Richie Ashburn statue, behind center field on the Alley
+		const bronze = standard( { name: 'ashburn-bronze', color: new Color( 0.18, 0.1, 0.04 ), roughness: 0.35, metalness: 0.9 } );
+		bronze.underwaterLighting = 'none';
+		const ash = new Group();
+		ash.position.set( - 2, STREET, zBack + D + 3.5 );
+		ash.rotation.y = 0;
+		const ped = new Mesh( new BoxGeometry( 1.8, 1.4, 1.8 ), trim );
+		ped.position.y = 0.7;
+		ash.add( ped );
+		const fig = figure( bronze, 'batter' );
+		fig.position.y = 1.4;
+		fig.scale.setScalar( 1.6 );
+		ash.add( fig );
+		ash.rotation.y = Math.PI;
+		this.group.add( ash );
+
+		// the rooftop bleachers: blue benches, seven rows up the roofs in right-center
+		const bench = standard( { name: 'rooftop-bleachers', color: new Color( 0.02, 0.05, 0.2 ), roughness: 0.5 } );
+		bench.underwaterLighting = 'none';
+		for ( const [ x0, x1 ] of [ [ 2, 30 ], [ 36, 60 ] ] ) {
+
+			for ( let r = 0; r < 7; r ++ ) {
+
+				const b = new Mesh( new BoxGeometry( x1 - x0 - 1, 0.1, 0.35 ), bench );
+				b.position.set( ( x0 + x1 ) / 2, STREET + Hb + 0.45 + r * 0.32, zBack + D - 0.6 - r * 0.85 );
+				this.group.add( b );
+				const step = new Mesh( new BoxGeometry( x1 - x0 - 1, 0.32 * ( r + 1 ), 0.85 ), trim );
+				step.position.set( ( x0 + x1 ) / 2, STREET + Hb + 0.16 * ( r + 1 ), zBack + D - 0.43 - r * 0.85 );
+				step.receiveShadow = true;
+				this.group.add( step );
+
+			}
+
+		}
 
 		// flagpoles behind center field
 		const flag = standard( { name: 'flags', color: new Color( 0.5, 0.05, 0.06 ), roughness: 0.8, side: 'double' } );
@@ -337,6 +426,91 @@ export class Landmarks {
 			this.group.add( f );
 
 		}
+
+	}
+
+	_clock( x, z, y, brick ) {
+
+		const face = canvasTexture( 512, 512, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#0d1f4d';
+			ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#f7f6f2';
+			ctx.fillRect( 36, 36, w - 72, h - 72 );
+			ctx.fillStyle = '#111';
+			for ( let i = 0; i < 12; i ++ ) {
+
+				ctx.save();
+				ctx.translate( w / 2, h / 2 );
+				ctx.rotate( i * Math.PI / 6 );
+				ctx.fillRect( - 9, - 200, 18, i % 3 ? 44 : 70 );
+				ctx.restore();
+
+			}
+
+			// 7:08, about when the gates open
+			const hand = ( ang, len, wd ) => {
+
+				ctx.save();
+				ctx.translate( w / 2, h / 2 );
+				ctx.rotate( ang );
+				ctx.fillRect( - wd / 2, - len, wd, len + 20 );
+				ctx.restore();
+
+			};
+
+			hand( ( 7 + 8 / 60 ) / 12 * Math.PI * 2, 120, 18 );
+			hand( 8 / 60 * Math.PI * 2, 180, 12 );
+
+		}, 'clock' );
+		const sw = canvasTexture( 1024, 160, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#12378a';
+			ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#ffffff';
+			ctx.font = '800 96px "Helvetica Neue", Arial, sans-serif';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillText( 'SHERWIN-WILLIAMS', w / 2, h / 2 + 4, w - 40 );
+
+		}, 'sherwin' );
+		const fm = standard( { name: 'clock-face', roughness: 0.5, textures: { bpClock: face }, surface: 'let t = textureSample( bpClock, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.85; s.emissive = t * 0.4 * frame.night;' } );
+		const sm = standard( { name: 'clock-sign', roughness: 0.5, textures: { bpSign: sw }, surface: 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.8; s.emissive = t * 0.5 * frame.night;' } );
+		for ( const m of [ fm, sm ] ) m.underwaterLighting = 'none';
+		const pier = new Mesh( new BoxGeometry( 4, 5, 3 ), brick );
+		pier.position.set( x, y + 2.5, z );
+		this.group.add( pier );
+		for ( const lx of [ - 1.6, 1.6 ] ) {
+
+			const leg = new Mesh( new BoxGeometry( 0.35, 6, 0.35 ), this.steel );
+			leg.position.set( x + lx, y + 8, z );
+			this.group.add( leg );
+
+		}
+
+		const S = 4.6, fy = y + 9.5, fz = z + 0.4;
+		const add = ( mat, w, h, cy ) => {
+
+			const q = new Quads();
+			q.add( [ x - w / 2, cy - h / 2, fz ], [ x + w / 2, cy - h / 2, fz ], [ x + w / 2, cy + h / 2, fz ], [ x - w / 2, cy + h / 2, fz ], [ 0, 0, 1 ] );
+			const g = q.geometry();
+			const uv = g.getAttribute( 'uv' ).array, pos = g.getAttribute( 'position' ).array;
+			for ( let i = 0; i < uv.length / 2; i ++ ) {
+
+				uv[ i * 2 ] = ( pos[ i * 3 ] - ( x - w / 2 ) ) / w;
+				uv[ i * 2 + 1 ] = 1 - ( pos[ i * 3 + 1 ] - ( cy - h / 2 ) ) / h;
+
+			}
+
+			this.group.add( new Mesh( g, mat ) );
+
+		};
+
+		const back = new Mesh( new BoxGeometry( S + 0.4, S + 0.4, 0.5 ), this.steel );
+		back.position.set( x, fy, z + 0.1 );
+		this.group.add( back );
+		add( fm, S, S, fy );
+		add( sm, 5.5, 0.9, y + 6.4 );
 
 	}
 
@@ -395,6 +569,44 @@ export class Landmarks {
 		m.name = 'batters-eye-ivy';
 		m.receiveShadow = true;
 		this.group.add( m );
+
+	}
+
+}
+
+// A square steel lattice mast in `g`: legs `w` apart round ( x, z ), from y0 to y1, braced every `step` m
+function lattice( g, mat, x, z, y0, y1, w, step = 3 ) {
+
+	const h = y1 - y0;
+	const leg = new BoxGeometry( 0.28, h, 0.28 );
+	for ( const [ lx, lz ] of [ [ - 1, - 1 ], [ 1, - 1 ], [ - 1, 1 ], [ 1, 1 ] ] ) {
+
+		const m = new Mesh( leg, mat );
+		m.position.set( x + lx * w / 2, y0 + h / 2, z + lz * w / 2 );
+		m.castShadow = true;
+		g.add( m );
+
+	}
+
+	for ( let y = y0 + step; y < y1 - 1; y += step ) {
+
+		for ( const [ bw, bd, px, pz ] of [ [ w, 0.14, 0, - w / 2 ], [ w, 0.14, 0, w / 2 ], [ 0.14, w, - w / 2, 0 ], [ 0.14, w, w / 2, 0 ] ] ) {
+
+			const m = new Mesh( new BoxGeometry( bw, 0.14, bd ), mat );
+			m.position.set( x + px, y, z + pz );
+			g.add( m );
+
+		}
+
+		// the diagonals on the two faces you see
+		for ( const side of [ - 1, 1 ] ) {
+
+			const d = new Mesh( new BoxGeometry( 0.1, Math.hypot( w, step ), 0.1 ), mat );
+			d.position.set( x, y - step / 2, z + side * w / 2 );
+			d.rotation.z = side * Math.atan2( w, step );
+			g.add( d );
+
+		}
 
 	}
 

@@ -134,13 +134,14 @@ export class Bowl {
 
 	}
 
-	// The protective netting, 25 ft high in front of the seats from the far end of the first base dugout
-	// round behind home plate to the far end of the third base dugout: a fine green mesh.
+	// The protective netting behind home plate: a fine green mesh.
 	_buildNetting() {
 
 		const F = FOUL_TERRITORY;
-		const run = F.slice( 3, 11 ); // 150 ft out on the first base side .. 150 ft out on third
-		const H = 25 * FT;
+		// in 2008 only the backstop: between the home plate ends of the dugouts (it reached the dugouts' far
+		// ends only in 2017)
+		const run = F.slice( 5, 9 );
+		const H = 30 * FT;
 		const q = new Quads();
 		let u = 0;
 		for ( let i = 0; i < run.length - 1; i ++ ) {
@@ -348,7 +349,7 @@ export class Bowl {
 	// with light towers on it.
 	_roof( P, depth, y ) {
 
-		const steel = standard( { name: 'roof-steel', color: new Color( 0.12, 0.13, 0.14 ), roughness: 0.6, metalness: 0.5 } );
+		const steel = standard( { name: 'roof-steel', color: new Color( 0.1, 0.028, 0.028 ), roughness: 0.6, metalness: 0.4 } );
 		const deck = standard( { name: 'roof-deck', color: new Color( 0.42, 0.42, 0.4 ), roughness: 0.7, metalness: 0.2, side: 'double' } );
 		for ( const m of [ steel, deck ] ) m.underwaterLighting = 'none';
 		const r = new Quads(), t = new Quads();
@@ -407,7 +408,7 @@ export class Bowl {
 	// a steel lattice mast from the roof (y0) up to y1 with a bank of lights facing the field
 	_lightTower( x, z, y0, y1 ) {
 
-		const steel = this._towerSteel || ( this._towerSteel = standard( { name: 'tower-steel', color: new Color( 0.1, 0.1, 0.11 ), roughness: 0.6, metalness: 0.6 } ) );
+		const steel = this._towerSteel || ( this._towerSteel = standard( { name: 'tower-steel', color: new Color( 0.12, 0.03, 0.03 ), roughness: 0.6, metalness: 0.4 } ) );
 		// the lamps glow after dusk (and light the field: see lightSources())
 		const lamp = this._lamp || ( this._lamp = standard( { name: 'tower-lamps', color: new Color( 0.8, 0.8, 0.75 ), roughness: 0.3,
 			surface: 's.emissive = vec3f( 1.0, 0.96, 0.88 ) * smoothstep( 0.15, 0.75, frame.night ) * 40.0;' } ) );
@@ -466,7 +467,7 @@ export class Bowl {
 	// square steel columns every ~spacing m along P, from y0 to y1
 	_columns( P, y0, y1, spacing ) {
 
-		const steel = this._colSteel || ( this._colSteel = standard( { name: 'columns', color: new Color( 0.1, 0.22, 0.16 ), roughness: 0.6, metalness: 0.4 } ) );
+		const steel = this._colSteel || ( this._colSteel = standard( { name: 'columns', color: new Color( 0.12, 0.03, 0.03 ), roughness: 0.6, metalness: 0.4 } ) );
 		steel.underwaterLighting = 'none';
 		const geo = new BoxGeometry( 0.7, y1 - y0, 0.7 );
 		for ( let i = 0; i < P.length - 1; i ++ ) {

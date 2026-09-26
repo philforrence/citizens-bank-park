@@ -447,6 +447,18 @@ export class Director {
 
 		}
 
+		// the pitcher's pitches so far (balls / strikes, counting fouls and balls in play as strikes)
+		let pb = 0, ps = 0;
+		const now = this.t;
+		for ( const sg of this.segments ) {
+
+			if ( sg.t0 > now ) break;
+			if ( sg.kind !== 'pitch' || sg.snap.defense.P !== s.pitcher ) continue;
+			if ( sg.t0 + PACE.set + M.REL > now ) continue;
+			if ( /B|\*B|I|P|V|H/.test( sg.ev.call ) && ! /^[SCFTXDEWLMOQR]/.test( sg.ev.call ) ) pb ++; else ps ++;
+
+		}
+
 		const team = s.batting || 'away';
 		const order = lineup[ team ];
 		const at = Math.max( 0, order.indexOf( s.batter ) );
@@ -465,6 +477,7 @@ export class Director {
 			today, dueUp, batting: team,
 			lineup: order.map( ( id ) => ( { num: P[ id ]?.num || '', last: ( P[ id ]?.last || '' ).toUpperCase(), pos: posOf[ id ] || P[ id ]?.pos || '', up: id === s.batter } ) ),
 			video,
+			pitcher: P[ s.pitcher ] ? { num: P[ s.pitcher ].num, last: P[ s.pitcher ].last.toUpperCase(), balls: pb, strikes: ps } : null,
 		};
 
 	}

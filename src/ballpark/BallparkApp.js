@@ -30,6 +30,7 @@ import { Bowl } from './Bowl.js';
 import { Exterior, GATES } from './Exterior.js';
 import { Surroundings } from './Surroundings.js';
 import { Landmarks } from './Landmarks.js';
+import { Details2008 } from './Details2008.js';
 import { Players } from './game/Players.js';
 import * as Motions from './game/Motions.js';
 import { Ball } from './game/Ball.js';
@@ -143,6 +144,7 @@ export class BallparkApp {
 		await progress( 0.19, 'Raising the skyline…' );
 		this.surroundings = new Surroundings( { field: this.field } );
 		this.landmarks = new Landmarks( { field: this.field, bowl: this.bowl, colliders: this.colliders } );
+		this.details = new Details2008( { field: this.field } );
 		this.players = new Players( { parent: this.field.group } );
 		if ( qs.has( 'poses' ) ) this._poseLineup();
 		else {
@@ -355,11 +357,12 @@ export class BallparkApp {
 		this._boardT = ( this._boardT || 0 ) + dt;
 		if ( this._boardT < 0.25 ) return;
 		const st = this.director.boardState();
-		const key = JSON.stringify( [ st.score, st.count, st.outs, st.batter?.last, st.inning, st.half, st.video.kind, st.today.length, st.line ] );
+		const key = JSON.stringify( [ st.score, st.count, st.outs, st.batter?.last, st.inning, st.half, st.video.kind, st.today.length, st.line, st.pitcher ] );
 		if ( key === this._boardKey ) return;
 		this._boardKey = key;
 		this._boardT = 0;
 		this.landmarks.updateScoreboard( st );
+		this.details.updateOutOfTown( st );
 
 	}
 
