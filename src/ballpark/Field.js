@@ -7,7 +7,7 @@ import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import {
 	FT, FIELD_BEARING, BASE, MOUND_CENTER, RUBBER_FRONT, MOUND_RADIUS, MOUND_HEIGHT,
-	FOOTPRINT, OUTFIELD, FOUL_TERRITORY, FOUL_WALL_HEIGHT, DUGOUTS, fencePoint, fieldBoundary,
+	FOOTPRINT, OUTFIELD, FOUL_TERRITORY, FOUL_WALL_HEIGHT, DUGOUTS, BULLPENS, fencePoint, fieldBoundary,
 } from './layout.js';
 
 // The playing field: grass, the infield skin, the mound, the bases, the chalk, the warning track, the
@@ -58,6 +58,7 @@ export class Field {
 		this._buildDistanceMarkers();
 		this._buildFoulPoles();
 		for ( const d of this.dugouts ) this._buildDugout( d );
+		this._buildBullpens();
 
 	}
 
@@ -82,7 +83,9 @@ export class Field {
 
 		const [ x, z ] = this.toField( wx, wz );
 		for ( const d of this.dugouts ) if ( this._inDugout( d, x, z ) ) return - DUGOUT_DEPTH;
-		return moundHeight( x, z );
+		let h = moundHeight( x, z );
+		for ( const m of this.pens || [] ) h = Math.max( h, m.y + bumpHeight( x - m.x, z - m.z ) );
+		return h;
 
 	}
 
@@ -217,7 +220,7 @@ export class Field {
 
 	_buildFence() {
 
-		const pad = standard( { name: 'wall-padding', color: new Color( 0.012, 0.045, 0.03 ), roughness: 0.75 } );
+		const pad = standard( { name: 'wall-padding', color: new Color( 0.018, 0.16, 0.1 ), roughness: 0.7 } );
 		const trim = standard( { name: 'wall-trim', color: new Color( 0.75, 0.55, 0.02 ), roughness: 0.6 } );
 		const cap = standard( { name: 'wall-cap', color: new Color( 0.2, 0.2, 0.19 ), roughness: 0.8 } );
 		for ( const m of [ pad, trim, cap ] ) m.underwaterLighting = 'none';
@@ -274,7 +277,29 @@ export class Field {
 			const A = pts[ i ], B = pts[ i + 1 ];
 			const [ ax, az ] = A.p, [ bx, bz ] = B.p;
 			const len = Math.hypot( bx - ax, bz - az );
-			if ( len < 1e-3 ) continue;
+			if ( len < 1e-3 ) {
+
+				// a step in the height: close the taller wall's end, square to the next segment
+				const C = pts[ i + 2 ] || pts[ i - 1 ];
+				if ( ! C || Math.abs( A.h - B.h ) < 0.01 ) continue;
+				const [ cx, cz ] = C.p;
+				const l2 = Math.hypot( cx - ax, cz - az ) || 1;
+				const tx = ( cx - ax ) / l2, tz = ( cz - az ) / l2;
+				let nx = - tz, nz = tx;
+				if ( nx * ( 0 - ax ) + nz * ( - BASE * Math.SQRT2 - az ) < 0 ) {
+
+					nx = - nx; nz = - nz;
+
+				}
+
+				const lo = Math.min( A.h, B.h ), hi = Math.max( A.h, B.h );
+				const ox = - nx * thickness, oz = - nz * thickness;
+				const dir = C === pts[ i + 2 ] ? - 1 : 1; // the cap faces away from the lower wall
+				face.add( [ ax, lo, az ], [ ax + ox, lo, az + oz ], [ ax + ox, hi, az + oz ], [ ax, hi, az ], [ tx * dir, 0, tz * dir ], u, u + thickness );
+				continue;
+
+			}
+
 			// the normal toward the field: toward second base
 			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
 			const mx = ( ax + bx ) / 2, mz = ( az + bz ) / 2;
@@ -323,7 +348,7 @@ export class Field {
 	// canvas atlas on quads just in front of the padding.
 	_buildDistanceMarkers() {
 
-		const rows = OUTFIELD.map( ( r, i ) => ( { a: r[ 0 ], d: r[ 1 ], h: r[ 2 ] * FT, mark: r[ 3 ] === 'mark', i } ) ).filter( ( r ) => r.mark );
+		const rows = OUTFIELD.map( ( r, i ) => ( { a: r[ 0 ], d: r[ 1 ], h: r[ 2 ] * FT, mark: r[ 3 ] === 'mark', shift: r[ 4 ] || 0, i } ) ).filter( ( r ) => r.mark );
 		if ( ! rows.length || typeof OffscreenCanvas === 'undefined' ) return;
 		const CW = 512, CH = 192;
 		const canvas = new OffscreenCanvas( CW, CH * rows.length );
@@ -361,10 +386,8 @@ export class Field {
 
 			}
 
-			// near the poles the numbers sit a little along the fence into fair territory (the fence runs
-			// from the left field pole to the right field pole, so that's +t on the left, -t on the right)
-			const shift = Math.abs( r.a ) > 40 ? ( r.a < 0 ? 2.2 : - 2.2 ) : 0;
-			const ox = cx + tx * shift + nx * 0.03, oz = cz + tz * shift + nz * 0.03;
+			// moved along the fence off corners and poles (t runs from the left field pole toward right)
+			const ox = cx + tx * r.shift + nx * 0.03, oz = cz + tz * r.shift + nz * 0.03;
 			const H = Math.min( 1.1, r.h * 0.55 ), W = H * CW / CH;
 			const y0 = ( r.h - 0.15 ) / 2 - H / 2 + 0.05, y1 = y0 + H;
 			// left / right as seen from the field (facing -n)
@@ -398,7 +421,7 @@ export class Field {
 
 		const yellow = standard( { name: 'foul-pole', color: new Color( 0.85, 0.6, 0.02 ), roughness: 0.5, metalness: 0.2 } );
 		yellow.underwaterLighting = 'none';
-		const H = 70 * FT, r2 = Math.SQRT1_2;
+		const H = 85 * FT, r2 = Math.SQRT1_2;
 		for ( const k of [ 0, OUTFIELD.length - 1 ] ) {
 
 			const [ a, d ] = OUTFIELD[ k ];
@@ -417,6 +440,99 @@ export class Field {
 			screen.rotation.y = Math.atan2( - fz, fx );
 			screen.castShadow = true;
 			this.group.add( screen );
+
+		}
+
+	}
+
+	// ---------------------------------------------------------------- bullpens
+
+	// Two pens behind the center field fence between 401 and the 398 corner: the Phillies' at field level,
+	// the visitors' raised behind it. Each has two mounds throwing along the fence toward two plates.
+	_buildBullpens() {
+
+		const grass = standard( { name: 'bullpen-grass', color: new Color( 0.045, 0.13, 0.028 ), roughness: 0.95, modules: [ commonModule ],
+			surface: 's.albedo = mat.color * ( 0.88 + 0.16 * mx_noise_float2( in.P.xz * 0.35 ) ) * ( 0.93 + 0.1 * mx_noise_float2( in.P.xz * 19.0 ) );' } );
+		const dirt = standard( { name: 'bullpen-dirt', color: new Color( 0.52, 0.27, 0.14 ), roughness: 0.92 } );
+		const wall = standard( { name: 'bullpen-wall', color: new Color( 0.018, 0.16, 0.1 ), roughness: 0.7 } );
+		const white = standard( { name: 'bullpen-plates', color: new Color( 0.82, 0.82, 0.8 ), roughness: 0.6 } );
+		for ( const m of [ grass, dirt, wall, white ] ) m.underwaterLighting = 'none';
+
+		const [ ax, az ] = fencePoint( 0, 401 ), [ bx, bz ] = fencePoint( 11, 398 );
+		const L = Math.hypot( bx - ax, bz - az );
+		const ux = ( bx - ax ) / L, uz = ( bz - az ) / L;
+		// away from home plate
+		let nx = - uz, nz = ux;
+		if ( nx * ax + nz * az < 0 ) {
+
+			nx = - nx; nz = - nz;
+
+		}
+
+		const yaw = - Math.atan2( uz, ux );
+		const worldYaw = yaw + this.group.rotation.y;
+		const D = BULLPENS.depth, R = BULLPENS.upperRise, T0 = 0.5; // T0: behind the fence
+		const at = ( s, t ) => [ ax + ux * s + nx * t, az + uz * s + nz * t ];
+		const box = ( mat, s0, s1, t0, t1, y0, y1, name, collider = null ) => {
+
+			const [ x, z ] = at( ( s0 + s1 ) / 2, ( t0 + t1 ) / 2 );
+			const m = new Mesh( new BoxGeometry( s1 - s0, y1 - y0, t1 - t0 ), mat );
+			m.position.set( x, ( y0 + y1 ) / 2, z );
+			m.rotation.y = yaw;
+			m.castShadow = true;
+			m.receiveShadow = true;
+			m.name = name;
+			this.group.add( m );
+			if ( collider ) {
+
+				const w = this.toWorld( x, z );
+				this.colliders.addBox( new Vector3( w.x, ( y0 + y1 ) / 2, w.z ), new Vector3( ( s1 - s0 ) / 2, ( y1 - y0 ) / 2, ( t1 - t0 ) / 2 ), worldYaw, { tag: name, ...collider } );
+
+			}
+
+			return m;
+
+		};
+
+		this.pens = [];
+		const S0 = - 3, S1 = L + 2; // a little past both ends of the fence segment
+		// lower pen floor (field level) and the raised upper pen
+		box( grass, S0, S1, T0, T0 + D, - 0.1, 0.004, 'bullpen-floor' );
+		box( grass, S0, S1, T0 + D, T0 + 2 * D, - 0.1, R, 'bullpen-upper', { walkable: true } );
+		// walls: the ends, and the back of the upper pen (the front of Ashburn Alley above)
+		box( wall, S0 - 0.4, S0, T0, T0 + 2 * D, 0, R + 1.2, 'bullpen-end', { solid: true } );
+		box( wall, S1, S1 + 0.4, T0, T0 + 2 * D, 0, R + 1.2, 'bullpen-end', { solid: true } );
+		box( wall, S0 - 0.4, S1 + 0.4, T0 + 2 * D, T0 + 2 * D + 0.4, 0, R + 2.4, 'bullpen-back', { solid: true } );
+		// mounds, rubbers and plates: two lanes per pen, throwing toward the 401 end
+		const plate = slab( [ [ 0, 0 ], [ 0.216, - 0.216 ], [ 0.216, - 0.432 ], [ - 0.216, - 0.432 ], [ - 0.216, - 0.216 ] ], 0.02 );
+		for ( const [ y, t0 ] of [ [ 0, T0 ], [ R, T0 + D ] ] ) {
+
+			for ( const lane of [ 0.3, 0.7 ] ) {
+
+				const t = t0 + D * lane;
+				const [ mx, mz ] = at( L - 2.5, t );
+				this.pens.push( { x: mx, z: mz, y } );
+				const mound = new Mesh( bumpGeometry(), dirt );
+				mound.position.set( mx, y + 0.003, mz );
+				mound.receiveShadow = true;
+				this.group.add( mound );
+				const [ rx, rz ] = at( L - 2.5 - 0.35, t );
+				const rub = new Mesh( new BoxGeometry( 0.15, 0.04, 0.61 ), white );
+				rub.position.set( rx, y + bumpHeight( rx - mx, rz - mz ) + 0.01, rz );
+				rub.rotation.y = yaw;
+				this.group.add( rub );
+				const [ px, pz ] = at( L - 2.5 - 0.35 - RUBBER_FRONT, t );
+				const pl = new Mesh( plate, white );
+				pl.position.set( px, y, pz );
+				pl.rotation.y = yaw - Math.PI / 2; // the point toward the catcher (away from the mound)
+				this.group.add( pl );
+				const [ dx, dz ] = at( L - 2.5 - 0.35 - RUBBER_FRONT - 1.2, t );
+				const box2 = new Mesh( new BoxGeometry( 3.2, 0.01, 2.6 ), dirt );
+				box2.position.set( dx + ux * 1.1, y + 0.002, dz + uz * 1.1 );
+				box2.rotation.y = yaw;
+				this.group.add( box2 );
+
+			}
 
 		}
 
@@ -457,7 +573,7 @@ export class Field {
 	_buildDugout( d ) {
 
 		const concrete = standard( { name: 'dugout-concrete', color: new Color( 0.3, 0.3, 0.29 ), roughness: 0.85 } );
-		const roofMat = standard( { name: 'dugout-roof', color: new Color( 0.012, 0.045, 0.03 ), roughness: 0.7 } );
+		const roofMat = standard( { name: 'dugout-roof', color: new Color( 0.018, 0.16, 0.1 ), roughness: 0.7 } );
 		const bench = standard( { name: 'dugout-bench', color: new Color( 0.05, 0.08, 0.2 ), roughness: 0.6 } );
 		for ( const m of [ concrete, roofMat, bench ] ) m.underwaterLighting = 'none';
 		const { a, len, ux, uz, nx, nz } = d;
@@ -522,6 +638,51 @@ export function moundHeight( x, z ) {
 	if ( r >= 1 ) return 0;
 	const t = MathUtils.clamp( ( r - 0.3 ) / 0.7, 0, 1 );
 	return MOUND_HEIGHT * ( 1 - t * t * ( 3 - 2 * t ) );
+
+}
+
+// a bullpen mound: 10 in high, 9 ft radius, same profile as the game mound (centred on its peak)
+export function bumpHeight( dx, dz ) {
+
+	const r = Math.hypot( dx, dz ) / MOUND_RADIUS;
+	if ( r >= 1 ) return 0;
+	const t = MathUtils.clamp( ( r - 0.3 ) / 0.7, 0, 1 );
+	return MOUND_HEIGHT * ( 1 - t * t * ( 3 - 2 * t ) );
+
+}
+
+let _bump = null;
+function bumpGeometry() {
+
+	if ( _bump ) return _bump;
+	const RINGS = 8, SEG = 40;
+	const pos = [], index = [];
+	pos.push( 0, bumpHeight( 0, 0 ), 0 );
+	for ( let r = 1; r <= RINGS; r ++ ) for ( let s = 0; s < SEG; s ++ ) {
+
+		const a = s / SEG * Math.PI * 2, rad = MOUND_RADIUS * r / RINGS;
+		const x = Math.cos( a ) * rad, z = Math.sin( a ) * rad;
+		pos.push( x, bumpHeight( x, z ), z );
+
+	}
+
+	const ring = ( r, s ) => r === 0 ? 0 : 1 + ( r - 1 ) * SEG + ( s % SEG );
+	for ( let r = 0; r < RINGS; r ++ ) for ( let s = 0; s < SEG; s ++ ) {
+
+		if ( r === 0 ) index.push( 0, ring( 1, s + 1 ), ring( 1, s ) );
+		else index.push( ring( r, s ), ring( r, s + 1 ), ring( r + 1, s + 1 ), ring( r, s ), ring( r + 1, s + 1 ), ring( r + 1, s ) );
+
+	}
+
+	const g = new BufferGeometry();
+	g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+	g.setIndex( index );
+	g.computeVertexNormals();
+	const n = g.getAttribute( 'normal' );
+	if ( n.array[ 1 ] < 0 ) for ( let i = 0; i < n.array.length; i ++ ) n.array[ i ] = - n.array[ i ];
+	g.computeBoundingSphere();
+	_bump = g;
+	return g;
 
 }
 
@@ -708,12 +869,12 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	var col = vec3f( 0.045, 0.13, 0.028 ) * mow * ( 0.88 + 0.16 * n1 ) * ( 0.92 + 0.1 * n2 ) * ( 0.94 + 0.08 * n3 );
 	var rough = 0.95;
 	if ( dirt ) {
-		col = vec3f( 0.36, 0.165, 0.085 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );
+		col = vec3f( 0.52, 0.27, 0.14 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );
 		rough = 0.92;
 		// the edge of the grass: a soft lip, not a razor line
 	}
 	if ( track ) {
-		col = vec3f( 0.16, 0.055, 0.035 ) * ( 0.9 + 0.12 * n1 ) * ( 0.9 + 0.15 * n3 );
+		col = vec3f( 0.25, 0.075, 0.045 ) * ( 0.9 + 0.12 * n1 ) * ( 0.9 + 0.15 * n3 );
 		rough = 0.95;
 	}
 

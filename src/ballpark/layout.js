@@ -17,7 +17,7 @@ export const HOME_LATLON = [ 39.9055925, - 75.1666197 ];
 
 // compass bearing from home plate to center field, degrees east of north. South Philadelphia's
 // street grid is turned the same way, so the stadium is square to the streets.
-export const FIELD_BEARING = 10.19;
+export const FIELD_BEARING = 10.19; // MLB's venue record says 9.0; the streets run at ~9.4
 
 export const BASE = 90 * FT; // between the bases
 export const MOUND_CENTER = 59 * FT; // from the back tip of home plate
@@ -46,54 +46,77 @@ export const FOOTPRINT = [
 
 // ---------------------------------------------------------------- the fence around the playing field
 //
-// Outfield: [ angle, distance, height ] from the foul pole in left to the one in right. Angle in degrees
-// from the center field line (negative = left field), distance from the back tip of home plate in feet,
-// wall height in feet; 'mark' where the distance is painted on the fence.
+// Outfield: [ angle, distance, height, 'mark' ] from the foul pole in left to the one in right. Angle in
+// degrees from the center field line (negative = left field), distance from the back tip of home plate
+// in feet, wall height in feet; 'mark' where the distance is painted on the wall (then optionally how
+// far along the wall to move the number, metres, negative = back toward the previous point). Two rows at
+// the same point make a step in the wall's height.
+//
+// Sources: the Phillies' "Facts, Figures and Fun Features" and MLB's 2024 ground rules. The left field
+// wall is straight and square to the foul line 333 ft out (329 at the pole, 334 painted beside it, 374,
+// 387; 10'6" high since the 2006 move). Monty's Angle: a jog in to 381, then a taller wall (12'8" rising
+// to 19') parallel to the left field wall out to the 409 corner. The center field fence is 6 ft, from 409
+// past 401 to the 398 corner, with the bullpens behind it. The right field wall is square to its foul
+// line 330 ft out (369 in the alley), 13'3" high, the out-of-town scoreboard built into it.
 export const OUTFIELD = [
-	[ - 45, 329, 11, 'mark' ], // left field foul pole
-	[ - 36, 334, 11 ],
-	[ - 26, 348, 11 ],
-	[ - 17, 364, 11 ],
-	[ - 12, 374, 11, 'mark' ], // left-center
-	[ - 8, 381, 11 ],
-	[ - 5, 395, 11 ], // the notch
-	[ - 1, 401, 6, 'mark' ], // center field
-	[ 4, 398, 6 ],
-	[ 10, 386, 6 ],
-	[ 14, 374, 6 ],
-	[ 19, 369, 6, 'mark' ], // right-center
-	[ 26, 350, 13 ],
-	[ 35, 336, 13 ],
-	[ 45, 330, 13, 'mark' ], // right field foul pole
+	[ - 45, 329, 10.5 ], // left field foul pole
+	[ - 42, 333.5, 10.5, 'mark' ], // 334
+	[ - 17.92, 374, 10.5, 'mark' ], // left field power alley
+	[ - 14.37, 387, 10.5, 'mark', - 1.8 ], // end of the left field wall
+	[ - 14.37, 387, 12.67 ], // Monty's Angle
+	[ - 10.27, 381, 12.67 ],
+	[ - 4.96, 409, 19, 'mark', - 1.8 ], // the deepest point
+	[ - 4.96, 409, 6 ], // center field fence
+	[ 0, 401, 6, 'mark' ],
+	[ 11, 398, 6, 'mark', - 1.8 ], // the right-center corner
+	[ 11, 398, 13.25 ], // right field wall
+	[ 18.42, 369, 13.25, 'mark' ], // right field power alley
+	[ 45, 330, 13.25, 'mark', - 2.2 ], // right field foul pole
 ];
 
-// Foul territory: the front of the stands from the right field foul pole round behind home plate to the
-// left field foul pole, [ x, z ] in metres in the field frame, and the height of its wall in feet.
+// Foul territory: the front of the stands from beyond the right field foul pole round behind home plate
+// to beyond the left field one, [ x, z ] in metres in the field frame. From the Phillies' figures: the
+// backstop is flat, 49'5" behind home plate; the stands are 51 ft from first and third base and stay
+// about that far off the lines to 150 ft out, angle in to ~28 ft off at 215 ft, and run ~10 ft off the
+// lines out to the poles.
 export const FOUL_WALL_HEIGHT = 4.5;
+export const BACKSTOP = 49.4 * FT;
 export const FOUL_TERRITORY = [
-	[ 74.2, - 66.5 ], // behind the right field foul pole
-	[ 55.1, - 46.9 ],
-	[ 54.9, - 38.8 ],
-	[ 46.6, - 17.9 ],
-	[ 34.7, - 7.6 ], // first base dugout, far end
-	[ 16.4, 11.6 ], // first base dugout, home plate end
-	[ 12.0, 15.0 ],
-	[ 7.5, 17.4 ], // the backstop, 57 ft behind home plate
-	[ - 7.5, 17.4 ],
-	[ - 12.0, 15.0 ],
-	[ - 14.2, 11.7 ], // third base dugout, home plate end
-	[ - 34.7, - 7.5 ], // third base dugout, far end
-	[ - 42.3, - 17.0 ],
-	[ - 50.6, - 37.4 ],
-	[ - 50.4, - 44.6 ],
-	[ - 68.5, - 62.6 ], // behind the left field foul pole
+	[ 73.06, - 69.18 ], // beside the right field foul pole
+	[ 52.8, - 48.49 ], // 235 ft out, 10 ft off the line
+	[ 52.37, - 40.3 ], // 215 ft out, 28 ft off
+	[ 43.54, - 21.12 ], // 150 ft out, 52 ft off
+	[ 32.54, - 10.56 ], // first base dugout, far end (100 ft out, 51 ft off)
+	[ 14.22, 7.76 ], // first base dugout, home plate end
+	[ 6.93, 15.06 ], // the backstop
+	[ - 6.93, 15.06 ],
+	[ - 14.22, 7.76 ], // third base dugout, home plate end
+	[ - 32.54, - 10.56 ], // third base dugout, far end
+	[ - 43.54, - 21.12 ],
+	[ - 52.37, - 40.3 ],
+	[ - 52.8, - 48.49 ],
+	[ - 73.06, - 69.18 ], // beside the left field foul pole
 ];
 
-// the dugouts: the stretch of the foul territory wall each takes up ([ x, z ] of its two ends, metres;
-// both are FOUL_TERRITORY points). Measured on the aerial imagery: about 92 ft long, 63 ft off the lines.
+// The dugouts: the stretch of the foul territory wall each takes up ([ x, z ] of its two ends; both are
+// FOUL_TERRITORY points). The Phillies use the first base dugout, the visitors the third base one.
 export const DUGOUTS = {
-	third: [ [ - 14.2, 11.7 ], [ - 34.7, - 7.5 ] ],
-	first: [ [ 16.4, 11.6 ], [ 34.7, - 7.6 ] ],
+	third: [ [ - 14.22, 7.76 ], [ - 32.54, - 10.56 ] ],
+	first: [ [ 14.22, 7.76 ], [ 32.54, - 10.56 ] ],
+};
+
+// The bullpens: behind the center field fence between 401 and the 398 corner, on two levels (the
+// Phillies' at field level, the visitors' above and behind it, against Ashburn Alley).
+export const BULLPENS = { depth: 9, upperRise: 2.6 };
+
+// Levels above the field (the Phillies' figures): the field is 23 ft below the street.
+export const LEVELS = {
+	mainConcourse: 23 * FT, // street level
+	suites: 36 * FT,
+	clubConcourse: 61 * FT,
+	terraceConcourse: 81 * FT,
+	roof: 134 * FT,
+	lightTowers: 165 * FT,
 };
 
 // fence points in the field frame, metres
@@ -108,7 +131,8 @@ export function fencePoint( angleDeg, distFt ) {
 // field pole, then the foul territory back round behind home plate to the left field pole
 export function fieldBoundary() {
 
-	const pts = OUTFIELD.map( ( [ a, d ] ) => fencePoint( a, d ) );
-	return pts.concat( FOUL_TERRITORY );
+	const pts = OUTFIELD.map( ( [ a, d ] ) => fencePoint( a, d ) ).concat( FOUL_TERRITORY );
+	// the steps in the fence's height repeat a point: drop the repeats
+	return pts.filter( ( p, i ) => i === 0 || Math.hypot( p[ 0 ] - pts[ i - 1 ][ 0 ], p[ 1 ] - pts[ i - 1 ][ 1 ] ) > 0.01 );
 
 }
