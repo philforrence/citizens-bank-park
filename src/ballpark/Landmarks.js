@@ -736,36 +736,92 @@ export class Landmarks {
 		// lamp posts along the Alley with a pair of vertical banners
 		const banner = canvasTexture( 256, 768, ( ctx, W, H ) => {
 
-			ctx.fillStyle = '#efe6d2';
+			// a sepia photograph: Richie Ashburn sliding in, in his pinstripes, the dust flying
+			const bg = ctx.createLinearGradient( 0, 120, 0, H );
+			bg.addColorStop( 0, '#e3d6bd' ); bg.addColorStop( 0.7, '#c9b594' ); bg.addColorStop( 1, '#a8906c' );
+			ctx.fillStyle = bg;
 			ctx.fillRect( 0, 0, W, H );
-			ctx.fillStyle = '#2e8b57';
-			ctx.fillRect( 0, 0, W, 110 );
+			ctx.save();
+			ctx.translate( W * 0.5, 430 );
+			ctx.rotate( - 0.55 );
+			const ink = ( a ) => `rgba( 74, 56, 38, ${ a } )`;
+			// the legs out in front, the body leaning back, an arm up for balance
+			ctx.fillStyle = '#efe4cf';
+			ctx.beginPath(); ctx.ellipse( 0, 0, 46, 110, 0, 0, Math.PI * 2 ); ctx.fill();
+			ctx.beginPath(); ctx.ellipse( 30, 150, 28, 110, - 0.35, 0, Math.PI * 2 ); ctx.fill();
+			ctx.beginPath(); ctx.ellipse( - 25, 160, 26, 100, 0.25, 0, Math.PI * 2 ); ctx.fill();
+			ctx.strokeStyle = ink( 0.35 ); ctx.lineWidth = 2;
+			for ( let x = - 44; x <= 44; x += 9 ) { ctx.beginPath(); ctx.moveTo( x, - 100 ); ctx.lineTo( x, 100 ); ctx.stroke(); }
+			ctx.fillStyle = ink( 0.8 );
+			ctx.beginPath(); ctx.ellipse( 44, 250, 24, 12, - 0.35, 0, Math.PI * 2 ); ctx.fill();
+			ctx.beginPath(); ctx.ellipse( - 45, 250, 22, 12, 0.25, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#b89c78';
+			ctx.beginPath(); ctx.ellipse( 0, - 135, 30, 34, 0, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = ink( 0.85 );
+			ctx.beginPath(); ctx.ellipse( 0, - 156, 32, 16, 0, Math.PI, 0 ); ctx.fill();
+			ctx.fillRect( - 32, - 158, 52, 8 );
+			ctx.strokeStyle = '#efe4cf'; ctx.lineWidth = 22; ctx.lineCap = 'round';
+			ctx.beginPath(); ctx.moveTo( - 30, - 70 ); ctx.lineTo( - 95, - 150 ); ctx.stroke();
+			ctx.beginPath(); ctx.moveTo( 30, - 60 ); ctx.lineTo( 70, 20 ); ctx.stroke();
+			ctx.fillStyle = ink( 0.8 );
+			ctx.font = 'italic 700 34px Georgia, serif';
+			ctx.textAlign = 'center';
+			ctx.fillText( 'Phillies', 0, - 40 );
+			ctx.restore();
+			// the dust
+			for ( let i = 0; i < 40; i ++ ) {
+
+				ctx.fillStyle = `rgba( 150, 120, 85, ${ 0.1 + ( i % 5 ) * 0.04 } )`;
+				ctx.beginPath(); ctx.arc( 40 + ( i * 37 ) % 180, 560 + ( i * 23 ) % 60, 6 + ( i % 4 ) * 3, 0, Math.PI * 2 ); ctx.fill();
+
+			}
+
+			// the green street-sign header
+			ctx.fillStyle = '#2e9a5a';
+			ctx.fillRect( 0, 0, W, 118 );
+			ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.strokeRect( 6, 6, W - 12, 106 );
 			ctx.fillStyle = '#ffffff';
 			ctx.textAlign = 'center';
-			ctx.font = '800 44px "Helvetica Neue", Arial, sans-serif';
-			ctx.fillText( 'ASHBURN', W / 2, 52 );
-			ctx.font = '600 32px "Helvetica Neue", Arial, sans-serif';
-			ctx.fillText( 'ALLEY', W / 2, 92 );
-			// a sepia ballplayer, sliding
-			ctx.fillStyle = '#8a6a4a';
-			ctx.beginPath(); ctx.ellipse( W * 0.55, 250, 34, 40, 0, 0, Math.PI * 2 ); ctx.fill();
-			ctx.beginPath(); ctx.moveTo( W * 0.3, 300 ); ctx.lineTo( W * 0.75, 300 ); ctx.lineTo( W * 0.85, 560 ); ctx.lineTo( W * 0.2, 600 ); ctx.fill();
-			ctx.fillStyle = '#6b4c32';
-			ctx.font = 'italic 700 40px Georgia, serif';
-			ctx.fillText( 'Phillies', W / 2, 420 );
-			ctx.fillStyle = '#0b2a5b';
-			ctx.beginPath(); ctx.moveTo( W / 2, 640 ); ctx.lineTo( W * 0.8, 690 ); ctx.lineTo( W / 2, 740 ); ctx.lineTo( W * 0.2, 690 ); ctx.fill();
+			ctx.font = '600 20px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( '1948 - 1962', W / 2, 32 );
+			ctx.font = '800 46px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'ASHBURN', W / 2, 74 );
+			ctx.font = '600 26px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'ALLEY', W / 2, 102 );
+			// the Home of the Phillies diamond at the foot
+			const dy = 700;
+			ctx.fillStyle = '#1b2a5c';
+			ctx.beginPath(); ctx.moveTo( W / 2, dy - 52 ); ctx.lineTo( W / 2 + 70, dy ); ctx.lineTo( W / 2, dy + 52 ); ctx.lineTo( W / 2 - 70, dy ); ctx.closePath(); ctx.fill();
+			ctx.fillStyle = '#2e9a5a';
+			ctx.fillRect( W / 2 - 84, dy + 6, 168, 22 );
+			ctx.fillStyle = '#ffffff';
+			ctx.font = 'italic 700 26px Georgia, serif';
+			ctx.fillText( 'Phillies', W / 2, dy - 6 );
+			ctx.font = '600 13px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'CITIZENS BANK PARK', W / 2, dy + 22 );
 
 		}, 'alleyBanner' );
 		const bannerMat = standard( { name: 'alley-banners', roughness: 0.8, side: 'double', textures: { bpBan: banner },
 			surface: 's.albedo = textureSample( bpBan, smpAnisoClamp, in.uv ).rgb * 0.8;' } );
-		const bq = new Quads();
+		const bq = new Quads(), greyPole = new Quads(), speakers = new Quads();
+		this._discMat = this._discMat || standard( { name: 'alley-lamps', color: new Color( 0.5, 0.52, 0.54 ), roughness: 0.4, metalness: 0.6,
+			surface: 'if ( in.N.y < - 0.5 ) { s.emissive = vec3f( 1.0, 0.85, 0.6 ) * mix( 0.2, 3.0, smoothstep( 0.1, 0.7, frame.night ) ); }' } );
+		this._discMat.underwaterLighting = 'none';
 		const zl = zFront + 6.5;
 		for ( let x = - 58; x <= 58; x += 12 ) {
 
 			if ( Math.abs( x + 2 ) < 5 ) continue;
-			beam( metal, [ x, STREET, zl ], [ x, STREET + 7.5, zl ], 0.16 );
-			beam( metal, [ x - 0.6, STREET + 7.4, zl ], [ x + 0.6, STREET + 7.4, zl ], 0.08 );
+			beam( greyPole, [ x, STREET, zl ], [ x, STREET + 7.5, zl ], 0.16 );
+			beam( greyPole, [ x - 0.6, STREET + 7.4, zl ], [ x + 0.6, STREET + 7.4, zl ], 0.08 );
+			// a PA horn and the three-tier disc lamp on top
+			box( speakers, [ x, STREET + 6.9, zl + 0.3 ], [ 0.4, 0.45, 0.35 ] );
+			for ( let t = 0; t < 3; t ++ ) {
+
+				const lamp = new Mesh( new CylinderGeometry( 0.28 - t * 0.05, 0.34 - t * 0.05, 0.05, 16 ), this._discMat );
+				lamp.position.set( x, STREET + 7.75 + t * 0.18, zl );
+				this.group.add( lamp );
+
+			}
 			for ( const side of [ - 1, 1 ] ) {
 
 				const bx0 = x + side * 0.12, bx1 = x + side * 1.0;
@@ -813,7 +869,9 @@ export class Landmarks {
 		fl.add( [ fx0, STREET + 0.012, zFront ], [ fx1, STREET + 0.012, zFront ], [ fx1, STREET + 0.012, zFront + 8.5 ], [ fx0, STREET + 0.012, zFront + 8.5 ], [ 0, 1, 0 ] );
 
 		const woodMat = this._alleyWood || ( this._alleyWood = standard( { name: 'picnic-wood', color: new Color( 0.3, 0.18, 0.09 ), roughness: 0.8 } ) );
-		for ( const [ g, m, name ] of [ [ q, signMat, 'alley-signs' ], [ aw, awning, 'alley-awnings' ], [ glow, kitchen, 'alley-kitchens' ], [ metal, steel, 'alley-steel' ], [ bq, bannerMat, 'alley-banners' ], [ wood, woodMat, 'picnic-tables' ], [ fl, floor, 'alley-floor' ] ] ) {
+		const greyMat = standard( { name: 'alley-poles', color: new Color( 0.26, 0.28, 0.3 ), roughness: 0.45, metalness: 0.7 } );
+		const blackMat = standard( { name: 'alley-speakers', color: new Color( 0.02, 0.02, 0.022 ), roughness: 0.6 } );
+		for ( const [ g, m, name ] of [ [ greyPole, greyMat, 'alley-poles' ], [ speakers, blackMat, 'alley-speakers' ], [ q, signMat, 'alley-signs' ], [ aw, awning, 'alley-awnings' ], [ glow, kitchen, 'alley-kitchens' ], [ metal, steel, 'alley-steel' ], [ bq, bannerMat, 'alley-banners' ], [ wood, woodMat, 'picnic-tables' ], [ fl, floor, 'alley-floor' ] ] ) {
 
 			m.underwaterLighting = 'none';
 			const mesh = new Mesh( g.geometry(), m );
