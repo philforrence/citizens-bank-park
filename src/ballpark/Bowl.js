@@ -293,6 +293,8 @@ export class Bowl {
 
 		this.upper = tiers;
 		for ( const t of tiers ) this.group.add( buildTier( t, this.ctx ) );
+		// the Hall of Fame Club's glass wall right behind its top row, the club lit inside
+		this._clubGlass( line( infieldPath, D.clubBack + 0.4 ), L.clubConcourse, t300Y + ( ( D.clubBack + 0.4 - D.t300 ) / ROW ) * 0.52 - 1.3 );
 		// the left field deck on columns from the concourse
 		const lfd = tiers.find( ( t ) => t.name === 'lf-deck' );
 		this._columns( offsetPolyline( lfd.front, 2.5, [ 0, 0 ] ), STREET, lfd.base, 9 );
@@ -878,6 +880,83 @@ export class Bowl {
 		m.castShadow = true;
 		m.receiveShadow = true;
 		this.group.add( m );
+
+	}
+
+	// A glass curtain wall along P from the floor y0 up to y1: dark bronze mullions every 1.5 m and a
+	// transom, and behind the glass a room 6 m deep (interior mapping: the view ray traced into it), its
+	// ceiling panels lit warm, dark carpet, framed pictures on the back wall.
+	_clubGlass( P, y0, y1 ) {
+
+		const q = new Quads(), mq = new Quads();
+		let u = 0;
+		for ( let i = 0; i < P.length - 1; i ++ ) {
+
+			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
+			const len = Math.hypot( bx - ax, bz - az );
+			if ( len < 0.1 ) continue;
+			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
+			if ( nx * ( ( ax + bx ) / 2 ) + nz * ( ( az + bz ) / 2 + 40 ) > 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			q.add( [ ax, y0, az ], [ bx, y0, bz ], [ bx, y1, bz ], [ ax, y1, az ], [ nx, 0, nz ], u, u + len );
+			const n = Math.max( 1, Math.round( len / 1.5 ) );
+			for ( let k = 0; k <= n; k ++ ) {
+
+				const x = ax + ( bx - ax ) * k / n, z = az + ( bz - az ) * k / n;
+				beam( mq, [ x + nx * 0.04, y0, z + nz * 0.04 ], [ x + nx * 0.04, y1, z + nz * 0.04 ], 0.07 );
+
+			}
+
+			for ( const yy of [ y0 + 0.05, y0 + 2.7, y1 - 0.05 ] ) beam( mq, [ ax + nx * 0.04, yy, az + nz * 0.04 ], [ bx + nx * 0.04, yy, bz + nz * 0.04 ], 0.07 );
+			u += len;
+
+		}
+
+		const glass = standard( { name: 'club-glass', color: new Color( 0.03, 0.035, 0.04 ), roughness: 0.06, metalness: 0.5, modules: [ commonModule ],
+			surface: /* wgsl */`
+	// the room behind: view ray into a box 6 m deep, as tall as the glass
+	let H = ${ ( y1 - y0 ).toFixed( 3 ) };
+	let N = normalize( in.N );
+	let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), N ) );
+	let Vd = normalize( in.P - frame.cameraPos );
+	let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - N ), 0.05 ) );
+	let ro = vec3f( fract( in.uv.x / 6.0 ) * 6.0 - 3.0, in.uv.y - ${ y0.toFixed( 3 ) }, 0.0 );
+	let tx = ( select( -3.0, 3.0, rd.x > 0.0 ) - ro.x ) / rd.x;
+	let ty = ( select( 0.0, H, rd.y > 0.0 ) - ro.y ) / rd.y;
+	let tz = 6.0 / rd.z;
+	let t = min( tx, min( ty, tz ) );
+	let hit = ro + rd * t;
+	var room = vec3f( 0.3, 0.25, 0.2 );
+	var lit = 0.0;
+	if ( t == ty && rd.y > 0.0 ) {
+		// the ceiling: 2 m light panels
+		let g = abs( fract( hit.xz / 2.0 ) - 0.5 );
+		lit = step( max( g.x, g.y ), 0.3 );
+		room = mix( vec3f( 0.6, 0.58, 0.54 ), vec3f( 1.0, 0.85, 0.62 ) * 3.0, lit );
+	}
+	if ( t == ty && rd.y <= 0.0 ) { room = vec3f( 0.08, 0.05, 0.05 ); }
+	if ( t == tz ) {
+		room = vec3f( 0.42, 0.34, 0.26 );
+		let f = abs( fract( ( hit.x + 1.5 ) / 3.0 ) - 0.5 ) * 3.0;
+		if ( f < 0.55 && hit.y > 1.2 && hit.y < 2.3 ) { room = vec3f( 0.05, 0.04, 0.035 ); }
+	}
+	let fres = pow( 1.0 - max( dot( - Vd, N ), 0.0 ), 3.0 );
+	s.albedo = mat.color;
+	s.emissive = room * mix( 0.12, 0.35, smoothstep( 0.1, 0.7, frame.night ) ) * ( 1.0 - fres );
+` } );
+		const mull = standard( { name: 'club-mullions', color: new Color( 0.025, 0.02, 0.017 ), roughness: 0.5, metalness: 0.5 } );
+		for ( const m of [ glass, mull ] ) m.underwaterLighting = 'none';
+		glass.setDefine( 'DRY', 1 );
+		const gm = new Mesh( q.geometry(), glass );
+		gm.name = 'club-glass';
+		this.group.add( gm );
+		const mm = new Mesh( mq.geometry(), mull );
+		mm.name = 'club-mullions';
+		this.group.add( mm );
 
 	}
 

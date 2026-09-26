@@ -262,7 +262,21 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	}
 
 	// the front wall / fascia and the back wall along the whole tier
-	if ( tier.frontWall ) wallAlong( q, secs, S0, base, tier.frontWall.top ?? ys[ 0 ], - 1 );
+	// a deck's front: a light grey precast band along the top over a maroon steel edge beam, the rest
+	// of the front set back in the shade
+	const fq = new Quads(), eq = new Quads();
+	if ( tier.frontWall ) {
+
+		const top = tier.frontWall.top ?? ys[ 0 ];
+		if ( top - base > 1.8 ) {
+
+			wallAlong( fq, secs, S0, top - 1.0, top, - 1 );
+			wallAlong( eq, secs, S0 + 0.05, top - 1.5, top - 1.0, - 1 );
+			wallAlong( q, secs, S0 + 0.3, base, top - 1.5, - 1 );
+
+		} else wallAlong( fq, secs, S0, base, top, - 1 );
+
+	}
 	if ( tier.back ) wallAlong( q, secs, S0 + tier.rows * D, ys[ ys.length - 1 ], ys[ ys.length - 1 ] + tier.back.height, 1 );
 
 	// galvanized pipe: handrails down the middle of each aisle in runs of three rows, and on an upper
@@ -370,6 +384,15 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	concrete.castShadow = true;
 	concrete.receiveShadow = true;
 	group.add( concrete );
+	for ( const [ qq, mat, nm ] of [ [ fq, materials.fascia || materials.concrete, '-front' ], [ eq, materials.edgeBeam || materials.concrete, '-edge-beam' ] ] ) {
+
+		const m = new Mesh( qq.geometry(), mat );
+		m.name = tier.name + nm;
+		m.castShadow = true;
+		m.receiveShadow = true;
+		group.add( m );
+
+	}
 
 	// seats: instanced meshes in chunks so the frustum culling can drop the ones behind you; a fan in
 	// nearly every seat (Crowd.js), its seat folded down, the empty ones folded up
@@ -527,14 +550,24 @@ ${ SOFFIT_WGSL }
 ` } );
 	// galvanized steel for the rails
 	const rail = standard( { name: 'rails', color: new Color( 0.55, 0.56, 0.57 ), roughness: 0.35, metalness: 0.8 } );
+	// the decks' fronts: light grey precast in 6 m panels with a drip groove under the top, over maroon
+	// steel edge beams
+	const fascia = standard( { name: 'deck-fascia', color: new Color( 0.58, 0.55, 0.49 ), roughness: 0.85, side: 'double',
+		surface: /* wgsl */`
+	let j = step( 0.992, fract( ( in.P.x + in.P.z ) / 6.0 ) );
+	let g = 1.0 - step( 0.9, fract( in.P.y ) ) * step( fract( in.P.y ), 0.93 );
+	s.albedo = mat.color * ( 1.0 - 0.3 * j ) * mix( 0.75, 1.0, g );
+	s.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.14;
+` } );
+	const edgeBeam = standard( { name: 'deck-edge-beam', color: new Color( 0.155, 0.024, 0.018 ), roughness: 0.55, metalness: 0.3, side: 'double' } );
 	// a portal's mouth: the dark tunnel, a lit ceiling at its top, EXIT in green over it
 	const portalMouth = standard( { name: 'portal-mouth', color: new Color( 0.012, 0.012, 0.013 ), roughness: 0.9,
 		surface: `
 	let v = in.uv.y;
 	s.emissive = vec3f( 1.0, 0.88, 0.66 ) * 0.12 * mix( 0.5, 1.0, frame.night );
 ` } );
-	for ( const m of [ concrete, seat, rail, portalMouth ] ) m.underwaterLighting = 'none';
-	return { concrete, seat, rail, portalMouth, seatGeometry: seatGeometry(), seatDownGeometry: seatGeometry( true ) };
+	for ( const m of [ concrete, seat, rail, portalMouth, fascia, edgeBeam ] ) m.underwaterLighting = 'none';
+	return { concrete, seat, rail, portalMouth, fascia, edgeBeam, seatGeometry: seatGeometry(), seatDownGeometry: seatGeometry( true ) };
 
 }
 
