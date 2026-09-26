@@ -507,10 +507,11 @@ export class Bowl {
 	// with light towers on it.
 	_roof( P, depth, y, { towers = true } = {} ) {
 
-		const steel = standard( { name: 'roof-steel', color: new Color( 0.1, 0.028, 0.028 ), roughness: 0.6, metalness: 0.4 } );
-		// the roof: pale verdigris standing-seam metal on top (seams front to back every 0.5 m), the steel
-		// deck grey underneath; a darker green fascia along its front edge
-		const deck = this._roofDeck || ( this._roofDeck = standard( { name: 'roof-deck', color: new Color( 0.3, 0.52, 0.38 ), roughness: 0.45, metalness: 0.5, side: 'double', modules: [ commonModule ],
+		const steel = standard( { name: 'roof-steel', color: new Color( 0.155, 0.024, 0.018 ), roughness: 0.55, metalness: 0.3 } );
+		// the roof: a thin flat canopy, weathered standing-seam metal on top (seams front to back every
+		// 0.5 m), galvanised ribbed deck underneath on open maroon trusses; a slim maroon edge channel with a
+		// galvanised cap along its front
+		const deck = this._roofDeck || ( this._roofDeck = standard( { name: 'roof-deck', color: new Color( 0.28, 0.33, 0.3 ), roughness: 0.45, metalness: 0.5, side: 'double', modules: [ commonModule ],
 			surface: /* wgsl */`
 	let top = in.N.y > 0.0;
 	let fw = fwidth( in.uv.x ) / 0.5;
@@ -518,12 +519,15 @@ export class Bowl {
 	let weather = 0.88 + 0.16 * mx_noise_float2( in.P.xz * 0.05 ) + 0.05 * mx_noise_float2( in.P.xz * 0.8 );
 	// underneath: ribbed metal deck, 0.3 m ribs
 	let under = 0.85 + 0.15 * step( 0.5, fract( in.uv.x / 0.3 ) ) * ( 1.0 - clamp( fw * 2.0, 0.0, 1.0 ) );
-	s.albedo = select( vec3f( 0.3, 0.3, 0.29 ) * under, mat.color * weather * ( 1.0 + 0.18 * rib ), top );
+	s.albedo = select( vec3f( 0.27, 0.275, 0.27 ) * under, mat.color * weather * ( 1.0 + 0.18 * rib ), top );
 	s.metalness = select( 0.2, 0.5, top );
+	// underneath, lit by the bounce off the bowl and its own fixtures after dark
+	if ( ! top ) { s.emissive = s.albedo * ( 0.08 + frame.night * 0.18 ); }
 ` } ) );
-		const edge = this._roofEdge || ( this._roofEdge = standard( { name: 'roof-edge', color: new Color( 0.16, 0.33, 0.24 ), roughness: 0.4, metalness: 0.5 } ) );
-		for ( const m of [ steel, deck, edge ] ) m.underwaterLighting = 'none';
-		const r = new Quads(), t = new Quads(), e = new Quads();
+		const edge = this._roofEdge || ( this._roofEdge = standard( { name: 'roof-edge', color: new Color( 0.155, 0.024, 0.018 ), roughness: 0.55, metalness: 0.3 } ) );
+		const capMat = this._roofCap || ( this._roofCap = standard( { name: 'roof-cap', color: new Color( 0.48, 0.49, 0.46 ), roughness: 0.4, metalness: 0.7 } ) );
+		for ( const m of [ steel, deck, edge, capMat ] ) m.underwaterLighting = 'none';
+		const r = new Quads(), t = new Quads(), e = new Quads(), cq = new Quads();
 		const B = offsetPolyline( P, depth, [ 0, - 40 ] );
 		let ru = 0;
 		for ( let i = 0; i < P.length - 1; i ++ ) {
@@ -531,7 +535,7 @@ export class Bowl {
 			// the deck slopes up a little toward the field
 			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
 			const len = Math.hypot( bx - ax, bz - az );
-			r.add( [ P[ i ][ 0 ], y + 0.8, P[ i ][ 1 ] ], [ P[ i + 1 ][ 0 ], y + 0.8, P[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], y, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], y, B[ i ][ 1 ] ], [ 0, 1, 0 ], ru, ru + len );
+			r.add( [ P[ i ][ 0 ], y + 0.8, P[ i ][ 1 ] ], [ P[ i + 1 ][ 0 ], y + 0.8, P[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], y + 0.65, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], y + 0.65, B[ i ][ 1 ] ], [ 0, 1, 0 ], ru, ru + len );
 			ru += len;
 			// the fascia along its front edge
 			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
@@ -541,9 +545,12 @@ export class Bowl {
 
 			}
 
-			e.add( [ ax, y - 0.6, az ], [ bx, y - 0.6, bz ], [ bx, y + 1.4, bz ], [ ax, y + 1.4, az ], [ nx, 0, nz ] );
-			e.add( [ ax, y + 1.4, az ], [ bx, y + 1.4, bz ], [ bx - nx * 0.4, y + 1.4, bz - nz * 0.4 ], [ ax - nx * 0.4, y + 1.4, az - nz * 0.4 ], [ 0, 1, 0 ] );
-			// trusses under the deck, one per ~9 m, from the back up to the front edge
+			// the edge: a 0.45 m channel with a galvanised cap
+			e.add( [ ax, y + 0.35, az ], [ bx, y + 0.35, bz ], [ bx, y + 0.8, bz ], [ ax, y + 0.8, az ], [ nx, 0, nz ] );
+			cq.add( [ ax + nx * 0.02, y + 0.8, az + nz * 0.02 ], [ bx + nx * 0.02, y + 0.8, bz + nz * 0.02 ], [ bx + nx * 0.02, y + 0.88, bz + nz * 0.02 ], [ ax + nx * 0.02, y + 0.88, az + nz * 0.02 ], [ nx, 0, nz ] );
+			cq.add( [ ax + nx * 0.02, y + 0.88, az + nz * 0.02 ], [ bx + nx * 0.02, y + 0.88, bz + nz * 0.02 ], [ bx - nx * 0.25, y + 0.88, bz - nz * 0.25 ], [ ax - nx * 0.25, y + 0.88, az - nz * 0.25 ], [ 0, 1, 0 ] );
+			// open-web maroon trusses under the deck, one per ~9 m: a top chord under the deck, a bottom
+			// chord rising from the front edge to the back, verticals and alternating diagonals between
 			const n = Math.max( 1, Math.round( len / 9 ) );
 			for ( let k = 0; k <= n; k ++ ) {
 
@@ -551,12 +558,30 @@ export class Bowl {
 				const tt = k / n;
 				const fx = ax + ( bx - ax ) * tt, fz = az + ( bz - az ) * tt;
 				const bx2 = B[ i ][ 0 ] + ( B[ i + 1 ][ 0 ] - B[ i ][ 0 ] ) * tt, bz2 = B[ i ][ 1 ] + ( B[ i + 1 ][ 1 ] - B[ i ][ 1 ] ) * tt;
-				const w = 0.25, px = - ( bz2 - fz ), pz = bx2 - fx, pl = Math.hypot( px, pz );
-				const ox = px / pl * w, oz = pz / pl * w;
-				// a deep beam: top chord under the deck, bottom chord rising from the back
-				t.add( [ fx + ox, y - 0.6, fz + oz ], [ bx2 + ox, y - 3.5, bz2 + oz ], [ bx2 + ox, y, bz2 + oz ], [ fx + ox, y + 0.8, fz + oz ], [ ox, 0, oz ] );
-				t.add( [ fx - ox, y - 0.6, fz - oz ], [ bx2 - ox, y - 3.5, bz2 - oz ], [ bx2 - ox, y, bz2 - oz ], [ fx - ox, y + 0.8, fz - oz ], [ - ox, 0, - oz ] );
-				t.add( [ fx - ox, y - 0.6, fz - oz ], [ fx + ox, y - 0.6, fz + oz ], [ bx2 + ox, y - 3.5, bz2 + oz ], [ bx2 - ox, y - 3.5, bz2 - oz ], [ 0, - 1, 0 ] );
+				const L = Math.hypot( bx2 - fx, bz2 - fz );
+				const at = ( f, yy ) => [ fx + ( bx2 - fx ) * f, yy, fz + ( bz2 - fz ) * f ];
+				const topY = ( f ) => y + 0.5 - 0.15 * f, botY = ( f ) => y - 0.6 - 2.9 * f;
+				beam( t, at( 0, topY( 0 ) ), at( 1, topY( 1 ) ), 0.22 );
+				beam( t, at( 0, botY( 0 ) ), at( 1, botY( 1 ) ), 0.22 );
+				const m = Math.max( 2, Math.round( L / 1.5 ) );
+				for ( let j = 0; j <= m; j ++ ) {
+
+					const f0 = j / m, f1 = ( j + 1 ) / m;
+					beam( t, at( f0, botY( f0 ) ), at( f0, topY( f0 ) ), 0.14 );
+					if ( j < m ) beam( t, j % 2 ? at( f0, botY( f0 ) ) : at( f0, topY( f0 ) ), j % 2 ? at( f1, topY( f1 ) ) : at( f1, botY( f1 ) ), 0.12 );
+
+				}
+
+			}
+
+			// purlins along the roof every 1.8 m back from the edge
+			const depthHere = Math.hypot( B[ i ][ 0 ] - ax, B[ i ][ 1 ] - az );
+			for ( let d = 1.8; d < depthHere - 0.5; d += 1.8 ) {
+
+				const f = d / depthHere;
+				const pa = [ ax + ( B[ i ][ 0 ] - ax ) * f, y + 0.5 - 0.15 * f + 0.05, az + ( B[ i ][ 1 ] - az ) * f ];
+				const pb = [ bx + ( B[ i + 1 ][ 0 ] - bx ) * f, y + 0.5 - 0.15 * f + 0.05, bz + ( B[ i + 1 ][ 1 ] - bz ) * f ];
+				beam( t, pa, pb, 0.13 );
 
 			}
 
@@ -576,6 +601,9 @@ export class Bowl {
 		edgeMesh.name = 'roof-edge';
 		edgeMesh.castShadow = true;
 		this.group.add( edgeMesh );
+		const capMesh = new Mesh( cq.geometry(), capMat );
+		capMesh.name = 'roof-cap';
+		this.group.add( capMesh );
 
 		// under the front edge: a continuous steel truss (a lower chord 2 m down, posts every 6 m, a
 		// zig-zag of diagonals), with sports lights and speaker cabinets hung from it
@@ -639,7 +667,7 @@ export class Bowl {
 		// light towers: masts at both ends of the roof, and a pair of broad frames rising from the street
 		// either side of the Third Base Gate and the First Base Gate, standing in the gate's stair towers at
 		// the facade, 40 m apart (Exterior: the frame gates)
-		for ( const [ x, z ] of [ B[ 0 ], B[ B.length - 1 ] ] ) this._lightTower( x, z, y, LEVELS.lightTowers );
+		for ( const [ x, z ] of [ B[ 0 ], B[ B.length - 1 ] ] ) this._lightTower( x, z, y, LEVELS.lightTowers, [ 9.5, 1.4 ] );
 		this.gateTowers = [];
 		for ( const gate of GATES.slice( 0, 2 ) ) {
 
@@ -1033,10 +1061,11 @@ ${ SOFFIT_WGSL }
 
 		}
 
-		// the cross girders and their K braces
-		for ( const f of [ 0.36, 0.68, 1.0 ] ) {
+		// the bank of lamps sits between the legs' tops; cross girders (K braced) below it and one deep
+		// girder under it
+		const BH = 7.0;
+		for ( const yy of [ h * 0.36, h * 0.62, h - BH - 0.2 ].filter( ( v ) => v > 3 ) ) {
 
-			const yy = h * f;
 			for ( const oz of [ - hd, hd ] ) {
 
 				beam( q, [ - hw + lw, yy, oz ], [ hw - lw, yy, oz ], 0.4 );
@@ -1058,29 +1087,38 @@ ${ SOFFIT_WGSL }
 		sm.castShadow = true;
 		sm.receiveShadow = true;
 		g.add( sm );
-		// the lamp bank on top (see _lightTower): wider than the portal
+		// the lamp bank between the legs' tops: a near-square frame of 8 x 7 round fixtures (dark
+		// housings, glowing lenses), tipped down toward the field
 		const bank = new Group();
-		bank.position.set( 0, h + 3.2, - 0.8 );
-		bank.rotation.x = 0.35;
-		const fq = new Quads(), lq = new Quads();
-		const BW = W + 4, BH = 5.4, cols = 14, rowsL = 4;
-		for ( const yy of [ - BH / 2, - BH / 6, BH / 6, BH / 2 ] ) beam( fq, [ - BW / 2, yy, 0.1 ], [ BW / 2, yy, 0.1 ], 0.2 );
-		for ( let i = 0; i <= 5; i ++ ) beam( fq, [ - BW / 2 + BW * i / 5, - BH / 2, 0.1 ], [ - BW / 2 + BW * i / 5, BH / 2, 0.1 ], 0.2 );
-		for ( const yy of [ - BH / 2, 0 ] ) {
+		bank.position.set( 0, h - BH / 2 + 0.3, - 0.3 );
+		bank.rotation.x = 0.25;
+		const fq = new Quads(), lq = new Quads(), hq = new Quads();
+		const BW = W - 2 * lw - 0.4, cols = 8, rowsL = 7;
+		for ( let j = 0; j <= rowsL; j ++ ) beam( fq, [ - BW / 2, - BH / 2 + BH * j / rowsL, 0.25 ], [ BW / 2, - BH / 2 + BH * j / rowsL, 0.25 ], 0.12 );
+		for ( let i = 0; i <= cols; i ++ ) beam( fq, [ - BW / 2 + BW * i / cols, - BH / 2, 0.25 ], [ - BW / 2 + BW * i / cols, BH / 2, 0.25 ], 0.12 );
+		const cw = BW / cols, rh = BH / rowsL, R = Math.min( cw, rh ) * 0.36;
+		for ( let i = 0; i < cols; i ++ ) for ( let j = 0; j < rowsL; j ++ ) {
 
-			box( fq, [ 0, yy - 0.1, 0.55 ], [ BW, 0.06, 0.9 ] );
-			beam( fq, [ - BW / 2, yy + 1.0, 1.0 ], [ BW / 2, yy + 1.0, 1.0 ], 0.05 );
+			const cx = - BW / 2 + cw * ( i + 0.5 ), cy = - BH / 2 + rh * ( j + 0.5 );
+			box( hq, [ cx, cy, 0.0 ], [ R * 2.3, R * 2.3, 0.45 ] );
+			for ( let k = 0; k < 12; k ++ ) {
+
+				const a0 = k / 12 * Math.PI * 2, a1 = ( k + 1 ) / 12 * Math.PI * 2;
+				lq.tri( [ cx, cy, - 0.24 ], [ cx + Math.cos( a1 ) * R, cy + Math.sin( a1 ) * R, - 0.24 ], [ cx + Math.cos( a0 ) * R, cy + Math.sin( a0 ) * R, - 0.24 ], [ 0, 0, - 1 ] );
+
+			}
 
 		}
 
-		const cw = ( BW - 1 ) / cols, rh = ( BH - 0.6 ) / rowsL;
-		for ( let i = 0; i < cols; i ++ ) for ( let j = 0; j < rowsL; j ++ ) box( lq, [ - BW / 2 + 0.5 + cw * ( i + 0.5 ), - BH / 2 + 0.3 + rh * ( j + 0.5 ), - 0.25 ], [ cw * 0.8, rh * 0.8, 0.45 ] );
 		const frameM = new Mesh( fq.geometry(), steel );
 		frameM.castShadow = true;
 		bank.add( frameM );
+		const housing = this._lampHousing || ( this._lampHousing = standard( { name: 'lamp-housings', color: new Color( 0.05, 0.05, 0.055 ), roughness: 0.5, metalness: 0.5 } ) );
+		housing.underwaterLighting = 'none';
+		bank.add( new Mesh( hq.geometry(), housing ) );
 		bank.add( new Mesh( lq.geometry(), lamp ) );
-		// the legs run up to it
-		for ( const sx of [ - hw, hw ] ) beam( q, [ sx, h, 0 ], [ sx, h + 1.2, - 0.8 ], 0.4 );
+		// the legs run up past it
+		for ( const sx of [ - hw, hw ] ) beam( q, [ sx, h, 0 ], [ sx, h + 0.6, 0 ], 0.5 );
 		g.add( bank );
 		this.group.add( g );
 		g.updateMatrix();
