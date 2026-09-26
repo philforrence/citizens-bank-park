@@ -99,8 +99,8 @@ export class Details2008 {
 		};
 
 		const wsMat = paint( ws, 'ws-logo' );
-		decal( wsMat, [ - 16.5, - 2.5 ], 11, 5.5, 0.38 );
-		decal( wsMat, [ 16.5, - 2.5 ], 11, 5.5, - 0.38 );
+		decal( wsMat, [ - 16.3, - 2.8 ], 9.6, 4.8, 0.38 );
+		decal( wsMat, [ 16.3, - 2.8 ], 9.6, 4.8, - 0.38 );
 		decal( paint( script, 'grass-script' ), [ 0, 9.0 ], 11.5, 3.6, 0 );
 		const od = paint( onDeck, 'on-deck' );
 		for ( const side of [ 'home', 'away' ] ) decal( od, ON_DECK[ side ], 1.55, 1.55, 0 );
@@ -429,36 +429,84 @@ function star( ctx, cx, cy, r, color ) {
 
 }
 
-// the 2008 World Series logo, drawn in its spirit: the red, white and blue banner, WORLD SERIES and 2008
+// The 2008 World Series logo as it was painted on the grass (hesb/2986447135.jpg): WORLD SERIES in cream
+// serif letters, each on a navy field that follows the letters, a white outline round the whole shape,
+// the MLB batter logo in a white frame on top and 2008 in gold on a navy pill below. Grass all round.
 function drawWorldSeriesLogo( ctx, w, h ) {
 
 	ctx.save();
-	// the banner shape
-	ctx.fillStyle = '#f2f0ea';
-	ctx.beginPath();
-	ctx.moveTo( w * 0.08, h * 0.2 ); ctx.lineTo( w * 0.92, h * 0.1 ); ctx.lineTo( w * 0.9, h * 0.82 ); ctx.lineTo( w * 0.1, h * 0.9 ); ctx.closePath();
-	ctx.fill();
-	ctx.lineWidth = 14;
-	ctx.strokeStyle = '#0c2461';
-	ctx.stroke();
-	// the batter badge
-	ctx.fillStyle = '#0c2461';
-	ctx.fillRect( w * 0.72, h * 0.14, w * 0.17, h * 0.2 );
-	ctx.fillStyle = '#c8102e';
-	ctx.fillRect( w * 0.8, h * 0.14, w * 0.09, h * 0.2 );
-	ctx.fillStyle = '#f2f0ea';
-	ctx.beginPath();
-	ctx.arc( w * 0.79, h * 0.2, h * 0.035, 0, Math.PI * 2 );
-	ctx.fill();
-	ctx.font = '900 150px "Helvetica Neue", Arial, sans-serif';
+	ctx.clearRect( 0, 0, w, h );
 	ctx.textAlign = 'center';
+	ctx.textBaseline = 'alphabetic';
+	ctx.lineJoin = 'round';
+	const lines = [
+		[ 'WORLD', `700 ${ Math.round( h * 0.27 ) }px Georgia, "Times New Roman", serif`, h * 0.47, 0.72 ],
+		[ 'SERIES', `700 ${ Math.round( h * 0.33 ) }px Georgia, "Times New Roman", serif`, h * 0.76, 0.94 ],
+	];
+	const pill = [ w * 0.34, h * 0.8, w * 0.32, h * 0.17 ];
+	const logo = [ w * 0.4, h * 0.02, w * 0.2, h * 0.17 ];
+	const shapes = ( stroke, fill, lw ) => {
+
+		ctx.strokeStyle = stroke;
+		ctx.fillStyle = fill;
+		ctx.lineWidth = lw;
+		for ( const [ t, font, y, sx ] of lines ) {
+
+			ctx.font = font;
+			ctx.save();
+			ctx.translate( w / 2, y );
+			ctx.scale( sx * w / ctx.measureText( t ).width, 1 );
+			ctx.lineWidth = lw / ( sx * w / ctx.measureText( t ).width );
+			ctx.strokeText( t, 0, 0 );
+			ctx.fillText( t, 0, 0 );
+			ctx.restore();
+
+		}
+
+		ctx.beginPath(); ctx.roundRect( pill[ 0 ] - lw / 2, pill[ 1 ] - lw / 2, pill[ 2 ] + lw, pill[ 3 ] + lw, pill[ 3 ] / 2 ); ctx.fill();
+		ctx.fillRect( logo[ 0 ] - lw / 2, logo[ 1 ] - lw / 2, logo[ 2 ] + lw, logo[ 3 ] + lw );
+
+	};
+
+	// the white outline, the navy field, then the letters
+	shapes( '#f4f2ec', '#f4f2ec', h * 0.16 );
+	shapes( '#10275f', '#10275f', h * 0.1 );
+	ctx.lineWidth = 3;
+	for ( const [ t, font, y, sx ] of lines ) {
+
+		ctx.font = font;
+		ctx.save();
+		ctx.translate( w / 2, y );
+		ctx.scale( sx * w / ctx.measureText( t ).width, 1 );
+		ctx.fillStyle = '#f1ead2';
+		ctx.fillText( t, 0, 0 );
+		ctx.strokeStyle = '#c9a44a';
+		ctx.lineWidth = 3;
+		ctx.strokeText( t, 0, 0 );
+		ctx.restore();
+
+	}
+
+	// 2008 in gold on the pill
+	ctx.font = `800 ${ Math.round( h * 0.15 ) }px Georgia, serif`;
 	ctx.textBaseline = 'middle';
-	ctx.fillStyle = '#0c2461';
-	ctx.fillText( 'WORLD', w * 0.42, h * 0.36 );
-	ctx.fillText( 'SERIES', w * 0.5, h * 0.6 );
-	ctx.fillStyle = '#c9a44a';
-	ctx.font = '900 96px "Helvetica Neue", Arial, sans-serif';
-	ctx.fillText( '2008', w * 0.5, h * 0.8 );
+	ctx.fillStyle = '#e3b23c';
+	ctx.fillText( '2008', w / 2, pill[ 1 ] + pill[ 3 ] / 2 + 2 );
+	// the MLB logo: the batter in white on red and blue
+	const [ lx, ly, lw, lh ] = logo;
+	ctx.fillStyle = '#f4f2ec';
+	ctx.fillRect( lx, ly, lw, lh );
+	ctx.fillStyle = '#1d3f8f';
+	ctx.fillRect( lx + 6, ly + 6, lw * 0.45, lh - 12 );
+	ctx.fillStyle = '#c8102e';
+	ctx.fillRect( lx + lw * 0.45 + 6, ly + 6, lw * 0.55 - 12, lh - 12 );
+	ctx.fillStyle = '#f4f2ec';
+	ctx.beginPath(); ctx.ellipse( lx + lw * 0.6, ly + lh * 0.32, lw * 0.07, lh * 0.13, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.beginPath();
+	ctx.moveTo( lx + lw * 0.3, ly + lh - 6 ); ctx.quadraticCurveTo( lx + lw * 0.45, ly + lh * 0.42, lx + lw * 0.66, ly + lh * 0.46 ); ctx.lineTo( lx + lw * 0.78, ly + lh - 6 );
+	ctx.fill();
+	ctx.fillStyle = '#f4f2ec';
+	ctx.beginPath(); ctx.arc( lx + lw * 0.2, ly + lh * 0.7, lh * 0.06, 0, Math.PI * 2 ); ctx.fill();
 	ctx.restore();
 
 }
