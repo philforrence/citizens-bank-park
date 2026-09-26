@@ -550,22 +550,72 @@ export class Landmarks {
 		ash.rotation.y = Math.PI;
 		this.group.add( ash );
 
-		// the rooftop bleachers: blue benches, seven rows up the roofs in right-center
-		const bench = standard( { name: 'rooftop-bleachers', color: new Color( 0.02, 0.05, 0.2 ), roughness: 0.5 } );
-		bench.underwaterLighting = 'none';
+		// the rooftop bleachers in right-center: seven rows of backless aluminium benches with blue plastic
+		// planks on galvanized frames, 0.4 m risers of light concrete, two stair aisles with centre
+		// handrails, a blue picket guardrail along the front and open sides
+		const concrete = standard( { name: 'rooftop-steps', color: new Color( 0.45, 0.44, 0.41 ), roughness: 0.85 } );
+		const plank = standard( { name: 'rooftop-planks', color: new Color( 0.03, 0.1, 0.45 ), roughness: 0.45 } );
+		const alum = standard( { name: 'rooftop-frames', color: new Color( 0.42, 0.44, 0.46 ), roughness: 0.4, metalness: 0.8 } );
+		const blueRail = standard( { name: 'rooftop-rail', color: new Color( 0.02, 0.05, 0.28 ), roughness: 0.45, metalness: 0.5 } );
+		for ( const m of [ concrete, plank, alum, blueRail ] ) m.underwaterLighting = 'none';
+		const cq = new Quads(), pq = new Quads(), aq = new Quads(), rq = new Quads();
+		const RD = 0.85, RR = 0.4, rows = 7;
 		for ( const [ x0, x1 ] of [ [ 2, 30 ], [ 36, 60 ] ] ) {
 
-			for ( let r = 0; r < 7; r ++ ) {
+			const y0 = STREET + Hb, zf = zBack + D - 0.2;
+			const aisles = [ x0 + ( x1 - x0 ) / 3, x0 + 2 * ( x1 - x0 ) / 3 ];
+			for ( let r = 0; r < rows; r ++ ) {
 
-				const b = new Mesh( new BoxGeometry( x1 - x0 - 1, 0.1, 0.35 ), bench );
-				b.position.set( ( x0 + x1 ) / 2, STREET + Hb + 0.45 + r * 0.32, zBack + D - 0.6 - r * 0.85 );
-				this.group.add( b );
-				const step = new Mesh( new BoxGeometry( x1 - x0 - 1, 0.32 * ( r + 1 ), 0.85 ), trim );
-				step.position.set( ( x0 + x1 ) / 2, STREET + Hb + 0.16 * ( r + 1 ), zBack + D - 0.43 - r * 0.85 );
-				step.receiveShadow = true;
-				this.group.add( step );
+				const yT = y0 + RR * ( r + 1 ), za = zf - r * RD, zb = za - RD;
+				// the tread and its riser
+				box( cq, [ ( x0 + x1 ) / 2, yT - RR / 2, ( za + zb ) / 2 ], [ x1 - x0 - 0.6, RR, RD ] );
+				// the benches between the aisles: a plank on frames every 1.8 m
+				const spans = [ [ x0 + 0.4, aisles[ 0 ] - 0.6 ], [ aisles[ 0 ] + 0.6, aisles[ 1 ] - 0.6 ], [ aisles[ 1 ] + 0.6, x1 - 0.4 ] ];
+				for ( const [ a, b ] of spans ) {
+
+					box( pq, [ ( a + b ) / 2, yT + 0.43, za - RD * 0.45 ], [ b - a, 0.05, 0.3 ] );
+					for ( let x = a + 0.2; x < b; x += 1.8 ) {
+
+						beam( aq, [ x, yT, za - RD * 0.35 ], [ x, yT + 0.41, za - RD * 0.45 ], 0.05 );
+						beam( aq, [ x, yT, za - RD * 0.6 ], [ x, yT + 0.41, za - RD * 0.45 ], 0.05 );
+
+					}
+
+				}
 
 			}
+
+			// the stair aisles' centre handrails
+			for ( const ax of aisles ) {
+
+				beam( rq, [ ax, y0 + RR + 0.9, zf ], [ ax, y0 + RR * rows + 0.9, zf - RD * ( rows - 1 ) ], 0.05 );
+				for ( let r = 0; r < rows; r += 3 ) beam( rq, [ ax, y0 + RR * ( r + 1 ), zf - RD * r ], [ ax, y0 + RR * ( r + 1 ) + 0.9, zf - RD * r ], 0.05 );
+
+			}
+
+			// the front and side guardrail: posts, top rail and pickets every 10 cm
+			const guard = ( a, b ) => {
+
+				const [ ax, ay, az ] = a, [ bx, by, bz ] = b;
+				const l = Math.hypot( bx - ax, bz - az );
+				beam( rq, [ ax, ay + 1.1, az ], [ bx, by + 1.1, bz ], 0.06 );
+				beam( rq, [ ax, ay + 0.1, az ], [ bx, by + 0.1, bz ], 0.04 );
+				for ( let t = 0; t <= 1; t += 0.1 / l ) beam( rq, [ ax + ( bx - ax ) * t, ay + ( by - ay ) * t, az + ( bz - az ) * t ], [ ax + ( bx - ax ) * t, ay + ( by - ay ) * t + 1.1, az + ( bz - az ) * t ], 0.022 );
+
+			};
+
+			guard( [ x0 + 0.3, y0, zf + 0.1 ], [ x1 - 0.3, y0, zf + 0.1 ] );
+			for ( const x of [ x0 + 0.3, x1 - 0.3 ] ) guard( [ x, y0, zf + 0.1 ], [ x, y0 + RR * rows, zf - RD * rows ] );
+
+		}
+
+		for ( const [ q, m, name ] of [ [ cq, concrete, 'rooftop-steps' ], [ pq, plank, 'rooftop-planks' ], [ aq, alum, 'rooftop-frames' ], [ rq, blueRail, 'rooftop-rails' ] ] ) {
+
+			const mesh = new Mesh( q.geometry(), m );
+			mesh.name = name;
+			mesh.castShadow = true;
+			mesh.receiveShadow = true;
+			this.group.add( mesh );
 
 		}
 
