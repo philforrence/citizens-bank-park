@@ -424,17 +424,30 @@ export class Bowl {
 	_roof( P, depth, y, { towers = true } = {} ) {
 
 		const steel = standard( { name: 'roof-steel', color: new Color( 0.1, 0.028, 0.028 ), roughness: 0.6, metalness: 0.4 } );
-		const deck = standard( { name: 'roof-deck', color: new Color( 0.42, 0.42, 0.4 ), roughness: 0.7, metalness: 0.2, side: 'double' } );
-		for ( const m of [ steel, deck ] ) m.underwaterLighting = 'none';
-		const r = new Quads(), t = new Quads();
+		// the roof: pale verdigris standing-seam metal on top (seams front to back every 0.5 m), the steel
+		// deck grey underneath; a darker green fascia along its front edge
+		const deck = this._roofDeck || ( this._roofDeck = standard( { name: 'roof-deck', color: new Color( 0.3, 0.52, 0.38 ), roughness: 0.45, metalness: 0.5, side: 'double', modules: [ commonModule ],
+			surface: /* wgsl */`
+	let top = in.N.y > 0.0;
+	let fw = fwidth( in.uv.x ) / 0.5;
+	let rib = smoothstep( 0.86, 0.95, abs( fract( in.uv.x / 0.5 ) - 0.5 ) * 2.0 ) * ( 1.0 - clamp( fw * 1.5, 0.0, 1.0 ) );
+	let weather = 0.88 + 0.16 * mx_noise_float2( in.P.xz * 0.05 ) + 0.05 * mx_noise_float2( in.P.xz * 0.8 );
+	s.albedo = select( vec3f( 0.3, 0.3, 0.29 ), mat.color * weather * ( 1.0 + 0.18 * rib ), top );
+	s.metalness = select( 0.2, 0.5, top );
+` } ) );
+		const edge = this._roofEdge || ( this._roofEdge = standard( { name: 'roof-edge', color: new Color( 0.16, 0.33, 0.24 ), roughness: 0.4, metalness: 0.5 } ) );
+		for ( const m of [ steel, deck, edge ] ) m.underwaterLighting = 'none';
+		const r = new Quads(), t = new Quads(), e = new Quads();
 		const B = offsetPolyline( P, depth, [ 0, - 40 ] );
+		let ru = 0;
 		for ( let i = 0; i < P.length - 1; i ++ ) {
 
 			// the deck slopes up a little toward the field
-			r.add( [ P[ i ][ 0 ], y + 0.8, P[ i ][ 1 ] ], [ P[ i + 1 ][ 0 ], y + 0.8, P[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], y, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], y, B[ i ][ 1 ] ], [ 0, 1, 0 ] );
-			// the fascia along its front edge
 			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
 			const len = Math.hypot( bx - ax, bz - az );
+			r.add( [ P[ i ][ 0 ], y + 0.8, P[ i ][ 1 ] ], [ P[ i + 1 ][ 0 ], y + 0.8, P[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], y, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], y, B[ i ][ 1 ] ], [ 0, 1, 0 ], ru, ru + len );
+			ru += len;
+			// the fascia along its front edge
 			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
 			if ( nx * ( ( ax + bx ) / 2 ) + nz * ( ( az + bz ) / 2 + 40 ) > 0 ) {
 
@@ -442,7 +455,8 @@ export class Bowl {
 
 			}
 
-			t.add( [ ax, y - 0.6, az ], [ bx, y - 0.6, bz ], [ bx, y + 1.4, bz ], [ ax, y + 1.4, az ], [ nx, 0, nz ] );
+			e.add( [ ax, y - 0.6, az ], [ bx, y - 0.6, bz ], [ bx, y + 1.4, bz ], [ ax, y + 1.4, az ], [ nx, 0, nz ] );
+			e.add( [ ax, y + 1.4, az ], [ bx, y + 1.4, bz ], [ bx - nx * 0.4, y + 1.4, bz - nz * 0.4 ], [ ax - nx * 0.4, y + 1.4, az - nz * 0.4 ], [ 0, 1, 0 ] );
 			// trusses under the deck, one per ~9 m, from the back up to the front edge
 			const n = Math.max( 1, Math.round( len / 9 ) );
 			for ( let k = 0; k <= n; k ++ ) {
@@ -472,6 +486,11 @@ export class Bowl {
 		trussMesh.castShadow = true;
 		trussMesh.receiveShadow = true;
 		this.group.add( trussMesh );
+		const edgeMesh = new Mesh( e.geometry(), edge );
+		edgeMesh.name = 'roof-edge';
+		edgeMesh.castShadow = true;
+		this.group.add( edgeMesh );
+		if ( towers ) this.roofBack = { line: B, y };
 
 		if ( ! towers ) return;
 		// light towers: masts at both ends of the roof, and a pair of broad frames rising from the street

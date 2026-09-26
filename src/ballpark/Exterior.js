@@ -739,6 +739,35 @@ export class Exterior {
 		const flip = ( ux * nz - uz * nx ) < 0;
 		this._wordmark( P, flip, len - 5, t.y + 1.0, 0.4, [ nx, nz ] );
 
+		// more on the roof's back edge behind home plate and behind first base, facing out
+		const rb = bowl.roofBack;
+		if ( ! rb ) return;
+		for ( const target of [ [ 0, 60 ], [ 70, 20 ] ] ) {
+
+			// the roof's back edge segment nearest the target
+			let best = null;
+			for ( let i = 0; i < rb.line.length - 1; i ++ ) {
+
+				const A = rb.line[ i ], B = rb.line[ i + 1 ], m = lerp2( A, B, 0.5 );
+				const d = segLen( m, target );
+				if ( ! best || d < best.d ) best = { d, A, B, m };
+
+			}
+
+			const { A, B, m } = best;
+			const l = segLen( A, B ), vx = ( B[ 0 ] - A[ 0 ] ) / l, vz = ( B[ 1 ] - A[ 1 ] ) / l;
+			let ox = - vz, oz = vx;
+			if ( ox * m[ 0 ] + oz * ( m[ 1 ] + 40 ) < 0 ) {
+
+				ox = - ox; oz = - oz;
+
+			}
+
+			const Q = ( s, o, y ) => [ m[ 0 ] + vx * s + ox * o, y, m[ 1 ] + vz * s + oz * o ];
+			this._wordmark( Q, ( vx * oz - vz * ox ) < 0, Math.min( 26, l - 4 ), rb.y + 0.4, - 1.5, [ ox, oz ] );
+
+		}
+
 	}
 
 	// ---------------------------------------------------------------- statues
