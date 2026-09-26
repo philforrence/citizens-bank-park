@@ -427,7 +427,7 @@ export function seatGeometry() {
 	// back (top 0.8 m up), the pan folded up in front of it, and a dark cast standard with an armrest
 	// on one side (the next seat's makes the other). Colours are per vertex: plastic blue, metal grey.
 	const q = new Quads(), col = [];
-	const BLUE = [ 0.023, 0.072, 0.296 ], GREY = [ 0.04, 0.045, 0.052 ];
+	const BLUE = [ 0.036, 0.1, 0.32 ], GREY = [ 0.04, 0.045, 0.052 ];
 	const add = ( c, ...args ) => {
 
 		q.add( ...args );
@@ -475,8 +475,18 @@ export function standsMaterials() {
 	}
 ` } );
 	// navy seats; per-instance colour carries a little fading
-	const seat = standard( { name: 'seats', color: new Color( 1, 1, 1 ), roughness: 0.5, side: 'double', vertexColors: true,
-		surface: 's.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.12;' } );
+	// each seat shades itself: the lower part of the row in the shadow of the row in front, a bright
+	// top edge on the back, a sheen on the plastic; so rows stay readable far off
+	const seat = standard( { name: 'seats', color: new Color( 1, 1, 1 ), roughness: 0.38, side: 'double', vertexColors: true,
+		varyings: { vSeatY: 'f32' },
+		vertex: 'o.vSeatY = v.position.y;',
+		surface: /* wgsl */`
+	let y = in.vs.vSeatY;
+	let ao = mix( 0.38, 1.0, smoothstep( 0.2, 0.72, y ) );
+	let rim = smoothstep( 0.74, 0.8, y ) * 0.35;
+	s.albedo = s.albedo * ao + vec3f( rim * 0.12 );
+	s.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.12;
+` } );
 	// galvanized steel for the rails
 	const rail = standard( { name: 'rails', color: new Color( 0.55, 0.56, 0.57 ), roughness: 0.35, metalness: 0.8 } );
 	// a portal's mouth: the dark tunnel, a lit ceiling at its top, EXIT in green over it
