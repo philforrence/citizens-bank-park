@@ -75,9 +75,14 @@ export class Landmarks {
 			name: 'scoreboard', roughness: 0.4, textures: { bpBoard: this.scoreboardTexture },
 			surface: /* wgsl */`
 	let t = textureSample( bpBoard, smpAnisoClamp, in.uv ).rgb;
-	// LEDs and lit panels: their own light, a little brighter after dark
+	// LEDs and lit panels: their own light, a little brighter after dark; up close the screen's pixel
+	// grid shows (fading out when the grid gets finer than the screen's pixels)
+	let px = in.uv * vec2f( 800.0, 652.0 );
+	let fw = length( fwidth( px ) );
+	let dots = 1.0 - smoothstep( 0.32, 0.5, length( fract( px ) - 0.5 ) );
+	let led = mix( 0.35 + dots * 1.1, 1.0, clamp( fw * 1.5 - 0.3, 0.0, 1.0 ) );
 	s.albedo = t * 0.06;
-	s.emissive = t * mix( 1.6, 0.55, frame.night );
+	s.emissive = t * led * mix( 1.6, 0.55, frame.night );
 `,
 		} );
 		screen.underwaterLighting = 'none';
@@ -1390,14 +1395,48 @@ function drawBoard2008( ctx, w, h, st ) {
 	ctx.shadowBlur = 16;
 	if ( v.kind === 'batter' && S.batter ) {
 
-		ctx.font = '900 360px "Helvetica Neue", Arial, sans-serif';
-		ctx.globalAlpha = 0.35;
-		ctx.fillText( S.batter.num, vx + vw * 0.72, vy + vh * 0.78 );
+		// the batter's card: a header bar, his portrait in its frame (cap and shoulders in the team's
+		// colours), the big number behind, name, number and position, and what he's done tonight
+		const cap = phi ? '#c8102e' : '#0b2a5b', trim = phi ? '#0b2a5b' : '#8fbce6';
+		ctx.shadowBlur = 0;
+		ctx.fillStyle = 'rgba( 0, 0, 0, 0.35 )';
+		ctx.fillRect( vx, vy, vw, vh * 0.16 );
+		ctx.fillStyle = '#ffffff';
+		ctx.font = '800 44px "Helvetica Neue", Arial, sans-serif';
+		ctx.textAlign = 'left';
+		ctx.fillText( 'NOW BATTING', vx + 28, vy + vh * 0.11 );
+		ctx.textAlign = 'right';
+		ctx.fillText( 'WORLD SERIES 2008', vx + vw - 28, vy + vh * 0.11 );
+		ctx.textAlign = 'center';
+		const fx = vx + vw * 0.08, fy = vy + vh * 0.22, fw = vw * 0.26, fh = vh * 0.7;
+		ctx.fillStyle = 'rgba( 255, 255, 255, 0.12 )';
+		ctx.fillRect( fx, fy, fw, fh );
+		ctx.strokeStyle = trim; ctx.lineWidth = 8; ctx.strokeRect( fx, fy, fw, fh );
+		ctx.fillStyle = '#e8eaee';
+		ctx.beginPath(); ctx.ellipse( fx + fw / 2, fy + fh * 1.02, fw * 0.46, fh * 0.34, 0, Math.PI, 0 ); ctx.fill();
+		ctx.fillStyle = '#b98a6a';
+		ctx.beginPath(); ctx.ellipse( fx + fw / 2, fy + fh * 0.44, fw * 0.2, fh * 0.2, 0, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = cap;
+		ctx.beginPath(); ctx.ellipse( fx + fw / 2, fy + fh * 0.33, fw * 0.22, fh * 0.12, 0, Math.PI, 0 ); ctx.fill();
+		ctx.fillRect( fx + fw * 0.28, fy + fh * 0.32, fw * 0.5, fh * 0.035 );
+		ctx.fillStyle = phi ? '#ffffff' : '#ffffff';
+		ctx.font = `italic 700 ${ Math.round( fh * 0.1 ) }px Georgia, serif`;
+		ctx.fillText( phi ? 'P' : 'TB', fx + fw / 2, fy + fh * 0.3 );
+		ctx.font = '900 300px "Helvetica Neue", Arial, sans-serif';
+		ctx.globalAlpha = 0.18;
+		ctx.fillText( S.batter.num, vx + vw * 0.8, vy + vh * 0.86 );
 		ctx.globalAlpha = 1;
-		ctx.font = '900 104px "Helvetica Neue", Arial, sans-serif';
-		ctx.fillText( S.batter.name, vx + vw * 0.5, vy + vh * 0.56, vw - 80 );
-		ctx.font = '700 48px "Helvetica Neue", Arial, sans-serif';
-		ctx.fillText( `#${ S.batter.num }  ·  ${ S.batter.pos }`, vx + vw * 0.5, vy + vh * 0.74 );
+		ctx.textAlign = 'left';
+		ctx.shadowBlur = 16;
+		ctx.font = '900 92px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( S.batter.name, vx + vw * 0.38, vy + vh * 0.46, vw * 0.6 );
+		ctx.font = '700 46px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( `#${ S.batter.num }   ${ S.batter.pos }`, vx + vw * 0.38, vy + vh * 0.62 );
+		ctx.font = '700 34px "Courier New", monospace';
+		ctx.fillStyle = '#ffd24a';
+		ctx.fillText( ( S.today && S.today.length ) ? 'TONIGHT: ' + S.today.slice( - 3 ).join( '  ' ) : 'FIRST AT BAT TONIGHT', vx + vw * 0.38, vy + vh * 0.8, vw * 0.6 );
+		ctx.textAlign = 'center';
+		ctx.fillStyle = '#ffffff';
 
 	} else if ( v.kind === 'final' ) {
 

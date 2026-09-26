@@ -698,24 +698,47 @@ function drawOutOfTown( ctx, w, h, st ) {
 	ctx.font = 'italic 700 38px Georgia, serif';
 	ctx.fillText( 'Graham', 87, 118, 140 );
 	ctx.fillText( 'Slam', 87, 156, 140 );
-	// cells: dark nameplates and unlit digits
-	const cell = ( x ) => {
+	// the cells: no other games during the Series, so the board shows the Series itself: each game's
+	// final (white team names, amber digits; the unlit segments faintly there), and Game 5 live
+	const amberC = '#ffab2e';
+	const seg = ( t, x, y, size, lit = true ) => {
 
-		ctx.fillStyle = '#16181c';
-		ctx.fillRect( x, 16, 150, h - 32 );
-		ctx.strokeStyle = '#2a2d33';
-		ctx.lineWidth = 3;
-		ctx.beginPath();
-		ctx.moveTo( x + 40, h / 2 ); ctx.lineTo( x + 60, h / 2 - 22 ); ctx.lineTo( x + 80, h / 2 ); ctx.lineTo( x + 60, h / 2 + 22 ); ctx.closePath();
-		ctx.stroke();
-		ctx.fillStyle = '#2b2d31';
-		ctx.font = '700 30px "Courier New", monospace';
-		ctx.fillText( '88', x + 120, 60 );
-		ctx.fillText( '88', x + 120, 140 );
+		ctx.font = `700 ${ size }px "Courier New", monospace`;
+		ctx.textAlign = 'center';
+		ctx.fillStyle = 'rgba( 255, 171, 46, 0.1 )';
+		ctx.fillText( '8'.repeat( t.length ), x, y );
+		if ( ! lit ) return;
+		ctx.fillStyle = amberC;
+		ctx.shadowColor = amberC;
+		ctx.shadowBlur = 5;
+		ctx.fillText( t, x, y );
+		ctx.shadowBlur = 0;
 
 	};
 
-	for ( let i = 0; i < 4; i ++ ) cell( 180 + i * 160 );
+	const cell = ( x, head, away, home, status ) => {
+
+		ctx.fillStyle = '#0d0e10';
+		ctx.fillRect( x, 16, 150, h - 32 );
+		ctx.fillStyle = '#e8e8e4';
+		ctx.font = '700 22px "Helvetica Neue", Arial, sans-serif';
+		ctx.textAlign = 'center';
+		ctx.fillText( head, x + 75, 40 );
+		ctx.textAlign = 'left';
+		ctx.font = '800 30px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( 'TB', x + 12, 92 );
+		ctx.fillText( 'PHI', x + 12, 146 );
+		seg( away == null ? '' : String( away ).padStart( 2, ' ' ), x + 116, 92, 36, away != null );
+		seg( home == null ? '' : String( home ).padStart( 2, ' ' ), x + 116, 146, 36, home != null );
+		ctx.fillStyle = '#e8e8e4';
+		ctx.font = '700 18px "Helvetica Neue", Arial, sans-serif';
+		ctx.textAlign = 'center';
+		ctx.fillText( status, x + 75, h - 26 );
+
+	};
+
+	const series = [ [ 'GAME 1', 2, 3, 'FINAL' ], [ 'GAME 2', 4, 2, 'FINAL' ], [ 'GAME 3', 4, 5, 'FINAL' ], [ 'GAME 4', 2, 10, 'FINAL' ] ];
+	series.forEach( ( [ hd, a, b, stt ], i ) => cell( 180 + i * 160, hd, a, b, stt ) );
 	// the count panel
 	const px = 840, pw = 520;
 	ctx.fillStyle = '#120c04';
@@ -758,7 +781,17 @@ function drawOutOfTown( ctx, w, h, st ) {
 	ctx.fillStyle = '#b3121d';
 	ctx.font = 'italic 800 44px "Helvetica Neue", Arial, sans-serif';
 	ctx.fillText( 'Majestic', px + pw + 376, h / 2 + 14 );
-	for ( let i = 0; i < 4; i ++ ) cell( 1640 + i * 160 );
+	// Game 5 live, the Series standing, and dark cells
+	const sc = st?.score;
+	cell( 1640, 'GAME 5', sc ? sc.away : 0, sc ? sc.home : 0, st ? `${ st.half === 'top' ? 'TOP' : 'BOT' } ${ st.inning }` : 'TONIGHT' );
+	ctx.fillStyle = '#0d0e10';
+	ctx.fillRect( 1800, 16, 310, h - 32 );
+	ctx.fillStyle = '#e8e8e4';
+	ctx.font = '800 30px "Helvetica Neue", Arial, sans-serif';
+	ctx.textAlign = 'center';
+	ctx.fillText( 'WORLD SERIES', 1955, 64 );
+	seg( 'PHI LEADS 3-1', 1955, 130, 34 );
+	for ( let i = 0; i < 2; i ++ ) cell( 2120 + i * 160, '', null, null, '' );
 	ctx.textAlign = 'left';
 
 }
