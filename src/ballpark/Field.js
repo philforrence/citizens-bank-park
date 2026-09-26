@@ -674,6 +674,61 @@ export class Field {
 
 		}
 
+		// each pen: a roofed bench shelter at its 398 end like a little dugout (bench, coolers), dark green
+		// chain-link along its field side, a planter of purple mums along the front of the upper tier
+		const shelterMat = standard( { name: 'pen-shelter', color: new Color( 0.012, 0.06, 0.035 ), roughness: 0.6 } );
+		const benchMat = standard( { name: 'pen-bench', color: new Color( 0.03, 0.05, 0.16 ), roughness: 0.6 } );
+		const coolerMat = standard( { name: 'pen-coolers', color: new Color( 0.7, 0.2, 0.02 ), roughness: 0.45 } );
+		const flowers = standard( { name: 'pen-flowers', color: new Color( 0.2, 0.05, 0.25 ), roughness: 0.9, modules: [ commonModule ],
+			surface: 'let n = mx_noise_float3( in.P * 6.0 ); s.albedo = mix( vec3f( 0.03, 0.09, 0.03 ), mix( mat.color, vec3f( 0.6, 0.55, 0.6 ), step( 0.55, n ) ), smoothstep( -0.1, 0.25, n ) );' } );
+		const chain = standard( { name: 'pen-chain-link', color: new Color( 0.012, 0.05, 0.03 ), roughness: 0.5, metalness: 0.5, side: 'double', alphaTest: 0.5,
+			surface: /* wgsl */`
+	let p = vec2f( in.uv.x + in.uv.y, in.uv.x - in.uv.y ) / 0.05;
+	let g = abs( fract( p ) - 0.5 );
+	let fw = fwidth( p.x );
+	s.alpha = max( step( 0.42 - fw, max( g.x, g.y ) ) * step( fw, 0.9 ), clamp( fw * 0.35, 0.0, 0.35 ) );
+` } );
+		for ( const m of [ shelterMat, benchMat, coolerMat, flowers, chain ] ) m.underwaterLighting = 'none';
+		for ( const [ y, t0 ] of [ [ 0, T0 ], [ R, T0 + D ] ] ) {
+
+			// the shelter: back wall, roof, bench, two coolers, at the far (398) end of the pen
+			const sA = S1 - 7, sB = S1 - 0.2;
+			box( shelterMat, sA, sB, t0 + D - 0.5, t0 + D - 0.2, y, y + 2.6, 'pen-shelter-back', { solid: true } );
+			box( shelterMat, sA - 0.2, sB, t0 + D - 2.6, t0 + D - 0.2, y + 2.6, y + 2.8, 'pen-shelter-roof' );
+			for ( const sp of [ sA, sB - 0.12 ] ) box( shelterMat, sp, sp + 0.12, t0 + D - 2.6, t0 + D - 2.48, y, y + 2.6, 'pen-shelter-post' );
+			box( benchMat, sA + 0.3, sB - 0.3, t0 + D - 1.0, t0 + D - 0.5, y + 0.42, y + 0.48, 'pen-bench', { walkable: true } );
+			box( coolerMat, sA + 0.4, sA + 0.9, t0 + D - 0.9, t0 + D - 0.5, y + 0.48, y + 1.0, 'pen-cooler' );
+			box( coolerMat, sB - 0.9, sB - 0.4, t0 + D - 0.9, t0 + D - 0.5, y + 0.48, y + 1.0, 'pen-cooler' );
+
+		}
+
+		// the chain-link over the fence into the lower pen, and along the front of the upper tier, with a
+		// planter of mums along the upper tier's lip
+		const cq = new Quads();
+		const fenceTop = 6 * FT;
+		const link = ( t, yB, yT ) => {
+
+			const A = at( S0, t ), B = at( S1, t );
+			cq.tri( [ A[ 0 ], yB, A[ 1 ] ], [ B[ 0 ], yB, B[ 1 ] ], [ B[ 0 ], yT, B[ 1 ] ], [ - nx, 0, - nz ], [ 0, yB ], [ S1 - S0, yB ], [ S1 - S0, yT ] );
+			cq.tri( [ A[ 0 ], yB, A[ 1 ] ], [ B[ 0 ], yT, B[ 1 ] ], [ A[ 0 ], yT, A[ 1 ] ], [ - nx, 0, - nz ], [ 0, yB ], [ S1 - S0, yT ], [ 0, yT ] );
+			for ( let s = S0; s <= S1; s += 2.4 ) {
+
+				const [ px, pz ] = at( s, t );
+				const post = new Mesh( new CylinderGeometry( 0.035, 0.035, yT - yB, 6 ), chain );
+				post.position.set( px, ( yB + yT ) / 2, pz );
+				this.group.add( post );
+
+			}
+
+		};
+
+		link( T0 - 0.2, fenceTop, fenceTop + 2.2 );
+		link( T0 + D + 0.05, R, R + 1.4 );
+		const cm = new Mesh( cq.geometry(), chain );
+		cm.name = 'pen-chain-link';
+		this.group.add( cm );
+		box( flowers, S0, S1, T0 + D + 0.1, T0 + D + 0.7, R, R + 0.5, 'pen-planter' );
+
 	}
 
 	// ---------------------------------------------------------------- dugouts
