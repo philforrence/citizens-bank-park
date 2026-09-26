@@ -60,7 +60,7 @@ export const FOOTPRINT = [
 // line 330 ft out (369 in the alley), 13'3" high, the out-of-town scoreboard built into it.
 export const OUTFIELD = [
 	[ - 45, 329, 10.5 ], // left field foul pole
-	[ - 42, 333.5, 10.5, 'mark' ], // 334
+	[ - 42, 333.5, 10.5, 'mark', 1.9 ], // 334 (painted just along the straight wall from this corner)
 	[ - 17.92, 374, 10.5, 'mark' ], // left field power alley
 	[ - 14.37, 387, 10.5, 'mark', - 1.8 ], // end of the left field wall
 	[ - 14.37, 387, 12.67 ], // Monty's Angle

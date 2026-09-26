@@ -427,7 +427,8 @@ export class Field {
 		rows.forEach( ( r, k ) => {
 
 			// the fence's direction here (from its neighbours) and the normal toward home plate
-			const prev = OUTFIELD[ Math.max( 0, r.i - 1 ) ], next = OUTFIELD[ Math.min( OUTFIELD.length - 1, r.i + 1 ) ];
+			// along the segment the number sits on (the chord through a corner when it's centred on one)
+			const prev = OUTFIELD[ r.shift > 0 ? r.i : Math.max( 0, r.i - 1 ) ], next = OUTFIELD[ r.shift < 0 ? r.i : Math.min( OUTFIELD.length - 1, r.i + 1 ) ];
 			const [ px, pz ] = fencePoint( prev[ 0 ], prev[ 1 ] ), [ qx, qz ] = fencePoint( next[ 0 ], next[ 1 ] );
 			const len = Math.hypot( qx - px, qz - pz );
 			const tx = ( qx - px ) / len, tz = ( qz - pz ) / len;

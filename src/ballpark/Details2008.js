@@ -243,19 +243,69 @@ export class Details2008 {
 		const at = ( i ) => fencePoint( OUTFIELD[ i ][ 0 ], OUTFIELD[ i ][ 1 ] );
 		const P334 = at( 1 ), P387 = at( 3 );
 		const along = ( t ) => [ P334[ 0 ] + ( P387[ 0 ] - P334[ 0 ] ) * t, P334[ 1 ] + ( P387[ 1 ] - P334[ 1 ] ) * t ];
+		// in order from the pole (hesb/2986448333.jpg): the World Series on FOX, Bud Light, the Winter
+		// Classic's JANUARY 1 2009 shield, the 374 marker, Southwest, then 387
+		const panel = ( draw, label ) => {
+
+			const tex = canvasTexture( 1024, 384, draw, label );
+			const m = standard( { name: 'wall-ad', roughness: 0.7, textures: { bpAd: tex }, surface: 's.albedo = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb * 0.8;' } );
+			m.underwaterLighting = 'none';
+			return m;
+
+		};
+
 		const ads = [
-			[ 0.09, 0.21, 'W.B. MASON', 'Who but W.B. Mason', '#f5c400', '#12203f' ],
-			[ 0.23, 0.35, 'WORLD SERIES', 'on FOX', '#0b3a8e', '#ffffff' ],
-			[ 0.37, 0.51, 'Bud Light', 'The Difference is Drinkability', '#0a4aa8', '#ffffff' ],
-			[ 0.53, 0.67, 'MLB NETWORK', 'January 1, 2009', '#1b1f5c', '#e6e8f0' ],
-			[ 0.79, 0.95, 'SOUTHWEST', 'AIRLINES', '#243a8c', '#f2c230' ],
+			[ 0.05, 0.27, panel( ( ctx, w, h ) => {
+
+				ctx.fillStyle = '#1b2a5c'; ctx.fillRect( 0, 0, w, h );
+				ctx.save(); ctx.translate( w * 0.06, h * 0.08 ); drawWorldSeriesLogo( ctx, w * 0.55, h * 0.84 ); ctx.restore();
+				ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+				ctx.font = 'italic 600 54px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'on', w * 0.72, h * 0.5 );
+				ctx.font = 'italic 900 150px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'FOX', w * 0.86, h * 0.52 );
+
+			}, 'adWS' ) ],
+			[ 0.31, 0.53, panel( ( ctx, w, h ) => {
+
+				const g = ctx.createLinearGradient( 0, 0, w, 0 );
+				g.addColorStop( 0, '#1f5faf' ); g.addColorStop( 1, '#0b3a80' );
+				ctx.fillStyle = g; ctx.fillRect( 0, 0, w, h );
+				// the photo inset: a cold can on ice
+				ctx.fillStyle = '#9fc4e8'; ctx.fillRect( w * 0.72, h * 0.08, w * 0.24, h * 0.84 );
+				ctx.fillStyle = '#e8eef5'; ctx.fillRect( w * 0.79, h * 0.2, w * 0.1, h * 0.62 );
+				ctx.fillStyle = '#1f5faf'; ctx.fillRect( w * 0.79, h * 0.42, w * 0.1, h * 0.12 );
+				ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+				ctx.font = 'italic 800 130px Georgia, serif'; ctx.fillText( 'Bud Light', w * 0.36, h * 0.4, w * 0.62 );
+				ctx.font = '800 44px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'DRINKABILITY', w * 0.36, h * 0.78 );
+
+			}, 'adBud' ) ],
+			[ 0.57, 0.79, panel( ( ctx, w, h ) => {
+
+				const g = ctx.createLinearGradient( 0, 0, 0, h );
+				g.addColorStop( 0, '#3a2e6e' ); g.addColorStop( 1, '#1b1846' );
+				ctx.fillStyle = g; ctx.fillRect( 0, 0, w, h );
+				// the Winter Classic shield
+				const cx = w * 0.2, cy = h * 0.5;
+				ctx.fillStyle = '#e8e6f0';
+				ctx.beginPath(); ctx.moveTo( cx - 90, cy - 120 ); ctx.lineTo( cx + 90, cy - 120 ); ctx.lineTo( cx + 90, cy + 20 ); ctx.quadraticCurveTo( cx + 80, cy + 100, cx, cy + 140 ); ctx.quadraticCurveTo( cx - 80, cy + 100, cx - 90, cy + 20 ); ctx.closePath(); ctx.fill();
+				ctx.fillStyle = '#1b1846'; ctx.font = '900 40px Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+				ctx.fillText( 'WINTER', cx, cy - 50 ); ctx.fillText( 'CLASSIC', cx, cy + 5 );
+				ctx.fillStyle = '#ffffff'; ctx.font = '900 96px "Helvetica Neue", Arial, sans-serif';
+				ctx.fillText( 'JANUARY 1', w * 0.64, h * 0.4 );
+				ctx.fillText( '2009', w * 0.64, h * 0.72 );
+
+			}, 'adWinter' ) ],
+			[ 0.885, 0.985, panel( ( ctx, w, h ) => {
+
+				ctx.fillStyle = '#ffffff'; ctx.fillRect( 0, 0, w, h );
+				ctx.fillStyle = '#304cb2'; ctx.fillRect( 0, h * 0.84, w, h * 0.16 );
+				ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+				ctx.fillStyle = '#c8102e'; ctx.font = 'italic 900 150px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'SOUTHWEST', w / 2, h * 0.36, w - 40 );
+				ctx.fillStyle = '#304cb2'; ctx.font = '800 90px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'AIRLINES', w / 2, h * 0.66 );
+
+			}, 'adSouthwest' ) ],
 		];
 		const H = 10.5 * FT - 0.3;
-		for ( const [ t0, t1, big, small, bg, fg ] of ads ) {
-
-			this._fencePanel( along( t0 ), along( t1 ), 0.35, H, adMaterial( big, small, bg, fg ) );
-
-		}
+		for ( const [ t0, t1, mat ] of ads ) this._fencePanel( along( t0 ), along( t1 ), 0.35, H, mat );
 
 		// Toyota down both lines on the padded wall in foul territory, beyond the dugouts
 		const toyota = adMaterial( 'TOYOTA', 'Moving Forward', '#d4141f', '#ffffff' );
