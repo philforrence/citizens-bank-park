@@ -190,7 +190,7 @@ export class BallparkApp {
 
 			this.localLights.add( {
 				position, dir, color: new Color( 1.0, 0.97, 0.9 ), intensity: 3000, range: 380,
-				cosInner: Math.cos( MathUtils.degToRad( 28 ) ), cosOuter: Math.cos( MathUtils.degToRad( 55 ) ), kind: 'stadium', priority: 0,
+				cosInner: Math.cos( MathUtils.degToRad( 34 ) ), cosOuter: Math.cos( MathUtils.degToRad( 78 ) ), kind: 'stadium', priority: 0,
 			} );
 
 		}

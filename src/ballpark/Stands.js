@@ -5,8 +5,8 @@ import { beam } from './geo.js';
 
 // Seating tiers, built the way real stands are: the front edge is a polyline of straight sections;
 // each section's rows are straight and parallel to its front, rising step by step away from the
-// field. Where sections meet at an angle the rows are mitred on the inside of the turn, and an aisle
-// runs between every pair of sections (it widens toward the back where the bowl turns outward).
+// field. Where sections meet at an angle the rows are mitred on the corner's bisector, and an aisle
+// runs between every pair of sections.
 //
 //   buildTier( tier, { toWorld, colliders, materials } ) -> Group
 //
@@ -139,12 +139,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			return [ s0, s1 ];
 
 		};
-		const seatEnds = ( d ) => {
-
-			const s0 = Math.min( len, Math.max( 0, S.m0 ) * d ), s1 = Math.max( s0, len - Math.max( 0, S.m1 ) * d );
-			return [ s0, s1 ];
-
-		};
+		// seats run out to the corner's bisector too, where the rows open out as well as where they
+		// converge (a narrow aisle there, not a wedge of bare steps)
+		const seatEnds = ( d ) => ends( d );
 
 		const at = ( s, d ) => [ a[ 0 ] + ux * s + nx * d, a[ 1 ] + uz * s + nz * d ];
 		const yawSeat = Math.atan2( - nx, - nz ); // seats face the field (-n)
@@ -390,9 +387,22 @@ export function seatGeometry() {
 
 export function standsMaterials() {
 
-	const concrete = standard( { name: 'stands-concrete', color: new Color( 0.32, 0.31, 0.29 ), roughness: 0.85 } );
+	// after dark the bowl is lit by the towers and the concourse lights: a fill the spots alone don't
+	// give (stronger on what faces up), and light fixtures in every soffit
+	const concrete = standard( { name: 'stands-concrete', color: new Color( 0.32, 0.31, 0.29 ), roughness: 0.85,
+		surface: /* wgsl */`
+	let nk = smoothstep( 0.15, 0.7, frame.night );
+	s.emissive = s.albedo * nk * ( 0.22 + 0.18 * max( in.N.y, 0.0 ) );
+	if ( in.N.y < - 0.6 ) {
+		let g = abs( fract( in.P.xz / 5.0 ) - 0.5 );
+		let fx = 1.0 - smoothstep( 0.04, 0.06, max( g.x, g.y * 2.5 ) );
+		s.emissive += vec3f( 1.0, 0.86, 0.62 ) * fx * nk * 2.5;
+		s.emissive += vec3f( 1.0, 0.8, 0.55 ) * nk * 0.05;
+	}
+` } );
 	// navy seats; per-instance colour carries a little fading
-	const seat = standard( { name: 'seats', color: new Color( 0.008, 0.017, 0.075 ), roughness: 0.55, side: 'double' } );
+	const seat = standard( { name: 'seats', color: new Color( 0.013, 0.036, 0.13 ), roughness: 0.38, side: 'double',
+		surface: 's.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.45;' } );
 	// galvanized steel for the rails
 	const rail = standard( { name: 'rails', color: new Color( 0.55, 0.56, 0.57 ), roughness: 0.35, metalness: 0.8 } );
 	for ( const m of [ concrete, seat, rail ] ) m.underwaterLighting = 'none';

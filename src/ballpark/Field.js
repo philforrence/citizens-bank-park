@@ -873,10 +873,11 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	let mb = sign( sin( b * PI / cell ) );
 	let da = vec2f( ${ f( r2 ) }, ${ f( - r2 ) } );
 	let db = vec2f( ${ f( - r2 ) }, ${ f( - r2 ) } );
-	var mow = 1.0 + 0.14 * ma * dot( Vf, da ) + 0.14 * mb * dot( Vf, db );
+	var mow = 1.0 + 0.2 * ma * dot( Vf, da ) + 0.2 * mb * dot( Vf, db );
 	// the infield grass: finer stripes along the line to second base
-	if ( square ) { mow = 1.0 + 0.12 * sign( sin( ( p.x ) * PI / ${ f( 5 * FT ) } ) ) * Vf.x; }
-	var col = vec3f( 0.045, 0.13, 0.028 ) * mow * ( 0.88 + 0.16 * n1 ) * ( 0.92 + 0.1 * n2 ) * ( 0.94 + 0.08 * n3 );
+	if ( square ) { mow = 1.0 + 0.16 * sign( sin( ( p.x ) * PI / ${ f( 5 * FT ) } ) ) * Vf.x; }
+	// Kentucky bluegrass in October: a bright, yellowish green
+	var col = vec3f( 0.068, 0.19, 0.03 ) * mow * ( 0.88 + 0.16 * n1 ) * ( 0.92 + 0.1 * n2 ) * ( 0.94 + 0.08 * n3 );
 	var rough = 0.95;
 	if ( dirt ) {
 		col = vec3f( 0.52, 0.27, 0.14 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );

@@ -169,7 +169,9 @@ export class Bowl {
 	let fw = max( fwidth( in.uv.x ), fwidth( in.uv.y ) ) / 0.045;
 	let strand = smoothstep( 0.5 - 0.06 - fw, 0.5 - 0.06 + fw, max( m.x, m.y ) );
 	// far away the strands blur into a faint veil (their share of the cell)
-	let coverage = mix( 0.12, strand, clamp( 1.0 - fw * 2.0, 0.0, 1.0 ) );
+	// (only resolve the strands when a cell spans a dozen pixels: coarser, they beat against the pixel
+	// grid into big blotches, worst through the zoomed TV cameras)
+	let coverage = mix( 0.12, strand, clamp( 1.5 - fw * 6.0, 0.0, 1.0 ) );
 	s.alpha = coverage * 0.8;
 `,
 		} );
