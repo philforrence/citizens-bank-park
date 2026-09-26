@@ -1,8 +1,11 @@
 name: Deploy to GitHub Pages
 
+# Publishes every stage (git tags step-1, step-2, ...) as its own playable copy, plus a page listing
+# them: see tools/build-stages.mjs
 on:
   push:
     branches: [ main ]
+    tags: [ 'step-*' ]
   workflow_dispatch:
 
 permissions:
@@ -19,16 +22,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the stage tags and their trees
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - run: git fetch --force --tags
+      - run: npm run stages
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: stages
 
   deploy:
     needs: build
