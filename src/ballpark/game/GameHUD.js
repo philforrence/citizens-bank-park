@@ -5,7 +5,8 @@ import { ordinal } from './Director.js';
 // over the whole game with the innings marked, and switches for the radio call and the ballpark sound.
 //
 // Keys (when the mouse isn't captured, or any time): K play / pause, , and . previous / next batter,
-// - and = slower / faster, B radio on / off, G hide the panel.
+// - and = slower / faster, B radio on / off, G hide the panel; C (or the camera button) steps through
+// the TV cameras.
 
 const CSS = `
 .gm-hud { position: fixed; left: 50%; bottom: 14px; transform: translateX( -50% ); width: min( 760px, calc( 100vw - 32px ) );
@@ -41,8 +42,9 @@ const CSS = `
 
 export class GameHUD {
 
-	constructor( { director, game, radio, sound } ) {
+	constructor( { director, game, radio, sound, app } ) {
 
+		this.app = app;
 		this.d = director;
 		this.g = game;
 		this.radio = radio;
@@ -72,6 +74,7 @@ export class GameHUD {
 					<button data-a="speed" title="Speed ( - / = )">1×</button>
 					<div class="gm-track"><input type="range" min="0" step="0.1" data-k="slider"><div class="gm-ticks" data-k="ticks"></div></div>
 					<div class="gm-time" data-k="time"></div>
+					<button data-a="camera" title="Camera: walk, center field, high home, follow the ball ( C )">🎥</button>
 					<button data-a="radio" title="Radio call on / off ( B )">📻</button>
 					<button data-a="sound" title="Ballpark sound on / off">🔊</button>
 				</div>
@@ -155,6 +158,7 @@ export class GameHUD {
 		if ( a === 'radio' && this.radio ) this.radio.muted = ! this.radio.muted;
 		if ( a === 'sound' && this.sound ) this.sound.setMuted( ! this.sound.muted );
 		if ( a === 'hide' ) this.el.hidden = ! this.el.hidden;
+		if ( a === 'camera' && this.app ) this.app.cycleCamera();
 		this.refresh( true );
 
 	}
@@ -164,7 +168,7 @@ export class GameHUD {
 		const d = this.d, g = this.g, n = d.now;
 		if ( ! n ) return;
 		const s = n.snap, P = g.players;
-		const key = [ d.t.toFixed( 1 ), d.playing, d.speed, this.radio?.muted, this.sound?.muted ].join();
+		const key = [ d.t.toFixed( 1 ), d.playing, d.speed, this.radio?.muted, this.sound?.muted, this.app?.camMode ].join();
 		if ( ! force && key === this._last ) return;
 		this._last = key;
 		this.$( 'away' ).textContent = s.score.away;
@@ -184,6 +188,7 @@ export class GameHUD {
 		this.el.querySelector( '[data-a="speed"]' ).textContent = `${ d.speed }×`;
 		this.el.querySelector( '[data-a="radio"]' ).classList.toggle( 'off', !! this.radio?.muted );
 		this.el.querySelector( '[data-a="sound"]' ).classList.toggle( 'off', !! this.sound?.muted );
+		this.el.querySelector( '[data-a="camera"]' ).classList.toggle( 'off', ( this.app?.camMode || 'walk' ) === 'walk' );
 		const inn = `${ s.half === 'top' ? 'Top' : 'Bot' } ${ ordinal( s.inning ) }`;
 		this.$( 'time' ).textContent = `${ inn } · ${ fmt( d.t ) }`;
 

@@ -393,7 +393,23 @@ export class BallparkApp {
 	// right. ?weather=off turns it off.
 	_weather() {
 
-		if ( this.qs.get( 'weather' ) === 'off' ) return;
+		const F = this.field;
+		// the flags: a breeze by default; the replay's nights were windy (the 27th a rainstorm out of the
+		// north-west, the 29th cold, blowing 20-30 mph)
+		const flagWind = ( wx, wz, k ) => {
+
+			const a = F.toField( wx, wz ), o = F.toField( 0, 0 );
+			this.landmarks.flags?.setWind( ( a.x ?? a[ 0 ] ) - ( o.x ?? o[ 0 ] ), ( a.z ?? a[ 1 ] ) - ( o.z ?? o[ 1 ] ), k );
+
+		};
+
+		if ( this.qs.get( 'weather' ) === 'off' ) {
+
+			flagWind( 1, 0.6, 0.35 );
+			return;
+
+		}
+
 		const d = this.director;
 		const seg = d.segmentAt( d.t );
 		const { inning, half } = seg.snap;
@@ -404,6 +420,7 @@ export class BallparkApp {
 		const wet = firstNight ? 0.35 + 0.65 * k : 0.25;
 		this.rain.amount = rain;
 		this.rain.material.uniforms.wind.value.set( firstNight ? 1.2 : 0, firstNight ? 0.8 : 0 );
+		flagWind( 1.2, 0.8, firstNight ? 0.5 + 0.2 * k : 0.9 );
 		this.field.surfaceMaterial.uniforms.wet.value = wet;
 		this.sound.setRain( rain );
 		if ( this.clouds ) this.clouds.coverage.value = firstNight ? 0.85 + 0.12 * k : 0.55;

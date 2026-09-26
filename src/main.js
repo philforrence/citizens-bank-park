@@ -19,7 +19,7 @@ window.__ui = ui;
 app.init( ( p, text, until ) => ui.setLoading( p, text, until ) ).then( async () => {
 
 	app.ui = new AppUI( app, ui );
-	if ( app.director ) app.gameHUD = new ( await import( './ballpark/game/GameHUD.js' ) ).GameHUD( { director: app.director, game: app.director.game, radio: app.radio, sound: app.sound } );
+	if ( app.director ) app.gameHUD = new ( await import( './ballpark/game/GameHUD.js' ) ).GameHUD( { director: app.director, game: app.director.game, radio: app.radio, sound: app.sound, app } );
 	ui.setLoading( 1, 'Ready' );
 	await ui.hideLoader();
 	// frame-time benchmark and reference shots (see core/Bench.js): it drives the frames itself

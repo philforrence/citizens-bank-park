@@ -1,4 +1,4 @@
-import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, TubeGeometry, CatmullRomCurve3, Vector3, Color } from '../engine/index.js';
+import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, TubeGeometry, CatmullRomCurve3, BufferGeometry, Float32BufferAttribute, Vector3, Color } from '../engine/index.js';
 import { figure } from './Exterior.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
@@ -412,20 +412,8 @@ export class Landmarks {
 
 		}
 
-		// flagpoles behind center field
-		const flag = standard( { name: 'flags', color: new Color( 0.5, 0.05, 0.06 ), roughness: 0.8, side: 'double' } );
-		flag.underwaterLighting = 'none';
-		for ( let i = 0; i < 6; i ++ ) {
-
-			const x = - 20 + i * 8, z = zBack + 1;
-			const pole = new Mesh( new CylinderGeometry( 0.08, 0.12, 24, 8 ), trim );
-			pole.position.set( x, STREET + Hb + 12, z );
-			this.group.add( pole );
-			const f = new Mesh( new BoxGeometry( 2.4, 1.5, 0.03 ), flag );
-			f.position.set( x + 1.25, STREET + Hb + 22.8, z );
-			this.group.add( f );
-
-		}
+		// flagpoles behind center field: the flags wave in the wind (see Flags)
+		this.flags = new Flags( this.group, [ - 20, - 12, - 4, 4, 12, 20 ].map( ( x, i ) => ( { x, z: zBack + 1, y0: STREET + Hb, h: [ 19, 22, 26, 22, 19, 17 ][ i ] } ) ), trim );
 
 	}
 
@@ -809,5 +797,234 @@ function drawBoard2008( ctx, w, h, st ) {
 	ctx.fillStyle = '#9aa3ad';
 	ctx.font = '600 24px "Helvetica Neue", Arial, sans-serif';
 	ctx.fillText( 'PHILIPS', vx + vw / 2, h - 14 );
+
+}
+
+// ---------------------------------------------------------------- flags
+
+// The flags over Ashburn Alley on their poles: the Stars and Stripes on the tallest, Pennsylvania,
+// Philadelphia, the Phillies, the ballpark's and the 2007 National League East champions' pennant. The
+// cloth is moved in the vertex shader: it streams downwind and ripples, hanging slack as the wind drops.
+// `wind` is [ x, z ] (field frame, the way it blows) and a strength 0..1.
+const FLAG_ROWS = 6;
+
+class Flags {
+
+	constructor( parent, poles, poleMat ) {
+
+		const L = 3.0, H = 1.9, NU = 18, NV = 8;
+		const tex = canvasTexture( 512, 320 * FLAG_ROWS / 2, ( ctx, w, h ) => {
+
+			const rh = h / FLAG_ROWS;
+			const draws = [ drawPA, drawUS, drawBallpark, drawPhilly, drawPhillies, drawPennant ];
+			draws.forEach( ( f, i ) => {
+
+				ctx.save();
+				ctx.translate( 0, i * rh );
+				ctx.beginPath(); ctx.rect( 0, 0, w, rh ); ctx.clip();
+				f( ctx, w, rh );
+				ctx.restore();
+
+			} );
+
+		}, 'flags' );
+		const pos = [], local = [], pole = [], index = [];
+		// which flag on which pole, left to right: PA, Philadelphia, the US flag (the tallest), the Phillies,
+		// the ballpark, the pennant
+		const rows = [ 0, 3, 1, 4, 2, 5 ];
+		poles.forEach( ( P, k ) => {
+
+			const top = P.y0 + P.h - 0.3;
+			const base = pos.length / 3;
+			const big = k === 2 ? 1.3 : 1;
+			for ( let j = 0; j <= NV; j ++ ) for ( let i = 0; i <= NU; i ++ ) {
+
+				pos.push( P.x, top, P.z );
+				local.push( i / NU * L * big, j / NV * H * big, rows[ k ], k );
+				pole.push( P.x, top, P.z );
+
+			}
+
+			for ( let j = 0; j < NV; j ++ ) for ( let i = 0; i < NU; i ++ ) {
+
+				const a = base + j * ( NU + 1 ) + i;
+				index.push( a, a + 1, a + NU + 2, a, a + NU + 2, a + NU + 1 );
+
+			}
+
+			// the pole, and a gold ball on top
+			const m = new Mesh( new CylinderGeometry( 0.07, 0.13, P.h, 8 ), poleMat );
+			m.position.set( P.x, P.y0 + P.h / 2, P.z );
+			m.castShadow = true;
+			parent.add( m );
+			const ball = new Mesh( new SphereGeometry( 0.14, 10, 8 ), this.gold || ( this.gold = standard( { name: 'flag-finial', color: new Color( 0.5, 0.36, 0.1 ), roughness: 0.3, metalness: 1 } ) ) );
+			ball.position.set( P.x, P.y0 + P.h + 0.1, P.z );
+			parent.add( ball );
+
+		} );
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		g.setAttribute( 'normal', new Float32BufferAttribute( pos.map( () => 0 ), 3 ) );
+		g.setAttribute( 'aLocal', new Float32BufferAttribute( local, 4 ) );
+		g.setIndex( index );
+		g.computeBoundingBox();
+		g.boundingBox.expandByScalar( 6 );
+		g.computeBoundingSphere();
+		g.boundingSphere.radius += 6;
+		this.material = standard( {
+			name: 'flag-cloth', roughness: 0.85, side: 'double', textures: { bpFlags: tex },
+			uniforms: { wind: [ 'vec3f', new Vector3( 0.7, 0.7, 0.3 ) ] },
+			attributes: { aLocal: 'vec4f' },
+			varyings: { vUV: 'vec2f' },
+			vertex: /* wgsl */`
+	let along = v.aLocal.x; let down = v.aLocal.y; let row = v.aLocal.z; let k = v.aLocal.w;
+	let big = select( 1.0, 1.3, k > 1.5 && k < 2.5 );
+	let Lf = ${ L.toFixed( 2 ) } * big; let Hf = ${ H.toFixed( 2 ) } * big;
+	let W = normalize( vec3f( mat.wind.x, 0.0, mat.wind.y ) + vec3f( 1e-4, 0.0, 0.0 ) );
+	let N = vec3f( - W.z, 0.0, W.x );
+	let t = frame.time;
+	// gusts, a little different on each pole
+	let w = clamp( mat.wind.z * ( 0.85 + 0.15 * sin( t * 0.7 + k ) + 0.1 * sin( t * 1.9 + k * 2.1 ) ), 0.0, 1.0 );
+	let f = along / Lf;
+	// ripples running out to the fly end, bigger there; slack cloth hangs and folds
+	let ph = t * ( 3.0 + 7.0 * w ) - along * ( 2.4 + 1.2 * w ) + k * 1.7;
+	let amp = f * ( 0.12 + 0.3 * w ) + 0.05;
+	let side = amp * sin( ph ) + 0.06 * f * sin( ph * 1.9 + down * 2.5 );
+	let dSide = - amp * cos( ph ) * ( 2.4 + 1.2 * w ) + ( 0.12 + 0.3 * w ) / Lf * sin( ph );
+	let reach = mix( 0.5, 0.97, w );
+	let droop = mix( 0.55, 0.03, w ) * f * f * Lf;
+	let lp = v.position + W * along * reach - vec3f( 0.0, down + droop, 0.0 ) + N * side;
+	let n = normalize( N - W * dSide );
+	v.useWorld = true;
+	v.worldPos = ( v.model * vec4f( lp, 1.0 ) ).xyz;
+	v.worldNormal = normalize( ( v.model * vec4f( n, 0.0 ) ).xyz );
+	v.prevWorldPos = v.worldPos;
+	o.vUV = vec2f( f, ( row + down / Hf ) / ${ FLAG_ROWS }.0 );
+`,
+			surface: /* wgsl */`
+	let c = textureSample( bpFlags, smpAnisoClamp, in.vs.vUV ).rgb;
+	s.albedo = c * 0.8;
+	// floodlit after dark
+	s.emissive = c * 0.12 * smoothstep( 0.2, 0.8, frame.night );
+`,
+		} );
+		this.material.underwaterLighting = 'none';
+		const mesh = new Mesh( g, this.material );
+		mesh.name = 'flags';
+		mesh.castShadow = true;
+		mesh.frustumCulled = false;
+		parent.add( mesh );
+
+	}
+
+	// the way it blows, field frame [ x, z ], and its strength 0..1
+	setWind( x, z, strength ) {
+
+		this.material.uniforms.wind.value.set( x, z, strength );
+
+	}
+
+}
+
+function drawBallpark( ctx, w, h ) {
+
+	ctx.fillStyle = '#f7f5ef';
+	ctx.fillRect( 0, 0, w, h );
+	ctx.fillStyle = '#1a9a50';
+	ctx.beginPath(); ctx.arc( w * 0.5, h * 0.36, h * 0.2, 0, Math.PI * 2 ); ctx.fill();
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.font = '800 40px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( 'Citizens Bank Park', w / 2, h * 0.76, w - 30 );
+
+}
+
+function drawUS( ctx, w, h ) {
+
+	for ( let i = 0; i < 13; i ++ ) {
+
+		ctx.fillStyle = i % 2 ? '#f4f2ec' : '#b31942';
+		ctx.fillRect( 0, i * h / 13, w, h / 13 + 1 );
+
+	}
+
+	ctx.fillStyle = '#0a3161';
+	ctx.fillRect( 0, 0, w * 0.4, h * 7 / 13 );
+	ctx.fillStyle = '#f4f2ec';
+	for ( let r = 0; r < 9; r ++ ) for ( let c = 0; c < ( r % 2 ? 5 : 6 ); c ++ ) {
+
+		ctx.beginPath();
+		ctx.arc( w * 0.4 * ( ( c + ( r % 2 ? 1 : 0.5 ) ) / 6 ), h * 7 / 13 * ( ( r + 0.6 ) / 9.4 ), 2.6, 0, Math.PI * 2 );
+		ctx.fill();
+
+	}
+
+}
+
+function drawPA( ctx, w, h ) {
+
+	ctx.fillStyle = '#12296b';
+	ctx.fillRect( 0, 0, w, h );
+	// the coat of arms: a shield between two horses, an eagle on top
+	ctx.fillStyle = '#c9a857';
+	ctx.beginPath(); ctx.ellipse( w / 2, h * 0.5, w * 0.1, h * 0.2, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#6b4a2a';
+	for ( const s of [ - 1, 1 ] ) {
+
+		ctx.beginPath(); ctx.ellipse( w / 2 + s * w * 0.15, h * 0.5, w * 0.05, h * 0.16, s * 0.3, 0, Math.PI * 2 ); ctx.fill();
+
+	}
+
+	ctx.fillStyle = '#3a2a1a';
+	ctx.beginPath(); ctx.ellipse( w / 2, h * 0.24, w * 0.06, h * 0.05, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#b01f24';
+	ctx.fillRect( w * 0.36, h * 0.74, w * 0.28, h * 0.05 );
+
+}
+
+function drawPhilly( ctx, w, h ) {
+
+	// the city's flag: blue, yellow, blue, with the coat of arms in the middle
+	ctx.fillStyle = '#5a9bd6';
+	ctx.fillRect( 0, 0, w, h );
+	ctx.fillStyle = '#f2cc2f';
+	ctx.fillRect( w / 3, 0, w / 3, h );
+	ctx.fillStyle = '#5a9bd6';
+	ctx.beginPath(); ctx.ellipse( w / 2, h / 2, w * 0.08, h * 0.16, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#f7f3e3';
+	ctx.fillRect( w * 0.47, h * 0.4, w * 0.06, h * 0.2 );
+
+}
+
+function drawPhillies( ctx, w, h ) {
+
+	ctx.fillStyle = '#f7f5ef';
+	ctx.fillRect( 0, 0, w, h );
+	ctx.save();
+	ctx.translate( w / 2, h / 2 );
+	ctx.rotate( - 0.1 );
+	ctx.font = 'italic 700 92px Georgia, serif';
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillStyle = '#d01c2c';
+	ctx.fillText( 'Phillies', 0, 6, w - 40 );
+	ctx.restore();
+
+}
+
+function drawPennant( ctx, w, h ) {
+
+	ctx.fillStyle = '#f7f5ef';
+	ctx.fillRect( 0, 0, w, h );
+	ctx.strokeStyle = '#c8102e';
+	ctx.lineWidth = 12;
+	ctx.strokeRect( 8, 8, w - 16, h - 16 );
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillStyle = '#0b2a5b';
+	ctx.font = '900 64px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( '2007', w / 2, h * 0.38 );
+	ctx.font = '800 26px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( 'NL EAST CHAMPIONS', w / 2, h * 0.7, w - 40 );
 
 }
