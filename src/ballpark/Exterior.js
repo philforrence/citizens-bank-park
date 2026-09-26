@@ -519,18 +519,24 @@ export class Exterior {
 		// the front fascia: maroon with the gate's name in the middle, lit after dark
 		const tex = canvasTexture( 4096, 128, ( ctx, w, h ) => {
 
-			ctx.fillStyle = '#3a0f0c';
+			ctx.fillStyle = '#5a2328';
 			ctx.fillRect( 0, 0, w, h );
-			ctx.fillStyle = 'rgba( 255, 255, 255, 0.06 )';
-			ctx.fillRect( 0, 0, w, 10 ); ctx.fillRect( 0, h - 10, w, 10 );
-			ctx.fillStyle = '#f4f1ea';
-			ctx.font = '800 76px "Helvetica Neue", Helvetica, Arial, sans-serif';
+			ctx.fillStyle = 'rgba( 255, 255, 255, 0.07 )';
+			ctx.fillRect( 0, 0, w, 8 ); ctx.fillRect( 0, h - 8, w, 8 );
+			// white channel letters with a red outline
+			ctx.font = '800 84px "Helvetica Neue", Helvetica, Arial, sans-serif';
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
-			ctx.fillText( g.name.split( '' ).join( String.fromCharCode( 8202 ) ), w / 2, h / 2 + 4 );
+			ctx.lineJoin = 'round';
+			const t = g.name.split( '' ).join( String.fromCharCode( 8202 ) );
+			ctx.lineWidth = 9;
+			ctx.strokeStyle = '#c8102e';
+			ctx.strokeText( t, w / 2, h / 2 + 4 );
+			ctx.fillStyle = '#fff5e8';
+			ctx.fillText( t, w / 2, h / 2 + 4 );
 
 		}, 'gateSign' );
-		const signMat = standard( { name: 'gate-sign', roughness: 0.5, textures: { bpSign: tex }, surface: 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.75; s.emissive = t * step( 0.6, t.r ) * smoothstep( 0.1, 0.7, frame.night ) * 1.2;' } );
+		const signMat = standard( { name: 'gate-sign', roughness: 0.5, textures: { bpSign: tex }, surface: 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.75; s.emissive = t * step( 0.5, t.g ) * smoothstep( 0.1, 0.7, frame.night ) * 1.6;' } );
 		signMat.underwaterLighting = 'none';
 		// seen from outside (facing -n), left to right runs along -u if u x n points down
 		const flip = ( ux * nz - uz * nx ) < 0;
@@ -546,63 +552,132 @@ export class Exterior {
 		const lw = Math.min( 16, W * 0.55 ), lh = lw / 10;
 		this._wordmark( ( s, o, y ) => P( s, o, y ), flip, lw, top + 0.15, out - 1.0, [ nx, nz ] );
 
-		// the gates: bar panels across the opening, alternately fixed (with the round sign) and open
+		// the gate line: one continuous run of galvanized welded-wire mesh, 3 m, across the whole opening,
+		// with turnstile lanes through it (a tripod turnstile and a round white scanner on a post in each)
 		const fence = this.fenceMat || ( this.fenceMat = standard( {
-			name: 'gate-bars', color: new Color( 0.78, 0.8, 0.8 ), roughness: 0.4, metalness: 0.6, alphaTest: 0.5, side: 'double',
+			name: 'gate-mesh', color: new Color( 0.4, 0.42, 0.43 ), roughness: 0.4, metalness: 0.7, alphaTest: 0.5, side: 'double',
 			surface: /* wgsl */`
-	// uv: x along the fence (m), y height (m): bars every 12 cm, rails at the foot, the middle and the top
-	let fb = fwidth( in.uv.x ) / 0.12;
-	let bar = smoothstep( 0.4 - fb, 0.42, abs( fract( in.uv.x / 0.12 ) - 0.5 ) );
-	let rail = step( abs( in.uv.y - 0.12 ), 0.06 ) + step( abs( in.uv.y - 1.6 ), 0.05 ) + step( in.uv.y, 3.3 ) * step( 3.18, in.uv.y );
-	s.alpha = max( max( bar, clamp( fb * 0.6, 0.0, 0.6 ) ), clamp( rail, 0.0, 1.0 ) );
+	// uv: x along the fence (m), y height (m): wires every 5 cm across, every 20 cm up, a frame
+	let fx = fwidth( in.uv.x ) / 0.05;
+	let fy = fwidth( in.uv.y ) / 0.2;
+	let vw = smoothstep( 0.38 - fx, 0.42, abs( fract( in.uv.x / 0.05 ) - 0.5 ) );
+	let hw = smoothstep( 0.44 - fy, 0.47, abs( fract( in.uv.y / 0.2 ) - 0.5 ) );
+	let frame = step( in.uv.y, 0.08 ) + step( 2.93, in.uv.y ) + step( abs( in.uv.y - 2.3 ), 0.04 );
+	s.alpha = max( max( max( vw, hw ), clamp( max( fx, fy ) * 0.5, 0.0, 0.55 ) ), clamp( frame, 0.0, 1.0 ) );
 ` } ) );
 		fence.underwaterLighting = 'none';
-		const bq = new Quads(), dq = new Quads();
-		const H = 3.3, panel = 2.2, door = 2.8;
-		const n = Math.max( 1, Math.floor( ( W - panel ) / ( panel + door ) ) );
-		const used = n * ( panel + door ) + panel, s0 = - used / 2;
-		const bars = ( A, B ) => {
+		const bq = new Quads(), dq = new Quads(), post = new Quads();
+		const H = 3.0, LANE = 1.4, BAY = 3.6;
+		const mesh = ( s1, s2, ya, yb ) => {
 
-			const l = Math.hypot( B[ 0 ] - A[ 0 ], B[ 2 ] - A[ 2 ] );
-			bq.tri( A, B, [ B[ 0 ], y0 + H, B[ 2 ] ], [ nx, 0, nz ], [ 0, 0 ], [ l, 0 ], [ l, H ] );
-			bq.tri( A, [ B[ 0 ], y0 + H, B[ 2 ] ], [ A[ 0 ], y0 + H, A[ 2 ] ], [ nx, 0, nz ], [ 0, 0 ], [ l, H ], [ 0, H ] );
+			const A = P( s1, 0, y0 + ya ), B = P( s2, 0, y0 + ya ), l = Math.abs( s2 - s1 );
+			bq.tri( A, B, [ B[ 0 ], y0 + yb, B[ 2 ] ], [ nx, 0, nz ], [ 0, ya ], [ l, ya ], [ l, yb ] );
+			bq.tri( A, [ B[ 0 ], y0 + yb, B[ 2 ] ], [ A[ 0 ], y0 + yb, A[ 2 ] ], [ nx, 0, nz ], [ 0, ya ], [ l, yb ], [ 0, yb ] );
 
 		};
 
-		const fixed = ( s1, s2 ) => {
+		const n = Math.max( 1, Math.floor( W / BAY ) );
+		const s0 = - n * BAY / 2;
+		// the ends out to the brick
+		for ( const [ a, b ] of [ [ - W / 2, s0 ], [ s0 + n * BAY, W / 2 ] ] ) if ( b - a > 0.05 ) {
 
-			bars( P( s1, 0, y0 ), P( s2, 0, y0 ) );
-			const c = P( ( s1 + s2 ) / 2, 0, 0 ), w = this.field.toWorld( c[ 0 ], c[ 2 ] );
-			this.colliders.addBox( new Vector3( w.x, this.field.y0 + y0 + H / 2, w.z ), new Vector3( ( s2 - s1 ) / 2, H / 2, 0.1 ), this.field.group.rotation.y - Math.atan2( uz, ux ), { tag: 'gate' } );
-			// the round sign on the panel, both faces
+			mesh( a, b, 0, H );
+			const c = P( ( a + b ) / 2, 0, 0 ), w = this.field.toWorld( c[ 0 ], c[ 2 ] );
+			this.colliders.addBox( new Vector3( w.x, this.field.y0 + y0 + H / 2, w.z ), new Vector3( ( b - a ) / 2, H / 2, 0.1 ), this.field.group.rotation.y - Math.atan2( uz, ux ), { tag: 'gate' } );
+
+		}
+
+		for ( let k = 0; k < n; k ++ ) {
+
+			const a = s0 + k * BAY, l0 = a + ( BAY - LANE ) / 2, l1 = l0 + LANE, b = a + BAY;
+			// mesh either side of the lane, and over it above head height
+			mesh( a, l0, 0, H );
+			mesh( l1, b, 0, H );
+			mesh( l0, l1, 2.3, H );
+			for ( const [ p0, p1 ] of [ [ a, l0 ], [ l1, b ] ] ) {
+
+				const c = P( ( p0 + p1 ) / 2, 0, 0 ), w = this.field.toWorld( c[ 0 ], c[ 2 ] );
+				this.colliders.addBox( new Vector3( w.x, this.field.y0 + y0 + H / 2, w.z ), new Vector3( ( p1 - p0 ) / 2, H / 2, 0.1 ), this.field.group.rotation.y - Math.atan2( uz, ux ), { tag: 'gate' } );
+
+			}
+
+			// the turnstile: a post by the lane's edge with three arms, and the scanner on its own post
+			const tp = l0 + 0.18;
+			beam( post, P( tp, 0, y0 ), P( tp, 0, y0 + 1.0 ), 0.22 );
+			for ( let r = 0; r < 3; r ++ ) {
+
+				const ang = r * Math.PI * 2 / 3;
+				beam( post, P( tp, 0, y0 + 0.95 ), P( tp + 0.5 * Math.cos( ang ) * 0.8 + 0.1, - 0.5 * Math.sin( ang ), y0 + 0.95 - 0.3 * Math.abs( Math.cos( ang ) ) ), 0.04 );
+
+			}
+
+			const sp = l1 - 0.2;
+			beam( post, P( sp, - 0.4, y0 ), P( sp, - 0.4, y0 + 1.05 ), 0.06 );
 			for ( const side of [ 1, - 1 ] ) {
 
-				const cx = ( s1 + s2 ) / 2, o = side * 0.04, r = 0.32, yc = y0 + 2.2;
-				for ( let k = 0; k < 16; k ++ ) {
+				const o = - 0.4 + side * 0.02, r = 0.15, yc = y0 + 1.2;
+				for ( let q = 0; q < 16; q ++ ) {
 
-					const a0 = k / 16 * Math.PI * 2, a1 = ( k + 1 ) / 16 * Math.PI * 2;
-					dq.tri( P( cx, o, yc ), P( cx + Math.cos( a0 ) * r, o, yc + Math.sin( a0 ) * r ), P( cx + Math.cos( a1 ) * r, o, yc + Math.sin( a1 ) * r ), [ nx * side, 0, nz * side ] );
+					const a0 = q / 16 * Math.PI * 2, a1 = ( q + 1 ) / 16 * Math.PI * 2;
+					dq.tri( P( sp, o, yc ), P( sp + Math.cos( a0 ) * r, o, yc + Math.sin( a0 ) * r ), P( sp + Math.cos( a1 ) * r, o, yc + Math.sin( a1 ) * r ), [ nx * side, 0, nz * side ] );
 
 				}
 
 			}
 
-		};
+		}
 
-		// the wall's ends out to the fence, then panel, open door (its leaf swung in), panel ...
-		fixed( - W / 2, s0 );
-		fixed( s0 + used, W / 2 );
-		for ( let k = 0; k <= n; k ++ ) {
+		// globe lights hung under the canopy
+		const globe = this.globeMat || ( this.globeMat = standard( { name: 'canopy-globes', color: new Color( 0.9, 0.88, 0.8 ), roughness: 0.3,
+			surface: 's.emissive = vec3f( 1.0, 0.85, 0.6 ) * mix( 0.3, 3.0, smoothstep( 0.1, 0.7, frame.night ) );' } ) );
+		globe.underwaterLighting = 'none';
+		const ng = 8;
+		for ( let k = 0; k < ng; k ++ ) {
 
-			const p0 = s0 + k * ( panel + door );
-			fixed( p0, p0 + panel );
-			if ( k < n ) bars( P( p0 + panel, 0, y0 ), P( p0 + panel, - door * 0.95, y0 ) );
+			const sk = - W / 2 + W * ( k + 0.5 ) / ng;
+			const gp = P( sk, out - 1.6, under - 0.45 );
+			const gm = new Mesh( new SphereGeometry( 0.2, 12, 8 ), globe );
+			gm.position.set( gp[ 0 ], gp[ 1 ], gp[ 2 ] );
+			this.group.add( gm );
+			beam( post, P( sk, out - 1.6, under - 0.25 ), P( sk, out - 1.6, under ), 0.03 );
+
+		}
+
+		const pm = new Mesh( post.geometry(), this.metal || ( this.metal = standard( { name: 'plaza-steel', color: new Color( 0.3, 0.31, 0.32 ), roughness: 0.45, metalness: 0.7 } ) ) );
+		this.metal.underwaterLighting = 'none';
+		pm.name = 'turnstiles';
+		pm.castShadow = true;
+		this.group.add( pm );
+
+		// the glass block over the Third Base Gate, between the stair towers: tinted curtain wall on the
+		// concourse levels with a band of louvres on top, lit inside after dark
+		if ( /THIRD/.test( g.name ) ) {
+
+			const gl = this.gateGlass || ( this.gateGlass = standard( { name: 'gate-glass', color: new Color( 0.11, 0.2, 0.26 ), roughness: 0.08, metalness: 0.5, modules: [ commonModule ],
+				surface: /* wgsl */`
+	let u = in.uv.x; let v = in.uv.y;
+	let mull = step( abs( fract( u / 1.5 ) - 0.5 ), 0.03 ) + step( abs( fract( v / 2.3 ) - 0.5 ), 0.025 );
+	let louvre = step( 7.0, v );
+	var c = mix( mat.color, vec3f( 0.12, 0.04, 0.035 ), clamp( mull, 0.0, 1.0 ) );
+	if ( louvre > 0.5 ) { c = vec3f( 0.6, 0.61, 0.62 ) * ( 0.75 + 0.25 * step( 0.5, fract( v / 0.2 ) ) ); }
+	s.albedo = c;
+	s.roughness = select( 0.08, 0.5, louvre > 0.5 || mull > 0.5 );
+	s.emissive = vec3f( 1.0, 0.85, 0.62 ) * ( 1.0 - clamp( mull + louvre, 0.0, 1.0 ) ) * smoothstep( 0.1, 0.7, frame.night ) * ( 0.25 + 0.2 * step( 0.5, fract( v / 3.5 ) ) );
+` } ) );
+			gl.underwaterLighting = 'none';
+			const gq = new Quads();
+			const o = - 7.5 + 3.3, ga = STREET + 7.0, gb = STREET + 15.2, half2 = W / 2 + 1.2;
+			gq.tri( P( sL === half ? half2 : - half2, o, ga ), P( sL === half ? - half2 : half2, o, ga ), P( sL === half ? - half2 : half2, o, gb ), [ nx, 0, nz ], [ 0, 0 ], [ 2 * half2, 0 ], [ 2 * half2, gb - ga ] );
+			gq.tri( P( sL === half ? half2 : - half2, o, ga ), P( sL === half ? - half2 : half2, o, gb ), P( sL === half ? half2 : - half2, o, gb ), [ nx, 0, nz ], [ 0, 0 ], [ 2 * half2, gb - ga ], [ 0, gb - ga ] );
+			const gm = new Mesh( gq.geometry(), gl );
+			gm.name = 'gate-glass';
+			this.group.add( gm );
 
 		}
 
 		if ( /THIRD|FIRST/.test( g.name ) ) for ( const side of [ - 1, 1 ] ) this._stairTower( P, side * ( W / 2 + 5.5 ), - 7.5, [ nx, nz ] );
 		const bm = new Mesh( bq.geometry(), fence );
-		bm.name = 'gate-bars';
+		bm.name = 'gate-mesh';
 		bm.castShadow = true;
 		this.group.add( bm );
 		const disc = this.discMat || ( this.discMat = standard( { name: 'gate-disc', color: new Color( 0.85, 0.85, 0.82 ), roughness: 0.5 } ) );
@@ -737,7 +812,7 @@ export class Exterior {
 
 		const P = ( s, o, y ) => [ c[ 0 ] + ux * s + nx * o, y, c[ 1 ] + uz * s + nz * o ];
 		const flip = ( ux * nz - uz * nx ) < 0;
-		this._wordmark( P, flip, len - 5, t.y + 1.0, 0.4, [ nx, nz ] );
+		this._wordmark( P, flip, len + 5, t.y + 1.6, 0.4, [ nx, nz ] );
 
 		// more on the roof's back edge behind home plate and behind first base, facing out
 		const rb = bowl.roofBack;
