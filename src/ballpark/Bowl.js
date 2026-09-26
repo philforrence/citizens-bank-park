@@ -704,6 +704,15 @@ export class Bowl {
 
 		}
 
+		// platforms every ~10 m on the big ones, a ladder cage up one corner
+		if ( big ) for ( let yy = 10; yy < h - 4; yy += 10 ) {
+
+			box( q, [ 0, yy, 0 ], [ W + 0.8, 0.08, Dp + 0.8 ] );
+			beam( q, [ - hw - 0.4, yy + 1.0, - hd - 0.4 ], [ hw + 0.4, yy + 1.0, - hd - 0.4 ], 0.05 );
+			beam( q, [ - hw - 0.4, yy + 1.0, hd + 0.4 ], [ hw + 0.4, yy + 1.0, hd + 0.4 ], 0.05 );
+
+		}
+
 		// the cage round the lights on the big ones
 		if ( big ) {
 

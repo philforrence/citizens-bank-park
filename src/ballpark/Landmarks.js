@@ -33,7 +33,7 @@ export class Landmarks {
 		for ( const [ a, d ] of [ [ 36, 440 ] ] ) {
 
 			const [ x, z ] = fencePoint( a, d );
-			bowl._lightTower( x, z, STREET, LEVELS.lightTowers );
+			bowl._lightTower( x, z, STREET, LEVELS.lightTowers, [ 6, 6 ] );
 
 		}
 
@@ -291,7 +291,7 @@ export class Landmarks {
 		g.add( frame );
 		g.updateMatrix();
 		const tw = new Vector3( cx, 0, 4.2 ).applyMatrix4( g.matrix );
-		this.bowl._lightTower( tw.x, tw.z, STREET, LEVELS.lightTowers );
+		this.bowl._lightTower( tw.x, tw.z, STREET, LEVELS.lightTowers + 6, [ 7, 5 ] );
 		const ads = [ [ 'TOYOTA', '#e00d1d', '#ffffff' ], [ 'Choose Blue.', '#1b5eb8', '#ffffff' ], [ 'W.B. MASON', '#d71920', '#ffffff' ], [ 'Budweiser', '#c8102e', '#ffffff' ] ];
 		const adTex = canvasTexture( 512, 192 * 4, ( ctx, w ) => {
 
