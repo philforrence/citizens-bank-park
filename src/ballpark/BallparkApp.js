@@ -26,7 +26,7 @@ import { Colliders } from '../world/Colliders.js';
 import { DryWater, DRY_LEVEL } from './DryWater.js';
 import { Ground } from './Ground.js';
 import { Field } from './Field.js';
-import { Bowl } from './Bowl.js';
+import { Bowl, offsetPolyline } from './Bowl.js';
 import { Exterior, GATES } from './Exterior.js';
 import { Surroundings } from './Surroundings.js';
 import { Landmarks } from './Landmarks.js';
@@ -45,7 +45,7 @@ import { Radio } from './game/Radio.js';
 import { GameSound } from './game/GameSound.js';
 import { Rain } from './game/Rain.js';
 import { GAME } from './data/game-2008-ws5.js';
-import { FOOTPRINT } from './layout.js';
+import { FOOTPRINT, LEVELS } from './layout.js';
 import { Walker } from './Walker.js';
 
 const _up = new Vector3( 0, 1, 0 );
@@ -312,6 +312,32 @@ export class BallparkApp {
 
 	}
 
+	// a camera position hung 1.2 m out from the club level's front rail, nearest the field point (x, z)
+	_clubCameraSpot( x, z ) {
+
+		const b = this.bowl;
+		const line = offsetPolyline( b.path, b.D.club - 1.2, [ 0, - 40 ] );
+		let best = null, bd = Infinity;
+		for ( let i = 0; i < line.length - 1; i ++ ) {
+
+			const [ ax, az ] = line[ i ], [ bx, bz ] = line[ i + 1 ];
+			const dx = bx - ax, dz = bz - az;
+			const t = Math.max( 0, Math.min( 1, ( ( x - ax ) * dx + ( z - az ) * dz ) / ( dx * dx + dz * dz || 1 ) ) );
+			const px = ax + dx * t, pz = az + dz * t, d = Math.hypot( px - x, pz - z );
+			if ( d < bd ) {
+
+				bd = d;
+				best = [ px, pz ];
+
+			}
+
+		}
+
+		const clubY = LEVELS.clubConcourse - ( 8 - 1 ) * 0.46 - 0.2;
+		return [ best[ 0 ], clubY + 2.2, best[ 1 ] ];
+
+	}
+
 	_broadcastCamera( dt ) {
 
 		const F = this.field, d = this.director;
@@ -347,8 +373,10 @@ export class BallparkApp {
 
 		} else {
 
-			// following: from high behind the third base side, turning to the ball
-			eye = at( - 36, 24, 36 );
+			// following: the high-third camera, on a platform just out from the front of the Hall of Fame
+			// Club (the 200 level) behind the third base dugout, turning to the ball
+			if ( ! this._followEye ) this._followEye = this._clubCameraSpot( - 30, - 2 );
+			eye = at( ...this._followEye );
 			const aim = ball ? [ ball[ 0 ], ball[ 1 ], ball[ 2 ] ] : [ 0, 1, - 12 ];
 			if ( seg.kind === 'celebrate' ) aim.splice( 0, 3, 0, 1, - 18 );
 			target = at( aim[ 0 ], aim[ 1 ], aim[ 2 ] );
