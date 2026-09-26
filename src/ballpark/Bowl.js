@@ -124,7 +124,48 @@ export class Bowl {
 			aisle: 1.2,
 		};
 
-		return [ infield, leftField, rightField ];
+		// the corners round the foul poles: a fan of rows around each pole from the end of the foul-line
+		// seats to the start of the outfield seats (the rows face the pole)
+		const corner = ( name, P, nA, nB ) => {
+
+			let a0 = Math.atan2( nA[ 1 ], nA[ 0 ] ), a1 = Math.atan2( nB[ 1 ], nB[ 0 ] );
+			// the short way round
+			while ( a1 - a0 > Math.PI ) a1 -= 2 * Math.PI;
+			while ( a0 - a1 > Math.PI ) a1 += 2 * Math.PI;
+			const N = 6, r0 = 1.2, front = [];
+			for ( let i = 0; i <= N; i ++ ) {
+
+				const a = a0 + ( a1 - a0 ) * i / N;
+				front.push( [ P[ 0 ] + Math.cos( a ) * r0, P[ 1 ] + Math.sin( a ) * r0 ] );
+
+			}
+
+			const rows = 29, y0 = 1.4;
+			return { name, front, outward: P, start: 0, y0, rows, depth: FROW, rise: ( STREET - 0.05 - y0 ) / ( rows - 1 ), section: 9, aisle: 1.1 };
+
+		};
+
+		// the normal of a front polyline's end segment, pointing away from `away`
+		const endNormal = ( A, B, away ) => {
+
+			const l = Math.hypot( B[ 0 ] - A[ 0 ], B[ 1 ] - A[ 1 ] );
+			let nx = - ( B[ 1 ] - A[ 1 ] ) / l, nz = ( B[ 0 ] - A[ 0 ] ) / l;
+			if ( nx * ( A[ 0 ] - away[ 0 ] ) + nz * ( A[ 1 ] - away[ 1 ] ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			return [ nx, nz ];
+
+		};
+
+		const F = FOUL_TERRITORY;
+		const L = F.length - 1;
+		const cornerLF = corner( 'corner-lf', F[ L ], endNormal( F[ L - 1 ], F[ L ], [ 0, - 40 ] ), endNormal( lf[ 0 ], lf[ 1 ], [ 0, 0 ] ) );
+		const cornerRF = corner( 'corner-rf', F[ 0 ], endNormal( rf[ rf.length - 2 ], rf[ rf.length - 1 ], [ 0, 0 ] ), endNormal( F[ 0 ], F[ 1 ], [ 0, - 40 ] ) );
+
+		return [ infield, leftField, rightField, cornerLF, cornerRF ];
 
 	}
 
@@ -738,11 +779,12 @@ export class Bowl {
 	// the top of the field level seats from right field round behind home plate to left field.
 	_pitOutline() {
 
-		const [ inf, lf, rf ] = this.tiers;
+		const [ inf, lf, rf, cLF, cRF ] = this.tiers;
 		const back = ( t ) => offsetPolyline( t.front, ( t.start || 0 ) + t.rows * t.depth, t.outward );
 		const cf = offsetPolyline( this._fenceLine( 3, 8 ), 7, [ 0, 0 ] ); // 387 .. 401: the batter's eye
 		const pens = offsetPolyline( this._fenceLine( 8, 9 ), 0.5 + 2 * BULLPENS.depth + 0.4, [ 0, 0 ] );
-		const pts = [ ...back( lf ), ...cf, ...pens, ...back( rf ), ...back( inf ) ];
+		// round the back of the corner fans too (the right one runs from the outfield seats to the foul line)
+		const pts = [ ...back( lf ), ...cf, ...pens, ...back( rf ), ...back( cRF ), ...back( inf ), ...back( cLF ) ];
 		// drop near-duplicates
 		return pts.filter( ( p, i ) => Math.hypot( p[ 0 ] - pts[ ( i + pts.length - 1 ) % pts.length ][ 0 ], p[ 1 ] - pts[ ( i + pts.length - 1 ) % pts.length ][ 1 ] ) > 0.05 );
 
