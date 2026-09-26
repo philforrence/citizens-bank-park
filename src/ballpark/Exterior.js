@@ -60,8 +60,11 @@ export class Exterior {
 	let bay = fract( u / 7.5 ) * 7.5;
 	let row = floor( v / 0.075 );
 	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
-	let mortar = clamp( step( 0.88, fract( v / 0.075 ) ) + step( 0.93, fract( bu ) ), 0.0, 1.0 );
-	let tone = 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	// the courses fade to their average where they get finer than a pixel (no moire)
+	let fr = clamp( fwidth( v ) / 0.075 * 1.5 - 0.25, 0.0, 1.0 );
+	let fb = clamp( fwidth( bu ) * 1.5 - 0.25, 0.0, 1.0 );
+	let mortar = clamp( mix( step( 0.88, fract( v / 0.075 ) ), 0.12, fr ) + mix( step( 0.93, fract( bu ) ), 0.07, max( fb, fr ) ), 0.0, 1.0 );
+	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, max( fr, fb ) );
 	var c = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
 	var rough = 0.85;
 	let opening = bay > 1.3 && bay < 7.2 && v > 0.9 && v < 4.7;
@@ -91,11 +94,49 @@ export class Exterior {
 	let u = select( in.P.x, in.P.z, N.x > N.z );
 	let row = floor( in.P.y / 0.075 );
 	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
-	let mortar = clamp( step( 0.88, fract( in.P.y / 0.075 ) ) + step( 0.93, fract( bu ) ), 0.0, 1.0 );
-	let tone = 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	let fr = clamp( fwidth( in.P.y ) / 0.075 * 1.5 - 0.25, 0.0, 1.0 );
+	let fb = clamp( fwidth( bu ) * 1.5 - 0.25, 0.0, 1.0 );
+	let mortar = clamp( mix( step( 0.88, fract( in.P.y / 0.075 ) ), 0.12, fr ) + mix( step( 0.93, fract( bu ) ), 0.07, max( fb, fr ) ), 0.0, 1.0 );
+	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, max( fr, fb ) );
 	s.albedo = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
 `,
 		} );
+		// the storeys over the base: brick with punched windows on a 3.75 m rhythm, cast-stone sills, a
+		// string course at each floor; offices lit behind them after dark
+		this.brickUpper = standard( {
+			name: 'facade-upper', color: new Color( 0.24, 0.065, 0.038 ), roughness: 0.85, modules: [ commonModule ],
+			surface: /* wgsl */`
+	let u = in.uv.x; let v = in.uv.y - ${ ( STREET + FACADE ).toFixed( 4 ) };
+	let row = floor( v / 0.075 );
+	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
+	let fr = clamp( fwidth( v ) / 0.075 * 1.5 - 0.25, 0.0, 1.0 );
+	let fb = clamp( fwidth( bu ) * 1.5 - 0.25, 0.0, 1.0 );
+	let mortar = clamp( mix( step( 0.88, fract( v / 0.075 ) ), 0.12, fr ) + mix( step( 0.93, fract( bu ) ), 0.07, max( fb, fr ) ), 0.0, 1.0 );
+	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, max( fr, fb ) );
+	var c = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
+	var rough = 0.85;
+	let fl = fract( v / 3.6 ) * 3.6;
+	let bay = fract( u / 3.75 ) * 3.75;
+	let win = fl > 0.95 && fl < 2.95 && bay > 1.0 && bay < 2.75;
+	let sill = fl > 0.8 && fl < 0.95 && bay > 0.9 && bay < 2.85;
+	if ( fl < 0.25 ) { c = vec3f( 0.55, 0.5, 0.42 ); rough = 0.7; }
+	if ( sill ) { c = vec3f( 0.6, 0.55, 0.47 ); rough = 0.7; }
+	var e = vec3f( 0.0 );
+	if ( win ) {
+		// dark glass with mullions, some offices lit
+		let mull = step( abs( bay - 1.875 ), 0.03 );
+		c = mix( vec3f( 0.03, 0.04, 0.05 ), vec3f( 0.12, 0.05, 0.04 ), mull );
+		rough = 0.12;
+		let cell = floor( vec2f( u / 3.75, v / 3.6 ) );
+		let lit = step( 0.45, fract( sin( dot( cell, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ) );
+		e = vec3f( 1.0, 0.8, 0.55 ) * lit * ( 1.0 - mull ) * smoothstep( 0.1, 0.7, frame.night ) * 0.5;
+	}
+	s.albedo = c;
+	s.roughness = rough;
+	s.emissive = e;
+`,
+		} );
+		this.coping = standard( { name: 'facade-coping-green', color: new Color( 0.03, 0.09, 0.06 ), roughness: 0.45, metalness: 0.5 } );
 		this.stone = standard( { name: 'precast', color: new Color( 0.55, 0.5, 0.42 ), roughness: 0.7 } );
 		this.copper = standard( { name: 'copper-roof', color: new Color( 0.12, 0.3, 0.24 ), roughness: 0.55, metalness: 0.3 } );
 		this.granite = standard( { name: 'granite', color: new Color( 0.22, 0.21, 0.21 ), roughness: 0.45 } );
@@ -125,7 +166,7 @@ export class Exterior {
 	s.albedo = c * ( 0.92 + 0.1 * mx_noise_float2( p * 0.4 ) );
 `,
 		} );
-		for ( const m of [ this.brick, this.brickPlain, this.stone, this.copper, this.granite, this.bronze, this.paving, this.pavers ] ) m.underwaterLighting = 'none';
+		for ( const m of [ this.brick, this.brickUpper, this.coping, this.brickPlain, this.stone, this.copper, this.granite, this.bronze, this.paving, this.pavers ] ) m.underwaterLighting = 'none';
 
 	}
 
@@ -230,10 +271,19 @@ export class Exterior {
 		let area = 0;
 		for ( let i = 0; i < n; i ++ ) area += P[ i ][ 0 ] * P[ ( i + 1 ) % n ][ 1 ] - P[ ( i + 1 ) % n ][ 0 ] * P[ i ][ 1 ];
 		const sgn = area > 0 ? 1 : - 1;
-		const q = new Quads(), cap = new Quads();
+		const q = new Quads(), cap = new Quads(), up = new Quads(), trim = new Quads();
 		const T = 0.8;
 		let u = 0;
 		this.gateEdges = [];
+		// how tall the brick is: four storeys of offices and shops either side of the Third Base, First
+		// Base and Home Plate Gates, three round the rest of the infield, the one-storey base in the outfield
+		const heightOf = ( A, B ) => {
+
+			const c = lerp2( A, B, 0.5 );
+			if ( [ GATES[ 0 ], GATES[ 1 ], GATES[ 3 ] ].some( ( g ) => segLen( g.at, c ) < 46 ) ) return 16;
+			return c[ 1 ] > - 60 ? 11.4 : FACADE;
+
+		};
 		for ( let i = 0; i < n; i ++ ) {
 
 			const a = P[ i ], b = P[ ( i + 1 ) % n ];
@@ -271,17 +321,28 @@ export class Exterior {
 
 				const A = [ a[ 0 ] + ux * s, a[ 1 ] + uz * s ], B = [ a[ 0 ] + ux * e, a[ 1 ] + uz * e ];
 				const Ai = [ A[ 0 ] - nx * T, A[ 1 ] - nz * T ], Bi = [ B[ 0 ] - nx * T, B[ 1 ] - nz * T ];
-				const y0 = STREET, y1 = STREET + FACADE;
-				// outer face, inner face (uv y = height above the street)
-				q.add( [ A[ 0 ], y0, A[ 1 ] ], [ B[ 0 ], y0, B[ 1 ] ], [ B[ 0 ], y1, B[ 1 ] ], [ A[ 0 ], y1, A[ 1 ] ], [ nx, 0, nz ], u + s, u + e );
-				q.add( [ Bi[ 0 ], y0, Bi[ 1 ] ], [ Ai[ 0 ], y0, Ai[ 1 ] ], [ Ai[ 0 ], y1, Ai[ 1 ] ], [ Bi[ 0 ], y1, Bi[ 1 ] ], [ - nx, 0, - nz ], u + e, u + s );
+				const H = heightOf( A, B );
+				const y0 = STREET, yb = STREET + FACADE, y1 = STREET + H;
+				// outer face, inner face (uv y = height above the street): the base, then the storeys over it
+				q.add( [ A[ 0 ], y0, A[ 1 ] ], [ B[ 0 ], y0, B[ 1 ] ], [ B[ 0 ], yb, B[ 1 ] ], [ A[ 0 ], yb, A[ 1 ] ], [ nx, 0, nz ], u + s, u + e );
+				q.add( [ Bi[ 0 ], y0, Bi[ 1 ] ], [ Ai[ 0 ], y0, Ai[ 1 ] ], [ Ai[ 0 ], yb, Ai[ 1 ] ], [ Bi[ 0 ], yb, Bi[ 1 ] ], [ - nx, 0, - nz ], u + e, u + s );
+				if ( H > FACADE ) {
+
+					up.add( [ A[ 0 ], yb, A[ 1 ] ], [ B[ 0 ], yb, B[ 1 ] ], [ B[ 0 ], y1, B[ 1 ] ], [ A[ 0 ], y1, A[ 1 ] ], [ nx, 0, nz ], u + s, u + e );
+					up.add( [ Bi[ 0 ], yb, Bi[ 1 ] ], [ Ai[ 0 ], yb, Ai[ 1 ] ], [ Ai[ 0 ], y1, Ai[ 1 ] ], [ Bi[ 0 ], y1, Bi[ 1 ] ], [ - nx, 0, - nz ], u + e, u + s );
+					// green metal coping along the top
+					const o = 0.14;
+					trim.add( [ A[ 0 ] + nx * o, y1 - 0.55, A[ 1 ] + nz * o ], [ B[ 0 ] + nx * o, y1 - 0.55, B[ 1 ] + nz * o ], [ B[ 0 ] + nx * o, y1 + 0.35, B[ 1 ] + nz * o ], [ A[ 0 ] + nx * o, y1 + 0.35, A[ 1 ] + nz * o ], [ nx, 0, nz ] );
+					trim.add( [ A[ 0 ] + nx * o, y1 + 0.35, A[ 1 ] + nz * o ], [ B[ 0 ] + nx * o, y1 + 0.35, B[ 1 ] + nz * o ], [ Bi[ 0 ] - nx * o, y1 + 0.35, Bi[ 1 ] - nz * o ], [ Ai[ 0 ] - nx * o, y1 + 0.35, Ai[ 1 ] - nz * o ], [ 0, 1, 0 ] );
+
+				}
 				// coping on top and the piece's ends
 				cap.add( [ A[ 0 ] + nx * 0.15, y1, A[ 1 ] + nz * 0.15 ], [ B[ 0 ] + nx * 0.15, y1, B[ 1 ] + nz * 0.15 ], [ Bi[ 0 ] - nx * 0.15, y1, Bi[ 1 ] - nz * 0.15 ], [ Ai[ 0 ] - nx * 0.15, y1, Ai[ 1 ] - nz * 0.15 ], [ 0, 1, 0 ] );
 				for ( const [ P0, P1, d ] of [ [ A, Ai, - 1 ], [ B, Bi, 1 ] ] ) cap.add( [ P0[ 0 ], y0, P0[ 1 ] ], [ P1[ 0 ], y0, P1[ 1 ] ], [ P1[ 0 ], y1, P1[ 1 ] ], [ P0[ 0 ], y1, P0[ 1 ] ], [ ux * d, 0, uz * d ] );
 				// collider
 				const c = lerp2( A, B, 0.5 );
 				const w = this.field.toWorld( c[ 0 ] - nx * T / 2, c[ 1 ] - nz * T / 2 );
-				this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + FACADE / 2, w.z ), new Vector3( ( e - s ) / 2, FACADE / 2, T / 2 ), this.field.group.rotation.y - Math.atan2( uz, ux ), { tag: 'facade' } );
+				this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + H / 2, w.z ), new Vector3( ( e - s ) / 2, H / 2, T / 2 ), this.field.group.rotation.y - Math.atan2( uz, ux ), { tag: 'facade' } );
 
 			}
 
@@ -289,7 +350,7 @@ export class Exterior {
 
 		}
 
-		for ( const [ geo, mat, name ] of [ [ q, this.brick, 'facade' ], [ cap, this.stone, 'facade-coping' ] ] ) {
+		for ( const [ geo, mat, name ] of [ [ q, this.brick, 'facade' ], [ up, this.brickUpper, 'facade-upper' ], [ cap, this.stone, 'facade-coping' ], [ trim, this.coping, 'facade-trim' ] ] ) {
 
 			const m = new Mesh( geo.geometry(), mat );
 			m.name = name;

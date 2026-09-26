@@ -221,7 +221,7 @@ export class Bowl {
 			// Terrace: the 300s over the club seats, up to the terrace walkway
 			{ name: 'terrace-300', front: line( path, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1 },
 			// ... and the 400s behind the walkway
-			{ name: 'terrace-400', front: line( path, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, back: { height: 2.5 }, base: L.terraceConcourse - 0.7 },
+			{ name: 'terrace-400', front: line( path, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, back: { height: 1.1 }, base: L.terraceConcourse - 0.7 },
 		];
 
 		// the Pavilion (201-211) and the Pavilion Deck (301-310) over the right field seats, from the 369 mark
@@ -253,8 +253,8 @@ export class Bowl {
 		// behind the top row: a parapet up to the roof; under it all, the columns carrying the decks over
 		// the open main concourse
 		const t400Top = t400.y0 + ( t400.rows - 1 ) * t400.rise;
-		this._rearWall( line( path, D.t400Back ), t400Top - 1.2, L.roof - 1.0 );
 		this._columns( line( path, D.t400Back - 0.4 ), STREET, t400Top - 1.2, 9.5 );
+		this._rearWall( line( path, D.t400Back - 0.4 ), t400Top - 1.2, L.roof - 1.0 );
 		this._frame( line( path, D.t400Back - 0.4 ), [ L.suites, L.clubConcourse, L.terraceConcourse, t400Top - 1.4 ], 9.5 );
 		this._columns( line( infieldPath, D.clubBack + 8 - 0.4 ), STREET, L.clubConcourse - 0.6, 9.5 );
 
@@ -681,30 +681,49 @@ export class Bowl {
 	}
 
 	// the back of the upper deck, from above its top row up to the roof
+	// Behind the top row up to the roof: open steel, as it shows from the street. Posts on the column line
+	// carry the roof, a beam at the top row and one under the roof, X bracing in every third bay, and a
+	// pipe rail along the back of the top row.
 	_rearWall( P, y0, y1 ) {
 
-		const q = new Quads();
+		const q = new Quads(), rail = new Quads();
+		let bay = 0;
 		for ( let i = 0; i < P.length - 1; i ++ ) {
 
 			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
 			const len = Math.hypot( bx - ax, bz - az );
-			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
-			if ( nx * ( ( ax + bx ) / 2 ) + nz * ( ( az + bz ) / 2 + 40 ) > 0 ) {
+			const n = Math.max( 1, Math.round( len / 9.5 ) );
+			for ( let k = 0; k < n; k ++, bay ++ ) {
 
-				nx = - nx; nz = - nz;
+				const x0 = ax + ( bx - ax ) * k / n, z0 = az + ( bz - az ) * k / n;
+				const x1 = ax + ( bx - ax ) * ( k + 1 ) / n, z1 = az + ( bz - az ) * ( k + 1 ) / n;
+				beam( q, [ x0, y0, z0 ], [ x0, y1 + 0.9, z0 ], 0.55 );
+				beam( q, [ x0, y0, z0 ], [ x1, y0, z1 ], 0.5 );
+				beam( q, [ x0, y1, z0 ], [ x1, y1, z1 ], 0.45 );
+				if ( bay % 3 === 1 ) {
+
+					beam( q, [ x0, y0, z0 ], [ x1, y1, z1 ], 0.26 );
+					beam( q, [ x1, y0, z1 ], [ x0, y1, z0 ], 0.26 );
+
+				}
+
+				beam( rail, [ x0, y0 + 2.3, z0 ], [ x1, y0 + 2.3, z1 ], 0.06 );
+				beam( rail, [ x0, y0 + 1.75, z0 ], [ x1, y0 + 1.75, z1 ], 0.04 );
 
 			}
 
-			q.add( [ ax, y0, az ], [ bx, y0, bz ], [ bx, y1, bz ], [ ax, y1, az ], [ nx, 0, nz ] );
-			q.add( [ bx, y0, bz ], [ ax, y0, az ], [ ax, y1, az ], [ bx, y1, bz ], [ - nx, 0, - nz ] );
+			if ( i === P.length - 2 ) beam( q, [ bx, y0, bz ], [ bx, y1 + 0.9, bz ], 0.55 );
 
 		}
 
-		const m = new Mesh( q.geometry(), this.materials.concrete );
-		m.name = 'upper-rear-wall';
+		const m = new Mesh( q.geometry(), this._colSteel );
+		m.name = 'upper-rear-steel';
 		m.castShadow = true;
 		m.receiveShadow = true;
 		this.group.add( m );
+		const r = new Mesh( rail.geometry(), this.materials.rail );
+		r.name = 'upper-rear-rail';
+		this.group.add( r );
 
 	}
 

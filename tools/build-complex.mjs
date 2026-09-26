@@ -54,6 +54,23 @@ function inside( x, z, P ) {
 
 }
 
+// distance from a point to the ballpark's footprint outline
+function nearFootprint( x, z ) {
+
+	let best = Infinity;
+	for ( let i = 0; i < FOOTPRINT.length; i ++ ) {
+
+		const [ ax, az ] = FOOTPRINT[ i ], [ bx, bz ] = FOOTPRINT[ ( i + 1 ) % FOOTPRINT.length ];
+		const dx = bx - ax, dz = bz - az;
+		const t = Math.max( 0, Math.min( 1, ( ( x - ax ) * dx + ( z - az ) * dz ) / ( dx * dx + dz * dz ) ) );
+		best = Math.min( best, Math.hypot( ax + dx * t - x, az + dz * t - z ) );
+
+	}
+
+	return best;
+
+}
+
 // drop the closing point and points on a straight line
 function clean( P ) {
 
@@ -93,7 +110,10 @@ for ( const e of osm.elements ) {
 	const dist = Math.hypot( cx, cz );
 	if ( t.building ) {
 
-		if ( SKIP_NAMES.test( t.name || '' ) || inside( cx, cz, FOOTPRINT ) || dist > 3200 ) continue;
+		// canopies and carports (mapped as roofs) aren't buildings, and anything hugging the ballpark is
+		// part of it (built by hand)
+		if ( t.building === 'roof' || t.power === 'generator' ) continue;
+		if ( SKIP_NAMES.test( t.name || '' ) || inside( cx, cz, FOOTPRINT ) || nearFootprint( cx, cz ) < 35 || dist > 3200 ) continue;
 		const fp = clean( P );
 		const a = area( fp );
 		if ( fp.length < 3 || a < 15 ) continue;
