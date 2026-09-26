@@ -1,0 +1,13 @@
+[out:json][timeout:150];
+(
+  way["amenity"="parking"](39.888,-75.188,39.916,-75.148);
+  way["building"](39.888,-75.188,39.916,-75.148);
+  relation["building"](39.888,-75.188,39.916,-75.148);
+  way["highway"~"^(motorway|motorway_link|trunk|trunk_link)$"](39.880,-75.200,39.930,-75.130);
+  way["landuse"~"^(residential|industrial|commercial|retail|grass|railway)$"](39.880,-75.200,39.935,-75.130);
+  way["railway"="rail"](39.880,-75.200,39.930,-75.130);
+  node["natural"="tree"](39.888,-75.188,39.916,-75.148);
+  way["natural"="tree_row"](39.888,-75.188,39.916,-75.148);
+  node["highway"="street_lamp"](39.888,-75.188,39.916,-75.148);
+);
+out geom tags;

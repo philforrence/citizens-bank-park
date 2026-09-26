@@ -41,7 +41,7 @@ export class Ground {
 
 		this.material = standard( {
 			name: 'ground',
-			color: new Color( 0.16, 0.16, 0.15 ),
+			color: new Color( 0.1, 0.1, 0.095 ),
 			roughness: 0.92,
 			modules: [ commonModule ],
 			surface: /* wgsl */`
@@ -49,6 +49,9 @@ export class Ground {
 	// broad patches, then finer grain: worn asphalt
 	let n = 0.5 + 0.28 * mx_noise_float2( xz * 0.04 ) + 0.14 * mx_noise_float2( xz * 0.5 ) + 0.07 * mx_noise_float2( xz * 6.0 );
 	s.albedo = mat.color * ( 0.75 + 0.5 * n );
+	// scrubby verges and vacant ground in broad patches between the streets and lots
+	let verge = smoothstep( 0.15, 0.45, mx_noise_float2( xz * 0.012 + vec2f( 3.1, 7.7 ) ) );
+	s.albedo = mix( s.albedo, vec3f( 0.1, 0.12, 0.06 ) * ( 0.8 + 0.4 * n ), verge * 0.7 );
 `,
 		} );
 		this.material.underwaterLighting = 'none';

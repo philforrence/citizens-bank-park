@@ -28,7 +28,7 @@ export class Surroundings {
 		this.group.name = 'surroundings';
 		field.group.add( this.group );
 		this._buildRoads();
-		this._buildNeighbours();
+		// the venues next door, the lots, the highways and the city blocks are in Complex.js
 		this._buildSkyline();
 
 	}
@@ -67,6 +67,8 @@ export class Surroundings {
 
 		for ( const r of ROADS ) {
 
+			// the highways are built up on their viaducts in Complex.js
+			if ( /^(motorway|trunk)/.test( r.kind ) ) continue;
 			const P = r.pts;
 			const hw = r.w / 2;
 			const twoWay = ! r.oneway && r.w >= 10 ? 1 : 0;
