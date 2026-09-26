@@ -849,7 +849,7 @@ export class Exterior {
 
 		const P = ( s, o, y ) => [ c[ 0 ] + ux * s + nx * o, y, c[ 1 ] + uz * s + nz * o ];
 		const flip = ( ux * nz - uz * nx ) < 0;
-		this._wordmark( P, flip, len + 5, t.y + 1.6, 0.4, [ nx, nz ] );
+		this._wordmark( P, flip, len - 12, t.y + 1.6, 0.4, [ nx, nz ] );
 
 		// more on the roof's back edge behind home plate and behind first base, facing out
 		const rb = bowl.roofBack;

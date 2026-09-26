@@ -631,7 +631,7 @@ export class Bowl {
 			const s = nearestAlong( B, gate.at );
 			const pair = [ - 1, 1 ].map( ( side ) => {
 
-				const { p, dir } = alongPolyline( B, s + side * 12.5 );
+				const { p, dir } = alongPolyline( B, s + side * 17 );
 				// out from the roof's edge, away from the field
 				let nx = - dir[ 1 ], nz = dir[ 0 ];
 				if ( nx * p[ 0 ] + nz * ( p[ 1 ] + 40 ) < 0 ) {
@@ -643,7 +643,7 @@ export class Bowl {
 				return [ p[ 0 ] + nx * 2.2, p[ 1 ] + nz * 2.2 ];
 
 			} );
-			for ( const [ x, z ] of pair ) this._lightTower( x, z, STREET, LEVELS.lightTowers, [ 6.5, 3.6 ] );
+			for ( const [ x, z ] of pair ) this._lightTower( x, z, STREET, LEVELS.lightTowers, [ 11, 3.2 ] );
 			this.gateTowers.push( { gate: gate.name, pair, y: y } );
 
 		}
@@ -666,6 +666,7 @@ export class Bowl {
 		// face the field: toward second base
 		g.rotation.y = Math.atan2( - ( 0 - x ), - ( - 38 - z ) );
 		const h = y1 - y0, [ W, Dp ] = size, hw = W / 2, hd = Dp / 2;
+		if ( W > 8 ) return this._portalTower( g, x, z, y0, y1, size, steel, lamp );
 		const big = W > 3;
 		const q = new Quads();
 		for ( const [ lx, lz ] of [ [ - hw, - hd ], [ hw, - hd ], [ - hw, hd ], [ hw, hd ] ] ) beam( q, [ lx, 0, lz ], [ lx, h, lz ], big ? 0.55 : 0.35 );
@@ -714,13 +715,25 @@ export class Bowl {
 		sm.receiveShadow = true;
 		g.add( sm );
 
-		// the light bank: a frame of lamps tilted down toward the field
+		// the light bank: an open steel frame of lamps tilted down toward the field (the sky shows through
+		// behind the fixtures), catwalks along it; the big frames carry a wider bank
 		const bank = new Group();
 		bank.position.set( 0, h + 2.5, - 0.8 );
 		bank.rotation.x = 0.35;
 		const fq = new Quads(), lq = new Quads();
-		box( fq, [ 0, 0, 0 ], [ 9, 6, 0.4 ] );
-		for ( let i = 0; i < 8; i ++ ) for ( let j = 0; j < 5; j ++ ) box( lq, [ - 3.9 + i * 1.11, - 2.2 + j * 1.1, - 0.3 ], [ 0.9, 0.9, 0.25 ] );
+		const BW = big ? Math.max( 13, W + 2 ) : 9, BH = big ? 5.4 : 6, cols = big ? 13 : 8, rowsL = big ? 4 : 5;
+		for ( const yy of [ - BH / 2, - BH / 6, BH / 6, BH / 2 ] ) beam( fq, [ - BW / 2, yy, 0.1 ], [ BW / 2, yy, 0.1 ], 0.18 );
+		for ( let i = 0; i <= 4; i ++ ) beam( fq, [ - BW / 2 + BW * i / 4, - BH / 2, 0.1 ], [ - BW / 2 + BW * i / 4, BH / 2, 0.1 ], 0.18 );
+		// the catwalks: grating and a rail under each row of lamps
+		for ( const yy of [ - BH / 2, 0 ] ) {
+
+			box( fq, [ 0, yy - 0.1, 0.55 ], [ BW, 0.06, 0.9 ] );
+			beam( fq, [ - BW / 2, yy + 1.0, 1.0 ], [ BW / 2, yy + 1.0, 1.0 ], 0.05 );
+
+		}
+
+		const cw = ( BW - 1 ) / cols, rh = ( BH - 0.6 ) / rowsL;
+		for ( let i = 0; i < cols; i ++ ) for ( let j = 0; j < rowsL; j ++ ) box( lq, [ - BW / 2 + 0.5 + cw * ( i + 0.5 ), - BH / 2 + 0.3 + rh * ( j + 0.5 ), - 0.25 ], [ cw * 0.8, rh * 0.8, 0.45 ] );
 		const frameM = new Mesh( fq.geometry(), steel );
 		frameM.castShadow = true;
 		bank.add( frameM );
@@ -862,6 +875,92 @@ export class Bowl {
 			this.elevators.push( bank );
 
 		}
+
+	}
+
+	// A portal light tower (the pairs framing the gates): two ladder-truss legs `size[0]` apart, a
+	// cross girder every third of the way up, K-braced, and a wide open lamp bank with catwalks on top
+	_portalTower( g, x, z, y0, y1, [ W, Dp ], steel, lamp ) {
+
+		const h = y1 - y0, hw = W / 2, hd = Dp / 2, lw = 0.7;
+		const q = new Quads();
+		for ( const sx of [ - hw, hw ] ) {
+
+			// each leg: four chords in a 1.4 m square, laced
+			for ( const [ ox, oz ] of [ [ - lw, - hd ], [ lw, - hd ], [ - lw, hd ], [ lw, hd ] ] ) beam( q, [ sx + ox, 0, oz ], [ sx + ox, h, oz ], 0.3 );
+			let k = 0;
+			for ( let yy = 2.4; yy < h; yy += 2.4, k ++ ) {
+
+				const s = k % 2 ? 1 : - 1;
+				beam( q, [ sx - lw * s, yy - 2.4, - hd ], [ sx + lw * s, yy, - hd ], 0.08 );
+				beam( q, [ sx - lw * s, yy - 2.4, hd ], [ sx + lw * s, yy, hd ], 0.08 );
+				beam( q, [ sx - lw, yy, - hd * s ], [ sx - lw, yy - 2.4, hd * s ], 0.08 );
+				beam( q, [ sx + lw, yy, - hd * s ], [ sx + lw, yy - 2.4, hd * s ], 0.08 );
+
+			}
+
+		}
+
+		// the cross girders and their K braces
+		for ( const f of [ 0.36, 0.68, 1.0 ] ) {
+
+			const yy = h * f;
+			for ( const oz of [ - hd, hd ] ) {
+
+				beam( q, [ - hw + lw, yy, oz ], [ hw - lw, yy, oz ], 0.4 );
+				beam( q, [ - hw + lw, yy - 1.6, oz ], [ hw - lw, yy - 1.6, oz ], 0.22 );
+				for ( let t = 0; t < 4; t ++ ) {
+
+					const xa = - hw + lw + ( W - 2 * lw ) * t / 4, xb = - hw + lw + ( W - 2 * lw ) * ( t + 1 ) / 4;
+					beam( q, [ xa, yy - 1.6, oz ], [ ( xa + xb ) / 2, yy, oz ], 0.12 );
+					beam( q, [ ( xa + xb ) / 2, yy, oz ], [ xb, yy - 1.6, oz ], 0.12 );
+
+				}
+
+			}
+
+		}
+
+		const sm = new Mesh( q.geometry(), steel );
+		sm.name = 'portal-tower';
+		sm.castShadow = true;
+		sm.receiveShadow = true;
+		g.add( sm );
+		// the lamp bank on top (see _lightTower): wider than the portal
+		const bank = new Group();
+		bank.position.set( 0, h + 3.2, - 0.8 );
+		bank.rotation.x = 0.35;
+		const fq = new Quads(), lq = new Quads();
+		const BW = W + 4, BH = 5.4, cols = 14, rowsL = 4;
+		for ( const yy of [ - BH / 2, - BH / 6, BH / 6, BH / 2 ] ) beam( fq, [ - BW / 2, yy, 0.1 ], [ BW / 2, yy, 0.1 ], 0.2 );
+		for ( let i = 0; i <= 5; i ++ ) beam( fq, [ - BW / 2 + BW * i / 5, - BH / 2, 0.1 ], [ - BW / 2 + BW * i / 5, BH / 2, 0.1 ], 0.2 );
+		for ( const yy of [ - BH / 2, 0 ] ) {
+
+			box( fq, [ 0, yy - 0.1, 0.55 ], [ BW, 0.06, 0.9 ] );
+			beam( fq, [ - BW / 2, yy + 1.0, 1.0 ], [ BW / 2, yy + 1.0, 1.0 ], 0.05 );
+
+		}
+
+		const cw = ( BW - 1 ) / cols, rh = ( BH - 0.6 ) / rowsL;
+		for ( let i = 0; i < cols; i ++ ) for ( let j = 0; j < rowsL; j ++ ) box( lq, [ - BW / 2 + 0.5 + cw * ( i + 0.5 ), - BH / 2 + 0.3 + rh * ( j + 0.5 ), - 0.25 ], [ cw * 0.8, rh * 0.8, 0.45 ] );
+		const frameM = new Mesh( fq.geometry(), steel );
+		frameM.castShadow = true;
+		bank.add( frameM );
+		bank.add( new Mesh( lq.geometry(), lamp ) );
+		// the legs run up to it
+		for ( const sx of [ - hw, hw ] ) beam( q, [ sx, h, 0 ], [ sx, h + 1.2, - 0.8 ], 0.4 );
+		g.add( bank );
+		this.group.add( g );
+		g.updateMatrix();
+		for ( const sx of [ - hw, hw ] ) {
+
+			const p = new Vector3( sx, 0, 0 ).applyMatrix4( g.matrix );
+			const w = this.field.toWorld( p.x, p.z );
+			this.colliders.addCylinder( w.x, w.z, 1.0, this.field.y0 + y0, this.field.y0 + y0 + 6 );
+
+		}
+
+		( this.towers || ( this.towers = [] ) ).push( { group: g, bank } );
 
 	}
 
