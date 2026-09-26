@@ -365,23 +365,46 @@ function hash( x ) {
 // at the floor under the seat's centre, facing -z.
 export function seatGeometry() {
 
-	const q = new Quads();
+	// An empty fold-down seat, facing -z, its origin on the tread under the seat's middle: a curved
+	// back (top 0.8 m up), the pan folded up in front of it, and a dark cast standard with an armrest
+	// on one side (the next seat's makes the other). Colours are per vertex: plastic blue, metal grey.
+	const q = new Quads(), col = [];
+	const BLUE = [ 0.023, 0.072, 0.296 ], GREY = [ 0.04, 0.045, 0.052 ];
+	const add = ( c, ...args ) => {
+
+		q.add( ...args );
+		for ( let i = 0; i < 6; i ++ ) col.push( ...c );
+
+	};
+
 	const w = 0.46 / 2;
-	// pan: top and front edge, 0.44 m up, 0.40 deep
-	const py = 0.44, pz0 = - 0.22, pz1 = 0.14;
-	q.add( [ - w, py, pz0 ], [ w, py, pz0 ], [ w, py, pz1 ], [ - w, py, pz1 ], [ 0, 1, 0 ] );
-	q.add( [ - w, py - 0.06, pz0 ], [ w, py - 0.06, pz0 ], [ w, py, pz0 ], [ - w, py, pz0 ], [ 0, 0, - 1 ] );
-	// back: front and rear faces, leaning back 12 degrees, 0.48 high above the pan
-	const lean = Math.tan( 0.21 );
-	const b0 = py + 0.02, b1 = py + 0.52;
-	const bz = pz1 + 0.02, t = 0.04;
-	const z = ( y ) => bz + ( y - b0 ) * lean;
-	q.add( [ - w, b0, z( b0 ) ], [ w, b0, z( b0 ) ], [ w, b1, z( b1 ) ], [ - w, b1, z( b1 ) ], [ 0, lean, - 1 ] );
-	q.add( [ w, b0, z( b0 ) + t ], [ - w, b0, z( b0 ) + t ], [ - w, b1, z( b1 ) + t ], [ w, b1, z( b1 ) + t ], [ 0, - lean, 1 ] );
-	q.add( [ - w, b1, z( b1 ) ], [ w, b1, z( b1 ) ], [ w, b1, z( b1 ) + t ], [ - w, b1, z( b1 ) + t ], [ 0, 1, 0 ] );
-	// the standard between seats (one side is enough: the next seat's reads as the other)
-	q.add( [ - w - 0.02, 0, - 0.05 ], [ - w - 0.02, 0, 0.18 ], [ - w - 0.02, py + 0.18, 0.18 ], [ - w - 0.02, py + 0.18, - 0.05 ], [ - 1, 0, 0 ] );
-	return q.geometry();
+	// the back: three panels bowed 3 cm, leaning back 12 degrees, 4 cm thick
+	const lean = Math.tan( 0.21 ), b0 = 0.44, b1 = 0.8, bz = 0.14, t = 0.035;
+	const z = ( x, y ) => bz + ( y - b0 ) * lean + 0.03 * ( x / w ) * ( x / w );
+	const xs = [ - w, - w / 3, w / 3, w ];
+	for ( let i = 0; i < 3; i ++ ) {
+
+		const [ xa, xb ] = [ xs[ i ], xs[ i + 1 ] ];
+		add( BLUE, [ xa, b0, z( xa, b0 ) ], [ xb, b0, z( xb, b0 ) ], [ xb, b1, z( xb, b1 ) ], [ xa, b1, z( xa, b1 ) ], [ 0, lean, - 1 ] );
+		add( BLUE, [ xb, b0, z( xb, b0 ) + t ], [ xa, b0, z( xa, b0 ) + t ], [ xa, b1, z( xa, b1 ) + t ], [ xb, b1, z( xb, b1 ) + t ], [ 0, - lean, 1 ] );
+		add( BLUE, [ xa, b1, z( xa, b1 ) ], [ xb, b1, z( xb, b1 ) ], [ xb, b1, z( xb, b1 ) + t ], [ xa, b1, z( xa, b1 ) + t ], [ 0, 1, 0 ] );
+
+	}
+
+	// the pan, folded up (75 degrees) in front of the back's lower half
+	const pz = 0.02, p0 = 0.26, p1 = 0.62, tip = Math.tan( 0.26 );
+	const zp = ( y ) => pz + ( y - p0 ) * tip;
+	add( BLUE, [ - w + 0.01, p0, zp( p0 ) ], [ w - 0.01, p0, zp( p0 ) ], [ w - 0.01, p1, zp( p1 ) ], [ - w + 0.01, p1, zp( p1 ) ], [ 0, tip, - 1 ] );
+	add( BLUE, [ w - 0.01, p0, zp( p0 ) + 0.03 ], [ - w + 0.01, p0, zp( p0 ) + 0.03 ], [ - w + 0.01, p1, zp( p1 ) + 0.03 ], [ w - 0.01, p1, zp( p1 ) + 0.03 ], [ 0, - tip, 1 ] );
+	// the standard: a cast leg from the tread, the armrest on top
+	const sx = - w - 0.025;
+	add( GREY, [ sx, 0, - 0.02 ], [ sx, 0, 0.2 ], [ sx, 0.6, 0.2 ], [ sx, 0.6, - 0.02 ], [ - 1, 0, 0 ] );
+	add( GREY, [ sx + 0.04, 0, 0.2 ], [ sx + 0.04, 0, - 0.02 ], [ sx + 0.04, 0.6, - 0.02 ], [ sx + 0.04, 0.6, 0.2 ], [ 1, 0, 0 ] );
+	add( GREY, [ sx - 0.005, 0.6, - 0.14 ], [ sx + 0.045, 0.6, - 0.14 ], [ sx + 0.045, 0.6, 0.22 ], [ sx - 0.005, 0.6, 0.22 ], [ 0, 1, 0 ] );
+	add( GREY, [ sx - 0.005, 0.56, - 0.14 ], [ sx + 0.045, 0.56, - 0.14 ], [ sx + 0.045, 0.6, - 0.14 ], [ sx - 0.005, 0.6, - 0.14 ], [ 0, 0, - 1 ] );
+	const g = q.geometry();
+	g.setAttribute( 'color', new Float32BufferAttribute( col, 3 ) );
+	return g;
 
 }
 
@@ -403,7 +426,7 @@ export function standsMaterials() {
 	}
 ` } );
 	// navy seats; per-instance colour carries a little fading
-	const seat = standard( { name: 'seats', color: new Color( 0.013, 0.036, 0.13 ), roughness: 0.38, side: 'double',
+	const seat = standard( { name: 'seats', color: new Color( 1, 1, 1 ), roughness: 0.5, side: 'double', vertexColors: true,
 		surface: 's.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.45;' } );
 	// galvanized steel for the rails
 	const rail = standard( { name: 'rails', color: new Color( 0.55, 0.56, 0.57 ), roughness: 0.35, metalness: 0.8 } );
