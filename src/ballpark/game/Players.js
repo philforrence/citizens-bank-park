@@ -1,12 +1,16 @@
 import { InstancedMesh, Matrix4, Vector3, Quaternion } from '../../engine/index.js';
 import { StorageBuffer } from '../../engine/gpu/Texture.js';
 import { standard } from '../../materials/Materials.js';
-import { buildPlayerGeometry, solvePose, neutralPose, NB, PART } from './Rig.js';
+import { buildPlayerGeometry, solvePose, neutralPose, NB, PART, BONES } from './Rig.js';
+import { canvasTexture } from '../geo.js';
+import { generateMipmaps } from '../../engine/gpu/Mipmaps.js';
 
 // All the players on the field in one instanced draw: each instance is a player slot, its 17 bone
 // matrices (and last frame's, for the motion vectors) in a storage buffer, the vertex hook places every
 // vertex by its bone. The uniform comes from the team and the part of the body (2008: the Phillies'
-// home whites with red pinstripes, the Rays' road greys).
+// home whites with red pinstripes, the Rays' road greys). Each slot's back (the number, and for the Rays
+// the name over it: the Phillies' home whites have no names) is drawn into a cell of a shared atlas;
+// the chests carry the "Phillies" script and RAYS.
 //
 //   const p = players.add( { team: 'home', number: '54', gloveHand: 'L', skin: 2 } );
 //   p.x, p.z (field frame), p.yaw (0 = facing -z, toward center field), p.pose (Rig.neutralPose())
@@ -14,6 +18,7 @@ import { buildPlayerGeometry, solvePose, neutralPose, NB, PART } from './Rig.js'
 
 const MAX = 56;
 const Z16 = new Float32Array( 16 );
+const ATLAS = 1024, CELL = 128, COLS = ATLAS / CELL; // cells 0..55 the slots' backs, 62 / 63 the chests
 
 export class Players {
 
@@ -25,7 +30,15 @@ export class Players {
 		this.bones = new StorageBuffer( { label: 'playerBones', count: MAX * NB * 2, type: 'mat4x4f' } );
 		this.infoBuffer = new StorageBuffer( { label: 'playerInfo', count: MAX, type: 'vec4f' } );
 		const geo = buildPlayerGeometry();
-		this.material = playerMaterial( this.bones, this.infoBuffer );
+		this.atlas = canvasTexture( ATLAS, ATLAS, ( ctx ) => {
+
+			drawChest( ctx, 62, true );
+			drawChest( ctx, 63, false );
+
+		}, 'jerseys' );
+		this.atlasCtx = this.atlas.canvas.getContext( '2d' );
+		this._atlasDirty = false;
+		this.material = playerMaterial( this.bones, this.infoBuffer, this.atlas );
 		this.mesh = new InstancedMesh( geo, this.material, MAX );
 		this.mesh.name = 'players';
 		this.mesh.frustumCulled = false;
@@ -48,6 +61,8 @@ export class Players {
 			pose: neutralPose(), visible: true, fresh: true,
 		};
 		this.slots[ i ] = p;
+		drawBack( this.atlasCtx, i, team === 'home', String( number || '' ), name );
+		this._atlasDirty = true;
 		return p;
 
 	}
@@ -106,19 +121,28 @@ export class Players {
 
 		this.bones.write( D );
 		this.infoBuffer.write( this.info );
+		if ( this._atlasDirty ) {
+
+			const img = this.atlasCtx.getImageData( 0, 0, ATLAS, ATLAS );
+			this.atlas.upload( new Uint8Array( img.data.buffer ) );
+			generateMipmaps( this.atlas );
+			this._atlasDirty = false;
+
+		}
 
 	}
 
 }
 
-function playerMaterial( bones, info ) {
+function playerMaterial( bones, info, atlas ) {
 
 	const P = PART;
 	const mat = standard( {
 		name: 'players', roughness: 0.75,
 		storage: { plBones: bones, plInfo: info },
+		textures: { plAtlas: atlas },
 		attributes: { aBone: 'f32', aPart: 'f32' },
-		varyings: { vPart: 'f32', vInfo: 'vec4f', vLocal: 'vec3f' },
+		varyings: { vPart: 'f32', vInfo: 'vec4f', vLocal: 'vec3f', vBone: 'f32', vSlot: 'f32' },
 		vertex: /* wgsl */`
 	let slot = v.instance;
 	let b = u32( v.aBone + 0.5 );
@@ -133,6 +157,8 @@ function playerMaterial( bones, info ) {
 	o.vPart = v.aPart;
 	o.vInfo = plInfo[ slot ];
 	o.vLocal = v.position;
+	o.vBone = v.aBone;
+	o.vSlot = f32( slot );
 `,
 		surface: /* wgsl */`
 	let part = i32( in.vs.vPart + 0.5 );
@@ -157,6 +183,20 @@ function playerMaterial( bones, info ) {
 			c = mix( cloth, vec3f( 0.5, 0.03, 0.05 ), k );
 		}
 	}
+	// the back (number, name) and the chest (the club's name) from the atlas, projected front to back
+	// onto the torso: its own frame has +x to the player's right, -z forward, y up from the waist
+	let L = in.vs.vLocal;
+	let back = L.z > 0.0;
+	let slot = in.vs.vSlot;
+	let cell = select( select( 63.0, 62.0, home ), slot, back );
+	let cxy = vec2f( cell % ${ COLS }.0, floor( cell / ${ COLS }.0 ) );
+	let lu = select( 0.5 - L.x / 0.42, 0.5 + L.x / 0.36, back );
+	let lv = select( 1.0 - ( L.y - 0.17 ) / 0.21, 1.0 - ( L.y - 0.07 ) / 0.36, back );
+	let inCell = lu > 0.02 && lu < 0.98 && lv > 0.02 && lv < 0.98;
+	let auv = ( cxy + clamp( vec2f( lu, lv ), vec2f( 0.02 ), vec2f( 0.98 ) ) ) / ${ COLS }.0;
+	let ink = textureSample( plAtlas, smpAnisoClamp, auv );
+	let onTorso = part == ${ P.jersey } && i32( in.vs.vBone + 0.5 ) == ${ BONES.torso } && inCell && abs( L.z ) > 0.02;
+	if ( onTorso ) { c = mix( c, ink.rgb, ink.a ); }
 	if ( part == ${ P.skin } ) { c = skinC; rough = 0.55; }
 	if ( part == ${ P.socks } || part == ${ P.sleeve } ) { c = trim; }
 	if ( part == ${ P.cap } ) { c = trim * 1.05; rough = 0.6; }
@@ -170,5 +210,95 @@ function playerMaterial( bones, info ) {
 	} );
 	mat.underwaterLighting = 'none';
 	return mat;
+
+}
+
+// ---------------------------------------------------------------- the lettering
+
+function cellXY( i ) {
+
+	return [ ( i % COLS ) * CELL, Math.floor( i / COLS ) * CELL ];
+
+}
+
+// a slot's back: the Phillies' red numbers trimmed in blue; the Rays' navy name and numbers trimmed in
+// light blue
+function drawBack( ctx, i, home, number, name ) {
+
+	const [ x, y ] = cellXY( i );
+	ctx.clearRect( x, y, CELL, CELL );
+	const fill = home ? '#d01c2c' : '#0b2a5b', edge = home ? '#0b2a5b' : '#8fbce6';
+	ctx.save();
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.lineJoin = 'round';
+	if ( ! home && name ) {
+
+		ctx.font = '800 17px "Helvetica Neue", Helvetica, Arial, sans-serif';
+		ctx.fillStyle = fill;
+		ctx.fillText( name.toUpperCase().split( '' ).join( String.fromCharCode( 8202 ) ), x + CELL / 2, y + 16, CELL - 12 );
+
+	}
+
+	if ( number ) {
+
+		ctx.font = `900 ${ number.length > 1 ? 74 : 80 }px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+		ctx.lineWidth = 7;
+		ctx.strokeStyle = edge;
+		ctx.strokeText( number, x + CELL / 2, y + 74, CELL - 14 );
+		ctx.fillStyle = fill;
+		ctx.fillText( number, x + CELL / 2, y + 74, CELL - 14 );
+
+	}
+
+	ctx.restore();
+
+}
+
+// the chest: "Phillies" in red script with blue stars over the i's, or RAYS in navy
+function drawChest( ctx, i, home ) {
+
+	const [ x, y ] = cellXY( i );
+	ctx.save();
+	ctx.translate( x + CELL / 2, y + CELL / 2 );
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.lineJoin = 'round';
+	if ( home ) {
+
+		ctx.rotate( - 0.12 );
+		ctx.font = 'italic 700 40px Georgia, "Times New Roman", serif';
+		ctx.lineWidth = 5;
+		ctx.strokeStyle = '#0b2a5b';
+		ctx.strokeText( 'Phillies', 0, 6, CELL - 8 );
+		ctx.fillStyle = '#d01c2c';
+		ctx.fillText( 'Phillies', 0, 6, CELL - 8 );
+		for ( const sx of [ 4, 22 ] ) {
+
+			ctx.fillStyle = '#0b2a5b';
+			ctx.beginPath();
+			for ( let k = 0; k < 10; k ++ ) {
+
+				const a = - Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 2.2 : 5.2;
+				ctx.lineTo( sx + Math.cos( a ) * r, - 22 + Math.sin( a ) * r );
+
+			}
+
+			ctx.fill();
+
+		}
+
+	} else {
+
+		ctx.font = '900 44px "Helvetica Neue", Arial, sans-serif';
+		ctx.lineWidth = 6;
+		ctx.strokeStyle = '#8fbce6';
+		ctx.strokeText( 'RAYS', 0, 4, CELL - 10 );
+		ctx.fillStyle = '#0b2a5b';
+		ctx.fillText( 'RAYS', 0, 4, CELL - 10 );
+
+	}
+
+	ctx.restore();
 
 }
