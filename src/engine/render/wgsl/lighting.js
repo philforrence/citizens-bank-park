@@ -377,7 +377,14 @@ fn studioEnvDiffuse( N: vec3f ) -> vec3f {
 	return mix( vec3f( 0.05, 0.055, 0.06 ), vec3f( 0.3, 0.31, 0.33 ), N.y * 0.5 + 0.5 ) * frame.envIntensity;
 }
 
-fn shadeSurface( s: Surface, P: vec3f, V: vec3f, pixel: vec2f ) -> vec3f {
+fn shadeSurface( s0: Surface, P: vec3f, V: vec3f, pixel: vec2f ) -> vec3f {
+	var s = s0;
+#if !DRY
+	// rain: what faces the sky soaks up water, darker and glossy (materials under cover define DRY)
+	let wetK = frame.wet * smoothstep( 0.25, 0.75, s.normal.y ) * ( 1.0 - s.metalness );
+	s.albedo = s.albedo * mix( 1.0, 0.6, wetK * smoothstep( 0.25, 0.9, s.roughness ) );
+	s.roughness = mix( s.roughness, min( s.roughness, 0.14 ), wetK );
+#endif
 	let N = s.normal;
 	let rough = clamp( s.roughness, 0.03, 1.0 );
 	let diffuseColor = s.albedo * ( 1.0 - s.metalness );

@@ -128,6 +128,7 @@ export class Field {
 		geo.computeBoundingSphere();
 
 		this.surfaceMaterial = fieldMaterial( this.boundary, this.group.rotation.y );
+		this.surfaceMaterial.setDefine( 'DRY', 1 ); // the field has its own wetness and puddles (the wet uniform)
 		const mesh = new Mesh( geo, this.surfaceMaterial );
 		mesh.name = 'field-surface';
 		mesh.receiveShadow = true;
@@ -463,7 +464,7 @@ export class Field {
 
 		const grass = standard( { name: 'bullpen-grass', color: new Color( 0.045, 0.13, 0.028 ), roughness: 0.95, modules: [ commonModule ],
 			surface: 's.albedo = mat.color * ( 0.88 + 0.16 * mx_noise_float2( in.P.xz * 0.35 ) ) * ( 0.93 + 0.1 * mx_noise_float2( in.P.xz * 19.0 ) );' } );
-		const dirt = standard( { name: 'bullpen-dirt', color: new Color( 0.52, 0.27, 0.14 ), roughness: 0.92 } );
+		const dirt = standard( { name: 'bullpen-dirt', color: new Color( 0.56, 0.27, 0.11 ), roughness: 0.92 } );
 		const wall = standard( { name: 'bullpen-wall', color: new Color( 0.018, 0.16, 0.1 ), roughness: 0.7 } );
 		const white = standard( { name: 'bullpen-plates', color: new Color( 0.82, 0.82, 0.8 ), roughness: 0.6 } );
 		for ( const m of [ grass, dirt, wall, white ] ) m.underwaterLighting = 'none';
@@ -880,7 +881,8 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	var col = vec3f( 0.068, 0.19, 0.03 ) * mow * ( 0.88 + 0.16 * n1 ) * ( 0.92 + 0.1 * n2 ) * ( 0.94 + 0.08 * n3 );
 	var rough = 0.95;
 	if ( dirt ) {
-		col = vec3f( 0.52, 0.27, 0.14 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );
+		// the infield clay: a warm orange-tan
+		col = vec3f( 0.56, 0.27, 0.11 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );
 		rough = 0.92;
 		// the edge of the grass: a soft lip, not a razor line
 	}
@@ -925,9 +927,9 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	// infield dirt (round home plate and second base went under on October 27, 2008)
 	let wet = mat.wet;
 	if ( wet > 0.001 && ! outside ) {
-		let k = select( 0.22, 0.32, dirt || track );
+		let k = select( 0.2, 0.42, dirt || track );
 		col *= 1.0 - k * wet;
-		rough = mix( rough, rough * select( 0.55, 0.35, dirt || track ), wet );
+		rough = mix( rough, rough * select( 0.45, 0.28, dirt || track ), wet );
 		if ( dirt ) {
 			let second = vec2f( 0.0, ${ f( - BASE * Math.SQRT2 ) } );
 			let low = 1.0 - smoothstep( 0.0, 7.0, min( length( p - plate ), length( p - second ) ) );

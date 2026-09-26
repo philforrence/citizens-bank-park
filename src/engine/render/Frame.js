@@ -37,6 +37,7 @@ const FRAME_FIELDS = {
 	// Sun (or moon at night) direction, pointing toward the light.
 	sunDir: [ 'vec3f', new Vector3( 0.3, 0.6, - 0.7 ).normalize() ],
 	night: [ 'f32', 0 ], // 0 = day, 1 = full night
+	wet: [ 'f32', 0 ], // rain: how wet the surfaces open to the sky are, 0..1 (see shadeSurface)
 	// Radiance-scaled irradiance of the sun at sea level after atmospheric extinction.
 	sunColor: [ 'vec3f', new Color( 1, 1, 1 ) ],
 	exposure: [ 'f32', 1 ],
@@ -102,6 +103,7 @@ export const G = {
 	windDir: F.windDir,
 	windSpeed: F.windSpeed,
 	night: F.night,
+	wet: F.wet,
 	envIntensity: F.envIntensity,
 };
 

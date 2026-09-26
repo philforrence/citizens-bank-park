@@ -786,6 +786,7 @@ export class Bowl {
 `,
 		} );
 		mat.underwaterLighting = 'none';
+		mat.setDefine( 'DRY', 1 ); // mostly under the decks
 		const mesh = new Mesh( geo, mat );
 		mesh.name = 'street-level';
 		mesh.receiveShadow = true;

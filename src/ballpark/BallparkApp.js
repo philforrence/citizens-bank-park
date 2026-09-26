@@ -410,6 +410,7 @@ export class BallparkApp {
 		if ( this.qs.get( 'weather' ) === 'off' ) {
 
 			flagWind( 1, 0.6, 0.35 );
+			G.wet.value = 0;
 			return;
 
 		}
@@ -426,6 +427,8 @@ export class BallparkApp {
 		this.rain.material.uniforms.wind.value.set( firstNight ? 1.2 : 0, firstNight ? 0.8 : 0 );
 		flagWind( 1.2, 0.8, firstNight ? 0.5 + 0.2 * k : 0.9 );
 		this.field.surfaceMaterial.uniforms.wet.value = wet;
+		// everything else open to the sky: soaked on the 27th, drying out on the 29th
+		G.wet.value = firstNight ? 0.45 + 0.55 * k : 0.12;
 		this.sound.setRain( rain );
 		if ( this.clouds ) this.clouds.coverage.value = firstNight ? 0.85 + 0.12 * k : 0.55;
 		if ( this.haze ) this.haze.density.value = firstNight ? 1.3 + 1.2 * k : 1.0;
