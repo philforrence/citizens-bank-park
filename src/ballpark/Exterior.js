@@ -1,5 +1,6 @@
 import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, LatheGeometry, Vector2, Vector3, Color } from '../engine/index.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
+import { StorageBuffer } from '../engine/gpu/Texture.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
 import { flatPolygon, offsetLoop, canvasTexture, segLen, lerp2, beam, box } from './geo.js';
@@ -42,12 +43,30 @@ export class Exterior {
 		this.group.name = 'exterior';
 		field.group.add( this.group );
 
+		this.reflect = []; // lights seen in the wet plaza: [ field x, y, z, r, g, b, strength ]
 		this._materials();
 		this._buildSidewalks();
 		this._buildFacade();
 		for ( const g of GATES ) this._buildGate( g );
 		this._buildPlaza();
 		this._buildStatues();
+		this._writeReflections();
+
+	}
+
+	// the lights that streak in the wet plaza, into the pavers' buffer (world frame)
+	_writeReflections() {
+
+		const list = this.reflect.slice( 0, 32 );
+		const d = new Float32Array( 64 * 4 );
+		list.forEach( ( [ x, y, z, r, g, b, k ], i ) => {
+
+			const w = this.field.toWorld( x, z );
+			d.set( [ w.x, this.field.y0 + y, w.z, 1, r, g, b, k ], i * 8 );
+
+		} );
+		this.reflectBuffer.write( d );
+		this.pavers.uniforms.reflectN.value = list.length;
 
 	}
 
@@ -160,13 +179,39 @@ export class Exterior {
 	if ( sill ) { c = vec3f( 0.6, 0.55, 0.47 ); rough = 0.7; }
 	var e = vec3f( 0.0 );
 	if ( win ) {
-		// dark glass with mullions, some offices lit
+		// glass with a mullion, and a room behind it (interior mapping: the view ray traced into a box
+		// 4 m deep, its back wall, side walls, floor and ceiling), lit or dark, some with blinds down
 		let mull = step( abs( bay - 1.875 ), 0.03 );
-		c = mix( vec3f( 0.03, 0.04, 0.05 ), vec3f( 0.12, 0.05, 0.04 ), mull );
-		rough = 0.12;
 		let cell = floor( vec2f( u / 3.75, v / 3.6 ) );
-		let lit = step( 0.45, fract( sin( dot( cell, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ) );
-		e = vec3f( 1.0, 0.8, 0.55 ) * lit * ( 1.0 - mull ) * smoothstep( 0.1, 0.7, frame.night ) * 0.5;
+		let hh = fract( sin( vec3f( dot( cell, vec2f( 12.9898, 78.233 ) ), dot( cell, vec2f( 39.3, 11.1 ) ), dot( cell, vec2f( 73.1, 52.2 ) ) ) ) * 43758.5453 );
+		let N = normalize( in.N );
+		let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), N ) );
+		let Vd = normalize( in.P - frame.cameraPos );
+		let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - N ), 0.05 ) );
+		let ro = vec3f( bay - 1.875, fl - 0.95, 0.0 );
+		let tx = ( select( -2.2, 2.2, rd.x > 0.0 ) - ro.x ) / rd.x;
+		let ty = ( select( -0.95, 2.05, rd.y > 0.0 ) - ro.y ) / rd.y;
+		let tz = 4.0 / rd.z;
+		let t = min( tx, min( ty, tz ) );
+		let hit = ro + rd * t;
+		var room = vec3f( 0.55, 0.5, 0.44 ) * ( 0.8 + 0.3 * hh.z ); // walls
+		if ( t == tz ) { room = room * 0.85; if ( abs( hit.x ) < 0.9 && hit.y > 0.3 && hit.y < 1.5 ) { room = vec3f( 0.25, 0.2, 0.16 ); } }
+		if ( t == ty && rd.y < 0.0 ) { room = vec3f( 0.16, 0.14, 0.13 ); }
+		if ( t == ty && rd.y > 0.0 ) { room = vec3f( 0.9, 0.88, 0.82 ) * ( 0.7 + 0.3 * step( 0.5, fract( hit.z / 1.2 ) ) ); }
+		// the ceiling lights near the window are brighter; deeper in, darker
+		let depthK = 1.0 - 0.45 * clamp( hit.z / 4.0, 0.0, 1.0 );
+		let lit = step( 0.35, hh.x );
+		let warmth = mix( vec3f( 1.0, 0.78, 0.52 ), vec3f( 0.95, 0.97, 1.0 ), step( 0.6, hh.y ) );
+		// blinds part way down in some
+		let blind = step( 0.7, hh.z ) * step( 2.0 - 1.6 * fract( hh.z * 7.0 ), fl - 0.95 );
+		var inside = room * warmth * depthK;
+		if ( blind > 0.5 ) { inside = vec3f( 0.75, 0.7, 0.6 ) * warmth * ( 0.75 + 0.25 * step( 0.5, fract( fl / 0.05 ) ) ); }
+		c = mix( vec3f( 0.025, 0.03, 0.035 ), vec3f( 0.12, 0.05, 0.04 ), mull );
+		rough = 0.1;
+		let night = smoothstep( 0.1, 0.7, frame.night );
+		// by day the rooms show faintly through the glass; after dark the lit ones glow
+		c = c + inside * ( 1.0 - mull ) * 0.08 * ( 1.0 - night );
+		e = inside * ( 1.0 - mull ) * night * mix( 0.015, 0.45, lit );
 	}
 	s.albedo = c;
 	s.roughness = rough;
@@ -187,36 +232,87 @@ export class Exterior {
 	s.albedo = mat.color * joint * ( 0.88 + 0.14 * mx_noise_float2( p * 0.5 ) ) * ( 0.95 + 0.06 * mx_noise_float2( p * 11.0 ) );
 `,
 		} );
+		this.reflectBuffer = new StorageBuffer( { label: 'plazaLights', count: 64, type: 'vec4f' } );
 		this.pavers = standard( {
 			name: 'plaza-pavers', color: new Color( 0.3, 0.14, 0.09 ), roughness: 0.8, modules: [ commonModule ],
+			uniforms: { reflectN: [ 'f32', 0 ] },
+			storage: { plzLights: this.reflectBuffer },
 			surface: /* wgsl */`
-	// light concrete slabs (1.5 m, saw-cut joints) crossed by bands of red brick pavers every 10 m, laid in
-	// herringbone; each slab a little different, the brick weathered
+	// light concrete slabs (1.5 m, saw-cut joints, a broom finish across each, dirt in the joints, stains
+	// and gum) crossed by bands of red brick pavers every 10 m, laid in herringbone
 	let p = in.uv;
 	let g = abs( fract( p / 10.0 ) - 0.5 ) * 10.0; // metres from the middle of a 10 m cell
 	let band = max( g.x, g.y ) > 4.4;
 	let fw = fwidth( p.x ) + 0.002;
+	let far = clamp( fw * 12.0 - 0.3, 0.0, 1.0 );
 	var c: vec3f;
+	var rough = 0.8;
 	if ( band ) {
 		let q = vec2f( p.x + p.y, p.x - p.y ) * 0.7071;
 		let cell = floor( q / vec2f( 0.2, 0.1 ) );
 		let f = fract( q / vec2f( 0.2, 0.1 ) );
-		let far = clamp( fw * 12.0 - 0.3, 0.0, 1.0 );
 		let mortar = mix( clamp( step( 0.9, f.x ) + step( 0.85, f.y ), 0.0, 1.0 ), 0.2, far );
 		let tone = mix( 0.8 + 0.35 * fract( sin( dot( cell, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, far );
-		c = mix( mat.color * tone, vec3f( 0.3, 0.28, 0.26 ), mortar * 0.7 );
+		c = mix( mat.color * tone, vec3f( 0.22, 0.2, 0.18 ), mortar * 0.75 );
 		// the band's edge in granite
-		if ( max( g.x, g.y ) < 4.55 ) { c = vec3f( 0.3, 0.3, 0.29 ); }
+		if ( max( g.x, g.y ) < 4.55 ) { c = vec3f( 0.3, 0.3, 0.29 ); rough = 0.6; }
 	} else {
 		let slab = floor( p / 1.5 );
 		let sj = abs( fract( p / 1.5 ) - 0.5 ) * 1.5;
-		let joint = ( 1.0 - smoothstep( 0.72, 0.74 + fw, max( sj.x, sj.y ) ) );
-		let tint = 0.92 + 0.12 * fract( sin( dot( slab, vec2f( 41.3, 17.7 ) ) ) * 7543.21 );
-		c = vec3f( 0.46, 0.44, 0.4 ) * tint * mix( 0.72, 1.0, joint );
+		let jd = 0.75 - max( sj.x, sj.y ); // m from the nearest joint
+		let joint = smoothstep( 0.008, 0.012 + fw, jd );
+		let dirt = 1.0 - smoothstep( 0.0, 0.05, jd );
+		let h1 = fract( sin( dot( slab, vec2f( 41.3, 17.7 ) ) ) * 7543.21 );
+		let tint = 0.9 + 0.14 * h1;
+		// the broom's striations, across the slab one way or the other
+		let across = select( p.y, p.x, fract( h1 * 7.0 ) > 0.5 );
+		let alongC = select( p.x, p.y, fract( h1 * 7.0 ) > 0.5 );
+		let broom = mx_noise_float2( vec2f( across * 140.0, alongC * 2.0 ) ) * ( 1.0 - clamp( fw * 60.0, 0.0, 1.0 ) );
+		c = vec3f( 0.46, 0.44, 0.4 ) * tint * mix( 0.55, 1.0, joint ) * mix( 1.0, 0.8, dirt ) * ( 1.0 + 0.06 * broom );
+		// stains, and the odd piece of gum
+		let blot = smoothstep( 0.35, 0.75, mx_noise_float2( p * 0.45 + slab * 3.1 ) );
+		c = c * ( 1.0 - 0.16 * blot );
+		let gc = floor( p / 0.6 );
+		let gh = fract( sin( dot( gc, vec2f( 27.1, 91.7 ) ) ) * 9143.7 );
+		let go = vec2f( fract( gh * 13.0 ), fract( gh * 29.0 ) ) * 0.5 + 0.05;
+		let gd = length( p - gc * 0.6 - go );
+		if ( gh > 0.8 ) { c = mix( c, vec3f( 0.18, 0.18, 0.17 ), ( 1.0 - smoothstep( 0.008, 0.014, gd ) ) * ( 1.0 - far ) ); }
+		rough = 0.85 - 0.1 * blot;
 	}
-	s.albedo = c * ( 0.9 + 0.12 * mx_noise_float2( p * 0.35 ) + 0.05 * mx_noise_float2( p * 4.0 ) );
+	c = c * ( 0.9 + 0.12 * mx_noise_float2( p * 0.35 ) + 0.05 * mx_noise_float2( p * 4.0 ) );
+
+	// wet: the concrete darker and glossy, puddles in the low spots (mirrors); the lamps' and the gate's
+	// lights streak across it toward you, as on any wet street at night
+	let wet = frame.wet;
+	let pn = mx_noise_float2( p * 0.16 ) * 0.65 + mx_noise_float2( p * 0.9 ) * 0.35;
+	let puddle = smoothstep( 0.2, 0.32, pn - ( 1.0 - wet ) * 0.8 ) * wet;
+	c = c * mix( 1.0, 0.6, wet * select( 1.0, 0.6, band ) ) * mix( 1.0, 0.55, puddle );
+	rough = mix( mix( rough, 0.2, wet ), 0.03, puddle );
+	var refl = vec3f( 0.0 );
+	let V = normalize( in.P - frame.cameraPos );
+	let R = vec3f( V.x, - V.y, V.z );
+	let rh = normalize( R.xz + vec2f( 1e-5, 0.0 ) );
+	let sa = mix( 0.02, 0.008, puddle );
+	let sl = mix( 0.4, 0.14, puddle );
+	let rEl = asin( clamp( R.y, -1.0, 1.0 ) );
+	for ( var i = 0u; i < u32( mat.reflectN ); i ++ ) {
+		let L = plzLights[ i * 2u ];
+		let col = plzLights[ i * 2u + 1u ];
+		let D = L.xyz - in.P;
+		let dl = length( D );
+		let Ld = D / dl;
+		let lh = normalize( Ld.xz + vec2f( 1e-5, 0.0 ) );
+		if ( dot( rh, lh ) < 0.0 ) { continue; }
+		let acr = abs( rh.x * lh.y - rh.y * lh.x );
+		let alg = rEl - asin( clamp( Ld.y, -1.0, 1.0 ) );
+		refl += col.rgb * col.a * exp( - ( acr * acr ) / ( sa * sa ) - ( alg * alg ) / ( sl * sl ) ) / ( 1.0 + dl * dl * 0.0015 );
+	}
+	s.albedo = c;
+	s.roughness = rough;
+	s.emissive = refl * wet * mix( 0.3, 1.0, puddle ) * smoothstep( 0.1, 0.7, frame.night );
 `,
 		} );
+		this.pavers.setDefine( 'DRY', 1 ); // its own wetness (above)
 		for ( const m of [ this.brick, this.brickUpper, this.coping, this.brickPlain, this.stone, this.copper, this.granite, this.bronze, this.paving, this.pavers ] ) m.underwaterLighting = 'none';
 
 	}
@@ -260,6 +356,7 @@ export class Exterior {
 			cap.position.set( x, STREET + 5.25, z );
 			this.group.add( cap );
 			this.lamps.push( [ x, STREET + 4.8, z ] );
+			this.reflect.push( [ x, STREET + 4.8, z, 1.0, 0.72, 0.42, 6.0 ] );
 			const w = this.field.toWorld( x, z );
 			this.colliders.addCylinder( w.x, w.z, 0.15, this.field.y0 + STREET, this.field.y0 + STREET + 4.6 );
 
@@ -673,6 +770,7 @@ export class Exterior {
 
 			const sk = - W / 2 + W * ( k + 0.5 ) / ng;
 			const gp = P( sk, out - 1.6, under - 0.45 );
+			if ( /THIRD/.test( g.name ) ) this.reflect.push( [ ...gp, 1.0, 0.8, 0.55, 1.6 ] );
 			const gm = new Mesh( new SphereGeometry( 0.2, 12, 8 ), globe );
 			gm.position.set( gp[ 0 ], gp[ 1 ], gp[ 2 ] );
 			this.group.add( gm );
@@ -709,6 +807,9 @@ export class Exterior {
 			const gm = new Mesh( gq.geometry(), gl );
 			gm.name = 'gate-glass';
 			this.group.add( gm );
+			// its lit glass, and the green sign over the gate, in the wet plaza
+			for ( const f of [ - 0.6, - 0.2, 0.2, 0.6 ] ) this.reflect.push( [ ...P( f * half2, o, ( ga + gb ) / 2 ), 1.0, 0.85, 0.62, 1.5 ] );
+			this.reflect.push( [ ...P( 0, out, top + 1.5 ), 0.2, 1.0, 0.45, 2.0 ] );
 
 		}
 

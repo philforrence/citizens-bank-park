@@ -495,7 +495,7 @@ export class BallparkApp {
 		// everything else open to the sky: soaked on the 27th, drying out on the 29th
 		G.wet.value = firstNight ? 0.45 + 0.55 * k : 0.12;
 		// the low cloud on the 27th glows with the park's and the city's light
-		this.skyGlow = firstNight ? 0.016 + 0.008 * k : 0.006;
+		this.skyGlow = firstNight ? 0.011 + 0.004 * k : 0.006;
 		this.sound.setRain( rain );
 		// ponchos in the stands while it rains
 		this._crowdRain = firstNight ? Math.min( 1, rain * 3 ) : 0;
@@ -573,7 +573,7 @@ export class BallparkApp {
 
 			// the glow over the city, and the halos round the light banks (bigger in the rain)
 			const r = this.rain ? this.rain.amount : 0;
-			this.skyGlowLayer.set( { glow: night * this.skyGlow, halo: night * ( 0.35 + 1.1 * r ), haloSize: 22 + 20 * r, toward: this._north } );
+			this.skyGlowLayer.set( { glow: night * this.skyGlow, halo: night * ( 0.2 + 0.45 * r ), haloSize: 18 + 12 * r, toward: this._north } );
 
 		}
 		const moon = new Vector3( - dir.x, Math.abs( dir.y ) * 0.8 + 0.25, - dir.z ).normalize();
