@@ -7,7 +7,7 @@ import * as THREE from '../engine/index.js';
 const EYE = 1.62;
 const RADIUS = 0.3;
 const HEIGHT = 1.75;
-const STEP = 0.4; // highest ledge you walk up onto (a stair riser is ~0.18 m)
+const STEP = 0.62; // highest ledge you walk up onto: a stair riser is ~0.18 m, an upper deck's row 0.6
 const WALK = 3.0; // m/s
 const SPRINT = 6.2;
 
@@ -34,6 +34,8 @@ export class Walker {
 		this.bob = 0;
 		this.stepDist = 0;
 		this.prompt = null;
+		// things you can use with E: { x, y, z (world), radius, text: () => string, action: () => void }
+		this.interactables = [];
 		// eye height easing (critically damped), so dropping in from the free camera doesn't jump
 		this.camOff = 0;
 		this.camOffV = 0;
@@ -45,7 +47,8 @@ export class Walker {
 	setPose( position, yaw, pitch = - 0.05 ) {
 
 		this.position.copy( position );
-		this.position.y = Math.max( this.position.y, this.groundAt( position.x, position.z, position.y + 50 ) );
+		// stand on the floor at (or just under) the given height: under a deck, not on top of it
+		this.position.y = Math.max( this.position.y, this.groundAt( position.x, position.z, position.y + STEP + 0.05 ) );
 		this.velocity.set( 0, 0, 0 );
 		this.yaw = yaw;
 		this.pitch = pitch;
@@ -68,6 +71,7 @@ export class Walker {
 		this.pitch = THREE.MathUtils.clamp( this.pitch - look.y * 0.0022, - 1.5, 1.5 );
 
 		this.updateWalk( dt );
+		this.updateInteract();
 
 		const eye = this.position.clone();
 		eye.y += EYE + Math.sin( this.bob ) * 0.035;
@@ -86,6 +90,29 @@ export class Walker {
 		this.camera.position.copy( eye );
 		this._camY = this.camera.position.y;
 		this.camera.quaternion.setFromEuler( _e.set( this.pitch, this.yaw, 0 ) );
+
+	}
+
+	// the nearest thing in reach gets the E prompt; E uses it
+	updateInteract() {
+
+		let best = null, bestD = Infinity;
+		const p = this.position;
+		for ( const it of this.interactables ) {
+
+			const d = Math.hypot( it.x - p.x, it.z - p.z );
+			if ( d < it.radius && Math.abs( it.y - p.y ) < 1.5 && d < bestD ) {
+
+				best = it;
+				bestD = d;
+
+			}
+
+		}
+
+		if ( ! best ) return;
+		this.prompt = { key: 'E', text: best.text() };
+		if ( this.input.hit( 'KeyE' ) ) best.action();
 
 	}
 

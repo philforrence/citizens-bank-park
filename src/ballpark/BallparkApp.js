@@ -26,6 +26,7 @@ import { Colliders } from '../world/Colliders.js';
 import { DryWater, DRY_LEVEL } from './DryWater.js';
 import { Ground } from './Ground.js';
 import { Field } from './Field.js';
+import { Bowl } from './Bowl.js';
 import { FOOTPRINT } from './layout.js';
 import { Walker } from './Walker.js';
 
@@ -35,9 +36,9 @@ const _up = new Vector3( 0, 1, 0 );
 const LATITUDE = 39.9;
 
 // World axes (as Tidewater's sky): +x east, +y up, -z north. Metres. Home plate is at the origin
-// (see layout.js). For now you start in foul territory by third base, looking out to center field
-// (field frame [ x, z ] and the point you face).
-const START = { at: [ - 24, - 12 ], look: [ 0, - 110 ] };
+// (see layout.js). For now you start on the main concourse behind home plate, looking out to center
+// field (field frame [ x, z ] and the point you face).
+const START = { at: [ 0, 37 ], look: [ 0, - 110 ] };
 
 // the sun's declination on a date (degrees): where the sun really is in the sky today
 function solarDeclination( date = new Date() ) {
@@ -123,6 +124,13 @@ export class BallparkApp {
 		await progress( 0.1, 'Laying the ground…' );
 		this.colliders = new Colliders();
 		this.field = new Field( { scene, colliders: this.colliders } );
+		await progress( 0.14, 'Building the stands…' );
+		this.bowl = new Bowl( { field: this.field, colliders: this.colliders } );
+		// the haze thickens toward "sea level": put that under the field, which is below the street
+		G.seaLevel.value = this.field.y0 - 1;
+		// what you walk on: street level round the pit, the field (and the seats' colliders) inside it
+		const F = this.field, B = this.bowl;
+		this.terrain = { heightAt: ( x, z ) => F.y0 + B.heightAt( ...F.toField( x, z ) ) };
 		this.ground = new Ground( { scene, hole: FOOTPRINT.map( ( [ x, z ] ) => {
 
 			const w = this.field.toWorld( x, z );
@@ -137,7 +145,8 @@ export class BallparkApp {
 
 		const at = this.field.toWorld( ...START.at ), look = this.field.toWorld( ...START.look );
 		const start = { position: at, yaw: Math.atan2( - ( look.x - at.x ), - ( look.z - at.z ) ) };
-		this.walker = new Walker( { camera, input: this.input, ground: this.field, colliders: this.colliders, start } );
+		this.walker = new Walker( { camera, input: this.input, ground: this.terrain, colliders: this.colliders, start } );
+		this._addElevators();
 		this.freeCam = qs.has( 'fly' );
 
 		// ---------------------------------------------------------------- post
@@ -180,6 +189,36 @@ export class BallparkApp {
 
 			this.frame( 1 / 60 );
 			await GPU.queue.onSubmittedWorkDone();
+
+		}
+
+	}
+
+	// E at an elevator door rides to the next level (main concourse, suites, club, terrace, and round)
+	_addElevators() {
+
+		const F = this.field;
+		for ( const bank of this.bowl.elevators || [] ) {
+
+			bank.stops.forEach( ( stop, i ) => {
+
+				const next = bank.stops[ ( i + 1 ) % bank.stops.length ];
+				const w = F.toWorld( stop.x, stop.z );
+				this.walker.interactables.push( {
+					x: w.x, y: F.y0 + stop.y, z: w.z, radius: 2.2,
+					text: () => `Elevator to ${ next.name.toLowerCase() }`,
+					action: () => {
+
+						const to = F.toWorld( next.x, next.z );
+						// arrive facing the field
+						const look = F.toWorld( next.x + next.face[ 0 ] * 10, next.z + next.face[ 1 ] * 10 );
+						this.walker.setPose( new Vector3( to.x, F.y0 + next.y, to.z ), Math.atan2( - ( look.x - to.x ), - ( look.z - to.z ) ), - 0.05 );
+						if ( this.ui ) this.ui.ui.toast( next.name );
+
+					},
+				} );
+
+			} );
 
 		}
 

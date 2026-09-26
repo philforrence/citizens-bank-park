@@ -1,4 +1,5 @@
-import { Group, Mesh, InstancedMesh, BufferGeometry, Float32BufferAttribute, Matrix4, Quaternion, Vector3, Color } from '../engine/index.js';
+import { Group, Mesh, InstancedMesh, BufferGeometry, Float32BufferAttribute, Matrix4, Quaternion, Vector2, Vector3, Color } from '../engine/index.js';
+import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { standard } from '../materials/Materials.js';
 
 // Seating tiers, built the way real stands are: the front edge is a polyline of straight sections;
@@ -15,6 +16,9 @@ import { standard } from '../materials/Materials.js';
 //   y0                          height of the first row's tread
 //   rows                        number of rows
 //   depth                       row depth (m)
+//   start                       the first row begins this far behind the front line (m)
+//   frontY                      the bottom of the first row's riser
+//   skipRows: ( k ) => n        no rows 0..n-1 in front of front segment k (a dugout there)
 //   rise: n | ( r ) => n        riser height in front of row r (r >= 1)
 //   section                     longest straight section (m); longer front segments are split
 //   aisle                       aisle width (m)
@@ -22,8 +26,10 @@ import { standard } from '../materials/Materials.js';
 //   skip: [ [ i0, i1 ] ]        front segment index ranges with no seats (landings, tunnels, cameras)
 //   base                        bottom of the stepped block (m): the ground below the lower bowl, or
 //                               the underside of an upper deck
-//   frontWall: { height, thickness } a fascia / wall in front of the first row
+//   frontWall: { top }          a fascia / wall in front of the first row, from `base` up to `top`
 //   back: { height }            a wall behind the last row
+//   soffit                      an upper deck: its underside runs this far below the rows (m), and
+//                               the stepped profile is closed at the tier's two ends
 // }
 export const SEAT_W = 0.5;
 
@@ -43,7 +49,7 @@ export function tierTop( tier ) {
 
 }
 
-// the sections of a tier: straight pieces of its front, with the turn at each end
+// the sections of a tier: straight pieces of its front, with the mitre at each end
 export function tierSections( tier ) {
 
 	const P = tier.front;
@@ -62,37 +68,20 @@ export function tierSections( tier ) {
 
 		}
 
-		// the turn at each end of the front segment: > 0 turning away from the rows (the section
-		// opens up there: no mitre, a wedge aisle), < 0 toward them (mitre: rows get shorter)
-		const turnAt = ( j ) => {
-
-			if ( j <= 0 || j >= P.length - 1 ) return 0;
-			const [ px, pz ] = P[ j - 1 ], [ cx, cz ] = P[ j ], [ qx, qz ] = P[ j + 1 ];
-			const l1 = Math.hypot( cx - px, cz - pz ), l2 = Math.hypot( qx - cx, qz - cz );
-			const a1 = Math.atan2( ( cz - pz ) / l1, ( cx - px ) / l1 ), a2 = Math.atan2( ( qz - cz ) / l2, ( qx - cx ) / l2 );
-			let t = a2 - a1;
-			while ( t > Math.PI ) t -= 2 * Math.PI;
-			while ( t < - Math.PI ) t += 2 * Math.PI;
-			// sign relative to the outward normal: turning toward n means the rows converge
-			const cross = ( ( cx - px ) / l1 ) * nz - ( ( cz - pz ) / l1 ) * nx;
-			return cross > 0 ? - Math.abs( t ) * Math.sign( t ) * Math.sign( cross ) : t * Math.sign( - cross || 1 );
-
-		};
-
 		// split long segments into sections
 		const n = Math.max( 1, Math.ceil( len / ( tier.section || 1e9 ) ) );
 		const skip = ( tier.skip || [] ).some( ( [ i0, i1 ] ) => k >= i0 && k <= i1 );
+		const skipRows = tier.skipRows ? tier.skipRows( k ) : 0;
 		for ( let s = 0; s < n; s ++ ) {
 
 			const t0 = s / n, t1 = ( s + 1 ) / n;
 			out.push( {
 				k, a: [ ax + ( bx - ax ) * t0, az + ( bz - az ) * t0 ], len: len / n, ux, uz, nx, nz,
-				// mitre (inside turns only) at the ends that are the front polyline's corners
-				trim0: s === 0 ? mitre( P, k, nx, nz, true ) : 0,
-				trim1: s === n - 1 ? mitre( P, k + 1, nx, nz, false ) : 0,
-				seats: ! skip,
+				// signed mitres at the polyline's corners (collinear splits have none)
+				m0: s === 0 ? mitre( P, k, ux, uz, nx, nz, true ) : 0,
+				m1: s === n - 1 ? mitre( P, k + 1, ux, uz, nx, nz, false ) : 0,
+				seats: ! skip, skipRows,
 			} );
-			void turnAt;
 
 		}
 
@@ -102,22 +91,25 @@ export function tierSections( tier ) {
 
 }
 
-// How much a row at offset d must be shortened per metre of offset at the polyline corner j (tan of
-// half the turn) when the corner turns toward the rows; 0 when it turns away (the wedge aisle).
-function mitre( P, j, nx, nz, atStart ) {
+// At the polyline's corner j, a row at offset d from the front ends d * m short of the corner (m > 0:
+// the corner turns toward the rows, they converge) or d * -m past it (m < 0: it turns away, the rows
+// open out). m = tan( turn / 2 ): the rows of neighbouring sections meet on the corner's bisector.
+function mitre( P, j, ux, uz, nx, nz, atStart ) {
 
 	if ( j <= 0 || j >= P.length - 1 ) return 0;
 	const [ px, pz ] = P[ j - 1 ], [ cx, cz ] = P[ j ], [ qx, qz ] = P[ j + 1 ];
-	// the neighbour segment's direction, pointing away from the corner
-	const [ ex, ez ] = atStart ? [ px - cx, pz - cz ] : [ qx - cx, qz - cz ];
+	// the neighbour's direction, continuing the walk along the front
+	const [ ex, ez ] = atStart ? [ cx - px, cz - pz ] : [ qx - cx, qz - cz ];
 	const l = Math.hypot( ex, ez );
-	// the neighbour bends toward the rows side when it points along +n
-	const along = ( ex * nx + ez * nz ) / l;
-	if ( along <= 1e-4 ) return 0;
-	// angle between this segment's line and the neighbour: sin = along
-	const theta = Math.asin( Math.min( 1, along ) );
-	// the corner's interior half-angle is ( PI - theta ) / 2: rows are cut by d / tan of it
-	return 1 / Math.tan( ( Math.PI - theta ) / 2 );
+	if ( l < 1e-6 ) return 0;
+	// turn from the incoming to the outgoing direction; toward n is "converging"
+	const [ ix, iz, ox, oz ] = atStart ? [ ex / l, ez / l, ux, uz ] : [ ux, uz, ex / l, ez / l ];
+	const turn = Math.atan2( ix * oz - iz * ox, ix * ox + iz * oz );
+	// does the path turn toward the rows (they converge) or away (they open out)?
+	const towardRows = ( ox - ix ) * nx + ( oz - iz ) * nz;
+	if ( Math.abs( turn ) < 1e-4 ) return 0;
+	const m = Math.tan( Math.min( Math.abs( turn ), 2.6 ) / 2 );
+	return towardRows > 0 ? m : - m;
 
 }
 
@@ -128,6 +120,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	const ys = rowHeights( tier );
 	const secs = tierSections( tier );
 	const D = tier.depth, A = tier.aisle ?? 1.2, W = tier.seat ?? SEAT_W;
+	const S0 = tier.start || 0; // the first row's front edge, this far behind the front line
 	const base = tier.base ?? 0;
 	const q = new Quads();
 	const seatMats = [];
@@ -137,20 +130,28 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	for ( const S of secs ) {
 
 		const { a, len, ux, uz, nx, nz } = S;
-		// the row's two ends at offset d (along the section's front line from a)
+		// the row's two ends at offset d (along the section's front line from a): the concrete follows
+		// the mitres both ways; seats only get shorter (where the rows open out, the aisle widens)
 		const ends = ( d ) => {
 
-			const s0 = Math.min( len, S.trim0 * d ), s1 = Math.max( s0, len - S.trim1 * d );
+			const s0 = Math.min( len, S.m0 * d ), s1 = Math.max( s0, len - S.m1 * d );
+			return [ s0, s1 ];
+
+		};
+		const seatEnds = ( d ) => {
+
+			const s0 = Math.min( len, Math.max( 0, S.m0 ) * d ), s1 = Math.max( s0, len - Math.max( 0, S.m1 ) * d );
 			return [ s0, s1 ];
 
 		};
 
 		const at = ( s, d ) => [ a[ 0 ] + ux * s + nx * d, a[ 1 ] + uz * s + nz * d ];
 		const yawSeat = Math.atan2( - nx, - nz ); // seats face the field (-n)
-		for ( let r = 0; r < tier.rows; r ++ ) {
+		const first = S.skipRows || 0;
+		for ( let r = first; r < tier.rows; r ++ ) {
 
-			const d0 = r * D, d1 = ( r + 1 ) * D;
-			const y = ys[ r ], yPrev = r ? ys[ r - 1 ] : ( tier.frontY ?? base );
+			const d0 = S0 + r * D, d1 = S0 + ( r + 1 ) * D;
+			const y = ys[ r ], yPrev = r > first ? ys[ r - 1 ] : ( first ? base : ( tier.frontY ?? base ) );
 			const [ f0, f1 ] = ends( d0 ), [ b0, b1 ] = ends( d1 );
 			if ( f1 - f0 < 0.05 && b1 - b0 < 0.05 ) continue;
 			// tread
@@ -173,7 +174,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			// seats: along the row between the aisles, centred
 			if ( ! S.seats ) continue;
 			const dSeat = d0 + D * 0.55;
-			const [ s0, s1 ] = ends( dSeat );
+			const [ s0, s1 ] = seatEnds( dSeat );
 			const lo = s0 + A / 2, hi = s1 - A / 2;
 			const n = Math.floor( ( hi - lo ) / W );
 			if ( n < 1 ) continue;
@@ -192,14 +193,65 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 
 		}
 
-		// the sides of the stepped block at the tier's two ends
-		void 0;
+	}
+
+	// an upper deck's underside, parallel to the rake, and its two stepped end profiles
+	if ( tier.soffit ) {
+
+		const t = tier.soffit, yB = ys[ ys.length - 1 ];
+		const dF = S0, dB = S0 + tier.rows * D;
+		for ( const S of secs ) {
+
+			const e = ( d ) => [ Math.min( S.len, S.m0 * d ), Math.max( Math.min( S.len, S.m0 * d ), S.len - S.m1 * d ) ];
+			const [ f0, f1 ] = e( dF ), [ b0, b1 ] = e( dB );
+			const at = ( s, d ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, S.a[ 1 ] + S.uz * s + S.nz * d ];
+			const A0 = at( f0, dF ), A1 = at( f1, dF ), B1 = at( b1, dB ), B0 = at( b0, dB );
+			const rake = ( yB - ys[ 0 ] ) / ( dB - dF );
+			q.add( [ A0[ 0 ], ys[ 0 ] - t, A0[ 1 ] ], [ A1[ 0 ], ys[ 0 ] - t, A1[ 1 ] ], [ B1[ 0 ], yB - t, B1[ 1 ] ], [ B0[ 0 ], yB - t, B0[ 1 ] ], [ S.nx * rake, - 1, S.nz * rake ] );
+
+		}
+
+		// end caps: the stepped profile in the plane of the tier's first / last section end
+		const profile = [ [ dF, ys[ 0 ] - t ] ];
+		for ( let r = 0; r < tier.rows; r ++ ) profile.push( [ S0 + r * D, ys[ r ] ], [ S0 + ( r + 1 ) * D, ys[ r ] ] );
+		profile.push( [ dB, yB - t ] );
+		const pts2 = profile.map( ( [ d, y ] ) => new Vector2( d, y ) );
+		const tris = triangulateShape( pts2.slice(), [] );
+		for ( const [ S, end ] of [ [ secs[ 0 ], false ], [ secs[ secs.length - 1 ], true ] ] ) {
+
+			const n = end ? [ S.ux, 0, S.uz ] : [ - S.ux, 0, - S.uz ];
+			const P3 = profile.map( ( [ d, y ] ) => {
+
+				const s = end ? Math.max( 0, S.len - S.m1 * d ) : Math.min( S.len, S.m0 * d );
+				return [ S.a[ 0 ] + S.ux * s + S.nx * d, y, S.a[ 1 ] + S.uz * s + S.nz * d ];
+
+			} );
+			for ( const [ i, j, k ] of tris ) q.tri( P3[ i ], P3[ j ], P3[ k ], n );
+
+		}
+
+	}
+
+	// the front of an upper deck: a solid rail you can't walk off
+	if ( tier.frontWall && colliders ) {
+
+		const top = tier.frontWall.top ?? ys[ 0 ];
+		const bottom = ys[ 0 ] - ( tier.soffit || 1 );
+		for ( const S of secs ) {
+
+			const s0 = Math.min( S.len, S.m0 * S0 ), s1 = Math.max( s0, S.len - S.m1 * S0 );
+			const mid = ( s0 + s1 ) / 2;
+			const cx = S.a[ 0 ] + S.ux * mid + S.nx * ( S0 - 0.1 ), cz = S.a[ 1 ] + S.uz * mid + S.nz * ( S0 - 0.1 );
+			const w = toWorld( cx, cz );
+			colliders.addBox( new Vector3( w.x, ( top + bottom ) / 2, w.z ), new Vector3( ( s1 - s0 ) / 2, ( top - bottom ) / 2, 0.12 ), worldYaw - Math.atan2( S.uz, S.ux ), { tag: tier.name + '-front' } );
+
+		}
 
 	}
 
 	// the front wall / fascia and the back wall along the whole tier
-	if ( tier.frontWall ) wallAlong( q, secs, 0, base, tier.frontWall.top ?? ys[ 0 ], - 1 );
-	if ( tier.back ) wallAlong( q, secs, tier.rows * D, ys[ ys.length - 1 ], ys[ ys.length - 1 ] + tier.back.height, 1, ends => ends );
+	if ( tier.frontWall ) wallAlong( q, secs, S0, base, tier.frontWall.top ?? ys[ 0 ], - 1 );
+	if ( tier.back ) wallAlong( q, secs, S0 + tier.rows * D, ys[ ys.length - 1 ], ys[ ys.length - 1 ] + tier.back.height, 1 );
 
 	const concrete = new Mesh( q.geometry(), materials.concrete );
 	concrete.name = tier.name + '-steps';
@@ -240,7 +292,7 @@ function wallAlong( q, secs, d, y0, y1, side ) {
 
 	for ( const S of secs ) {
 
-		const s0 = Math.min( S.len, S.trim0 * d ), s1 = Math.max( s0, S.len - S.trim1 * d );
+		const s0 = Math.min( S.len, S.m0 * d ), s1 = Math.max( s0, S.len - S.m1 * d );
 		const ax = S.a[ 0 ] + S.ux * s0 + S.nx * d, az = S.a[ 1 ] + S.uz * s0 + S.nz * d;
 		const bx = S.a[ 0 ] + S.ux * s1 + S.nx * d, bz = S.a[ 1 ] + S.uz * s1 + S.nz * d;
 		q.add( [ ax, y0, az ], [ bx, y0, bz ], [ bx, y1, bz ], [ ax, y1, az ], [ S.nx * side, 0, S.nz * side ] );
@@ -284,7 +336,7 @@ export function standsMaterials() {
 
 	const concrete = standard( { name: 'stands-concrete', color: new Color( 0.32, 0.31, 0.29 ), roughness: 0.85 } );
 	// navy seats; per-instance colour carries a little fading
-	const seat = standard( { name: 'seats', color: new Color( 0.012, 0.024, 0.11 ), roughness: 0.45, side: 'double' } );
+	const seat = standard( { name: 'seats', color: new Color( 0.008, 0.017, 0.075 ), roughness: 0.55, side: 'double' } );
 	for ( const m of [ concrete, seat ] ) m.underwaterLighting = 'none';
 	return { concrete, seat, seatGeometry: seatGeometry() };
 

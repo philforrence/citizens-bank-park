@@ -7,7 +7,7 @@ import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import {
 	FT, FIELD_BEARING, BASE, MOUND_CENTER, RUBBER_FRONT, MOUND_RADIUS, MOUND_HEIGHT,
-	FOOTPRINT, OUTFIELD, FOUL_TERRITORY, FOUL_WALL_HEIGHT, DUGOUTS, BULLPENS, fencePoint, fieldBoundary,
+	FOOTPRINT, OUTFIELD, FOUL_TERRITORY, FOUL_WALL_HEIGHT, DUGOUTS, BULLPENS, LEVELS, fencePoint, fieldBoundary,
 } from './layout.js';
 
 // The playing field: grass, the infield skin, the mound, the bases, the chalk, the warning track, the
@@ -43,6 +43,9 @@ export class Field {
 		this.group = new Group();
 		this.group.name = 'field';
 		this.group.rotation.y = - MathUtils.degToRad( FIELD_BEARING );
+		// the field is 23 ft below the street (world y = 0 is street level)
+		this.y0 = - LEVELS.mainConcourse;
+		this.group.position.y = this.y0;
 		scene.add( this.group );
 		this.group.updateMatrixWorld( true );
 		this._cos = Math.cos( this.group.rotation.y );
@@ -78,10 +81,17 @@ export class Field {
 
 	}
 
-	// ground height (world x, z): the mound, the dugout floors, else the field level
+	// ground height (world x, z): the mound, the dugout floors, else the field level; the bowl (Bowl.js)
+	// wraps this with the street level round the pit
 	heightAt( wx, wz ) {
 
-		const [ x, z ] = this.toField( wx, wz );
+		return this.y0 + this.fieldHeightAt( ...this.toField( wx, wz ) );
+
+	}
+
+	// the same in the field frame, above the field
+	fieldHeightAt( x, z ) {
+
 		for ( const d of this.dugouts ) if ( this._inDugout( d, x, z ) ) return - DUGOUT_DEPTH;
 		let h = moundHeight( x, z );
 		for ( const m of this.pens || [] ) h = Math.max( h, m.y + bumpHeight( x - m.x, z - m.z ) );
@@ -323,7 +333,7 @@ export class Field {
 			const dx = wb.x - wa.x, dz = wb.z - wa.z;
 			const hMax = Math.max( ha, hb );
 			this.colliders.addBox(
-				new Vector3( ( wa.x + wb.x ) / 2, hMax / 2, ( wa.z + wb.z ) / 2 ),
+				new Vector3( ( wa.x + wb.x ) / 2, this.y0 + hMax / 2, ( wa.z + wb.z ) / 2 ),
 				new Vector3( len / 2, hMax / 2, Math.max( thickness, 0.3 ) / 2 ),
 				- Math.atan2( dz, dx ),
 				{ tag: name },
@@ -432,7 +442,7 @@ export class Field {
 			pole.castShadow = true;
 			this.group.add( pole );
 			const w = this.toWorld( x, z );
-			this.colliders.addCylinder( w.x, w.z, 0.3, 0, H );
+			this.colliders.addCylinder( w.x, w.z, 0.3, this.y0, this.y0 + H );
 			// the screen sticks out from it into fair territory, square to the foul line
 			const fx = - Math.sign( a ) * r2, fz = - r2;
 			const screen = new Mesh( new BoxGeometry( 0.9, H - 4, 0.05 ), yellow );
@@ -486,7 +496,7 @@ export class Field {
 			if ( collider ) {
 
 				const w = this.toWorld( x, z );
-				this.colliders.addBox( new Vector3( w.x, ( y0 + y1 ) / 2, w.z ), new Vector3( ( s1 - s0 ) / 2, ( y1 - y0 ) / 2, ( t1 - t0 ) / 2 ), worldYaw, { tag: name, ...collider } );
+				this.colliders.addBox( new Vector3( w.x, this.y0 + ( y0 + y1 ) / 2, w.z ), new Vector3( ( s1 - s0 ) / 2, ( y1 - y0 ) / 2, ( t1 - t0 ) / 2 ), worldYaw, { tag: name, ...collider } );
 
 			}
 
@@ -595,7 +605,7 @@ export class Field {
 			if ( collider ) {
 
 				const w = this.toWorld( x, z );
-				this.colliders.addBox( new Vector3( w.x, ( y0 + y1 ) / 2, w.z ), new Vector3( ( s1 - s0 ) / 2, ( y1 - y0 ) / 2, ( t1 - t0 ) / 2 ), worldYaw, { tag: name, ...collider } );
+				this.colliders.addBox( new Vector3( w.x, this.y0 + ( y0 + y1 ) / 2, w.z ), new Vector3( ( s1 - s0 ) / 2, ( y1 - y0 ) / 2, ( t1 - t0 ) / 2 ), worldYaw, { tag: name, ...collider } );
 
 			}
 
