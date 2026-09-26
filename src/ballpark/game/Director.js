@@ -539,7 +539,7 @@ export class Director {
 		const lt = t - seg.t0;
 		this.actors = new Map();
 		this.ballAt = null;
-		this.now = { seg, snap: seg.snap, count: [ seg.snap.balls, seg.snap.strikes ], outs: seg.snap.outs, desc: seg.snap.desc, pitch: null };
+		this.now = { seg, snap: seg.snap, count: [ Math.min( 3, seg.snap.balls ), Math.min( 2, seg.snap.strikes ) ], outs: seg.snap.outs, desc: seg.snap.desc, pitch: null };
 		this[ 'show_' + seg.kind ]( seg, lt );
 		this._sync();
 

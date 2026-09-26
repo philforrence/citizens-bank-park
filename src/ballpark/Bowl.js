@@ -209,6 +209,8 @@ export class Bowl {
 		D.t400 = D.t300Back + 2.4;
 		D.t400Back = D.t400 + ROWS.t400 * ROW;
 		this.D = D;
+		this.path = path;
+		this.top = top;
 		const clubY = L.clubConcourse - ( ROWS.club - 1 ) * 0.46 - 0.2;
 		const t300Y = L.terraceConcourse - ( ROWS.t300 - 1 ) * 0.52 - 0.3;
 		const tiers = [

@@ -32,6 +32,7 @@ import { Surroundings } from './Surroundings.js';
 import { Landmarks } from './Landmarks.js';
 import { Details2008 } from './Details2008.js';
 import { Fascia } from './Fascia.js';
+import { Concourse } from './Concourse.js';
 import { Players } from './game/Players.js';
 import * as Motions from './game/Motions.js';
 import { Ball } from './game/Ball.js';
@@ -150,6 +151,7 @@ export class BallparkApp {
 		this.landmarks = new Landmarks( { field: this.field, bowl: this.bowl, colliders: this.colliders } );
 		this.details = new Details2008( { field: this.field } );
 		this.fascia = new Fascia( { field: this.field, bowl: this.bowl } );
+		this.concourse = new Concourse( { field: this.field, bowl: this.bowl, colliders: this.colliders } );
 		this.players = new Players( { parent: this.field.group } );
 		if ( qs.has( 'poses' ) ) this._poseLineup();
 		else {
