@@ -1,12 +1,18 @@
 import { BufferGeometry, Float32BufferAttribute, BoxGeometry, CylinderGeometry, SphereGeometry, LatheGeometry, Matrix3, Matrix4, Vector2, Vector3, Quaternion, Euler } from '../../engine/index.js';
+import { BODY } from './data/body.js';
 
-// A ballplayer's body: 17 bones, a low-poly mesh built bone by bone (every vertex carries its bone and
-// a "part" that says which piece of the uniform it is), and the pose: the trunk by forward kinematics,
-// arms and legs by two-bone IK toward hand and foot targets (knees and elbows bend toward pole
-// directions), a bat held by the right hand.
+// A ballplayer's body: 17 bones and one continuous skinned mesh (data/body.js: the MakeHuman base mesh
+// shaped into a 6'2" athlete, the fingers closed in a grip, every vertex weighted to up to four of our
+// bones; tools/build-body.mjs), plus rigid pieces on single bones (the cap or the batting helmet, the
+// catcher's gear, the cleats, the glove, the bat). Every vertex carries a "part" (which piece it is:
+// the body's own uniform regions are worked out in the shader from how far along the arm or leg it is)
+// and its bones and weights, in the bind pose. The pose: the trunk by forward kinematics, arms and legs
+// by two-bone IK toward hand and foot targets (knees and elbows bend toward pole directions), a bat held
+// by the right hand.
 //
 // Units: metres. The player's own frame: y up, facing -z (so +x is his right). Bone matrices come out in
-// the frame the player stands in (the field frame), ready for the GPU.
+// the frame the player stands in (the field frame); skinMatrices() turns them into the matrices that take
+// the bind pose there, ready for the GPU.
 
 export const BONES = {
 	pelvis: 0, torso: 1, head: 2,
@@ -18,31 +24,114 @@ export const BONES = {
 };
 export const NB = 17;
 
-export const PART = { skin: 0, jersey: 1, pants: 2, socks: 3, shoes: 4, cap: 5, glove: 6, bat: 7, belt: 8, sleeve: 9, helmet: 10, gear: 11, mask: 12, hair: 13 };
+export const PART = { skin: 0, jersey: 1, pants: 2, socks: 3, shoes: 4, cap: 5, glove: 6, bat: 7, belt: 8, sleeve: 9, helmet: 10, gear: 11, mask: 12, hair: 13, body: 14, eye: 15 };
 
-// body dimensions (a 6'2" player)
-export const DIM = {
-	hip: 0.96, // hip joint height standing
-	hipWidth: 0.095, // hip joints either side of the centre
-	waist: 0.08, // torso bone above the hips
-	torso: 0.5,
-	shoulder: 0.2, // shoulder joints either side, near the top of the torso
-	shoulderY: 0.46,
-	upperArm: 0.3, forearm: 0.27, hand: 0.08,
-	thigh: 0.45, shin: 0.44, footLen: 0.26,
-	bat: 0.86,
-};
+// body dimensions (a 6'2" player), measured off the mesh's skeleton
+export const DIM = { ...BODY.dim };
+// where the uniform's pieces end (Players.js): along the arm from the shoulder joint, along the leg
+// from the hip joint, the belt's band, the collar
+export const UNIFORM = BODY.uniform;
+export const FACE = BODY.face;
+export const JOINTS = BODY.joints;
+
+// ---------------------------------------------------------------- the bind pose
+
+// the pose the mesh was modelled in: MakeHuman's A pose, hands and feet where its joints are
+export function bindPose() {
+
+	const J = BODY.joints;
+	return {
+		pelvisX: 0, pelvisY: DIM.hip, pelvisZ: 0, pelvis: [ 0, 0, 0 ], torso: [ 0, 0, 0 ], head: [ 0, 0 ],
+		footL: J.ankleL.slice(), footR: J.ankleR.slice(), footYawL: 0, footYawR: 0,
+		handL: J.wristL.slice(), handR: J.wristR.slice(),
+		bat: null, twoHands: false, glove: true,
+	};
+
+}
+
+let _bind = null, _inv = null;
+// the bones' matrices in the bind pose, and their inverses (NB * 16 floats each)
+export function bindMatrices() {
+
+	if ( ! _bind ) {
+
+		_bind = new Float32Array( NB * 16 );
+		solvePose( new Matrix4(), bindPose(), _bind, 0, 'L' );
+		// the bat has no place in the bind pose: its pieces are modelled in its own frame
+		new Matrix4().toArray( _bind, BONES.bat * 16 );
+		_inv = new Float32Array( NB * 16 );
+		const m = new Matrix4();
+		for ( let b = 0; b < NB; b ++ ) m.fromArray( _bind, b * 16 ).invert().toArray( _inv, b * 16 );
+
+	}
+
+	return { bind: _bind, inverse: _inv };
+
+}
+
+const _sm = new Matrix4(), _si = new Matrix4();
+// out[ offset .. ] holds the NB bone matrices of a solved pose: turn each into bone * inverse( bind )
+export function skinMatrices( out, offset ) {
+
+	const { inverse } = bindMatrices();
+	for ( let b = 0; b < NB; b ++ ) {
+
+		_sm.fromArray( out, offset + b * 16 ).multiply( _si.fromArray( inverse, b * 16 ) ).toArray( out, offset + b * 16 );
+
+	}
+
+}
+
+function decode( b64, Type ) {
+
+	const bin = typeof atob === 'function' ? Uint8Array.from( atob( b64 ), ( c ) => c.charCodeAt( 0 ) ) : new Uint8Array( Buffer.from( b64, 'base64' ) );
+	return new Type( bin.buffer, bin.byteOffset, bin.byteLength / Type.BYTES_PER_ELEMENT );
+
+}
 
 // ---------------------------------------------------------------- the mesh
 
-// Every piece is a primitive moved into its bone's frame; attributes: aBone, aPart (floats).
+// Attributes: position and normal (bind pose), aBones / aWeights (vec4), aPart, aField (the body's
+// distance along the arm and along the leg, -1 elsewhere).
 export function buildPlayerGeometry() {
 
-	const pos = [], nrm = [], bone = [], part = [], index = [];
-	const m = new Matrix4(), q = new Quaternion(), e = new Euler(), s = new Vector3(), t = new Vector3();
+	const pos = [], nrm = [], bones = [], weights = [], part = [], field = [], index = [];
+	const Q = BODY.scale;
+
+	// the body
+	{
+
+		const P = decode( BODY.position, Int16Array ), N = decode( BODY.normal, Int8Array ), I = decode( BODY.bones, Uint8Array ), W = decode( BODY.weights, Uint8Array );
+		const F = decode( BODY.field, Int16Array ), G = decode( BODY.flag, Uint8Array ), X = decode( BODY.index, Uint16Array );
+		for ( let i = 0; i < BODY.count; i ++ ) {
+
+			pos.push( P[ i * 3 ] / Q, P[ i * 3 + 1 ] / Q, P[ i * 3 + 2 ] / Q );
+			const n = new Vector3( N[ i * 3 ], N[ i * 3 + 1 ], N[ i * 3 + 2 ] ).normalize();
+			nrm.push( n.x, n.y, n.z );
+			for ( let c = 0; c < 4; c ++ ) {
+
+				bones.push( I[ i * 4 + c ] );
+				weights.push( W[ i * 4 + c ] / 255 );
+
+			}
+
+			part.push( G[ i ] ? PART.eye : PART.body );
+			field.push( F[ i * 2 ] / Q, F[ i * 2 + 1 ] / Q );
+
+		}
+
+		for ( let i = 0; i < X.length; i ++ ) index.push( X[ i ] );
+
+	}
+
+	// the rigid pieces: modelled in their bone's own frame, placed in the bind pose
+	const { bind } = bindMatrices();
+	const m = new Matrix4(), bm = new Matrix4(), q = new Quaternion(), e = new Euler(), s = new Vector3(), t = new Vector3();
+	let mark = - 1; // aField.x of the rigid pieces: -2 marks the glove's laced web
 	const add = ( geo, b, p, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1 ) => {
 
 		m.compose( t.set( x, y, z ), q.setFromEuler( e.set( rx, ry, rz ) ), s.set( sx, sy, sz ) );
+		m.premultiply( bm.fromArray( bind, b * 16 ) );
 		const P = geo.getAttribute( 'position' ), N = geo.getAttribute( 'normal' );
 		const base = pos.length / 3;
 		const v = new Vector3(), n = new Vector3();
@@ -53,8 +142,10 @@ export function buildPlayerGeometry() {
 			n.fromBufferAttribute( N, i ).applyMatrix3( nm ).normalize();
 			pos.push( v.x, v.y, v.z );
 			nrm.push( n.x, n.y, n.z );
-			bone.push( b );
+			bones.push( b, 0, 0, 0 );
+			weights.push( 1, 0, 0, 0 );
 			part.push( p );
+			field.push( mark, - 1 );
 
 		}
 
@@ -64,76 +155,58 @@ export function buildPlayerGeometry() {
 
 	};
 
-	const B = BONES, P = PART, D = DIM;
+	const B = BONES, P = PART, D = DIM, F = FACE;
 	const cyl = ( r0, r1, h, seg = 12 ) => new CylinderGeometry( r0, r1, h, seg, 1, false );
 	const sph = ( r, w = 12, h = 8 ) => new SphereGeometry( r, w, h );
+	const dome = ( r, w, h, thetaLen ) => new SphereGeometry( r, w, h, 0, Math.PI * 2, 0, thetaLen );
 	// a lathed shape: profile [ [ radius, y ], ... ] bottom to top, closed at both ends
 	const lathe = ( prof, seg = 16 ) => new LatheGeometry( [ new Vector2( 0, prof[ 0 ][ 1 ] ), ...prof.map( ( [ r, y ] ) => new Vector2( r, y ) ), new Vector2( 0, prof[ prof.length - 1 ][ 1 ] ) ], seg );
-	// a limb segment along -y from its joint: radius profile [ [ r, fraction of the length ], ... ]
-	const limb = ( len, prof, seg = 14 ) => lathe( prof.map( ( [ r, f ] ) => [ r, - len * f ] ).reverse(), seg );
 
-	// ---- the pelvis: the seat of the pants (a flattened lathe), the glutes, the belt
-	add( lathe( [ [ 0.1, - 0.16 ], [ 0.15, - 0.12 ], [ 0.172, - 0.05 ], [ 0.168, 0.04 ], [ 0.158, 0.11 ] ], 18 ), B.pelvis, P.pants, 0, 0, 0.005, 0, 0, 0, 1, 1, 0.72 );
-	for ( const x of [ - 0.075, 0.075 ] ) add( sph( 0.085 ), B.pelvis, P.pants, x, - 0.07, 0.045, 0, 0, 0, 1, 1.05, 0.9 );
-	add( cyl( 0.162, 0.162, 0.045, 18 ), B.pelvis, P.belt, 0, 0.11, 0.005, 0, 0, 0, 1, 1, 0.73 );
+	// ---- the head's pieces, placed on the skull (the head bone's frame is the bind pose's axes, from its pivot)
+	const hb = new Vector3().fromArray( bind, B.head * 16 + 12 );
+	const skullZ = ( F.skull.z0 + F.skull.z1 ) / 2 - hb.z, skullY = F.top[ 1 ] - 0.1 - hb.y;
+	const rx = F.skull.x + 0.013, rz = ( F.skull.z1 - F.skull.z0 ) / 2 + 0.011;
+	// the cap: a crown over the skull down to the brow in front and the hairline behind (the dome tipped
+	// back), the button, the bill
+	add( dome( 1, 24, 12, Math.PI * 0.56 ), B.head, P.cap, 0, skullY - 0.004, skullZ, 0.22, 0, 0, rx, 0.1, rz );
+	add( cyl( 0.009, 0.009, 0.01, 8 ), B.head, P.cap, 0, skullY + 0.093, skullZ - 0.02 );
+	add( lathe( [ [ 0.0, - 0.003 ], [ 0.086, - 0.003 ], [ 0.086, 0.003 ], [ 0.0, 0.003 ] ], 24 ), B.head, P.cap, 0, skullY + 0.004, skullZ - rz + 0.012, 0.22, 0, 0, 0.95, 1, 0.9 );
+	// the batting helmet: a shell down over the ears, the flap over the ear toward the pitcher, a short bill
+	add( dome( 1, 24, 14, Math.PI * 0.62 ), B.head, P.helmet, 0, skullY - 0.004, skullZ + 0.004, 0.12, 0, 0, rx + 0.017, 0.128, rz + 0.016 );
+	add( sph( 0.05, 12, 8 ), B.head, P.helmet, - rx - 0.004, skullY - 0.075, skullZ + 0.02, 0, 0, 0, 0.36, 1.15, 1.05 );
+	add( lathe( [ [ 0.0, - 0.004 ], [ 0.07, - 0.004 ], [ 0.07, 0.004 ], [ 0.0, 0.004 ] ], 20 ), B.head, P.helmet, 0, skullY - 0.01, skullZ - rz - 0.004, 0.12, 0, 0, 1.15, 1, 0.62 );
+	// the catcher's mask: a frame and cage over the face
+	add( new BoxGeometry( 0.17, 0.22, 0.05 ), B.head, P.mask, 0, F.eyeL[ 1 ] - 0.04 - hb.y, F.skull.z0 - 0.045 - hb.z );
 
-	// ---- the torso: waist to shoulders, the chest a little forward; the deltoids; the neck
-	add( lathe( [ [ 0.152, 0.0 ], [ 0.156, 0.08 ], [ 0.168, 0.18 ], [ 0.19, 0.3 ], [ 0.2, 0.39 ], [ 0.194, 0.45 ], [ 0.165, 0.5 ], [ 0.1, 0.54 ], [ 0.072, 0.555 ] ], 18 ), B.torso, P.jersey, 0, 0, - 0.005, 0, 0, 0, 1, 1, 0.64 );
-	for ( const x of [ - 0.182, 0.182 ] ) add( sph( 0.064 ), B.torso, P.jersey, x, D.shoulderY - 0.01, 0, 0, 0, 0, 1.05, 0.95, 1 );
-	add( cyl( 0.058, 0.062, 0.08 ), B.head, P.skin, 0, 0.03, 0.008 );
-	// the catcher's chest protector over the front
-	add( sph( 0.2, 14, 10 ), B.torso, P.gear, 0, 0.27, - 0.075, 0, 0, 0, 0.95, 1.3, 0.45 );
+	// the catcher's chest protector over the front of the torso
+	add( sph( 0.2, 14, 10 ), B.torso, P.gear, 0, 0.26, - 0.085, 0, 0, 0, 0.95, 1.3, 0.45 );
+	for ( const sh of [ B.shinL, B.shinR ] ) {
 
-	// ---- the head: skull, jaw and chin, nose, ears; hair under the cap; the cap (crown, button, bill)
-	// or the batting helmet (shell, ear flap, short bill), or the catcher's mask
-	add( sph( 0.106, 20, 14 ), B.head, P.skin, 0, 0.19, 0.005, 0, 0, 0, 0.88, 1.06, 1 );
-	add( sph( 0.076, 14, 10 ), B.head, P.skin, 0, 0.128, - 0.028, 0, 0, 0, 1.0, 0.85, 1.0 );
-	add( sph( 0.03, 10, 8 ), B.head, P.skin, 0, 0.115, - 0.075, 0, 0, 0, 1.1, 0.8, 0.75 );
-	add( new BoxGeometry( 0.024, 0.04, 0.03 ), B.head, P.skin, 0, 0.178, - 0.1, - 0.25, 0, 0 );
-	for ( const x of [ - 0.092, 0.092 ] ) add( sph( 0.026, 10, 8 ), B.head, P.skin, x, 0.18, 0.012, 0, 0, 0, 0.45, 1.0, 0.75 );
-	add( sph( 0.104, 18, 10 ), B.head, P.hair, 0, 0.198, 0.014, 0, 0, 0, 0.9, 1.02, 1.0 );
-	add( sph( 0.112, 18, 10 ), B.head, P.cap, 0, 0.232, 0.004, 0, 0, 0, 0.95, 0.72, 1.03 );
-	add( cyl( 0.01, 0.01, 0.012, 8 ), B.head, P.cap, 0, 0.314, 0.004 );
-	add( lathe( [ [ 0.0, - 0.004 ], [ 0.085, - 0.004 ], [ 0.085, 0.004 ], [ 0.0, 0.004 ] ], 20 ), B.head, P.cap, 0, 0.222, - 0.098, 0.18, 0, 0, 1, 1, 0.72 );
-	add( sph( 0.125, 18, 12 ), B.head, P.helmet, 0, 0.215, 0.006, 0, 0, 0, 0.98, 0.9, 1.07 );
-	add( sph( 0.05, 10, 8 ), B.head, P.helmet, - 0.1, 0.15, 0.0, 0, 0, 0, 0.4, 1.1, 1.0 );
-	add( lathe( [ [ 0.0, - 0.004 ], [ 0.07, - 0.004 ], [ 0.07, 0.004 ], [ 0.0, 0.004 ] ], 16 ), B.head, P.helmet, 0, 0.19, - 0.118, 0.1, 0, 0, 1.1, 1, 0.6 );
-	add( new BoxGeometry( 0.17, 0.2, 0.05 ), B.head, P.mask, 0, 0.16, - 0.11 );
-
-	// ---- arms: the jersey's short sleeve over the undershirt, the undershirt to the wrist, a fist
-	for ( const [ ua, fa, hd ] of [ [ B.upperArmL, B.forearmL, B.handL ], [ B.upperArmR, B.forearmR, B.handR ] ] ) {
-
-		add( limb( D.upperArm * 0.42, [ [ 0.066, 0 ], [ 0.064, 0.5 ], [ 0.06, 1 ] ] ), ua, P.jersey, 0, 0.01, 0 );
-		add( limb( D.upperArm, [ [ 0.052, 0.3 ], [ 0.054, 0.55 ], [ 0.046, 0.9 ], [ 0.043, 1 ] ] ), ua, P.sleeve, 0, 0, 0 );
-		add( sph( 0.044 ), fa, P.sleeve, 0, 0, 0 );
-		add( limb( D.forearm, [ [ 0.044, 0 ], [ 0.046, 0.25 ], [ 0.036, 0.8 ], [ 0.03, 1 ] ] ), fa, P.sleeve, 0, 0, 0 );
-		add( sph( 0.044, 12, 10 ), hd, P.skin, 0, - 0.045, - 0.005, 0, 0, 0, 0.72, 1.12, 0.62 );
-		add( sph( 0.017, 8, 6 ), hd, P.skin, 0.028, - 0.02, - 0.02, 0, 0, 0, 1, 1.6, 1 );
+		add( sph( 0.06, 12, 8 ), sh, P.gear, 0, - D.shin * 0.45, - 0.04, 0, 0, 0, 1.05, 3.6, 0.7 );
+		add( sph( 0.06, 12, 8 ), sh, P.gear, 0, - 0.02, - 0.055, 0, 0, 0, 1.1, 1.1, 0.8 );
 
 	}
 
-	// the glove: a leather mitt with its fingers and web
-	add( sph( 0.1, 14, 10 ), B.glove, P.glove, 0, - 0.08, - 0.02, 0, 0, 0, 0.95, 1.3, 0.42 );
-	for ( const x of [ - 0.05, - 0.017, 0.017, 0.05 ] ) add( sph( 0.024, 8, 6 ), B.glove, P.glove, x, - 0.2, - 0.02, 0, 0, 0, 0.9, 2.0, 0.8 );
-	add( sph( 0.03, 8, 6 ), B.glove, P.glove, 0.085, - 0.08, - 0.03, 0, 0, - 0.5, 0.8, 1.8, 0.8 );
+	// the cleats: a lofted shoe on each foot (the ankle is the frame's origin; the sole on the ground)
+	const ankleY = BODY.joints.ankleL[ 1 ];
+	for ( const ft of [ B.footL, B.footR ] ) add( cleat( ankleY ), ft, P.shoes );
 
-	// ---- legs: the pants to below the knee (thigh and knee), the socks round the calf, the cleats; the
-	// catcher's shin guards
-	for ( const [ th, sh, ft ] of [ [ B.thighL, B.shinL, B.footL ], [ B.thighR, B.shinR, B.footR ] ] ) {
+	// the glove: the pocket and heel, four finger stalls fanning out, the thumb, the laced web between
+	// the thumb and the first finger
+	const capsule = ( r, b, x0, y0, x1, y1, z = - 0.02 ) => {
 
-		add( limb( D.thigh, [ [ 0.094, 0 ], [ 0.092, 0.2 ], [ 0.08, 0.6 ], [ 0.066, 0.95 ], [ 0.064, 1 ] ], 16 ), th, P.pants, 0, 0.02, 0 );
-		add( sph( 0.066 ), sh, P.pants, 0, 0, 0 );
-		add( limb( D.shin * 0.38, [ [ 0.066, 0 ], [ 0.064, 0.7 ], [ 0.06, 1 ] ], 16 ), sh, P.pants, 0, 0, 0 );
-		add( limb( D.shin, [ [ 0.058, 0.36 ], [ 0.062, 0.48 ], [ 0.05, 0.75 ], [ 0.04, 0.95 ], [ 0.038, 1 ] ], 14 ), sh, P.socks, 0, 0, 0 );
-		add( sph( 0.06, 12, 8 ), sh, P.gear, 0, - D.shin * 0.45, - 0.035, 0, 0, 0, 1.05, 3.4, 0.7 );
-		add( sph( 0.06, 12, 8 ), sh, P.gear, 0, - 0.02, - 0.05, 0, 0, 0, 1.1, 1.1, 0.8 );
-		// the cleat: a shaped upper, a rounded toe, the sole
-		add( new BoxGeometry( 0.092, 0.06, D.footLen * 0.72 ), ft, P.shoes, 0, - 0.03, - 0.03 );
-		add( sph( 0.048, 12, 8 ), ft, P.shoes, 0, - 0.04, - 0.14, 0, 0, 0, 0.98, 0.6, 1.3 );
-		add( sph( 0.045, 10, 8 ), ft, P.shoes, 0, - 0.03, 0.07, 0, 0, 0, 1.0, 0.8, 0.9 );
-		add( new BoxGeometry( 0.098, 0.018, D.footLen + 0.02 ), ft, P.belt, 0, - 0.066, - 0.06 );
+		const dx = x1 - x0, dy = y1 - y0, L = Math.hypot( dx, dy ), a = Math.atan2( dx, - dy );
+		add( cyl( r, r * 0.92, L, 10 ), b, P.glove, ( x0 + x1 ) / 2, ( y0 + y1 ) / 2, z, 0, 0, a, 1, 1, 0.8 );
+		add( sph( r * 0.92, 10, 6 ), b, P.glove, x1, y1, z, 0, 0, 0, 1, 1, 0.8 );
 
-	}
+	};
+
+	add( sph( 0.1, 16, 12 ), B.glove, P.glove, 0, - 0.075, - 0.02, 0, 0, 0, 0.92, 1.12, 0.36 );
+	for ( const [ x, x1 ] of [ [ - 0.052, - 0.07 ], [ - 0.018, - 0.022 ], [ 0.016, 0.024 ], [ 0.048, 0.07 ] ] ) capsule( 0.022, B.glove, x, - 0.13, x1, - 0.265 + Math.abs( x ) * 0.5 );
+	capsule( 0.024, B.glove, 0.07, - 0.04, 0.115, - 0.2, - 0.03 );
+	mark = - 2;
+	add( new BoxGeometry( 0.05, 0.1, 0.012 ), B.glove, P.glove, 0.085, - 0.21, - 0.03, 0, 0, - 0.2 );
+	mark = - 1;
 
 	// the bat, along the bat bone from the knob (at the hands) to the barrel
 	add( cyl( 0.02, 0.02, 0.012, 12 ), B.bat, P.bat, 0, - 0.006, 0 );
@@ -145,10 +218,65 @@ export function buildPlayerGeometry() {
 	const g = new BufferGeometry();
 	g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
 	g.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
-	g.setAttribute( 'aBone', new Float32BufferAttribute( bone, 1 ) );
+	g.setAttribute( 'aBones', new Float32BufferAttribute( bones, 4 ) );
+	g.setAttribute( 'aWeights', new Float32BufferAttribute( weights, 4 ) );
 	g.setAttribute( 'aPart', new Float32BufferAttribute( part, 1 ) );
+	g.setAttribute( 'aField', new Float32BufferAttribute( field, 2 ) );
 	g.setIndex( index );
 	g.computeBoundingSphere();
+	return g;
+
+}
+
+// A cleat in the foot's frame (origin at the ankle, y up, toe toward -z): a loft of rounded sections
+// from the heel to the toe, flat on the sole, the top rising to the collar round the ankle.
+function cleat( ankleY ) {
+
+	const y0 = - ankleY; // the ground
+	// [ z, half width, top ]
+	const S = [
+		[ 0.078, 0.02, y0 + 0.05 ], [ 0.07, 0.036, y0 + 0.085 ], [ 0.045, 0.044, 0.028 ], [ 0.0, 0.047, 0.03 ], [ - 0.04, 0.049, 0.004 ],
+		[ - 0.09, 0.05, y0 + 0.058 ], [ - 0.14, 0.047, y0 + 0.046 ], [ - 0.18, 0.041, y0 + 0.04 ], [ - 0.205, 0.03, y0 + 0.034 ], [ - 0.218, 0.012, y0 + 0.026 ],
+	];
+	const R = 16, pos = [], index = [];
+	for ( const [ z, w, top ] of S ) {
+
+		const h = ( top - y0 ) * 0.62, yc = top - h;
+		for ( let k = 0; k < R; k ++ ) {
+
+			const a = k / R * Math.PI * 2;
+			pos.push( w * Math.cos( a ), Math.max( y0, yc + h * Math.sin( a ) ), z );
+
+		}
+
+	}
+
+	for ( let i = 0; i < S.length - 1; i ++ ) for ( let k = 0; k < R; k ++ ) {
+
+		const a = i * R + k, b = i * R + ( k + 1 ) % R, c = a + R, d = b + R;
+		index.push( a, c, b, b, c, d );
+
+	}
+
+	// the heel and toe closed with a fan to their centres
+	for ( const [ i, flip ] of [ [ 0, false ], [ S.length - 1, true ] ] ) {
+
+		const c = pos.length / 3;
+		pos.push( 0, ( S[ i ][ 2 ] + y0 ) / 2, S[ i ][ 0 ] );
+		for ( let k = 0; k < R; k ++ ) {
+
+			const a = i * R + k, b = i * R + ( k + 1 ) % R;
+			if ( flip ) index.push( a, c, b );
+			else index.push( a, b, c );
+
+		}
+
+	}
+
+	const g = new BufferGeometry();
+	g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+	g.setIndex( index );
+	g.computeVertexNormals();
 	return g;
 
 }
@@ -295,28 +423,51 @@ function basisAt( o, x, y, z ) {
 
 void _b; void _c; void _k;
 
-// A pose baked into a static mesh (statues): the body posed on the CPU, in the player's own frame (feet
-// on y = 0, facing -z). Parts listed in `drop` (PART codes) are left out.
+// A pose baked into a static mesh (statues): the body skinned on the CPU, in the player's own frame
+// (feet on y = 0, facing -z). The helmet and the catcher's gear are left out, and the parts listed in
+// `drop` (PART codes).
 export function bakePose( pose, { gloveHand = 'L', drop = [] } = {} ) {
 
 	const src = buildPlayerGeometry();
 	const mats = new Float32Array( NB * 16 );
 	solvePose( new Matrix4(), pose, mats, 0, gloveHand );
-	const P = src.getAttribute( 'position' ), N = src.getAttribute( 'normal' ), Bn = src.getAttribute( 'aBone' ), Pt = src.getAttribute( 'aPart' );
+	skinMatrices( mats, 0 );
+	const skip = [ PART.helmet, PART.gear, PART.mask, ...drop ];
+	const P = src.getAttribute( 'position' ), N = src.getAttribute( 'normal' ), Bn = src.getAttribute( 'aBones' ), W = src.getAttribute( 'aWeights' ), Pt = src.getAttribute( 'aPart' );
 	const index = src.index.array;
-	const m = new Matrix4(), v = new Vector3(), n = new Vector3();
+	const M = [];
+	for ( let b = 0; b < NB; b ++ ) M.push( new Matrix4().fromArray( mats, b * 16 ) );
+	const v = new Vector3(), n = new Vector3(), sv = new Vector3(), sn = new Vector3();
+	const skinned = ( k ) => {
+
+		sv.set( 0, 0, 0 );
+		sn.set( 0, 0, 0 );
+		for ( let c = 0; c < 4; c ++ ) {
+
+			const w = W.array[ k * 4 + c ];
+			if ( ! w ) continue;
+			const m = M[ Math.round( Bn.array[ k * 4 + c ] ) ];
+			sv.addScaledVector( v.fromBufferAttribute( P, k ).applyMatrix4( m ), w );
+			sn.addScaledVector( n.fromBufferAttribute( N, k ).transformDirection( m ), w );
+
+		}
+
+		return [ sv.x, sv.y, sv.z, ...sn.normalize().toArray() ];
+
+	};
+
+	const cache = new Map();
 	const pos = [], nrm = [], part = [];
 	for ( let i = 0; i < index.length; i += 3 ) {
 
 		const tri = [ index[ i ], index[ i + 1 ], index[ i + 2 ] ];
-		if ( tri.some( ( k ) => drop.includes( Math.round( Pt.array[ k ] ) ) ) ) continue;
+		if ( tri.some( ( k ) => skip.includes( Math.round( Pt.array[ k ] ) ) ) ) continue;
 		for ( const k of tri ) {
 
-			m.fromArray( mats, Math.round( Bn.array[ k ] ) * 16 );
-			v.fromBufferAttribute( P, k ).applyMatrix4( m );
-			n.fromBufferAttribute( N, k ).transformDirection( m );
-			pos.push( v.x, v.y, v.z );
-			nrm.push( n.x, n.y, n.z );
+			if ( ! cache.has( k ) ) cache.set( k, skinned( k ) );
+			const s = cache.get( k );
+			pos.push( s[ 0 ], s[ 1 ], s[ 2 ] );
+			nrm.push( s[ 3 ], s[ 4 ], s[ 5 ] );
 			part.push( Pt.array[ k ] );
 
 		}

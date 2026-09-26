@@ -1,13 +1,13 @@
 import { InstancedMesh, Matrix4, Vector3, Quaternion, PlaneGeometry, Color } from '../../engine/index.js';
 import { StorageBuffer } from '../../engine/gpu/Texture.js';
 import { standard } from '../../materials/Materials.js';
-import { buildPlayerGeometry, solvePose, neutralPose, NB, PART, BONES } from './Rig.js';
+import { buildPlayerGeometry, solvePose, skinMatrices, neutralPose, NB, PART, UNIFORM, FACE, DIM, JOINTS as BODY_JOINTS } from './Rig.js';
 import { canvasTexture } from '../geo.js';
 import { generateMipmaps } from '../../engine/gpu/Mipmaps.js';
 
-// All the players on the field in one instanced draw: each instance is a player slot, its 17 bone
-// matrices (and last frame's, for the motion vectors) in a storage buffer, the vertex hook places every
-// vertex by its bone. The uniform comes from the team and the part of the body (2008: the Phillies'
+// All the players on the field in one instanced draw: each instance is a player slot, its 17 skinning
+// matrices (and last frame's, for the motion vectors) in a storage buffer, the vertex hook skins every
+// vertex by up to four of them. The uniform comes from the team and the part of the body (2008: the Phillies'
 // home whites with red pinstripes, the Rays' road greys). Each slot's back (the number, and for the Rays
 // the name over it: the Phillies' home whites have no names) is drawn into a cell of a shared atlas;
 // the chests carry the "Phillies" script and RAYS.
@@ -114,6 +114,7 @@ export class Players {
 			if ( p.tilt ) q.multiply( p.tilt );
 			this._root.compose( new Vector3( p.x, p.y, p.z ), q, new Vector3( 1, 1, 1 ) );
 			solvePose( this._root, p.pose, D, off, p.gloveHand );
+			skinMatrices( D, off );
 			// a player who just appeared has no motion from where his slot was before
 			if ( p.fresh ) {
 
@@ -178,18 +179,17 @@ export class Players {
 
 function playerMaterial( bones, info, atlas ) {
 
-	const P = PART;
+	const P = PART, U = UNIFORM, F = FACE, J = BODY_JOINTS;
+	const f = ( x ) => x.toFixed( 4 );
+	const v3 = ( a ) => `vec3f( ${ f( a[ 0 ] ) }, ${ f( a[ 1 ] ) }, ${ f( a[ 2 ] ) } )`;
 	const mat = standard( {
 		name: 'players', roughness: 0.75,
 		storage: { plBones: bones, plInfo: info },
 		textures: { plAtlas: atlas },
-		attributes: { aBone: 'f32', aPart: 'f32' },
-		varyings: { vPart: 'f32', vInfo: 'vec4f', vLocal: 'vec3f', vBone: 'f32', vSlot: 'f32' },
+		attributes: { aBones: 'vec4f', aWeights: 'vec4f', aPart: 'f32', aField: 'vec2f' },
+		varyings: { vPart: 'f32', vInfo: 'vec4f', vLocal: 'vec3f', vNrm: 'vec3f', vField: 'vec2f', vSlot: 'f32' },
 		vertex: /* wgsl */`
 	let slot = v.instance;
-	let b = u32( v.aBone + 0.5 );
-	let M = plBones[ slot * ${ NB }u + b ];
-	let Mp = plBones[ ( ${ MAX }u + slot ) * ${ NB }u + b ];
 	// what he's wearing (info.z): 1 the batting helmet (else the cap), 2 the catcher's gear and mask;
 	// the pieces he isn't wearing collapse to nothing
 	let role = u32( plInfo[ slot ].z + 0.5 );
@@ -199,96 +199,220 @@ function playerMaterial( bones, info, atlas ) {
 	if ( pt == ${ P.cap } && ( role & 1u ) != 0u ) { keep = false; }
 	if ( ( pt == ${ P.gear } || pt == ${ P.mask } ) && ( role & 2u ) == 0u ) { keep = false; }
 	let lp = select( vec4f( 0.0, 0.0, 0.0, 1.0 ), vec4f( v.position, 1.0 ), keep );
-	let lm = v.model * M;
+	// skinned: up to four bones, each taking the bind pose to this frame's (and last frame's) pose
+	var wp = vec3f( 0.0 );
+	var wn = vec3f( 0.0 );
+	var pp = vec3f( 0.0 );
+	for ( var k = 0; k < 4; k ++ ) {
+		let w = v.aWeights[ k ];
+		if ( w > 0.0 ) {
+			let b = u32( v.aBones[ k ] + 0.5 );
+			let M = plBones[ slot * ${ NB }u + b ];
+			let Mp = plBones[ ( ${ MAX }u + slot ) * ${ NB }u + b ];
+			wp += ( M * lp ).xyz * w;
+			wn += ( M * vec4f( v.normal, 0.0 ) ).xyz * w;
+			pp += ( Mp * lp ).xyz * w;
+		}
+	}
 	v.useWorld = true;
-	v.worldPos = ( lm * lp ).xyz;
-	v.worldNormal = normalize( ( lm * vec4f( v.normal, 0.0 ) ).xyz );
-	v.prevWorldPos = ( v.prevModel * Mp * lp ).xyz;
+	v.worldPos = ( v.model * vec4f( wp, 1.0 ) ).xyz;
+	v.worldNormal = normalize( ( v.model * vec4f( wn, 0.0 ) ).xyz + vec3f( 0.0, 1e-6, 0.0 ) );
+	v.prevWorldPos = ( v.prevModel * vec4f( pp, 1.0 ) ).xyz;
 	o.vPart = v.aPart;
 	o.vInfo = plInfo[ slot ];
 	o.vLocal = v.position;
-	o.vBone = v.aBone;
+	o.vNrm = v.normal;
+	o.vField = v.aField;
 	o.vSlot = f32( slot );
 `,
 		surface: /* wgsl */`
-	let part = i32( in.vs.vPart + 0.5 );
+	var part = i32( in.vs.vPart + 0.5 );
 	let home = in.vs.vInfo.x > 0.5;
 	let skinI = i32( in.vs.vInfo.y + 0.5 );
-	var skinC = vec3f( 0.55, 0.37, 0.27 );
-	if ( skinI == 1 ) { skinC = vec3f( 0.36, 0.21, 0.13 ); }
-	if ( skinI == 2 ) { skinC = vec3f( 0.2, 0.11, 0.06 ); }
-	if ( skinI == 3 ) { skinC = vec3f( 0.62, 0.45, 0.35 ); }
+	let role = u32( in.vs.vInfo.z + 0.5 );
+	let seed = in.vs.vInfo.w;
+	var skinC = vec3f( 0.54, 0.32, 0.21 );
+	if ( skinI == 1 ) { skinC = vec3f( 0.36, 0.19, 0.105 ); }
+	if ( skinI == 2 ) { skinC = vec3f( 0.16, 0.08, 0.042 ); }
+	if ( skinI == 3 ) { skinC = vec3f( 0.62, 0.4, 0.29 ); }
+	let hairC = mix( vec3f( 0.018, 0.013, 0.009 ), vec3f( 0.09, 0.055, 0.03 ), fract( seed * 7.0 ) * step( 0.5, f32( skinI == 0 || skinI == 3 ) ) );
 	// home: white, red pinstripes, red trim and caps; away: road grey, navy
-	let cloth = select( vec3f( 0.3, 0.3, 0.31 ), vec3f( 0.86, 0.85, 0.82 ), home );
+	let cloth = select( vec3f( 0.28, 0.28, 0.29 ), vec3f( 0.83, 0.82, 0.79 ), home );
 	let trim = select( vec3f( 0.012, 0.018, 0.06 ), vec3f( 0.42, 0.018, 0.025 ), home );
+	let L = in.vs.vLocal;
+	let Nb = normalize( in.vs.vNrm );
+	let arm = in.vs.vField.x;
+	let leg = in.vs.vField.y;
+
+	// the body's own pieces: which part of the uniform (or skin) this is, from where it is
+	var skinArea = 0; // 1 the head and neck, 2 a hand
+	var around = 0.0; // distance round the limb or the trunk, for the pinstripes
+	if ( part == ${ P.body } ) {
+		if ( arm > -0.5 ) {
+			if ( arm < ${ f( U.sleeve ) } ) { part = ${ P.jersey }; }
+			else if ( arm < ${ f( U.wrist ) } ) { part = ${ P.sleeve }; }
+			else { part = ${ P.skin }; skinArea = 2; }
+			// round the upper arm
+			let side = sign( L.x );
+			let sh = vec3f( side * ${ f( J.shoulderR[ 0 ] ) }, ${ f( J.shoulderR[ 1 ] ) }, ${ f( J.shoulderR[ 2 ] ) } );
+			let el = vec3f( side * ${ f( J.elbowR[ 0 ] ) }, ${ f( J.elbowR[ 1 ] ) }, ${ f( J.elbowR[ 2 ] ) } );
+			let ax = normalize( el - sh );
+			let e1 = normalize( cross( ax, vec3f( 0.0, 0.0, 1.0 ) ) );
+			let d = L - sh;
+			around = atan2( dot( d, cross( ax, e1 ) ), dot( d, e1 ) ) * 0.055;
+		} else if ( leg > -0.5 ) {
+			part = select( ${ P.socks }, ${ P.pants }, leg < ${ f( U.cuff ) } );
+			let side = sign( L.x );
+			let hp = vec3f( side * ${ f( J.hipR[ 0 ] ) }, ${ f( J.hipR[ 1 ] ) }, ${ f( J.hipR[ 2 ] ) } );
+			let kn = vec3f( side * ${ f( J.kneeR[ 0 ] ) }, ${ f( J.kneeR[ 1 ] ) }, ${ f( J.kneeR[ 2 ] ) } );
+			let ax = normalize( kn - hp );
+			let e1 = normalize( cross( ax, vec3f( 0.0, 0.0, 1.0 ) ) );
+			let d = L - hp;
+			around = atan2( dot( d, cross( ax, e1 ) ), dot( d, e1 ) ) * 0.085;
+		} else {
+			// the neck: the jersey's collar round its base (lower in front, higher behind), the undershirt's
+			// crew collar just inside it and in the V of the placket at the front
+			let nk = ${ v3( J.neck ) };
+			let r = length( vec2f( L.x, L.z - nk.z ) );
+			let cy = nk.y - 0.03 + 0.3 * clamp( L.z - nk.z, -0.08, 0.07 );
+			let vee = L.z < nk.z - 0.03 && L.y > cy - 0.07 && abs( L.x ) < 0.03 * clamp( ( L.y - cy + 0.07 ) / 0.06, 0.0, 1.0 );
+			if ( L.y > nk.y + 0.03 || ( L.y > cy && r < 0.1 ) ) { part = ${ P.skin }; skinArea = 1; }
+			else if ( ( L.y > cy - 0.011 && r < 0.11 ) || vee ) { part = ${ P.sleeve }; }
+			else if ( L.y > ${ f( U.belt[ 1 ] ) } ) { part = ${ P.jersey }; }
+			else if ( L.y > ${ f( U.belt[ 0 ] ) } ) { part = ${ P.belt }; }
+			else { part = ${ P.pants }; }
+			around = atan2( L.x, - L.z ) * 0.17;
+		}
+	}
+
 	var c = cloth;
-	var rough = 0.8;
+	var rough = 0.82;
 	if ( part == ${ P.jersey } || part == ${ P.pants } ) {
 		if ( home ) {
-			// red pinstripes 2.5 cm apart, thin; averaged where they're finer than a pixel
-			let u = ( in.vs.vLocal.x + in.vs.vLocal.z ) * 28.3;
-			let fw = fwidth( u );
-			let stripe = 1.0 - smoothstep( 0.035 - fw, 0.035 + fw, abs( fract( u ) - 0.5 ) );
-			let k = mix( stripe * 0.85, 0.06, clamp( fw * 1.5, 0.0, 1.0 ) );
-			c = mix( cloth, vec3f( 0.6, 0.015, 0.03 ), k );
+			// red pinstripes 2.5 cm apart, 1.5 mm wide; box-filtered, fading to their average when they're
+			// finer than a pixel
+			let u = around / 0.025;
+			let fw = max( fwidth( u ), 1e-4 );
+			let d = abs( fract( u ) - 0.5 );
+			let cover = clamp( ( 0.03 - d ) / fw + 0.5, 0.0, 1.0 );
+			let k = mix( cover, 0.06, smoothstep( 0.25, 0.8, fw ) );
+			c = mix( cloth, vec3f( 0.43, 0.02, 0.04 ), k * 0.8 );
 		}
 	}
-	// the back (number, name) and the chest (the club's name) from the atlas, projected front to back
-	// onto the torso: its own frame has +x to the player's right, -z forward, y up from the waist
-	let L = in.vs.vLocal;
-	let bone = i32( in.vs.vBone + 0.5 );
-	let back = L.z > 0.0;
+
+	// the lettering and logos from the atlas: the back (number, name) and the chest (the club's name)
+	// on the trunk's back and front, the cap's (or helmet's) front, the World Series patch on the right
+	// sleeve
 	let slot = in.vs.vSlot;
-	// which cell of the atlas this fragment reads, and where in it: the back (number, name), the chest
-	// (the club's name), the cap's front (P / TB), the World Series patch on the right sleeve
-	var cell = select( select( 63.0, 62.0, home ), slot, back );
-	var lu = select( 0.5 - L.x / 0.42, 0.5 + L.x / 0.36, back );
-	var lv = select( 1.0 - ( L.y - 0.17 ) / 0.21, 1.0 - ( L.y - 0.07 ) / 0.36, back );
-	var useInk = part == ${ P.jersey } && bone == ${ BONES.torso } && abs( L.z ) > 0.02;
-	if ( part == ${ P.cap } && bone == ${ BONES.head } && L.z < - 0.03 && L.y > 0.19 ) {
-		cell = select( 61.0, 60.0, home ); lu = 0.5 - L.x / 0.15; lv = 1.0 - ( L.y - 0.18 ) / 0.12; useInk = true;
+	var cell = -1.0;
+	var lu = 0.0;
+	var lv = 0.0;
+	if ( part == ${ P.jersey } && arm < -0.5 ) {
+		if ( Nb.z > 0.05 ) { cell = slot; lu = 0.5 + L.x / 0.34; lv = 1.0 - ( L.y - 1.17 ) / 0.34; }
+		if ( Nb.z < -0.05 ) { cell = select( 63.0, 62.0, home ); lu = 0.5 - L.x / 0.3; lv = 1.0 - ( L.y - 1.27 ) / 0.18; }
 	}
-	if ( part == ${ P.jersey } && bone == ${ BONES.upperArmR } && L.x > 0.015 ) {
-		cell = 59.0; lu = 0.5 - L.z / 0.085; lv = 0.5 - ( L.y + 0.11 ) / 0.085; useInk = true;
+	if ( part == ${ P.jersey } && arm > -0.5 && L.x > 0.0 && Nb.x > 0.3 ) {
+		cell = 59.0; lu = 0.5 - ( L.z - ${ f( J.shoulderR[ 2 ] ) } ) / 0.085; lv = ( arm - 0.05 ) / 0.085;
+	}
+	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z < -0.35 ) {
+		cell = select( 61.0, 60.0, home ); lu = 0.5 - L.x / 0.09; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.062 ) } ) / 0.09;
 	}
 	let cxy = vec2f( cell % ${ COLS }.0, floor( cell / ${ COLS }.0 ) );
-	let inCell = lu > 0.02 && lu < 0.98 && lv > 0.02 && lv < 0.98;
+	let inCell = cell >= 0.0 && lu > 0.02 && lu < 0.98 && lv > 0.02 && lv < 0.98;
 	let auv = ( cxy + clamp( vec2f( lu, lv ), vec2f( 0.02 ), vec2f( 0.98 ) ) ) / ${ COLS }.0;
 	let ink = textureSample( plAtlas, smpAnisoClamp, auv );
+
 	if ( part == ${ P.skin } ) {
-		c = skinC; rough = 0.55;
-		// the face: eyes, brows, the mouth (on the head's front)
-		if ( bone == ${ BONES.head } && L.z < - 0.055 ) {
-			let ex = abs( L.x ) - 0.034;
-			let eye = length( vec2f( ex / 1.5, L.y - 0.196 ) );
-			if ( eye < 0.0075 ) { c = vec3f( 0.03, 0.025, 0.02 ); rough = 0.2; }
-			else if ( eye < 0.011 ) { c = mix( skinC, vec3f( 0.8, 0.78, 0.75 ), 0.5 ); }
-			if ( abs( L.y - 0.215 ) < 0.004 && abs( L.x ) > 0.014 && abs( L.x ) < 0.056 ) { c = skinC * 0.35; }
-			if ( abs( L.y - 0.139 ) < 0.0035 && abs( L.x ) < 0.022 ) { c = skinC * 0.55 + vec3f( 0.05, 0.0, 0.0 ); }
-			// the shadow under the brow and the cap's bill
-			c = c * mix( 1.0, 0.8, smoothstep( 0.19, 0.21, L.y ) );
+		c = skinC; rough = 0.6;
+		// light carried under the skin: a warm wrap past the terminator, less of a grey sheen
+		s.translucency = skinC * vec3f( 0.16, 0.07, 0.04 );
+		s.specularIntensity = 0.55;
+		// and the light bounced up off the field into the shade of the cap
+		s.emissive = skinC * frame.sunColor * vec3f( 0.035, 0.03, 0.026 );
+		// batting gloves on the batter and the runners
+		if ( skinArea == 2 && ( role & 1u ) != 0u ) {
+			let g = fract( seed * 13.0 );
+			c = select( select( vec3f( 0.02 ), trim, g < 0.66 ), vec3f( 0.8, 0.79, 0.76 ), g < 0.33 );
+			rough = 0.6;
+			s.translucency = vec3f( 0.0 );
+			s.specularIntensity = 1.0;
+		}
+		if ( skinArea == 1 ) {
+			let ax = abs( L.x );
+			let eye = vec3f( ${ f( F.eyeR[ 0 ] ) }, ${ f( F.eyeR[ 1 ] ) }, ${ f( F.eyeR[ 2 ] ) } );
+			let face = L.z < eye.z + 0.035;
+			// the hair: the back and the sides of the head above the neck, behind the temples (the cap
+			// covers the top); the ears stay skin
+			let ear = ax > 0.066 && L.y < eye.y + 0.012 && L.y > eye.y - 0.058 && L.z > eye.z + 0.06 && L.z < eye.z + 0.13;
+			let hairline = ( L.y > eye.y + 0.028 && L.z > eye.z + 0.045 ) || ( L.y > eye.y - 0.05 && L.z > eye.z + 0.105 ) || L.y > eye.y + 0.06;
+			if ( hairline && ! ear ) {
+				let edge = smoothstep( eye.y - 0.06, eye.y - 0.04, L.y );
+				c = mix( skinC * 0.6, hairC, 0.5 + 0.5 * edge ); rough = 0.7;
+			}
+			if ( face ) {
+				// the brows
+				let by = eye.y + 0.021 + 0.004 * ( 1.0 - smoothstep( 0.012, 0.05, ax ) ) - 0.004 * smoothstep( 0.03, 0.055, ax );
+				if ( abs( L.y - by ) < 0.0045 && ax > 0.009 && ax < 0.055 ) { c = mix( c, hairC, 0.8 ); }
+				// the lips
+				let m = vec3f( 0.0, ${ f( F.mouth[ 1 ] ) }, ${ f( F.mouth[ 2 ] ) } );
+				let lq = length( vec2f( L.x / 0.025, ( L.y - m.y ) / 0.008 ) );
+				if ( lq < 1.0 && L.z < m.z + 0.02 ) { c = mix( c, skinC * vec3f( 0.8, 0.52, 0.5 ), smoothstep( 1.0, 0.6, lq ) ); rough = 0.4; }
+				// stubble, or now and then a beard (by the player): the jaw, the chin and the upper lip
+				let beard = fract( seed * 3.7 );
+				let jaw = L.y < m.y + 0.02 && L.y > ${ f( F.jaw[ 1 ] ) } - 0.012 && lq > 0.95;
+				if ( jaw ) {
+					let k = smoothstep( ${ f( F.jaw[ 1 ] ) } - 0.012, ${ f( F.jaw[ 1 ] ) } + 0.004, L.y );
+					if ( beard > 0.85 ) { c = mix( c, hairC, 0.85 * k ); }
+					else { c = mix( c, c * vec3f( 0.7, 0.68, 0.7 ), beard * 0.45 * k ); }
+				}
+				// the eye sockets a shade darker
+				let es = length( vec2f( ax - abs( eye.x ), ( L.y - eye.y ) * 1.4 ) );
+				c = c * mix( 0.78, 1.0, smoothstep( 0.012, 0.024, es ) );
+			}
 		}
 	}
-	if ( part == ${ P.hair } ) { c = mix( vec3f( 0.03, 0.022, 0.015 ), vec3f( 0.12, 0.08, 0.05 ), fract( in.vs.vInfo.w * 7.0 ) ); rough = 0.6; }
-	if ( part == ${ P.helmet } ) { c = trim * 1.05; rough = 0.15; }
+	if ( part == ${ P.eye } ) {
+		// the eyeball: white, a dark iris and pupil looking ahead
+		let side = sign( L.x );
+		let ec = vec3f( side * ${ f( F.eyeR[ 0 ] ) }, ${ f( F.eyeR[ 1 ] ) }, ${ f( F.eyeR[ 2 ] ) } );
+		let d = normalize( L - ec );
+		c = vec3f( 0.62, 0.6, 0.56 ); rough = 0.08;
+		if ( d.z < -0.93 ) { c = vec3f( 0.06, 0.035, 0.02 ); }
+		if ( d.z < -0.985 ) { c = vec3f( 0.005 ); }
+	}
+	if ( part == ${ P.helmet } ) { c = trim * 1.05; rough = 0.12; }
 	if ( part == ${ P.gear } ) { c = mix( vec3f( 0.02 ), trim, 0.6 ); rough = 0.4; }
 	if ( part == ${ P.mask } ) {
 		// the cage: dark bars over the face, see-through between
 		let bx = step( 0.8, fract( ( L.x + 0.1 ) / 0.028 ) ) + step( 0.78, fract( ( L.y - 0.05 ) / 0.035 ) );
 		c = select( skinC * 0.35, vec3f( 0.02 ), bx > 0.5 ); rough = 0.35;
 	}
-	if ( part == ${ P.socks } || part == ${ P.sleeve } ) { c = trim; }
-	if ( part == ${ P.cap } ) { c = trim * 1.05; rough = 0.6; }
-	if ( part == ${ P.belt } ) { c = select( trim, vec3f( 0.02 ), home ); }
-	if ( part == ${ P.shoes } ) {
-		c = vec3f( 0.018 ); rough = 0.35;
-		// the stripe along the side: red for the Phillies, white for the Rays
-		if ( abs( L.x ) > 0.04 && abs( L.y + 0.028 ) < 0.009 ) { c = select( vec3f( 0.85 ), vec3f( 0.55, 0.02, 0.03 ), home ); }
+	if ( part == ${ P.sleeve } ) { c = trim; rough = 0.7; }
+	if ( part == ${ P.socks } ) {
+		c = trim;
+		// the stirrups: the white sanitary sock shows through the cut-outs at the sides of the ankle
+		let lo = ${ f( DIM.thigh + DIM.shin ) } - leg;
+		if ( lo < 0.13 && lo > 0.02 && abs( Nb.x ) > 0.55 ) { c = vec3f( 0.8, 0.79, 0.76 ); }
 	}
-	if ( part == ${ P.glove } ) { c = vec3f( 0.2, 0.09, 0.035 ); rough = 0.5; }
+	if ( part == ${ P.cap } ) { c = trim * 1.05; rough = 0.65; }
+	if ( part == ${ P.belt } ) { c = select( trim, vec3f( 0.02 ), home ); rough = 0.4; }
+	if ( part == ${ P.shoes } ) {
+		c = vec3f( 0.016 ); rough = 0.3;
+		let fy = L.y;
+		// the sole, and a stripe along the outside: red for the Phillies, white for the Rays
+		if ( fy < 0.014 ) { c = vec3f( 0.03 ); rough = 0.6; }
+		else if ( abs( Nb.x ) > 0.6 && abs( fy - 0.035 ) < 0.008 ) { c = select( vec3f( 0.8 ), vec3f( 0.5, 0.02, 0.03 ), home ); }
+	}
+	if ( part == ${ P.glove } ) {
+		// the leather: tan, brown or black by the player; the lacing darker
+		let g = fract( seed * 5.3 );
+		c = select( select( vec3f( 0.015 ), vec3f( 0.12, 0.05, 0.02 ), g < 0.7 ), vec3f( 0.3, 0.14, 0.05 ), g < 0.4 ); rough = 0.45;
+		if ( fract( ( L.y + L.x * 0.3 ) * 90.0 ) < 0.12 && abs( in.vs.vField.x + 2.0 ) < 0.5 ) { c = c * 0.35; }
+	}
 	if ( part == ${ P.bat } ) { c = vec3f( 0.5, 0.32, 0.16 ); rough = 0.35; }
+	if ( part == ${ P.hair } ) { c = hairC; }
 	// the lettering and logos over the cloth
-	if ( useInk && inCell ) { c = mix( c, ink.rgb, ink.a ); }
+	if ( inCell ) { c = mix( c, ink.rgb, ink.a ); }
 	s.albedo = c;
 	s.roughness = rough;
 `,
@@ -388,7 +512,7 @@ function drawChest( ctx, i, home ) {
 
 }
 
-// the caps' fronts: a white serif P on the Phillies' red; TB in white outlined in Columbia blue on the
+// the caps' fronts: the white script P on the Phillies' red; TB in white outlined in Columbia blue on the
 // Rays' navy
 function drawCapLogo( ctx, i, home ) {
 
@@ -401,9 +525,27 @@ function drawCapLogo( ctx, i, home ) {
 	ctx.lineJoin = 'round';
 	if ( home ) {
 
-		ctx.font = 'italic 700 104px Georgia, "Times New Roman", serif';
-		ctx.fillStyle = '#f4f2ec';
-		ctx.fillText( 'P', 0, 6 );
+		// the script P: a slanted stem with a curl at its foot, the bowl, the swash across the top
+		ctx.strokeStyle = '#f4f2ec';
+		ctx.lineCap = 'round';
+		ctx.lineJoin = 'round';
+		ctx.lineWidth = 13;
+		ctx.beginPath();
+		ctx.moveTo( 6, - 40 );
+		ctx.bezierCurveTo( 2, - 12, - 6, 14, - 14, 34 );
+		ctx.quadraticCurveTo( - 20, 46, - 32, 38 );
+		ctx.stroke();
+		ctx.lineWidth = 11;
+		ctx.beginPath();
+		ctx.moveTo( 4, - 36 );
+		ctx.bezierCurveTo( 30, - 52, 52, - 30, 34, - 10 );
+		ctx.bezierCurveTo( 24, 0, 6, 2, - 4, - 4 );
+		ctx.stroke();
+		ctx.lineWidth = 8;
+		ctx.beginPath();
+		ctx.moveTo( - 30, - 22 );
+		ctx.bezierCurveTo( - 26, - 40, - 8, - 44, 6, - 40 );
+		ctx.stroke();
 
 	} else {
 

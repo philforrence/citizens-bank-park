@@ -16,11 +16,12 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Matrix4, Vector3, Euler, Quaternion } from '../src/engine/math/index.js';
+import { BODY } from '../src/ballpark/game/data/body.js';
 
 const DIR = process.argv[ 2 ];
 const OUT = new URL( '../src/ballpark/game/data/mocap.js', import.meta.url ).pathname;
 const REL = 0.86; // Motions.js: release, s from the start of the delivery
-const D = { hipWidth: 0.095, waist: 0.08, shoulder: 0.2, shoulderY: 0.46, upperArm: 0.3, forearm: 0.27, thigh: 0.45, shin: 0.44 };
+const D = BODY.dim; // the rig's dimensions (tools/build-body.mjs)
 const FPS = 30;
 const BAT_AXIS = ( process.env.BAT || '0,0,1' ).split( ',' ).map( Number );
 
