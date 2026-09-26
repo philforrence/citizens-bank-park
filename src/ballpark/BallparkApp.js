@@ -171,6 +171,7 @@ export class BallparkApp {
 			this.sound = this.audio = new GameSound();
 			this.director.onCue = ( cue ) => this._cue( cue );
 			this.rain = new Rain( scene );
+			this.rain.setLights( this.bowl.lightSources().map( ( l ) => l.position ) );
 			if ( qs.has( 't' ) ) this.director.seek( Number( qs.get( 't' ) ) );
 			if ( qs.has( 'play' ) ) this.director.seek( this.director.timeOfPlay( Number( qs.get( 'play' ) ) ) );
 			if ( qs.has( 'paused' ) ) this.director.playing = false;

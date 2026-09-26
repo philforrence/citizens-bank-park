@@ -1,4 +1,4 @@
-import { Mesh, BufferGeometry, Float32BufferAttribute, Color, Vector2 } from '../../engine/index.js';
+import { Mesh, BufferGeometry, Float32BufferAttribute, Color, Vector2, Vector4 } from '../../engine/index.js';
 import { standard } from '../../materials/Materials.js';
 
 // Rain round the camera: streaks falling through a box that moves with you (each drop wraps inside it),
@@ -35,37 +35,55 @@ export class Rain {
 		g.boundingSphere = null;
 		this.material = standard( {
 			name: 'rain', color: new Color( 0.8, 0.82, 0.86 ), transparent: true, depthWrite: false, side: 'double', lit: false,
-			uniforms: { amount: [ 'f32', 0 ], wind: [ 'vec2f', new Vector2( 1.5, 0.5 ) ] },
+			uniforms: {
+				amount: [ 'f32', 0 ], wind: [ 'vec2f', new Vector2( 1.5, 0.5 ) ],
+				// the light banks (world, w = 1 if used): drops between you and a bank light up
+				l0: [ 'vec4f', new Vector4() ], l1: [ 'vec4f', new Vector4() ], l2: [ 'vec4f', new Vector4() ], l3: [ 'vec4f', new Vector4() ],
+				l4: [ 'vec4f', new Vector4() ], l5: [ 'vec4f', new Vector4() ], l6: [ 'vec4f', new Vector4() ], l7: [ 'vec4f', new Vector4() ],
+			},
 			attributes: { aSeed: 'vec4f', aCorner: 'vec2f' },
-			varyings: { vA: 'f32', vY: 'f32' },
+			varyings: { vA: 'f32', vY: 'f32', vLit: 'f32' },
 			vertex: /* wgsl */`
 	let box = vec3f( ${ BOX[ 0 ] }.0, ${ BOX[ 1 ] }.0, ${ BOX[ 2 ] }.0 );
 	let cam = frame.cameraPos;
+	// the lens: a long lens looks further out, so the drops go where it's focused (and the near ones,
+	// which it would blow up into huge streaks, fade)
+	let fwd = - vec3f( frame.view[ 0 ][ 2 ], frame.view[ 1 ][ 2 ], frame.view[ 2 ][ 2 ] );
+	let tanHalf = 1.0 / frame.proj[ 1 ][ 1 ];
+	let focus = clamp( 0.9 / tanHalf - 1.5, 0.0, 40.0 );
+	let centre = cam + fwd * focus;
 	let speed = 8.5 + v.aSeed.w * 2.0;
 	let fall = vec3f( mat.wind.x, - speed, mat.wind.y );
-	// the drop's place in the box, wrapped round the camera
 	var p = v.aSeed.xyz * box + fall * frame.time;
-	p = cam + ( fract( ( p - cam ) / box + 0.5 ) - 0.5 ) * box;
-	// a streak along its fall, facing the camera
+	p = centre + ( fract( ( p - centre ) / box + 0.5 ) - 0.5 ) * box;
 	let dir = normalize( fall );
 	let toCam = normalize( cam - p );
 	let side = normalize( cross( dir, toCam ) );
-	let len = 0.55;
-	let wp = p + side * v.aCorner.x * 0.006 + dir * v.aCorner.y * len;
+	// a shutter-length streak (about 1/60 s of fall), thinner far off
+	let len = 0.26;
+	let wp = p + side * v.aCorner.x * 0.005 + dir * v.aCorner.y * len;
 	v.useWorld = true;
 	v.worldPos = wp;
 	v.worldNormal = toCam;
 	v.prevWorldPos = wp - fall * frame.dt;
-	// thin them out with the amount; fade the far ones and the ones right at the lens
 	let d = length( p - cam );
-	o.vA = step( v.aSeed.w, mat.amount ) * smoothstep( 0.4, 2.0, d ) * ( 1.0 - smoothstep( 14.0, 22.0, d ) );
+	o.vA = step( v.aSeed.w, mat.amount ) * smoothstep( 0.4 + 0.45 * focus, 2.0 + 0.55 * focus, d ) * ( 1.0 - smoothstep( focus + 14.0, focus + 22.0, d ) );
 	o.vY = v.aCorner.y;
+	// forward scattering: a drop in front of a bank (seen against it) glows
+	let ray = normalize( p - cam );
+	var lit = 0.0;
+	for ( var i = 0; i < 8; i ++ ) {
+		var L = mat.l0;
+		switch i { case 1: { L = mat.l1; } case 2: { L = mat.l2; } case 3: { L = mat.l3; } case 4: { L = mat.l4; } case 5: { L = mat.l5; } case 6: { L = mat.l6; } case 7: { L = mat.l7; } default: {} }
+		if ( L.w > 0.5 ) { lit += pow( max( 0.0, dot( normalize( L.xyz - p ), ray ) ), 10.0 ); }
+	}
+	o.vLit = lit;
 `,
 			surface: /* wgsl */`
-	// brighter under the lights at night
-	let lightK = mix( 0.9, 1.6, frame.night );
+	// brighter under the lights at night, and glowing where they're backlit by a bank
+	let lightK = mix( 0.9, 1.4, frame.night ) + in.vs.vLit * 3.0 * frame.night;
 	s.albedo = mat.color * lightK * ( frame.skyIrradiance * 1.5 + vec3f( 0.25 ) * frame.night );
-	s.alpha = in.vs.vA * 0.28 * ( 1.0 - in.vs.vY * 0.5 );
+	s.alpha = in.vs.vA * 0.3 * ( 1.0 - in.vs.vY * 0.5 ) * min( 1.0, 0.6 + in.vs.vLit );
 `,
 		} );
 		this.material.underwaterLighting = 'none';
@@ -75,6 +93,13 @@ export class Rain {
 		this.mesh.layers.set( 2 ); // the transparent pass
 		this.mesh.visible = false;
 		scene.add( this.mesh );
+
+	}
+
+	// the light banks' world positions (up to 8)
+	setLights( list ) {
+
+		list.slice( 0, 8 ).forEach( ( p, i ) => this.material.uniforms[ 'l' + i ].value.set( p.x, p.y, p.z, 1 ) );
 
 	}
 
