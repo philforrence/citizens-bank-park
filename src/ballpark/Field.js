@@ -991,7 +991,7 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		mow = 1.0 + 0.1 * ia * ib + 0.1 * ia * dot( Vf, da ) + 0.1 * ib * dot( Vf, db );
 	}
 	// Kentucky bluegrass in October: a bright, yellowish green
-	var col = vec3f( 0.085, 0.24, 0.038 ) * mow * ( 0.9 + 0.14 * n1 ) * ( 0.93 + 0.09 * n2 ) * ( 0.95 + 0.07 * n3 );
+	var col = vec3f( 0.14, 0.31, 0.05 ) * mow * ( 0.9 + 0.14 * n1 ) * ( 0.93 + 0.09 * n2 ) * ( 0.95 + 0.07 * n3 );
 	var rough = 0.95;
 	if ( dirt ) {
 		// the infield clay: a warm orange-tan
@@ -1071,6 +1071,8 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 
 	s.albedo = col;
 	s.roughness = rough;
+	// under the lights the field is lit evenly from every side (six banks): a lift the spots alone miss
+	if ( ! outside ) { s.emissive = col * smoothstep( 0.2, 0.8, frame.night ) * 0.35; }
 `,
 	} );
 	mat.underwaterLighting = 'none';
