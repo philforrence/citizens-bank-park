@@ -222,9 +222,10 @@ export class Field {
 		add( slab( outline, 0.02 ), 0, 0, 0 );
 
 		// the pitcher's rubber: 24 x 6 in, its front edge 60 ft 6 in from home plate
-		const rub = new BoxGeometry( 24 / 12 * FT, 0.04, 6 / 12 * FT );
+		// the rubber sits nearly flush in the clay: a centimetre or two of white showing
+		const rub = new BoxGeometry( 24 / 12 * FT, 0.05, 6 / 12 * FT );
 		const rz = - RUBBER_FRONT - 3 / 12 * FT;
-		add( rub, 0, moundHeight( 0, rz ) + 0.01, rz );
+		add( rub, 0, moundHeight( 0, rz ) - 0.01, rz );
 
 	}
 
@@ -990,6 +991,17 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	if ( dirt ) {
 		// the infield clay: a warm orange-tan
 		col = vec3f( 0.56, 0.27, 0.11 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );
+		// packed red clay, darker and scuffed: the mound's table round the rubber, the landing area a
+		// stride in front of it, and the batter's boxes and catcher's box round the plate
+		let tp = p - rubber;
+		let tableK = 1.0 - smoothstep( 0.0, 0.25, max( abs( tp.x ) - 0.85, abs( tp.y + 0.2 ) - 0.55 ) );
+		let lp = ( p - rubber - vec2f( 0.0, 1.6 ) ) / vec2f( 0.62, 0.48 );
+		let landK = 1.0 - smoothstep( 0.0, 0.35, length( lp ) - 1.0 );
+		let hp = p - plate;
+		let boxK = 1.0 - smoothstep( 0.0, 0.35, max( abs( hp.x ) - 1.95, abs( hp.y - 0.3 ) - 1.55 ) );
+		let clay = max( max( tableK, landK ), boxK );
+		let scuff = 0.78 + 0.3 * mx_noise_float2( p * 5.0 ) + 0.12 * mx_noise_float2( p * 23.0 );
+		col = mix( col, vec3f( 0.36, 0.15, 0.07 ) * scuff, clay * 0.6 );
 		rough = 0.92;
 		// the edge of the grass: a soft lip, not a razor line
 	}

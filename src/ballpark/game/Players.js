@@ -34,6 +34,9 @@ export class Players {
 
 			drawChest( ctx, 62, true );
 			drawChest( ctx, 63, false );
+			drawCapLogo( ctx, 60, true );
+			drawCapLogo( ctx, 61, false );
+			drawPatch( ctx, 59 );
 
 		}, 'jerseys' );
 		this.atlasCtx = this.atlas.canvas.getContext( '2d' );
@@ -169,34 +172,42 @@ function playerMaterial( bones, info, atlas ) {
 	if ( skinI == 2 ) { skinC = vec3f( 0.2, 0.11, 0.06 ); }
 	if ( skinI == 3 ) { skinC = vec3f( 0.62, 0.45, 0.35 ); }
 	// home: white, red pinstripes, red trim and caps; away: road grey, navy
-	let cloth = select( vec3f( 0.3, 0.3, 0.31 ), vec3f( 0.8, 0.79, 0.77 ), home );
+	let cloth = select( vec3f( 0.3, 0.3, 0.31 ), vec3f( 0.86, 0.85, 0.82 ), home );
 	let trim = select( vec3f( 0.012, 0.018, 0.06 ), vec3f( 0.42, 0.018, 0.025 ), home );
 	var c = cloth;
 	var rough = 0.8;
 	if ( part == ${ P.jersey } || part == ${ P.pants } ) {
 		if ( home ) {
-			// pinstripes 4 cm apart, averaged where they're finer than a pixel
-			let u = in.vs.vLocal.x * 25.0 + in.vs.vLocal.z * 25.0;
+			// red pinstripes 2.5 cm apart, thin; averaged where they're finer than a pixel
+			let u = ( in.vs.vLocal.x + in.vs.vLocal.z ) * 28.3;
 			let fw = fwidth( u );
-			let stripe = 1.0 - smoothstep( 0.06 - fw, 0.06 + fw, abs( fract( u ) - 0.5 ) * 2.0 - 0.9 + 0.06 );
-			let k = mix( stripe * 0.35, 0.06, clamp( fw * 1.5, 0.0, 1.0 ) );
-			c = mix( cloth, vec3f( 0.5, 0.03, 0.05 ), k );
+			let stripe = 1.0 - smoothstep( 0.035 - fw, 0.035 + fw, abs( fract( u ) - 0.5 ) );
+			let k = mix( stripe * 0.85, 0.06, clamp( fw * 1.5, 0.0, 1.0 ) );
+			c = mix( cloth, vec3f( 0.6, 0.015, 0.03 ), k );
 		}
 	}
 	// the back (number, name) and the chest (the club's name) from the atlas, projected front to back
 	// onto the torso: its own frame has +x to the player's right, -z forward, y up from the waist
 	let L = in.vs.vLocal;
+	let bone = i32( in.vs.vBone + 0.5 );
 	let back = L.z > 0.0;
 	let slot = in.vs.vSlot;
-	let cell = select( select( 63.0, 62.0, home ), slot, back );
+	// which cell of the atlas this fragment reads, and where in it: the back (number, name), the chest
+	// (the club's name), the cap's front (P / TB), the World Series patch on the right sleeve
+	var cell = select( select( 63.0, 62.0, home ), slot, back );
+	var lu = select( 0.5 - L.x / 0.42, 0.5 + L.x / 0.36, back );
+	var lv = select( 1.0 - ( L.y - 0.17 ) / 0.21, 1.0 - ( L.y - 0.07 ) / 0.36, back );
+	var useInk = part == ${ P.jersey } && bone == ${ BONES.torso } && abs( L.z ) > 0.02;
+	if ( part == ${ P.cap } && bone == ${ BONES.head } && L.z < - 0.03 && L.y > 0.19 ) {
+		cell = select( 61.0, 60.0, home ); lu = 0.5 - L.x / 0.15; lv = 1.0 - ( L.y - 0.18 ) / 0.12; useInk = true;
+	}
+	if ( part == ${ P.jersey } && bone == ${ BONES.upperArmR } && L.x > 0.015 ) {
+		cell = 59.0; lu = 0.5 - L.z / 0.085; lv = 0.5 - ( L.y + 0.11 ) / 0.085; useInk = true;
+	}
 	let cxy = vec2f( cell % ${ COLS }.0, floor( cell / ${ COLS }.0 ) );
-	let lu = select( 0.5 - L.x / 0.42, 0.5 + L.x / 0.36, back );
-	let lv = select( 1.0 - ( L.y - 0.17 ) / 0.21, 1.0 - ( L.y - 0.07 ) / 0.36, back );
 	let inCell = lu > 0.02 && lu < 0.98 && lv > 0.02 && lv < 0.98;
 	let auv = ( cxy + clamp( vec2f( lu, lv ), vec2f( 0.02 ), vec2f( 0.98 ) ) ) / ${ COLS }.0;
 	let ink = textureSample( plAtlas, smpAnisoClamp, auv );
-	let onTorso = part == ${ P.jersey } && i32( in.vs.vBone + 0.5 ) == ${ BONES.torso } && inCell && abs( L.z ) > 0.02;
-	if ( onTorso ) { c = mix( c, ink.rgb, ink.a ); }
 	if ( part == ${ P.skin } ) { c = skinC; rough = 0.55; }
 	if ( part == ${ P.socks } || part == ${ P.sleeve } ) { c = trim; }
 	if ( part == ${ P.cap } ) { c = trim * 1.05; rough = 0.6; }
@@ -204,6 +215,8 @@ function playerMaterial( bones, info, atlas ) {
 	if ( part == ${ P.shoes } ) { c = vec3f( 0.018 ); rough = 0.45; }
 	if ( part == ${ P.glove } ) { c = vec3f( 0.2, 0.09, 0.035 ); rough = 0.5; }
 	if ( part == ${ P.bat } ) { c = vec3f( 0.5, 0.32, 0.16 ); rough = 0.35; }
+	// the lettering and logos over the cloth
+	if ( useInk && inCell ) { c = mix( c, ink.rgb, ink.a ); }
 	s.albedo = c;
 	s.roughness = rough;
 `,
@@ -299,6 +312,64 @@ function drawChest( ctx, i, home ) {
 
 	}
 
+	ctx.restore();
+
+}
+
+// the caps' fronts: a white serif P on the Phillies' red; TB in white outlined in Columbia blue on the
+// Rays' navy
+function drawCapLogo( ctx, i, home ) {
+
+	const [ x, y ] = cellXY( i );
+	ctx.save();
+	ctx.clearRect( x, y, CELL, CELL );
+	ctx.translate( x + CELL / 2, y + CELL / 2 );
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.lineJoin = 'round';
+	if ( home ) {
+
+		ctx.font = 'italic 700 104px Georgia, "Times New Roman", serif';
+		ctx.fillStyle = '#f4f2ec';
+		ctx.fillText( 'P', 0, 6 );
+
+	} else {
+
+		ctx.font = '900 70px Georgia, serif';
+		ctx.lineWidth = 7;
+		ctx.strokeStyle = '#8fbce6';
+		ctx.strokeText( 'TB', 0, 6 );
+		ctx.fillStyle = '#f4f2ec';
+		ctx.fillText( 'TB', 0, 6 );
+
+	}
+
+	ctx.restore();
+
+}
+
+// the 2008 World Series patch worn on the right sleeve: a navy disc, WORLD SERIES and 2008
+function drawPatch( ctx, i ) {
+
+	const [ x, y ] = cellXY( i );
+	ctx.save();
+	ctx.clearRect( x, y, CELL, CELL );
+	ctx.translate( x + CELL / 2, y + CELL / 2 );
+	ctx.fillStyle = '#f4f2ec';
+	ctx.beginPath(); ctx.arc( 0, 0, 60, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#10275f';
+	ctx.beginPath(); ctx.arc( 0, 0, 54, 0, Math.PI * 2 ); ctx.fill();
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillStyle = '#f4f2ec';
+	ctx.font = '700 20px Georgia, serif';
+	ctx.fillText( 'WORLD', 0, - 14 );
+	ctx.fillText( 'SERIES', 0, 8 );
+	ctx.fillStyle = '#e3b23c';
+	ctx.font = '800 18px Georgia, serif';
+	ctx.fillText( '2008', 0, 30 );
+	ctx.fillStyle = '#c8102e';
+	ctx.fillRect( - 16, - 44, 32, 14 );
 	ctx.restore();
 
 }
