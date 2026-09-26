@@ -370,26 +370,35 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	concrete.receiveShadow = true;
 	group.add( concrete );
 
-	// seats: one instanced mesh per chunk so the frustum culling can drop the ones behind you
+	// seats: instanced meshes in chunks so the frustum culling can drop the ones behind you; a fan in
+	// nearly every seat (Crowd.js), its seat folded down, the empty ones folded up
 	const CHUNK = 1500;
+	const crowd = materials.crowd;
+	const c = new Color();
 	for ( let i0 = 0; i0 < seatMats.length; i0 += CHUNK ) {
 
-		const n = Math.min( CHUNK, seatMats.length - i0 );
-		const mesh = new InstancedMesh( materials.seatGeometry, materials.seat, n );
-		const c = new Color();
-		for ( let i = 0; i < n; i ++ ) {
+		const idx = [ ...Array( Math.min( CHUNK, seatMats.length - i0 ) ).keys() ].map( ( i ) => i0 + i );
+		const taken = crowd ? idx.filter( ( i ) => crowd.occupied( seatMats[ i ] ) ) : [];
+		const empty = crowd ? idx.filter( ( i ) => ! crowd.occupied( seatMats[ i ] ) ) : idx;
+		for ( const [ list, geo ] of [ [ empty, materials.seatGeometry ], [ taken, materials.seatDownGeometry ] ] ) {
 
-			mesh.setMatrixAt( i, seatMats[ i0 + i ] );
-			const k = seatCols[ i0 + i ];
-			mesh.setColorAt( i, c.setRGB( k, k, k ) );
+			if ( ! list.length ) continue;
+			const mesh = new InstancedMesh( geo, materials.seat, list.length );
+			list.forEach( ( k, i ) => {
+
+				mesh.setMatrixAt( i, seatMats[ k ] );
+				mesh.setColorAt( i, c.setRGB( seatCols[ k ], seatCols[ k ], seatCols[ k ] ) );
+
+			} );
+			mesh.computeBoundingBox();
+			mesh.computeBoundingSphere();
+			mesh.name = tier.name + '-seats';
+			mesh.receiveShadow = true;
+			group.add( mesh );
 
 		}
 
-		mesh.computeBoundingBox();
-		mesh.computeBoundingSphere();
-		mesh.name = tier.name + '-seats';
-		mesh.receiveShadow = true;
-		group.add( mesh );
+		if ( crowd ) crowd.addChunk( group, taken.map( ( k ) => seatMats[ k ] ), tier.name );
 
 	}
 
@@ -421,7 +430,7 @@ function hash( x ) {
 
 // A folding stadium seat, low poly: seat pan and back (the tread under it reads as the frame). Origin
 // at the floor under the seat's centre, facing -z.
-export function seatGeometry() {
+export function seatGeometry( down = false ) {
 
 	// An empty fold-down seat, facing -z, its origin on the tread under the seat's middle: a curved
 	// back (top 0.8 m up), the pan folded up in front of it, and a dark cast standard with an armrest
@@ -443,10 +452,19 @@ export function seatGeometry() {
 	add( BLUE, [ w, b0, z( b0 ) + t ], [ - w, b0, z( b0 ) + t ], [ - w, b1, z( b1 ) + t ], [ w, b1, z( b1 ) + t ], [ 0, - lean, 1 ] );
 	add( BLUE, [ - w, b1, z( b1 ) ], [ w, b1, z( b1 ) ], [ w, b1, z( b1 ) + t ], [ - w, b1, z( b1 ) + t ], [ 0, 1, 0 ] );
 
-	// the pan, folded up (75 degrees) in front of the back's lower half
-	const pz = 0.02, p0 = 0.26, p1 = 0.62, tip = Math.tan( 0.26 );
-	const zp = ( y ) => pz + ( y - p0 ) * tip;
-	add( BLUE, [ - w + 0.01, p0, zp( p0 ) ], [ w - 0.01, p0, zp( p0 ) ], [ w - 0.01, p1, zp( p1 ) ], [ - w + 0.01, p1, zp( p1 ) ], [ 0, tip, - 1 ] );
+	if ( down ) {
+
+		// the pan down, sat on: flat, 43 cm up, from the back to the front edge
+		add( BLUE, [ - w + 0.01, 0.43, - 0.3 ], [ w - 0.01, 0.43, - 0.3 ], [ w - 0.01, 0.44, 0.14 ], [ - w + 0.01, 0.44, 0.14 ], [ 0, 1, 0 ] );
+
+	} else {
+
+		// the pan, folded up (75 degrees) in front of the back's lower half
+		const pz = 0.02, p0 = 0.26, p1 = 0.62, tip = Math.tan( 0.26 );
+		const zp = ( y ) => pz + ( y - p0 ) * tip;
+		add( BLUE, [ - w + 0.01, p0, zp( p0 ) ], [ w - 0.01, p0, zp( p0 ) ], [ w - 0.01, p1, zp( p1 ) ], [ - w + 0.01, p1, zp( p1 ) ], [ 0, tip, - 1 ] );
+
+	}
 	// the standard: a cast leg from the tread, the armrest on top
 	const sx = - w - 0.025;
 	add( GREY, [ sx, 0, - 0.02 ], [ sx, 0, 0.2 ], [ sx, 0.6, 0.2 ], [ sx, 0.6, - 0.02 ], [ - 1, 0, 0 ] );
@@ -496,7 +514,7 @@ export function standsMaterials() {
 	s.emissive = vec3f( 1.0, 0.88, 0.66 ) * 0.12 * mix( 0.5, 1.0, frame.night );
 ` } );
 	for ( const m of [ concrete, seat, rail, portalMouth ] ) m.underwaterLighting = 'none';
-	return { concrete, seat, rail, portalMouth, seatGeometry: seatGeometry() };
+	return { concrete, seat, rail, portalMouth, seatGeometry: seatGeometry(), seatDownGeometry: seatGeometry( true ) };
 
 }
 

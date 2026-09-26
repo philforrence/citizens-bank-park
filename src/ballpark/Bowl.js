@@ -5,6 +5,7 @@ import { standard } from '../materials/Materials.js';
 import { beam, box, alongPolyline, nearestAlong } from './geo.js';
 import { GATES } from './Exterior.js';
 import { buildTier, tierTop, standsMaterials, Quads } from './Stands.js';
+import { Crowd } from './Crowd.js';
 import { FT, FOOTPRINT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, BULLPENS, LEVELS, fencePoint } from './layout.js';
 
 // The seating bowl round the field and the street-level concourse round the bowl.
@@ -35,6 +36,7 @@ export class Bowl {
 		this.group.name = 'bowl';
 		field.group.add( this.group );
 		this.materials = standsMaterials();
+		this.crowd = this.materials.crowd = new Crowd();
 		const worldYaw = field.group.rotation.y;
 		this.ctx = {
 			toWorld: ( x, z ) => field.toWorld( x, z ),
