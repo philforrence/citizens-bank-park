@@ -31,6 +31,8 @@ import { beam } from './geo.js';
 //   back: { height }            a wall behind the last row
 //   soffit                      an upper deck: its underside runs this far below the rows (m), and
 //                               the stepped profile is closed at the tier's two ends
+//   portals: { every, row, rows, width }   a tunnel portal (vomitory) in the middle of every `every`th
+//                               section, `rows` rows deep from row `row`, `width` wide
 // }
 export const SEAT_W = 0.5;
 
@@ -128,6 +130,16 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	const seatCols = [];
 	const _m = new Matrix4(), _q = new Quaternion(), _p = new Vector3(), _s = new Vector3( 1, 1, 1 ), _up = new Vector3( 0, 1, 0 );
 
+	const portals = [];
+	const PO = tier.portals;
+	secs.forEach( ( S, k ) => {
+
+		if ( ! PO || ! S.seats || S.len < PO.width + 3 || k % PO.every !== Math.floor( PO.every / 2 ) ) return;
+		portals.push( { S, s: S.len / 2, r0: PO.row, r1: PO.row + PO.rows } );
+
+	} );
+	const inPortal = ( S, s, r ) => portals.some( ( p ) => p.S === S && r >= p.r0 - 1 && r < p.r1 && Math.abs( s - p.s ) < PO.width / 2 + 0.35 );
+
 	for ( const S of secs ) {
 
 		const { a, len, ux, uz, nx, nz } = S;
@@ -179,6 +191,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			const start = lo + ( hi - lo - n * W ) / 2 + W / 2;
 			for ( let i = 0; i < n; i ++ ) {
 
+				if ( portals.length && inPortal( S, start + i * W, r ) ) continue;
 				const [ x, z ] = at( start + i * W, dSeat );
 				_q.setFromAxisAngle( _up, yawSeat );
 				_m.compose( _p.set( x, y, z ), _q, _s );
@@ -295,6 +308,51 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			for ( let i = 0; i <= n; i ++ ) beam( rq, P( s0 + ( s1 - s0 ) * i / n, top ), P( s0 + ( s1 - s0 ) * i / n, y ), 0.04 );
 
 		}
+
+	}
+
+	// the portals: a concrete box rising out of the rows with the tunnel mouth in its face (dark, lit
+	// inside after dark), a pipe rail round its top, EXIT over the mouth
+	const pq = new Quads(), mq = new Quads();
+	for ( const p of portals ) {
+
+		const { S } = p;
+		const w = PO.width / 2 + 0.3;
+		const dF = S0 + p.r0 * D, dB = S0 + p.r1 * D;
+		const yF = ys[ Math.max( 0, p.r0 - 1 ) ], yTop = ys[ Math.min( tier.rows - 1, p.r1 - 1 ) ] + 1.1;
+		const at = ( s, d, y ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, y, S.a[ 1 ] + S.uz * s + S.nz * d ];
+		const f = [ - S.nx, 0, - S.nz ];
+		// the face: concrete round the mouth (2.3 m high, the portal's width less the cheeks)
+		const m0 = p.s - PO.width / 2 + 0.2, m1 = p.s + PO.width / 2 - 0.2, mTop = Math.min( yTop - 0.3, yF + 2.3 );
+		pq.add( at( p.s - w, dF, yF ), at( m0, dF, yF ), at( m0, dF, yTop ), at( p.s - w, dF, yTop ), f );
+		pq.add( at( m1, dF, yF ), at( p.s + w, dF, yF ), at( p.s + w, dF, yTop ), at( m1, dF, yTop ), f );
+		pq.add( at( m0, dF, mTop ), at( m1, dF, mTop ), at( m1, dF, yTop ), at( m0, dF, yTop ), f );
+		mq.add( at( m0, dF + 0.05, yF ), at( m1, dF + 0.05, yF ), at( m1, dF + 0.05, mTop ), at( m0, dF + 0.05, mTop ), f );
+		// the cheeks and the top
+		for ( const e of [ - 1, 1 ] ) pq.add( at( p.s + e * w, dF, yF ), at( p.s + e * w, dB, yF ), at( p.s + e * w, dB, yTop ), at( p.s + e * w, dF, yTop ), [ S.ux * e, 0, S.uz * e ] );
+		pq.add( at( p.s - w, dF, yTop ), at( p.s + w, dF, yTop ), at( p.s + w, dB, yTop ), at( p.s - w, dB, yTop ), [ 0, 1, 0 ] );
+		// the rail round its top edge
+		const yr = yTop + 1.0;
+		beam( rq, at( p.s - w, dF, yr ), at( p.s + w, dF, yr ), 0.05 );
+		for ( const e of [ - 1, 1 ] ) {
+
+			beam( rq, at( p.s + e * w, dF, yr ), at( p.s + e * w, dB, yr ), 0.05 );
+			beam( rq, at( p.s + e * w, dF, yTop ), at( p.s + e * w, dF, yr ), 0.05 );
+
+		}
+
+	}
+
+	if ( pq.count ) {
+
+		const pm = new Mesh( pq.geometry(), materials.concrete );
+		pm.name = tier.name + '-portals';
+		pm.castShadow = true;
+		pm.receiveShadow = true;
+		group.add( pm );
+		const mouth = new Mesh( mq.geometry(), materials.portalMouth );
+		mouth.name = tier.name + '-portal-mouths';
+		group.add( mouth );
 
 	}
 
@@ -430,8 +488,14 @@ export function standsMaterials() {
 		surface: 's.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.45;' } );
 	// galvanized steel for the rails
 	const rail = standard( { name: 'rails', color: new Color( 0.55, 0.56, 0.57 ), roughness: 0.35, metalness: 0.8 } );
-	for ( const m of [ concrete, seat, rail ] ) m.underwaterLighting = 'none';
-	return { concrete, seat, rail, seatGeometry: seatGeometry() };
+	// a portal's mouth: the dark tunnel, a lit ceiling at its top, EXIT in green over it
+	const portalMouth = standard( { name: 'portal-mouth', color: new Color( 0.012, 0.012, 0.013 ), roughness: 0.9,
+		surface: `
+	let v = in.uv.y;
+	s.emissive = vec3f( 1.0, 0.88, 0.66 ) * 0.12 * mix( 0.5, 1.0, frame.night );
+` } );
+	for ( const m of [ concrete, seat, rail, portalMouth ] ) m.underwaterLighting = 'none';
+	return { concrete, seat, rail, portalMouth, seatGeometry: seatGeometry() };
 
 }
 

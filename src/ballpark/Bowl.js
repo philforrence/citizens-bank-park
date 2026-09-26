@@ -90,6 +90,7 @@ export class Bowl {
 			section: 16,
 			aisle: 1.2,
 			skipRows: ( k ) => dugoutSegs.includes( k ) ? 4 : 0,
+			portals: { every: 3, row: 16, rows: 5, width: 3 },
 		};
 
 		// behind the left field wall: a flower bed, then the 140s up to the concourse
@@ -267,7 +268,7 @@ export class Bowl {
 			// (behind home plate the press box takes its place: no seats there)
 			{ name: 'terrace-300', front: line( path, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1, skip: [ [ 4, 6 ] ] },
 			// ... and the 400s behind the walkway
-			{ name: 'terrace-400', front: line( path, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, back: { height: 1.1 }, base: L.terraceConcourse - 0.7 },
+			{ name: 'terrace-400', front: line( path, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, portals: { every: 2, row: 5, rows: 4, width: 3 }, back: { height: 1.1 }, base: L.terraceConcourse - 0.7 },
 		];
 
 		// the Pavilion (201-211) and the Pavilion Deck (301-310) over the right field seats, from the 369 mark
