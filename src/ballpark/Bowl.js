@@ -80,6 +80,8 @@ export class Bowl {
 			name: 'field-level',
 			front: FOUL_TERRITORY,
 			outward: [ 0, - 40 ],
+			// the first row just behind the wall round foul territory (not in its face)
+			start: 0.4,
 			y0: 1.2,
 			rows: ROWS.field,
 			depth: FROW,

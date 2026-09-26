@@ -5,6 +5,7 @@ import { Texture } from '../engine/gpu/Texture.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
+import { beam } from './geo.js';
 import {
 	FT, FIELD_BEARING, BASE, MOUND_CENTER, RUBBER_FRONT, MOUND_RADIUS, MOUND_HEIGHT,
 	FOOTPRINT, OUTFIELD, FOUL_TERRITORY, FOUL_WALL_HEIGHT, DUGOUTS, BULLPENS, LEVELS, fencePoint, fieldBoundary,
@@ -231,10 +232,29 @@ export class Field {
 
 	_buildFence() {
 
-		const pad = standard( { name: 'wall-padding', color: new Color( 0.018, 0.16, 0.1 ), roughness: 0.7 } );
+		const pad = standard( { name: 'wall-padding', color: new Color( 0.014, 0.075, 0.045 ), roughness: 0.7, modules: [ commonModule ],
+			surface: /* wgsl */`
+	// vinyl pads, a seam every 1.5 m
+	let seam = 1.0 - ( 1.0 - smoothstep( 0.0, 0.03 + fwidth( in.uv.x ), abs( fract( in.uv.x / 1.5 + 0.5 ) - 0.5 ) * 1.5 ) ) * ( 1.0 - clamp( fwidth( in.uv.x ) * 8.0, 0.0, 1.0 ) ) * 0.45;
+	s.albedo = mat.color * seam * ( 0.92 + 0.12 * mx_noise_float2( in.uv * vec2f( 0.7, 3.0 ) ) );
+` } );
+		// behind home plate the wall is red brick under a teal padded cap
+		const brick = standard( { name: 'backstop-brick', color: new Color( 0.26, 0.07, 0.04 ), roughness: 0.85,
+			surface: /* wgsl */`
+	let v = in.uv.y; let u = in.uv.x;
+	let row = floor( v / 0.075 );
+	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
+	let fr = clamp( fwidth( v ) / 0.075 * 1.5 - 0.25, 0.0, 1.0 );
+	let mortar = clamp( mix( step( 0.88, fract( v / 0.075 ) ), 0.12, fr ) + mix( step( 0.93, fract( bu ) ), 0.07, fr ), 0.0, 1.0 );
+	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, fr );
+	s.albedo = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
+	// the teal pad along the top
+	if ( v > ${ ( 4.5 * 0.3048 - 0.3 ).toFixed( 3 ) } ) { s.albedo = vec3f( 0.02, 0.13, 0.12 ); s.roughness = 0.6; }
+` } );
+		const tealCap = standard( { name: 'backstop-cap', color: new Color( 0.02, 0.13, 0.12 ), roughness: 0.6 } );
 		const trim = standard( { name: 'wall-trim', color: new Color( 0.75, 0.55, 0.02 ), roughness: 0.6 } );
 		const cap = standard( { name: 'wall-cap', color: new Color( 0.2, 0.2, 0.19 ), roughness: 0.8 } );
-		for ( const m of [ pad, trim, cap ] ) m.underwaterLighting = 'none';
+		for ( const m of [ pad, trim, cap, brick, tealCap ] ) m.underwaterLighting = 'none';
 
 		// outfield fence, pole to pole: padding, a yellow line along the top, a cap
 		const out = OUTFIELD.map( ( [ a, d, h ] ) => ( { p: fencePoint( a, d ), h: h * FT } ) );
@@ -272,7 +292,14 @@ export class Field {
 		}
 
 		runs.push( run );
-		for ( const r of runs ) if ( r.length > 1 ) this._wall( r, { pad, trim: null, cap, thickness: 0.35, name: 'foul-wall' } );
+		// the run between the dugouts (behind home) in brick, the rest padded
+		runs.forEach( ( r, i ) => {
+
+			if ( r.length < 2 ) return;
+			const home = i > 0 && i < runs.length - 1;
+			this._wall( r, home ? { pad: brick, trim: null, cap: tealCap, thickness: 0.35, name: 'backstop-wall' } : { pad, trim: null, cap, thickness: 0.35, name: 'foul-wall' } );
+
+		} );
 
 	}
 
@@ -368,7 +395,7 @@ export class Field {
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'middle';
 		ctx.font = '700 170px "Helvetica Neue", Helvetica, Arial, sans-serif';
-		rows.forEach( ( r, k ) => ctx.fillText( String( r.d ), CW / 2, CH * ( k + 0.5 ) + 6, CW - 16 ) );
+		rows.forEach( ( r, k ) => ctx.fillText( String( Math.round( r.d ) ), CW / 2, CH * ( k + 0.5 ) + 6, CW - 16 ) );
 		const img = ctx.getImageData( 0, 0, CW, CH * rows.length );
 		const tex = new Texture( { label: 'wallNumbers', width: CW, height: CH * rows.length, format: 'rgba8unorm', mips: true, usage: [ 'sample', 'copyDst' ], data: new Uint8Array( img.data.buffer ) } );
 		tex.getGPU();
@@ -636,6 +663,35 @@ export class Field {
 
 		}
 
+		// inside: the back wall padded in navy, a bat rack, the orange coolers and a stack of cups on the
+		// bench; along the front the dark green pipe rail the players lean on
+		const pad = standard( { name: 'dugout-padding', color: new Color( 0.012, 0.02, 0.06 ), roughness: 0.7 } );
+		const cooler = standard( { name: 'dugout-coolers', color: new Color( 0.7, 0.2, 0.02 ), roughness: 0.45 } );
+		const railMat = standard( { name: 'dugout-rail', color: new Color( 0.02, 0.07, 0.04 ), roughness: 0.4, metalness: 0.6 } );
+		const wood = standard( { name: 'bat-rack', color: new Color( 0.25, 0.14, 0.06 ), roughness: 0.6 } );
+		for ( const m of [ pad, cooler, railMat, wood ] ) m.underwaterLighting = 'none';
+		box( pad, STAIR, len - STAIR, W - 0.06, W, - D + 0.45, R - 0.3, 'dugout-back-pad' );
+		const rackAt = len * 0.3;
+		box( wood, rackAt, rackAt + 2.4, W - 0.35, W - 0.06, - D + 0.5, - D + 1.3, 'bat-rack' );
+		for ( const s0 of [ STAIR + 0.6, len - STAIR - 1.2 ] ) box( cooler, s0, s0 + 0.5, W - 0.45, W - 0.05, - D + 0.45, - D + 1.0, 'cooler' );
+		const q = new Quads();
+		const P = ( s, t, y ) => { const [ x, z ] = at( s, t ); return [ x, y, z ]; };
+		const r0 = STAIR - 0.1, r1 = len - STAIR + 0.1, tr = LIP + 0.25;
+		beam( q, P( r0, tr, 0.55 ), P( r1, tr, 0.55 ), 0.06 );
+		beam( q, P( r0, tr, 0.05 ), P( r1, tr, 0.05 ), 0.05 );
+		const nPosts = Math.max( 2, Math.round( ( r1 - r0 ) / 2.2 ) );
+		for ( let k = 0; k <= nPosts; k ++ ) {
+
+			const sk = r0 + ( r1 - r0 ) * k / nPosts;
+			beam( q, P( sk, tr, - 0.45 ), P( sk, tr, 0.58 ), 0.05 );
+
+		}
+
+		const rail = new Mesh( q.geometry(), railMat );
+		rail.name = 'dugout-rail';
+		rail.castShadow = true;
+		this.group.add( rail );
+
 	}
 
 }
@@ -759,7 +815,8 @@ class Quads {
 		}
 
 		this.pos.push( ...a, ...b, ...c );
-		for ( let i = 0; i < 3; i ++ ) this.nrm.push( ...n );
+		const l = Math.hypot( n[ 0 ], n[ 1 ], n[ 2 ] ) || 1;
+		for ( let i = 0; i < 3; i ++ ) this.nrm.push( n[ 0 ] / l, n[ 1 ] / l, n[ 2 ] / l );
 		this.uv.push( ...ua, ...ub, ...uc );
 		this.count ++;
 

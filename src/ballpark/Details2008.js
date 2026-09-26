@@ -163,10 +163,13 @@ export class Details2008 {
 			const g = q.geometry();
 			setUV( g, ( p ) => [ ( ( p[ 0 ] - a[ 0 ] ) * ux + ( p[ 2 ] - a[ 1 ] ) * uz - L ) / ( R - L ), ( ( p[ 0 ] - a[ 0 ] ) * nx + ( p[ 2 ] - a[ 1 ] ) * nz + 0.45 ) / 3.3 ] );
 			this.group.add( new Mesh( g, top ) );
+			// the front band faces the field: read left to right from there (the viewer's right is ( -nz, nx ))
+			const rightIsU = ( ux * - nz + uz * nx ) > 0;
+			const [ FL, FR ] = rightIsU ? [ s0, s1 ] : [ s1, s0 ];
 			const f = new Quads();
-			f.add( at( L, - 0.46, 0.75 ), at( R, - 0.46, 0.75 ), at( R, - 0.46, 1.0 ), at( L, - 0.46, 1.0 ), [ - nx, 0, - nz ] );
+			f.add( at( FL, - 0.46, 0.75 ), at( FR, - 0.46, 0.75 ), at( FR, - 0.46, 1.0 ), at( FL, - 0.46, 1.0 ), [ - nx, 0, - nz ] );
 			const fg = f.geometry();
-			setUV( fg, ( p ) => [ ( ( p[ 0 ] - a[ 0 ] ) * ux + ( p[ 2 ] - a[ 1 ] ) * uz - L ) / ( R - L ), 1 - ( p[ 1 ] - 0.75 ) / 0.25 ] );
+			setUV( fg, ( p ) => [ ( ( p[ 0 ] - a[ 0 ] ) * ux + ( p[ 2 ] - a[ 1 ] ) * uz - FL ) / ( FR - FL ), 1 - ( p[ 1 ] - 0.75 ) / 0.25 ] );
 			this.group.add( new Mesh( fg, front ) );
 
 		}
@@ -251,6 +254,15 @@ export class Details2008 {
 		for ( const [ t0, t1, big, small, bg, fg ] of ads ) {
 
 			this._fencePanel( along( t0 ), along( t1 ), 0.35, H, adMaterial( big, small, bg, fg ) );
+
+		}
+
+		// Toyota down both lines on the padded wall in foul territory, beyond the dugouts
+		const toyota = adMaterial( 'TOYOTA', 'Moving Forward', '#d4141f', '#ffffff' );
+		for ( const [ A, B ] of [ [ [ 52.37, - 40.3 ], [ 52.8, - 48.49 ] ], [ [ - 52.37, - 40.3 ], [ - 52.8, - 48.49 ] ] ] ) {
+
+			const lerp = ( t ) => [ A[ 0 ] + ( B[ 0 ] - A[ 0 ] ) * t, A[ 1 ] + ( B[ 1 ] - A[ 1 ] ) * t ];
+			this._fencePanel( lerp( 0.1 ), lerp( 0.9 ), 0.2, 1.15, toyota );
 
 		}
 
