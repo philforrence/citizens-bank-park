@@ -274,7 +274,8 @@ export class Bowl {
 		const rf = this.tiers[ 2 ];
 		const rfTop = rf.start + rf.rows * rf.depth;
 		const [ , c369, pole ] = rf.front;
-		const pavFront = [ c369, [ c369[ 0 ] + ( pole[ 0 ] - c369[ 0 ] ) * 0.62, c369[ 1 ] + ( pole[ 1 ] - c369[ 1 ] ) * 0.62 ] ];
+		// the whole stretch of the right field wall, from the 369 mark to the foul pole
+		const pavFront = [ c369, [ c369[ 0 ] + ( pole[ 0 ] - c369[ 0 ] ) * 0.97, c369[ 1 ] + ( pole[ 1 ] - c369[ 1 ] ) * 0.97 ] ];
 		tiers.push( { name: 'pavilion', front: offsetPolyline( pavFront, rfTop + 1.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: L.suites + 0.4, rows: ROWS.pavilion, depth: ROW, rise: 0.5, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.suites + 1.4 }, back: { height: 2.5 }, base: L.suites - 0.7 } );
 		const pdY = L.suites + 0.4 + ( ROWS.pavilion - 1 ) * 0.5 + 4.2;
 		tiers.push( { name: 'pavilion-deck', front: offsetPolyline( pavFront, rfTop + 4.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: pdY, rows: ROWS.pavilionDeck, depth: ROW, rise: 0.55, section: 14, aisle: 1.2, soffit: 1.2, frontWall: { top: pdY + 1.0 }, back: { height: 2.5 }, base: pdY - 1.1 } );
@@ -285,6 +286,11 @@ export class Bowl {
 		const pav = tiers[ tiers.length - 2 ], deck = tiers[ tiers.length - 1 ];
 		this._columns( offsetPolyline( pav.front, 0.6, [ 0, 0 ] ), STREET, pav.base, 9 );
 		this._columns( offsetPolyline( deck.front, deck.rows * deck.depth - 0.6, [ 0, 0 ] ), STREET, deck.y0 + ( deck.rows - 1 ) * deck.rise - 1.0, 9 );
+		// its own roof over the Pavilion Deck's upper rows, on trusses, posts from the back row up to it
+		const deckBack = deck.rows * deck.depth, deckTop = deck.y0 + ( deck.rows - 1 ) * deck.rise;
+		const pavRoofY = deckTop + 4.2;
+		this._roof( offsetPolyline( deck.front, deckBack * 0.3, [ 0, 0 ] ), deckBack * 0.78, pavRoofY, { towers: false } );
+		this._rearWall( offsetPolyline( deck.front, deckBack - 0.4, [ 0, 0 ] ), deckTop - 1.2, pavRoofY - 1.0 );
 
 		// the walkway between the 300s and 400s, and the club concourse behind the club seats
 		const t300 = tiers[ 2 ], t400 = tiers[ 3 ], club = tiers[ 1 ];
@@ -415,7 +421,7 @@ export class Bowl {
 
 	// The roof over the upper deck: a canopy `depth` deep behind the line P at height y, on steel trusses,
 	// with light towers on it.
-	_roof( P, depth, y ) {
+	_roof( P, depth, y, { towers = true } = {} ) {
 
 		const steel = standard( { name: 'roof-steel', color: new Color( 0.1, 0.028, 0.028 ), roughness: 0.6, metalness: 0.4 } );
 		const deck = standard( { name: 'roof-deck', color: new Color( 0.42, 0.42, 0.4 ), roughness: 0.7, metalness: 0.2, side: 'double' } );
@@ -467,6 +473,7 @@ export class Bowl {
 		trussMesh.receiveShadow = true;
 		this.group.add( trussMesh );
 
+		if ( ! towers ) return;
 		// light towers: masts at both ends of the roof, and a pair of broad frames rising from the street
 		// either side of the Third Base Gate and the First Base Gate, just behind the roof's back edge
 		for ( const [ x, z ] of [ B[ 0 ], B[ B.length - 1 ] ] ) this._lightTower( x, z, y, LEVELS.lightTowers );
