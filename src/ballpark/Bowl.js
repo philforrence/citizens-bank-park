@@ -213,6 +213,10 @@ export class Bowl {
 
 		this.upper = tiers;
 		for ( const t of tiers ) this.group.add( buildTier( t, this.ctx ) );
+		// the Pavilion stands on columns from the right field concourse, front and back
+		const pav = tiers[ tiers.length - 1 ];
+		this._columns( offsetPolyline( pav.front, 0.6, [ 0, 0 ] ), STREET, pav.base, 9 );
+		this._columns( offsetPolyline( pav.front, pav.rows * pav.depth - 0.6, [ 0, 0 ] ), STREET, pav.y0 + ( pav.rows - 1 ) * pav.rise - 1.0, 9 );
 
 		// the walkway between the 300s and 400s, and the club concourse behind the club seats
 		const t300 = tiers[ 2 ], t400 = tiers[ 3 ], club = tiers[ 1 ];
@@ -404,7 +408,9 @@ export class Bowl {
 	_lightTower( x, z, y0, y1 ) {
 
 		const steel = this._towerSteel || ( this._towerSteel = standard( { name: 'tower-steel', color: new Color( 0.1, 0.1, 0.11 ), roughness: 0.6, metalness: 0.6 } ) );
-		const lamp = this._lamp || ( this._lamp = standard( { name: 'tower-lamps', color: new Color( 0.8, 0.8, 0.75 ), roughness: 0.3, emissive: new Color( 0, 0, 0 ) } ) );
+		// the lamps glow after dusk (and light the field: see lightSources())
+		const lamp = this._lamp || ( this._lamp = standard( { name: 'tower-lamps', color: new Color( 0.8, 0.8, 0.75 ), roughness: 0.3,
+			surface: 's.emissive = vec3f( 1.0, 0.96, 0.88 ) * smoothstep( 0.15, 0.75, frame.night ) * 40.0;' } ) );
 		steel.underwaterLighting = 'none';
 		lamp.underwaterLighting = 'none';
 		const g = new Group();
@@ -453,7 +459,7 @@ export class Bowl {
 
 		g.add( bank );
 		this.group.add( g );
-		( this.towers || ( this.towers = [] ) ).push( g );
+		( this.towers || ( this.towers = [] ) ).push( { group: g, bank } );
 
 	}
 
@@ -538,6 +544,21 @@ export class Bowl {
 			this.elevators.push( bank );
 
 		}
+
+	}
+
+	// Each light tower's bank as a spot light aimed at the field (world frame), for LocalLights.
+	lightSources() {
+
+		this.field.group.updateMatrixWorld( true );
+		const target = new Vector3( 0, 0, - 45 ).applyMatrix4( this.field.group.matrixWorld );
+		return ( this.towers || [] ).map( ( { bank } ) => {
+
+			const position = new Vector3().setFromMatrixPosition( bank.matrixWorld );
+			const dir = target.clone().sub( position ).normalize();
+			return { position, dir };
+
+		} );
 
 	}
 

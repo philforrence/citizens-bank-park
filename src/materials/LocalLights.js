@@ -20,7 +20,7 @@ import { SceneLighting } from './SceneLighting.js';
 // for effects outside the lighting model (underwater beam in-scatter, marine snow: add the module).
 // Exclusions per material define: IS_WATER, NO_LOCAL_LIGHTS (the former `material.localLights = false`);
 // LOCAL_LIGHTS_CHEAP (material.localLightsCheap) = Lambert only.
-const MAX = 8;
+const MAX = 12; // the ballpark: six light towers, the nearest few lamps and the flashlight
 const v4 = () => Array.from( { length: MAX }, () => new THREE.Vector4() );
 const params = new UniformBlock( 'LocalLightParams', {
 	pos: [ `vec4f[${ MAX }]`, v4() ], // xyz, range^2
@@ -201,7 +201,8 @@ export class LocalLights {
 
 				if ( s.enabled === false ) continue;
 				if ( s.update ) s.update();
-				s.d2 = s.position.distanceToSquared( cp );
+				// `priority: 0` keeps a light in whatever the distance (the light towers)
+				s.d2 = s.position.distanceToSquared( cp ) * ( s.priority ?? 1 );
 				list.push( s );
 
 			}

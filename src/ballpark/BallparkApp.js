@@ -27,6 +27,9 @@ import { DryWater, DRY_LEVEL } from './DryWater.js';
 import { Ground } from './Ground.js';
 import { Field } from './Field.js';
 import { Bowl } from './Bowl.js';
+import { Exterior, GATES } from './Exterior.js';
+import { Surroundings } from './Surroundings.js';
+import { Landmarks } from './Landmarks.js';
 import { FOOTPRINT } from './layout.js';
 import { Walker } from './Walker.js';
 
@@ -36,9 +39,9 @@ const _up = new Vector3( 0, 1, 0 );
 const LATITUDE = 39.9;
 
 // World axes (as Tidewater's sky): +x east, +y up, -z north. Metres. Home plate is at the origin
-// (see layout.js). For now you start on the main concourse behind home plate, looking out to center
-// field (field frame [ x, z ] and the point you face).
-const START = { at: [ 0, 37 ], look: [ 0, - 110 ] };
+// (see layout.js). You start in the plaza at Pattison Avenue and Citizens Bank Way, looking at the Third
+// Base Gate (field frame [ x, z ] and the point you face).
+const START = { at: [ - 112, 78 ], look: GATES[ 0 ].at };
 
 // the sun's declination on a date (degrees): where the sun really is in the sky today
 function solarDeclination( date = new Date() ) {
@@ -126,6 +129,11 @@ export class BallparkApp {
 		this.field = new Field( { scene, colliders: this.colliders } );
 		await progress( 0.14, 'Building the stands…' );
 		this.bowl = new Bowl( { field: this.field, colliders: this.colliders } );
+		await progress( 0.17, 'Bricking the facade…' );
+		this.exterior = new Exterior( { field: this.field, colliders: this.colliders } );
+		await progress( 0.19, 'Raising the skyline…' );
+		this.surroundings = new Surroundings( { field: this.field } );
+		this.landmarks = new Landmarks( { field: this.field, bowl: this.bowl, colliders: this.colliders } );
 		// the haze thickens toward "sea level": put that under the field, which is below the street
 		G.seaLevel.value = this.field.y0 - 1;
 		// what you walk on: street level round the pit, the field (and the seats' colliders) inside it
@@ -140,8 +148,23 @@ export class BallparkApp {
 
 		this.sceneRenderer = new SceneRenderer( engine.meshRenderer, scene, camera );
 		if ( this.sky.background ) this.sceneRenderer.background = this.sky.background;
-		// point and spot lights (the flashlight on L now; stadium lights later)
+		// point and spot lights: the flashlight (L) and, after dusk, the light towers aimed at the field
 		this.localLights = new LocalLights();
+		for ( const { position, dir } of this.bowl.lightSources() ) {
+
+			this.localLights.add( {
+				position, dir, color: new Color( 1.0, 0.97, 0.9 ), intensity: 3000, range: 380,
+				cosInner: Math.cos( MathUtils.degToRad( 28 ) ), cosOuter: Math.cos( MathUtils.degToRad( 55 ) ), kind: 'stadium', priority: 0,
+			} );
+
+		}
+
+		// the plaza's lamp posts
+		for ( const position of this.exterior.lampSources() ) {
+
+			this.localLights.add( { position, color: new Color( 1.0, 0.78, 0.5 ), intensity: 110, range: 26, kind: 'lamp' } );
+
+		}
 
 		const at = this.field.toWorld( ...START.at ), look = this.field.toWorld( ...START.look );
 		const start = { position: at, yaw: Math.atan2( - ( look.x - at.x ), - ( look.z - at.z ) ) };
