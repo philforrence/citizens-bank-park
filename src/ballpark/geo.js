@@ -76,14 +76,15 @@ export function offsetLoop( P, d ) {
 
 }
 
-// A texture drawn on a 2D canvas (text, signs, the scoreboard): draw( ctx, w, h ).
+// A texture drawn on a 2D canvas (text, signs, the scoreboard): draw( ctx, w, h ). Canvas colours are
+// sRGB: the texture is too, so the shaders get linear values (Phillies red stays red, not pink).
 export function canvasTexture( w, h, draw, label = 'canvas' ) {
 
 	const canvas = new OffscreenCanvas( w, h );
-	const ctx = canvas.getContext( '2d' );
+	const ctx = canvas.getContext( '2d', { willReadFrequently: true } );
 	draw( ctx, w, h );
 	const img = ctx.getImageData( 0, 0, w, h );
-	const tex = new Texture( { label, width: w, height: h, format: 'rgba8unorm', mips: true, usage: [ 'sample', 'copyDst' ], data: new Uint8Array( img.data.buffer ) } );
+	const tex = new Texture( { label, width: w, height: h, format: 'rgba8unorm-srgb', mips: true, usage: [ 'sample', 'copyDst' ], data: new Uint8Array( img.data.buffer ) } );
 	tex.getGPU();
 	generateMipmaps( tex );
 	tex.canvas = canvas;
