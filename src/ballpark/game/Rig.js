@@ -122,7 +122,7 @@ export function buildPlayerGeometry() {
 // ---------------------------------------------------------------- the pose
 
 // A pose, in the player's own frame (metres; y up, facing -z):
-//   pelvisY: hip height; pelvis: [ pitch, yaw, roll ]; torso: [ pitch, yaw, roll ] relative to the pelvis;
+//   pelvisX / pelvisZ: the pelvis off the root (mocap); pelvisY: hip height; pelvis: [ pitch, yaw, roll ]; torso: [ pitch, yaw, roll ] relative to the pelvis;
 //   head: [ pitch, yaw ] relative to the torso;
 //   footL / footR: [ x, y, z ] ankle targets, footYawL / footYawR;
 //   handL / handR: [ x, y, z ] wrist targets; elbow poles default out and back;
@@ -131,7 +131,7 @@ export function buildPlayerGeometry() {
 export function neutralPose() {
 
 	return {
-		pelvisY: DIM.hip, pelvis: [ 0, 0, 0 ], torso: [ 0, 0, 0 ], head: [ 0, 0 ],
+		pelvisX: 0, pelvisY: DIM.hip, pelvisZ: 0, pelvis: [ 0, 0, 0 ], torso: [ 0, 0, 0 ], head: [ 0, 0 ],
 		footL: [ - 0.12, 0.08, 0 ], footR: [ 0.12, 0.08, 0 ], footYawL: 0, footYawR: 0,
 		handL: [ - 0.24, 0.95, 0.02 ], handR: [ 0.24, 0.95, 0.02 ],
 		bat: null, twoHands: false, glove: true,
@@ -150,7 +150,7 @@ export function solvePose( root, pose, out, offset, gloveHand = 'L' ) {
 	const D = DIM, B = BONES;
 	const put = ( b, m ) => m.toArray( out, offset + b * 16 );
 	// pelvis
-	const pelvis = new Matrix4().copy( root ).multiply( _m.compose( _t.set( 0, pose.pelvisY, 0 ), _q.setFromEuler( _e.set( pose.pelvis[ 0 ], pose.pelvis[ 1 ], pose.pelvis[ 2 ] ) ), _v.set( 1, 1, 1 ) ) );
+	const pelvis = new Matrix4().copy( root ).multiply( _m.compose( _t.set( pose.pelvisX || 0, pose.pelvisY, pose.pelvisZ || 0 ), _q.setFromEuler( _e.set( pose.pelvis[ 0 ], pose.pelvis[ 1 ], pose.pelvis[ 2 ] ) ), _v.set( 1, 1, 1 ) ) );
 	put( B.pelvis, pelvis );
 	// torso and head
 	const torso = new Matrix4().copy( pelvis ).multiply( _m.compose( _t.set( 0, D.waist, 0 ), _q.setFromEuler( _e.set( pose.torso[ 0 ], pose.torso[ 1 ], pose.torso[ 2 ] ) ), _v.set( 1, 1, 1 ) ) );

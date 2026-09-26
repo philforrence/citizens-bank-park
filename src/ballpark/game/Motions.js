@@ -1,4 +1,5 @@
 import { neutralPose, DIM } from './Rig.js';
+import { MOCAP } from './data/mocap.js';
 
 // Poses and motions for the ballplayers (Rig.js pose objects, in the player's frame: y up, facing -z,
 // +x his right). Written for right-handers; mirror() makes the left-handed version. Motions are
@@ -14,6 +15,8 @@ export function blend( a, b, t ) {
 
 	const o = neutralPose();
 	o.pelvisY = lerp( a.pelvisY, b.pelvisY, t );
+	o.pelvisX = lerp( a.pelvisX || 0, b.pelvisX || 0, t );
+	o.pelvisZ = lerp( a.pelvisZ || 0, b.pelvisZ || 0, t );
 	for ( const k of [ 'pelvis', 'torso', 'head', 'footL', 'footR', 'handL', 'handR' ] ) o[ k ] = lerpA( a[ k ], b[ k ], t );
 	o.footYawL = lerp( a.footYawL || 0, b.footYawL || 0, t );
 	o.footYawR = lerp( a.footYawR || 0, b.footYawR || 0, t );
@@ -44,6 +47,7 @@ export function mirror( p ) {
 
 	const o = { ...p };
 	const mx = ( a ) => [ - a[ 0 ], a[ 1 ], a[ 2 ] ];
+	o.pelvisX = - ( p.pelvisX || 0 );
 	o.pelvis = [ p.pelvis[ 0 ], - p.pelvis[ 1 ], - p.pelvis[ 2 ] ];
 	o.torso = [ p.torso[ 0 ], - p.torso[ 1 ], - p.torso[ 2 ] ];
 	o.head = [ p.head[ 0 ], - p.head[ 1 ] ];
@@ -56,6 +60,34 @@ export function mirror( p ) {
 }
 
 const P = ( o ) => Object.assign( neutralPose(), o );
+
+// ---------------------------------------------------------------- motion capture (data/mocap.js)
+
+// a mocap frame (flat numbers) as a pose
+function framePose( f ) {
+
+	const bat = f[ 25 ] || f[ 26 ] || f[ 27 ] ? { dir: [ f[ 25 ], f[ 26 ], f[ 27 ] ] } : null;
+	return P( {
+		pelvisX: f[ 0 ], pelvisY: f[ 1 ], pelvisZ: f[ 2 ], pelvis: [ f[ 3 ], f[ 4 ], f[ 5 ] ], torso: [ f[ 6 ], f[ 7 ], f[ 8 ] ], head: [ f[ 9 ], f[ 10 ] ],
+		footL: [ f[ 11 ], f[ 12 ], f[ 13 ] ], footR: [ f[ 14 ], f[ 15 ], f[ 16 ] ], footYawL: f[ 17 ], footYawR: f[ 18 ],
+		handL: [ f[ 19 ], f[ 20 ], f[ 21 ] ], handR: [ f[ 22 ], f[ 23 ], f[ 24 ] ], bat, twoHands: !! bat, glove: ! bat,
+	} );
+
+}
+
+// the clip's frame at time t (s), interpolated; `loop` wraps round, else it holds the ends
+function sampleFrames( frames, fps, t, loop = false ) {
+
+	const n = frames.length;
+	let x = t * fps;
+	if ( loop ) x = ( ( x % n ) + n ) % n;
+	else x = clamp( x, 0, n - 1 );
+	const i = Math.floor( x ), j = loop ? ( i + 1 ) % n : Math.min( n - 1, i + 1 ), u = x - i;
+	const a = frames[ i ], b = frames[ j ];
+	// angles and positions both lerp (neighbouring frames are close)
+	return a.map( ( v, k ) => v + ( b[ k ] - v ) * u );
+
+}
 
 // ---------------------------------------------------------------- standing, ready, running
 
@@ -85,123 +117,97 @@ export function ready( t = 0 ) {
 // running: phase in cycles (one stride per foot per cycle), speed 0 (jog) .. 1 (sprint)
 export function run( phase, speed = 1 ) {
 
-	const a = phase * Math.PI * 2;
-	const k = 0.55 + 0.45 * speed;
-	const leg = ( off ) => {
-
-		const s = Math.sin( a + off ), c = Math.cos( a + off );
-		// forward/back along z, lifted during the swing (when the foot moves forward)
-		return [ 0, 0.08 + Math.max( 0, - c ) * 0.38 * k, - s * 0.5 * k ];
-
-	};
-
-	const fl = leg( 0 ), fr = leg( Math.PI );
-	fl[ 0 ] = - 0.12; fr[ 0 ] = 0.12;
-	const sw = Math.sin( a );
-	return P( {
-		pelvisY: 0.9 - 0.04 * k + 0.035 * Math.abs( Math.cos( a ) ), pelvis: [ - 0.1 * k, 0.12 * sw, 0 ],
-		torso: [ - 0.14 * k, - 0.18 * sw, 0 ], head: [ 0.2 * k, 0.1 * sw ],
-		footL: fl, footR: fr,
-		handL: [ - 0.24, 1.05 + 0.12 * sw * k, 0.28 * sw * k - 0.05 ], handR: [ 0.24, 1.05 - 0.12 * sw * k, - 0.28 * sw * k - 0.05 ],
-	} );
+	// motion capture: a jog and a run (one stride cycle each, looping), mixed by speed
+	const k = clamp( speed, 0, 1 );
+	const jog = framePose( sampleFrames( MOCAP.jog.frames, MOCAP.jog.frames.length, phase, true ) );
+	const sprint = framePose( sampleFrames( MOCAP.run.frames, MOCAP.run.frames.length, phase, true ) );
+	const p = blend( jog, sprint, k );
+	p.bat = null; p.twoHands = false; p.glove = true;
+	return p;
 
 }
 
 // ---------------------------------------------------------------- pitching (a right-hander, standing on
 // the rubber, root facing home plate)
 
+// The delivery is motion capture (a right-hander's pitch, data/mocap.js): the set, the leg lift, the
+// stride, the release at REL, the follow-through; then he comes set to field his position.
+const PITCH = MOCAP.pitch;
+const pitchEnd = ( PITCH.frames.length - 1 ) / PITCH.fps;
+const pitchAt = ( t ) => framePose( sampleFrames( PITCH.frames, PITCH.fps, t ) );
+
 export function pitcherSet() {
 
-	return P( {
-		pelvisY: 0.94, pelvis: [ 0, - Math.PI / 2 + 0.15, 0 ], torso: [ 0.02, 0.05, 0 ], head: [ 0, Math.PI / 2 - 0.2 ],
-		footR: [ 0.03, 0.08, 0.12 ], footL: [ - 0.02, 0.08, - 0.42 ], footYawR: - Math.PI / 2, footYawL: - Math.PI / 2 + 0.3,
-		handL: [ 0.2, 1.22, - 0.1 ], handR: [ 0.22, 1.2, - 0.06 ],
-	} );
+	return pitchAt( 0 );
 
 }
 
-// The delivery from the stretch: leg lift, stride, arm cocked, release at `REL` s, follow-through,
-// fielding position. `release` (optional): the hand's position at release in the pitcher's frame.
-export const REL = 0.86;
+export const REL = PITCH.release;
+// `release` (optional): the hand's position at release in the pitcher's frame (the pitch's own release
+// point): the throwing hand is eased onto it round the release
 export function delivery( t, release = null ) {
 
-	const set = pitcherSet();
-	const lift = P( {
-		pelvisY: 0.97, pelvis: [ 0, - Math.PI / 2 + 0.25, 0 ], torso: [ 0.05, 0.1, 0 ], head: [ 0, Math.PI / 2 - 0.3 ],
-		footR: [ 0.03, 0.08, 0.12 ], footL: [ 0.12, 0.62, - 0.05 ], footYawR: - Math.PI / 2, footYawL: - Math.PI / 2,
-		handL: [ 0.12, 1.32, - 0.02 ], handR: [ 0.18, 1.3, 0.0 ],
-	} );
-	const stride = P( {
-		pelvisY: 0.78, pelvis: [ - 0.1, - 0.95, 0 ], torso: [ - 0.1, - 0.55, 0.1 ], head: [ 0, 1.2 ],
-		footR: [ 0.08, 0.1, 0.2 ], footL: [ - 0.1, 0.08, - 1.45 ], footYawR: - Math.PI / 2, footYawL: - 0.5,
-		handL: [ - 0.25, 1.4, - 0.85 ], handR: [ 0.55, 1.62, 0.45 ],
-	} );
-	const rel = P( {
-		pelvisY: 0.74, pelvis: [ - 0.25, 0.05, 0 ], torso: [ - 0.45, 0.35, - 0.1 ], head: [ 0.15, - 0.1 ],
-		footR: [ 0.15, 0.2, 0.05 ], footL: [ - 0.12, 0.08, - 1.5 ], footYawR: - 1.2, footYawL: - 0.3,
-		handL: [ - 0.3, 1.1, - 0.55 ], handR: release || [ 0.28, 1.8, - 1.15 ],
-	} );
-	const follow = P( {
-		pelvisY: 0.7, pelvis: [ - 0.45, 0.25, 0 ], torso: [ - 0.75, 0.4, 0 ], head: [ 0.55, - 0.2 ],
-		footR: [ 0.15, 0.35, - 0.7 ], footL: [ - 0.12, 0.08, - 1.5 ], footYawR: - 0.6, footYawL: - 0.3,
-		handL: [ - 0.25, 0.95, 0.05 ], handR: [ - 0.4, 0.65, - 1.05 ],
-	} );
-	const field = P( {
-		pelvisY: 0.8, pelvis: [ - 0.25, 0, 0 ], torso: [ - 0.3, 0, 0 ], head: [ 0.45, 0 ],
-		footL: [ - 0.4, 0.08, - 1.35 ], footR: [ 0.35, 0.08, - 1.2 ], footYawL: 0.3, footYawR: - 0.3,
-		handL: [ - 0.18, 0.7, - 1.75 ], handR: [ 0.22, 0.72, - 1.7 ],
-	} );
-	return keyframes( [ [ 0, set ], [ 0.38, lift ], [ 0.72, stride ], [ REL, rel ], [ 1.15, follow ], [ 1.7, field ] ], t );
+	let pose = pitchAt( Math.min( t, pitchEnd ) );
+	if ( release ) {
+
+		const at = pitchAt( REL ).handR;
+		const w = Math.exp( - ( ( ( t - REL ) / 0.14 ) ** 2 ) );
+		pose.handR = pose.handR.map( ( v, i ) => v + ( release[ i ] - at[ i ] ) * w );
+
+	}
+
+	if ( t > pitchEnd ) {
+
+		// square up to the plate, glove up
+		const last = pitchAt( pitchEnd );
+		const field = P( {
+			...last, pelvisY: last.pelvisY - 0.12, pelvis: [ - 0.25, 0, 0 ], torso: [ - 0.3, 0, 0 ], head: [ 0.45, 0 ],
+			footL: [ last.pelvisX - 0.35, 0.08, last.pelvisZ - 0.1 ], footR: [ last.pelvisX + 0.35, 0.08, last.pelvisZ + 0.05 ], footYawL: 0.3, footYawR: - 0.3,
+			handL: [ last.pelvisX - 0.18, 0.7, last.pelvisZ - 0.55 ], handR: [ last.pelvisX + 0.22, 0.72, last.pelvisZ - 0.5 ], bat: null, glove: true,
+		} );
+		pose = blend( last, field, ease( clamp( ( t - pitchEnd ) / 0.45, 0, 1 ) ) );
+
+	}
+
+	return pose;
 
 }
 
 // ---------------------------------------------------------------- hitting (a right-handed batter; root
 // facing the plate, so the pitcher is on his left, -x)
 
+// The swing is motion capture (a right-hander, data/mocap.js): the stance (its waggle looped back and
+// forth), the load and stride, contact at CONTACT, the follow-through.
+const SWING = MOCAP.swing;
+
 export function batterStance( t = 0 ) {
 
-	const w = Math.sin( t * 2.5 ) * 0.03; // the bat waggles
-	return P( {
-		pelvisY: 0.86, pelvis: [ - 0.12, 0.12, 0 ], torso: [ - 0.18, 0.28, 0 ], head: [ 0.1, - 1.25 ],
-		footL: [ - 0.42, 0.08, 0.02 ], footR: [ 0.42, 0.08, 0.06 ], footYawL: - 0.35, footYawR: 0.1,
-		handL: [ 0.12, 1.3 + w, 0.02 ], handR: [ 0.16, 1.36 + w, 0.0 ],
-		bat: { dir: [ 0.25 + w, 0.85, 0.45 ] }, twoHands: true, glove: false,
-	} );
+	const n = SWING.stance.length / SWING.fps;
+	let u = ( ( t % ( 2 * n ) ) + 2 * n ) % ( 2 * n );
+	if ( u > n ) u = 2 * n - u;
+	const p = framePose( sampleFrames( SWING.stance, SWING.fps, u ) );
+	p.glove = false;
+	return p;
 
 }
 
-export const CONTACT = 0.16; // s from the start of the swing to the ball
+export const CONTACT = SWING.contact; // s from the start of the swing to the ball
 export function swing( t ) {
 
-	const stance = batterStance();
-	const load = P( {
-		pelvisY: 0.84, pelvis: [ - 0.12, 0.2, 0 ], torso: [ - 0.18, 0.42, 0 ], head: [ 0.1, - 1.3 ],
-		footL: [ - 0.62, 0.08, 0.0 ], footR: [ 0.42, 0.08, 0.06 ], footYawL: - 0.4, footYawR: 0.1,
-		handL: [ 0.2, 1.38, 0.08 ], handR: [ 0.24, 1.42, 0.06 ],
-		bat: { dir: [ 0.45, 0.7, 0.55 ] }, twoHands: true, glove: false,
-	} );
-	const contact = P( {
-		pelvisY: 0.8, pelvis: [ - 0.15, - 0.8, 0 ], torso: [ - 0.22, - 0.55, 0 ], head: [ 0.15, - 0.9 ],
-		footL: [ - 0.62, 0.08, 0.0 ], footR: [ 0.4, 0.12, 0.08 ], footYawL: - 0.6, footYawR: - 0.6,
-		handL: [ - 0.1, 1.02, - 0.35 ], handR: [ - 0.06, 1.06, - 0.3 ],
-		bat: { dir: [ - 0.35, 0.02, - 0.94 ] }, twoHands: true, glove: false,
-	} );
-	const follow = P( {
-		pelvisY: 0.84, pelvis: [ - 0.05, - 1.3, 0 ], torso: [ - 0.05, - 0.9, 0 ], head: [ 0.05, - 0.6 ],
-		footL: [ - 0.62, 0.08, 0.0 ], footR: [ 0.3, 0.2, - 0.1 ], footYawL: - 0.8, footYawR: - 1.2,
-		handL: [ - 0.4, 1.45, 0.05 ], handR: [ - 0.35, 1.5, 0.02 ],
-		bat: { dir: [ 0.2, 0.2, 0.96 ] }, twoHands: true, glove: false,
-	} );
-	return keyframes( [ [ 0, stance ], [ 0.07, load ], [ CONTACT, contact ], [ 0.42, follow ] ], t );
+	const p = framePose( sampleFrames( SWING.frames, SWING.fps, t ) );
+	p.glove = false;
+	return p;
 
 }
 
 // a check swing / take: a little stride and the hands stay back
 export function take( t ) {
 
+	// the stride of the swing, but the hands stay back
 	const stance = batterStance();
-	const stride = { ...batterStance(), footL: [ - 0.58, 0.08, 0.0 ], pelvisY: 0.84 };
-	return keyframes( [ [ 0, stance ], [ 0.12, stride ], [ 0.6, stance ] ], t );
+	const legs = swing( CONTACT - 0.12 );
+	const stride = { ...stance, pelvisX: legs.pelvisX, pelvisY: legs.pelvisY, pelvisZ: legs.pelvisZ, footL: legs.footL, footR: legs.footR, footYawL: legs.footYawL, footYawR: legs.footYawR };
+	return keyframes( [ [ 0, stance ], [ 0.14, stride ], [ 0.7, stance ] ], t );
 
 }
 

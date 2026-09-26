@@ -97,3 +97,10 @@ own *Sky Pro WebGPU*. It is published here under this repository's MIT license b
   License (https://www.openstreetmap.org/copyright). Ways 255489463 (Citizens Bank Park) and 92483441.
 - Home plate, base positions and field bearing were measured on aerial imagery for reference only; no
   imagery is included in this project.
+
+## Motion capture
+
+The players' pitching delivery, swing and running are retargeted from the CMU Graphics Lab Motion
+Capture Database (http://mocap.cs.cmu.edu), created with funding from NSF EIA-0196217, via the
+Motionbuilder-friendly BVH conversion by B. Hahne (cgspeed.com). Clips 124_01 (baseball pitch),
+124_07 (baseball swing), 16_55 (run) and 16_35 (run/jog). `tools/build-mocap.mjs` does the retargeting.
