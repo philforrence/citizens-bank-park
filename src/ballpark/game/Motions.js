@@ -246,25 +246,13 @@ export function catchHigh( t = 0 ) {
 }
 
 // a throw toward -z: cock, stride, release at 0.32 s
-export const THROW_REL = 0.32;
+// the throw is motion capture (data/mocap.js), facing the way the ball goes; the release at THROW_REL
+export const THROW_REL = MOCAP.throw.release;
 export function throwBall( t ) {
 
-	const cock = P( {
-		pelvisY: 0.9, pelvis: [ 0, - 1.1, 0 ], torso: [ 0, - 0.3, 0 ], head: [ 0, 1.2 ],
-		footL: [ - 0.1, 0.08, - 0.45 ], footR: [ 0.1, 0.08, 0.25 ], footYawL: - 0.9, footYawR: - 1.4,
-		handL: [ - 0.3, 1.4, - 0.5 ], handR: [ 0.45, 1.6, 0.5 ],
-	} );
-	const rel = P( {
-		pelvisY: 0.85, pelvis: [ - 0.15, 0.1, 0 ], torso: [ - 0.4, 0.3, 0 ], head: [ 0.2, 0 ],
-		footL: [ - 0.1, 0.08, - 0.9 ], footR: [ 0.2, 0.2, 0.1 ], footYawL: - 0.3, footYawR: - 0.9,
-		handL: [ - 0.3, 1.0, - 0.3 ], handR: [ 0.25, 1.7, - 0.9 ],
-	} );
-	const follow = P( {
-		pelvisY: 0.82, pelvis: [ - 0.3, 0.2, 0 ], torso: [ - 0.6, 0.35, 0 ], head: [ 0.4, 0 ],
-		footL: [ - 0.1, 0.08, - 0.9 ], footR: [ 0.15, 0.3, - 0.5 ], footYawL: - 0.3, footYawR: - 0.5,
-		handL: [ - 0.25, 0.95, 0.0 ], handR: [ - 0.35, 0.8, - 0.8 ],
-	} );
-	return keyframes( [ [ 0, ready() ], [ 0.18, cock ], [ THROW_REL, rel ], [ 0.6, follow ], [ 1.0, stand() ] ], t );
+	const p = framePose( sampleFrames( MOCAP.throw.frames, MOCAP.throw.fps, t ) );
+	p.bat = null; p.twoHands = false; p.glove = true;
+	return p;
 
 }
 
@@ -295,14 +283,19 @@ export function embrace( t = 0, lower = 0.35 ) {
 }
 
 // jumping up and down, arms raised
+// jumping for joy: a mocap jump, over and over (with a beat on the ground between)
 export function jump( t ) {
 
-	const h = Math.max( 0, Math.sin( t * 5.5 ) ) * 0.35;
-	return P( {
-		pelvisY: DIM.hip + h, torso: [ 0.1, 0, 0 ], head: [ - 0.3, 0 ],
-		footL: [ - 0.15, 0.08 + h, 0 ], footR: [ 0.15, 0.08 + h, 0 ],
-		handL: [ - 0.35, 1.9 + h, - 0.1 ], handR: [ 0.35, 1.9 + h, - 0.1 ],
-	} );
+	const J = MOCAP.jump, n = J.frames.length / J.fps;
+	const period = n + 0.25;
+	const u = ( ( t % period ) + period ) % period;
+	const p = framePose( sampleFrames( J.frames, J.fps, Math.min( u, n ) ) );
+	p.bat = null; p.twoHands = false; p.glove = false;
+	// arms up at the top of it
+	const k = Math.sin( Math.PI * clamp( u / n, 0, 1 ) );
+	p.handL = [ p.handL[ 0 ] - 0.1 * k, p.handL[ 1 ] + 0.5 * k, p.handL[ 2 ] ];
+	p.handR = [ p.handR[ 0 ] + 0.1 * k, p.handR[ 1 ] + 0.5 * k, p.handR[ 2 ] ];
+	return p;
 
 }
 

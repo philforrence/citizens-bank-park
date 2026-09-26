@@ -4,7 +4,7 @@
 //
 //   node tools/build-mocap.mjs <folder with the .bvh files>
 //
-// Clips: 124_01 baseball pitch, 124_07 baseball swing, 16_55 run, 16_35 jog.
+// Clips: 124_01 baseball pitch, 124_07 baseball swing, 16_55 run, 16_35 jog, 33_01 throw, 13_39 jump.
 //
 // Retargeting: every frame's skeleton becomes a Rig pose. The pelvis, torso and head take the mocap
 // joints' orientations; the hands and feet become IK targets, placed from our own shoulders and hips by
@@ -333,6 +333,57 @@ for ( const [ name, file ] of [ [ 'run', '16_55' ], [ 'jog', '16_35' ] ] ) {
 	const dist = c.pos( c.worlds[ s1 ], 'Hips' ).sub( c.pos( c.worlds[ s0 ], 'Hips' ) ).length() * c.kLeg;
 	clips[ name ] = { cycle: r3( pace ), stride: r3( dist ), frames };
 	console.log( name, { strikes: strikes.slice( 0, 4 ), cycle: pace.toFixed( 2 ), speed: ( dist / pace ).toFixed( 2 ) } );
+
+}
+
+// the throw: a right-handed overhand throw (33_01, a football passing session: the first hard throw),
+// facing the way the ball goes; its release at THROW_REL
+{
+
+	const c = load( '33_01' );
+	let best = 0, rel = 0;
+	for ( let f = 30; f < c.worlds.length - 30; f ++ ) {
+
+		// the release: the hand at its fastest while still above the shoulder, going forward
+		const W = c.worlds[ f ];
+		if ( c.pos( W, 'RightHand' ).y < c.pos( W, 'RightArm' ).y + 0.02 / c.kArm ) continue;
+		const sp = speed( c, 'RightHand', f );
+		if ( sp > best ) { best = sp; rel = f; }
+
+	}
+
+	const v = c.pos( c.worlds[ rel + 1 ], 'RightHand' ).sub( c.pos( c.worlds[ rel - 1 ], 'RightHand' ) );
+	const F0 = horiz( v ), R0 = rightOf( F0 );
+	const h0 = c.pos( c.worlds[ Math.max( 0, rel - Math.round( 0.4 / c.dt ) ) ], 'Hips' );
+	const origin = new Vector3( h0.x, 0, h0.z );
+	const g = ground( c );
+	const at = ( f ) => flat( poseOf( c, f, origin, R0, F0, g ) );
+	const THROW_REL = 0.32, frames = [];
+	for ( let t = 0; t <= THROW_REL + 0.7; t += 1 / FPS ) frames.push( sample( c, rel * c.dt - THROW_REL + t, at ) );
+	clips.throw = { fps: FPS, release: THROW_REL, frames };
+	console.log( 'throw', { rel: ( rel * c.dt ).toFixed( 2 ), frames: frames.length } );
+
+}
+
+// the celebration's jump (13_39): one jump, played over and over
+{
+
+	const c = load( '13_39' );
+	const hy = c.worlds.map( ( W ) => c.pos( W, 'Hips' ).y );
+	const top = hy.indexOf( Math.max( ...hy ) );
+	// from the crouch before the take-off to the landing after
+	let a = top, b = top;
+	while ( a > 1 && hy[ a - 1 ] <= hy[ a ] ) a --;
+	while ( b < hy.length - 2 && hy[ b + 1 ] <= hy[ b ] ) b ++;
+	const h0 = c.pos( c.worlds[ a ], 'Hips' );
+	const F0 = horiz( new Vector3( 0, 0, 1 ).transformDirection( c.worlds[ a ][ c.idx.Hips ] ) ), R0 = rightOf( F0 );
+	const origin = new Vector3( h0.x, 0, h0.z );
+	const g = ground( c );
+	const at = ( f ) => flat( poseOf( c, f, origin, R0, F0, g ) );
+	const frames = [];
+	for ( let t = a * c.dt; t <= b * c.dt; t += 1 / FPS ) frames.push( sample( c, t, at ) );
+	clips.jump = { fps: FPS, frames };
+	console.log( 'jump', { from: ( a * c.dt ).toFixed( 2 ), to: ( b * c.dt ).toFixed( 2 ), frames: frames.length } );
 
 }
 
