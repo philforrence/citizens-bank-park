@@ -772,12 +772,17 @@ export class Bowl {
 		geo.computeBoundingSphere();
 		// concourse paving: large light concrete slabs with dark joints
 		const mat = standard( {
-			name: 'concourse', color: new Color( 0.42, 0.4, 0.37 ), roughness: 0.8, modules: [ commonModule ],
+			name: 'concourse', color: new Color( 0.36, 0.35, 0.33 ), roughness: 0.6, modules: [ commonModule ],
 			surface: /* wgsl */`
+	// sealed concrete, saw-cut every 1.8 m, darker where the crowds walk and spill things
 	let p = in.P.xz;
-	let g = abs( fract( p / 3.0 ) - 0.5 );
-	let joint = 1.0 - smoothstep( 0.47, 0.49, max( g.x, g.y ) ) * 0.35;
-	s.albedo = mat.color * joint * ( 0.9 + 0.1 * mx_noise_float2( p * 0.7 ) ) * ( 0.95 + 0.06 * mx_noise_float2( p * 9.0 ) );
+	let g = abs( fract( p / 1.8 ) - 0.5 ) * 1.8;
+	let fw = fwidth( p.x ) + 0.002;
+	let joint = 1.0 - ( 1.0 - smoothstep( 0.012, 0.012 + fw, min( 0.9 - g.x, 0.9 - g.y ) ) ) * ( 1.0 - clamp( fw * 20.0, 0.0, 1.0 ) ) * 0.4;
+	let wear = 0.86 + 0.14 * mx_noise_float2( p * 0.25 );
+	let stain = 1.0 - 0.18 * smoothstep( 0.55, 0.8, mx_noise_float2( p * 1.3 + vec2f( 7.0 ) ) );
+	s.albedo = mat.color * joint * wear * stain * ( 0.95 + 0.06 * mx_noise_float2( p * 9.0 ) );
+	s.roughness = mix( 0.45, 0.7, mx_noise_float2( p * 0.5 ) * 0.5 + 0.5 );
 `,
 		} );
 		mat.underwaterLighting = 'none';
