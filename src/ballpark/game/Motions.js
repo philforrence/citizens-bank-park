@@ -257,6 +257,30 @@ export function catcherCrouch( t = 0, glove = null ) {
 
 }
 
+// umpires: the plate umpire's set in the slot behind the catcher (crouched, hands on his thighs, head
+// over the catcher's shoulder), a base umpire's ready stance (hands on his knees)
+export function umpSet( t = 0 ) {
+
+	const b = Math.sin( t * 1.4 ) * 0.008;
+	return P( {
+		pelvisY: 0.74 + b, pelvis: [ - 0.3, 0, 0 ], torso: [ - 0.25, 0, 0 ], head: [ 0.45, 0 ],
+		footL: [ - 0.34, 0.08, 0.05 ], footR: [ 0.3, 0.08, 0.18 ], footYawL: 0.35, footYawR: - 0.35,
+		handL: [ - 0.2, 0.62, - 0.22 ], handR: [ 0.22, 0.62, - 0.2 ], glove: false,
+	} );
+
+}
+
+export function umpReady( t = 0 ) {
+
+	const b = Math.sin( t * 1.9 ) * 0.01;
+	return P( {
+		pelvisY: 0.84 + b, pelvis: [ - 0.25, 0, 0 ], torso: [ - 0.35, 0, 0 ], head: [ 0.45, 0 ],
+		footL: [ - 0.3, 0.08, - 0.02 ], footR: [ 0.3, 0.08, 0.02 ], footYawL: 0.25, footYawR: - 0.25,
+		handL: [ - 0.2, 0.56, - 0.24 ], handR: [ 0.2, 0.56, - 0.24 ], glove: false,
+	} );
+
+}
+
 export function fieldGrounder( t = 0 ) {
 
 	return P( {

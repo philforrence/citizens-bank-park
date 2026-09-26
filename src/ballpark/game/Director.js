@@ -541,7 +541,36 @@ export class Director {
 		this.ballAt = null;
 		this.now = { seg, snap: seg.snap, count: [ Math.min( 3, seg.snap.balls ), Math.min( 2, seg.snap.strikes ) ], outs: seg.snap.outs, desc: seg.snap.desc, pitch: null };
 		this[ 'show_' + seg.kind ]( seg, lt );
+		this._umpires( seg, lt );
 		this._sync();
+
+	}
+
+	// the World Series crew of six: the plate umpire in the slot behind the catcher, the three base
+	// umpires, and one down each foul line in the outfield. Set for the pitch, standing between them; off
+	// the field in the rain delay
+	_umpires( seg, lt ) {
+
+		const s = seg.snap || {};
+		if ( seg.kind === 'switch' && s.inning === 6 && s.half === 'bottom' ) return;
+		const pitching = seg.kind === 'pitch' && lt - PACE.set > - 0.6;
+		const runners = ( s.bases || [] ).some( Boolean );
+		const r2 = Math.SQRT1_2;
+		const crew = [
+			[ - 1, [ 0.35, 2.05 ], pitching ? M.umpSet( lt ) : M.stand( lt + 1 ), 2 ],
+			[ - 2, [ 19.4 + 2.2 * r2 + 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ], pitching ? M.umpReady( lt ) : M.stand( lt + 2 ) ],
+			[ - 3, runners ? [ - 4.5, - 22.5 ] : [ - 3.5, - 32.5 ], pitching ? M.umpReady( lt ) : M.stand( lt + 3 ) ],
+			[ - 4, [ - 19.4 - 2.2 * r2 - 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ], pitching ? M.umpReady( lt ) : M.stand( lt + 4 ) ],
+			[ - 5, [ - 70 * r2 - 1.2, - 70 * r2 + 1.2 ], M.stand( lt + 5 ) ],
+			[ - 6, [ 70 * r2 + 1.2, - 70 * r2 + 1.2 ], M.stand( lt + 6 ) ],
+		];
+		for ( const [ id, at, pose, role ] of crew ) {
+
+			pose.glove = false;
+			const look = id === - 1 ? MOUND : [ 0, - 5 ];
+			this.act( id, at[ 0 ], at[ 1 ], yawTo( at, look ), pose, { role: role || 0 } );
+
+		}
 
 	}
 
@@ -561,7 +590,7 @@ export class Director {
 			let s = this.slots.get( id );
 			if ( ! s ) {
 
-				const info = P[ id ] || { side: 'home', num: '', throws: 'R' };
+				const info = id < 0 ? { side: 'ump', num: '', throws: 'R' } : P[ id ] || { side: 'home', num: '', throws: 'R' };
 				s = this.players.add( { team: info.side, number: info.num, gloveHand: info.throws === 'L' ? 'R' : 'L', skin: Math.floor( hash( id ) * 4 ), name: info.last } );
 				s.seed = hash( id * 1.3 + 7 );
 				this.slots.set( id, s );
@@ -579,6 +608,7 @@ export class Director {
 
 			}
 
+			if ( a.role != null ) role = a.role;
 			s.role = role;
 			s.visible = true;
 			s.x = a.x; s.z = a.z; s.yaw = a.yaw; s.y = a.y || 0; s.tilt = a.tilt || null;

@@ -123,7 +123,7 @@ export class Players {
 
 			}
 
-			this.info.set( [ p.team === 'home' ? 1 : 0, p.skin, p.role || 0, p.seed || 0 ], i * 4 );
+			this.info.set( [ p.team === 'home' ? 1 : p.team === 'ump' ? 2 : 0, p.skin, p.role || 0, p.seed || 0 ], i * 4 );
 
 		}
 
@@ -227,7 +227,8 @@ function playerMaterial( bones, info, atlas ) {
 `,
 		surface: /* wgsl */`
 	var part = i32( in.vs.vPart + 0.5 );
-	let home = in.vs.vInfo.x > 0.5;
+	let home = in.vs.vInfo.x > 0.5 && in.vs.vInfo.x < 1.5;
+	let ump = in.vs.vInfo.x > 1.5;
 	let skinI = i32( in.vs.vInfo.y + 0.5 );
 	let role = u32( in.vs.vInfo.z + 0.5 );
 	let seed = in.vs.vInfo.w;
@@ -237,8 +238,9 @@ function playerMaterial( bones, info, atlas ) {
 	if ( skinI == 3 ) { skinC = vec3f( 0.62, 0.4, 0.29 ); }
 	let hairC = mix( vec3f( 0.018, 0.013, 0.009 ), vec3f( 0.09, 0.055, 0.03 ), fract( seed * 7.0 ) * step( 0.5, f32( skinI == 0 || skinI == 3 ) ) );
 	// home: white, red pinstripes, red trim and caps; away: road grey, navy
-	let cloth = select( vec3f( 0.28, 0.28, 0.29 ), vec3f( 0.83, 0.82, 0.79 ), home );
-	let trim = select( vec3f( 0.012, 0.018, 0.06 ), vec3f( 0.42, 0.018, 0.025 ), home );
+	// the umpires: a black jacket (their jersey and sleeves), grey slacks, a black cap
+	let cloth = select( select( vec3f( 0.28, 0.28, 0.29 ), vec3f( 0.83, 0.82, 0.79 ), home ), vec3f( 0.014, 0.015, 0.02 ), ump );
+	let trim = select( select( vec3f( 0.012, 0.018, 0.06 ), vec3f( 0.42, 0.018, 0.025 ), home ), vec3f( 0.012, 0.012, 0.014 ), ump );
 	let L = in.vs.vLocal;
 	let Nb = normalize( in.vs.vNrm );
 	let arm = in.vs.vField.x;
@@ -287,6 +289,7 @@ function playerMaterial( bones, info, atlas ) {
 
 	var c = cloth;
 	var rough = 0.82;
+	if ( ump && part == ${ P.pants } ) { c = vec3f( 0.22, 0.22, 0.23 ); }
 	if ( part == ${ P.jersey } || part == ${ P.pants } ) {
 		if ( home ) {
 			// red pinstripes 2.5 cm apart, 1.5 mm wide; box-filtered, fading to their average when they're
@@ -317,6 +320,7 @@ function playerMaterial( bones, info, atlas ) {
 	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z < -0.35 ) {
 		cell = select( 61.0, 60.0, home ); lu = 0.5 - L.x / 0.09; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.062 ) } ) / 0.09;
 	}
+	if ( ump ) { cell = -1.0; }
 	let cxy = vec2f( cell % ${ COLS }.0, floor( cell / ${ COLS }.0 ) );
 	let inCell = cell >= 0.0 && lu > 0.02 && lu < 0.98 && lv > 0.02 && lv < 0.98;
 	let auv = ( cxy + clamp( vec2f( lu, lv ), vec2f( 0.02 ), vec2f( 0.98 ) ) ) / ${ COLS }.0;
@@ -388,7 +392,8 @@ function playerMaterial( bones, info, atlas ) {
 		c = select( skinC * 0.35, vec3f( 0.02 ), bx > 0.5 ); rough = 0.35;
 	}
 	if ( part == ${ P.sleeve } ) { c = trim; rough = 0.7; }
-	if ( part == ${ P.socks } ) {
+	if ( part == ${ P.socks } && ump ) { c = vec3f( 0.22, 0.22, 0.23 ); }
+	if ( part == ${ P.socks } && ! ump ) {
 		c = trim;
 		// the stirrups: the white sanitary sock shows through the cut-outs at the sides of the ankle
 		let lo = ${ f( DIM.thigh + DIM.shin ) } - leg;
