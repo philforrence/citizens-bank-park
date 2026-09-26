@@ -330,7 +330,7 @@ export function solvePose( root, pose, out, offset, gloveHand = 'L' ) {
 
 		const hip = new Vector3( side * D.hipWidth, - 0.04, 0 ).applyMatrix4( pelvis );
 		const target = tgt( foot, new Vector3() );
-		const [ knee, end ] = twoBone( hip, target, D.thigh, D.shin, fwd.clone().addScaledVector( right, side * 0.15 ) );
+		const [ knee, end ] = twoBone( hip, target, D.thigh, D.shin, poleOf( side < 0 ? pose.kneeL : pose.kneeR, fwd.clone().addScaledVector( right, side * 0.15 ), root ) );
 		put( th, boneMatrix( hip, knee, fwd ) );
 		put( sh, boneMatrix( knee, end, fwd ) );
 		// the foot: flat on its yaw, at the ankle
@@ -346,7 +346,7 @@ export function solvePose( root, pose, out, offset, gloveHand = 'L' ) {
 
 		const sh = new Vector3( side * D.shoulder, D.shoulderY, 0 ).applyMatrix4( torso );
 		const target = tgt( hand, new Vector3() );
-		const pole = new Vector3( 0, - 1, 0 ).addScaledVector( fwd, - 0.6 ).addScaledVector( right, side * 0.8 );
+		const pole = poleOf( side < 0 ? pose.elbowL : pose.elbowR, new Vector3( 0, - 1, 0 ).addScaledVector( fwd, - 0.6 ).addScaledVector( right, side * 0.8 ), root );
 		const [ elbow, wrist ] = twoBone( sh, target, D.upperArm, D.forearm, pole );
 		put( ua, boneMatrix( sh, elbow, fwd ) );
 		put( fa, boneMatrix( elbow, wrist, fwd ) );
@@ -378,6 +378,17 @@ export function solvePose( root, pose, out, offset, gloveHand = 'L' ) {
 	}
 
 	return handPos;
+
+}
+
+// A knee's or elbow's pole: the pose's own (from motion capture: in the player's frame, its length the
+// sine of the bend) where the limb is bent, the default where it's nearly straight
+function poleOf( p, def, root ) {
+
+	if ( ! p ) return def;
+	const v = new Vector3( p[ 0 ], p[ 1 ], p[ 2 ] ).transformDirection( root );
+	const w = Math.min( 1, Math.hypot( p[ 0 ], p[ 1 ], p[ 2 ] ) * 5 );
+	return def.clone().normalize().multiplyScalar( 1 - w ).addScaledVector( v, w );
 
 }
 

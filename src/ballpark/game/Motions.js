@@ -23,6 +23,8 @@ export function blend( a, b, t ) {
 	const ba = a.bat, bb = b.bat;
 	o.bat = ba || bb ? { dir: lerpA( ( ba || bb ).dir, ( bb || ba ).dir, t ) } : null;
 	o.glove = t < 0.5 ? a.glove : b.glove;
+	// the knee and elbow poles, where either pose has them
+	for ( const k of [ 'kneeL', 'kneeR', 'elbowL', 'elbowR' ] ) if ( a[ k ] || b[ k ] ) o[ k ] = lerpA( a[ k ] || [ 0, 0, 0 ], b[ k ] || [ 0, 0, 0 ], t );
 	return o;
 
 }
@@ -55,6 +57,8 @@ export function mirror( p ) {
 	o.footYawL = - ( p.footYawR || 0 ); o.footYawR = - ( p.footYawL || 0 );
 	o.handL = mx( p.handR ); o.handR = mx( p.handL );
 	if ( p.bat ) o.bat = { dir: mx( p.bat.dir ) };
+	o.kneeL = p.kneeR && mx( p.kneeR ); o.kneeR = p.kneeL && mx( p.kneeL );
+	o.elbowL = p.elbowR && mx( p.elbowR ); o.elbowR = p.elbowL && mx( p.elbowL );
 	return o;
 
 }
@@ -67,11 +71,20 @@ const P = ( o ) => Object.assign( neutralPose(), o );
 function framePose( f ) {
 
 	const bat = f[ 25 ] || f[ 26 ] || f[ 27 ] ? { dir: [ f[ 25 ], f[ 26 ], f[ 27 ] ] } : null;
-	return P( {
+	const p = P( {
 		pelvisX: f[ 0 ], pelvisY: f[ 1 ], pelvisZ: f[ 2 ], pelvis: [ f[ 3 ], f[ 4 ], f[ 5 ] ], torso: [ f[ 6 ], f[ 7 ], f[ 8 ] ], head: [ f[ 9 ], f[ 10 ] ],
 		footL: [ f[ 11 ], f[ 12 ], f[ 13 ] ], footR: [ f[ 14 ], f[ 15 ], f[ 16 ] ], footYawL: f[ 17 ], footYawR: f[ 18 ],
 		handL: [ f[ 19 ], f[ 20 ], f[ 21 ] ], handR: [ f[ 22 ], f[ 23 ], f[ 24 ] ], bat, twoHands: !! bat, glove: ! bat,
 	} );
+	// where the knees and elbows pointed (Rig.solvePose's poles)
+	if ( f.length >= 40 ) {
+
+		p.kneeL = [ f[ 28 ], f[ 29 ], f[ 30 ] ]; p.kneeR = [ f[ 31 ], f[ 32 ], f[ 33 ] ];
+		p.elbowL = [ f[ 34 ], f[ 35 ], f[ 36 ] ]; p.elbowR = [ f[ 37 ], f[ 38 ], f[ 39 ] ];
+
+	}
+
+	return p;
 
 }
 
@@ -134,7 +147,26 @@ export function run( phase, speed = 1 ) {
 // stride, the release at REL, the follow-through; then he comes set to field his position.
 const PITCH = MOCAP.pitch;
 const pitchEnd = ( PITCH.frames.length - 1 ) / PITCH.fps;
-const pitchAt = ( t ) => framePose( sampleFrames( PITCH.frames, PITCH.fps, t ) );
+// the capture with two corrections: he stands taller in the set and through the lift (the capture's
+// knees were bent like a skier's), and the lead leg folds at the knee as it comes up rather than
+// kicking out straight
+const pitchAt = ( t ) => {
+
+	const p = framePose( sampleFrames( PITCH.frames, PITCH.fps, t ) );
+	p.pelvisY += 0.05 * ( 1 - ease( clamp( ( t - 0.35 ) / 0.4, 0, 1 ) ) );
+	const f = p.footL;
+	const hip = [ p.pelvisX || 0, p.pelvisY - 0.04, p.pelvisZ || 0 ];
+	const up = clamp( ( f[ 1 ] - 0.2 ) / 0.5, 0, 1 );
+	if ( up > 0 ) {
+
+		const k = 1 - 0.38 * ease( up );
+		p.footL = [ hip[ 0 ] + ( f[ 0 ] - hip[ 0 ] ) * k, hip[ 1 ] + ( f[ 1 ] - hip[ 1 ] ) * k, hip[ 2 ] + ( f[ 2 ] - hip[ 2 ] ) * k ];
+
+	}
+
+	return p;
+
+};
 
 export function pitcherSet() {
 

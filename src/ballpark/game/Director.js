@@ -753,7 +753,8 @@ export class Director {
 		// after ball four or strike three the count stays at 3 balls / 2 strikes (the boards never show a 3rd strike)
 		this.now.count = d > M.REL + seg.path.flight ? [ Math.min( 3, e.count[ 0 ] ), Math.min( 2, e.count[ 1 ] ) ] : [ s.balls, s.strikes ];
 		// the pitcher: set, then the delivery, the release at the pitch's own release point
-		const root = [ MOUND[ 0 ], MOUND[ 1 ] + 0.35 ];
+		// (the root sits so his pivot foot is against the front of the rubber)
+		const root = [ MOUND[ 0 ], MOUND[ 1 ] + 0.03 ];
 		const rel = seg.path.at( 0 );
 		// the release point in the pitcher's frame (he faces +z: his x is the field's -x, his -z the field's +z)
 		let relLocal = [ root[ 0 ] - rel[ 0 ], rel[ 1 ] - 0.25, root[ 1 ] - rel[ 2 ] ];

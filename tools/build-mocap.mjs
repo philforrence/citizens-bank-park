@@ -164,7 +164,20 @@ function poseOf( c, f, origin, R0, F0, groundY, { bat = false } = {} ) {
 
 	};
 
+	// which way the knees and elbows point: the middle joint's offset from its limb's straight line (in
+	// the player frame; its length the sine of the bend, 0 for a straight limb)
+	const pole = ( a, m, b ) => {
+
+		const A = c.pos( W, a ), M = c.pos( W, m ), B = c.pos( W, b );
+		const ab = B.clone().sub( A ).normalize(), am = M.clone().sub( A );
+		const l = am.length() || 1;
+		return toP( am.sub( ab.multiplyScalar( am.dot( ab ) ) ) ).multiplyScalar( 1 / l );
+
+	};
+
 	const out = {
+		kneeL: pole( 'LeftUpLeg', 'LeftLeg', 'LeftFoot' ), kneeR: pole( 'RightUpLeg', 'RightLeg', 'RightFoot' ),
+		elbowL: pole( 'LeftArm', 'LeftForeArm', 'LeftHand' ), elbowR: pole( 'RightArm', 'RightForeArm', 'RightHand' ),
 		pelvis: [ pel.x, pel.y, pel.z ], rot: pelvis, torso, head,
 		footL: foot( - 1, 'LeftUpLeg', 'LeftFoot' ), footR: foot( 1, 'RightUpLeg', 'RightFoot' ),
 		footYawL: yawOf( 'LeftFoot', 'LeftToeBase' ), footYawR: yawOf( 'RightFoot', 'RightToeBase' ),
@@ -185,12 +198,13 @@ function poseOf( c, f, origin, R0, F0, groundY, { bat = false } = {} ) {
 }
 
 // flatten a pose to numbers: pelvis xyz, pelvis rot, torso, head(2), footL, footR, yawL, yawR, handL,
-// handR, bat
+// handR, bat, then the knee and elbow poles (L, R, L, R)
 const r3 = ( v ) => Math.round( v * 1000 ) / 1000;
 function flat( p ) {
 
 	const v = ( a ) => Array.isArray( a ) ? a : [ a.x, a.y, a.z ];
-	return [ ...p.pelvis, ...p.rot, ...p.torso, ...p.head, ...v( p.footL ), ...v( p.footR ), p.footYawL, p.footYawR, ...v( p.handL ), ...v( p.handR ), ...( p.bat ? v( p.bat ) : [ 0, 0, 0 ] ) ].map( r3 );
+	return [ ...p.pelvis, ...p.rot, ...p.torso, ...p.head, ...v( p.footL ), ...v( p.footR ), p.footYawL, p.footYawR, ...v( p.handL ), ...v( p.handR ), ...( p.bat ? v( p.bat ) : [ 0, 0, 0 ] ),
+		...v( p.kneeL ), ...v( p.kneeR ), ...v( p.elbowL ), ...v( p.elbowR ) ].map( r3 );
 
 }
 
@@ -222,7 +236,7 @@ const clips = {};
 // was going; the leg lift's start and the release map onto 0.15 s and REL
 {
 
-	const c = load( '124_01' );
+	const c = load( process.env.PITCH || '124_01' );
 	let bestR = 0, bestL = 0, fR = 0, fL = 0;
 	for ( let f = 1; f < c.worlds.length - 1; f ++ ) {
 
