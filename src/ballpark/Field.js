@@ -829,7 +829,7 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		name: 'field',
 		roughness: 0.95,
 		modules: [ module ],
-		uniforms: { fieldYaw: [ 'vec2f', new Vector2( Math.cos( yaw ), Math.sin( yaw ) ) ] },
+		uniforms: { fieldYaw: [ 'vec2f', new Vector2( Math.cos( yaw ), Math.sin( yaw ) ) ], wet: [ 'f32', 0 ] },
 		varyings: { vField: 'vec2f' },
 		vertex: 'o.vField = v.position.xz;',
 		surface: /* wgsl */`
@@ -918,6 +918,22 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	if ( chalk > 0.0 ) {
 		col = mix( col, vec3f( 0.8, 0.8, 0.77 ) * ( 0.95 + 0.05 * n3 ), chalk );
 		rough = mix( rough, 0.8, chalk );
+	}
+
+	// ---- rain: darker and shinier as it soaks in; when it's pouring, water stands in the low spots of the
+	// infield dirt (round home plate and second base went under on October 27, 2008)
+	let wet = mat.wet;
+	if ( wet > 0.001 && ! outside ) {
+		let k = select( 0.22, 0.32, dirt || track );
+		col *= 1.0 - k * wet;
+		rough = mix( rough, rough * select( 0.55, 0.35, dirt || track ), wet );
+		if ( dirt ) {
+			let second = vec2f( 0.0, ${ f( - BASE * Math.SQRT2 ) } );
+			let low = 1.0 - smoothstep( 0.0, 7.0, min( length( p - plate ), length( p - second ) ) );
+			let pud = smoothstep( 0.66, 0.74, 0.35 + 0.35 * mx_noise_float2( p * 0.22 + 3.1 ) + 0.1 * mx_noise_float2( p * 1.3 ) + low * 0.55 - ( 1.0 - wet ) * 0.9 );
+			col = mix( col, col * 0.3, pud );
+			rough = mix( rough, 0.03, pud );
+		}
 	}
 
 	// ---- outside the fence: the concrete apron (the stands go here)

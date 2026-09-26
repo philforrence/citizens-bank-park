@@ -30,6 +30,15 @@ import { Bowl } from './Bowl.js';
 import { Exterior, GATES } from './Exterior.js';
 import { Surroundings } from './Surroundings.js';
 import { Landmarks } from './Landmarks.js';
+import { Players } from './game/Players.js';
+import * as Motions from './game/Motions.js';
+import { Ball } from './game/Ball.js';
+import { Director } from './game/Director.js';
+import { GameHUD } from './game/GameHUD.js';
+import { Radio } from './game/Radio.js';
+import { GameSound } from './game/GameSound.js';
+import { Rain } from './game/Rain.js';
+import { GAME } from './data/game-2008-ws5.js';
 import { FOOTPRINT } from './layout.js';
 import { Walker } from './Walker.js';
 
@@ -134,6 +143,22 @@ export class BallparkApp {
 		await progress( 0.19, 'Raising the skyline…' );
 		this.surroundings = new Surroundings( { field: this.field } );
 		this.landmarks = new Landmarks( { field: this.field, bowl: this.bowl, colliders: this.colliders } );
+		this.players = new Players( { parent: this.field.group } );
+		if ( qs.has( 'poses' ) ) this._poseLineup();
+		else {
+
+			// the 2008 World Series, Game 5, replayed on the field
+			this.ball = new Ball( this.field.group );
+			this.director = new Director( { game: GAME, players: this.players, ball: this.ball } );
+			this.radio = new Radio();
+			this.sound = this.audio = new GameSound();
+			this.director.onCue = ( cue ) => this._cue( cue );
+			this.rain = new Rain( scene );
+			if ( qs.has( 't' ) ) this.director.seek( Number( qs.get( 't' ) ) );
+			if ( qs.has( 'play' ) ) this.director.seek( this.director.timeOfPlay( Number( qs.get( 'play' ) ) ) );
+			if ( qs.has( 'paused' ) ) this.director.playing = false;
+
+		}
 		// the haze thickens toward "sea level": put that under the field, which is below the street
 		G.seaLevel.value = this.field.y0 - 1;
 		// what you walk on: street level round the pit, the field (and the seats' colliders) inside it
@@ -196,6 +221,7 @@ export class BallparkApp {
 
 			if ( window.__ui && window.__ui.isPointerOverUI ) return;
 			this.input.requestLock();
+			if ( this.audio ) this.audio.resume();
 
 		} );
 
@@ -244,6 +270,158 @@ export class BallparkApp {
 			} );
 
 		}
+
+	}
+
+	// C: walk around, or watch from the TV cameras: center field (behind the pitcher), high behind home
+	// plate, or following the ball
+	cycleCamera( mode = null ) {
+
+		const modes = [ 'walk', 'center', 'high', 'follow' ];
+		this.camMode = mode || modes[ ( modes.indexOf( this.camMode || 'walk' ) + 1 ) % modes.length ];
+		if ( this.camMode === 'walk' ) {
+
+			this.camera.fov = this._walkFov || 62;
+			this.camera.updateProjectionMatrix();
+
+		} else if ( ! this._walkFov ) this._walkFov = this.camera.fov;
+		if ( this.ui ) this.ui.ui.toast( { walk: 'Walking', center: 'Center field camera', high: 'High home camera', follow: 'Following the ball' }[ this.camMode ] );
+
+	}
+
+	_broadcastCamera( dt ) {
+
+		const F = this.field, d = this.director;
+		const ball = d.ballAt;
+		const at = ( x, y, z ) => {
+
+			const w = F.toWorld( x, z );
+			return new Vector3( w.x, F.y0 + y, w.z );
+
+		};
+
+		let eye, target, fov;
+		const seg = d.segmentAt( d.t );
+		if ( this.camMode === 'center' ) {
+
+			// the classic shot: from center field over the pitcher's shoulder, a long lens
+			const lefty = GAME.players[ seg.snap.pitcher ]?.throws === 'L';
+			eye = at( lefty ? 1.8 : - 1.8, 9.5, - 128 );
+			target = at( 0, 1.0, 0.2 );
+			fov = 5.2;
+			if ( seg.kind === 'inplay' || seg.kind === 'celebrate' || seg.kind === 'switch' || seg.kind === 'intro' ) {
+
+				target = ball ? at( ball[ 0 ] * 0.6, Math.max( 1, ball[ 1 ] * 0.6 ), ball[ 2 ] * 0.6 ) : at( 0, 1, - 20 );
+				fov = seg.kind === 'celebrate' ? 9 : 22;
+
+			}
+
+		} else if ( this.camMode === 'high' ) {
+
+			eye = at( 0, 30, 44 );
+			target = at( 0, 0, - 38 );
+			fov = 48;
+
+		} else {
+
+			// following: from high behind the third base side, turning to the ball
+			eye = at( - 36, 24, 36 );
+			const aim = ball ? [ ball[ 0 ], ball[ 1 ], ball[ 2 ] ] : [ 0, 1, - 12 ];
+			if ( seg.kind === 'celebrate' ) aim.splice( 0, 3, 0, 1, - 18 );
+			target = at( aim[ 0 ], aim[ 1 ], aim[ 2 ] );
+			const dd = eye.distanceTo( target );
+			fov = Math.max( 10, Math.min( 45, 2400 / dd ) );
+
+		}
+
+		// ease toward the target (a camera operator, not a snap)
+		const k = 1 - Math.exp( - dt * 6 );
+		this._camAim = this._camAim ? this._camAim.lerp( target, k ) : target.clone();
+		this.camera.position.copy( eye );
+		this.camera.lookAt( this._camAim );
+		const f = this.camera.fov + ( fov - this.camera.fov ) * k;
+		if ( Math.abs( f - this.camera.fov ) > 0.01 ) {
+
+			this.camera.fov = f;
+			this.camera.updateProjectionMatrix();
+
+		}
+
+	}
+
+	// the scoreboard follows the game (redrawn when what it shows changes, at most four times a second)
+	_scoreboard( dt ) {
+
+		this._boardT = ( this._boardT || 0 ) + dt;
+		if ( this._boardT < 0.25 ) return;
+		const st = this.director.boardState();
+		const key = JSON.stringify( [ st.score, st.count, st.outs, st.batter?.last, st.inning, st.half, st.video.kind, st.today.length, st.line ] );
+		if ( key === this._boardKey ) return;
+		this._boardKey = key;
+		this._boardT = 0;
+		this.landmarks.updateScoreboard( st );
+
+	}
+
+	// the replay's cues: the radio call, the ballpark's sounds, the crowd
+	_cue( cue ) {
+
+		const r = this.radio, s = this.sound;
+		if ( cue.say ) r.say( cue.say, { important: !! ( cue.pa || cue.result || cue.champions ) } );
+		if ( cue.contact ) s.crack( 'medium' );
+		if ( cue.crack ) s.crack( cue.crack );
+		if ( cue.mitt ) s.mitt();
+		if ( cue.glove ) s.mitt( true );
+		if ( cue.cheer ) s.cheer( cue.cheer );
+		if ( cue.result && cue.scored > 0 ) s.cheer( cue.batting === 'home' ? 3 : - 1 );
+		if ( cue.result && /strikeout/.test( cue.result.type ) ) s.cheer( cue.batting === 'home' ? - 1 : 1.5 );
+		if ( cue.champions ) s.celebrate();
+
+	}
+
+	// Game 5's weather: October 27, first pitch in light rain at 47 F, harder and harder until they stopped
+	// after the top of the 6th with home plate under a puddle; October 29, dry, 44 F, a gusty wind in from
+	// right. ?weather=off turns it off.
+	_weather() {
+
+		if ( this.qs.get( 'weather' ) === 'off' ) return;
+		const d = this.director;
+		const seg = d.segmentAt( d.t );
+		const { inning, half } = seg.snap;
+		// progress through the first night, 0 (first pitch) .. 1 (the suspension)
+		const firstNight = inning < 6 || ( inning === 6 && half === 'top' );
+		const k = firstNight ? Math.min( 1, ( ( inning - 1 ) * 2 + ( half === 'top' ? 0 : 1 ) ) / 10 ) : 0;
+		const rain = firstNight ? 0.3 + 0.7 * k : 0;
+		const wet = firstNight ? 0.35 + 0.65 * k : 0.25;
+		this.rain.amount = rain;
+		this.rain.material.uniforms.wind.value.set( firstNight ? 1.2 : 0, firstNight ? 0.8 : 0 );
+		this.field.surfaceMaterial.uniforms.wet.value = wet;
+		this.sound.setRain( rain );
+		if ( this.clouds ) this.clouds.coverage.value = firstNight ? 0.85 + 0.12 * k : 0.55;
+		if ( this.haze ) this.haze.density.value = firstNight ? 1.3 + 1.2 * k : 1.0;
+
+	}
+
+	// ?poses: one player in each pose in a row behind home plate (for checking the rig and the motions)
+	_poseLineup() {
+
+		const M = Motions;
+		const list = [
+			[ 'stand', ( t ) => M.stand( t ) ], [ 'ready', ( t ) => M.ready( t ) ], [ 'run', ( t ) => M.run( t * 1.4, 1 ) ],
+			[ 'set', () => M.pitcherSet() ], [ 'lift', () => M.delivery( 0.38 ) ], [ 'stride', () => M.delivery( 0.72 ) ],
+			[ 'release', () => M.delivery( M.REL ) ], [ 'follow', () => M.delivery( 1.15 ) ], [ 'stance', ( t ) => M.batterStance( t ) ],
+			[ 'contact', () => M.swing( M.CONTACT ) ], [ 'finish', () => M.swing( 0.42 ) ], [ 'catcher', ( t ) => M.catcherCrouch( t ) ],
+			[ 'grounder', () => M.fieldGrounder() ], [ 'high', () => M.catchHigh() ], [ 'throw', () => M.throwBall( 0.18 ) ],
+			[ 'kneel', () => M.kneel( 1 ) ], [ 'embrace', () => M.embrace() ], [ 'jump', ( t ) => M.jump( t ) ],
+		];
+		const ps = list.map( ( [ name ], i ) => {
+
+			const p = this.players.add( { team: i % 2 ? 'away' : 'home', skin: i % 4, name } );
+			p.x = - 17 + i * 2; p.z = - 12; p.yaw = Math.PI;
+			return p;
+
+		} );
+		this.poseTest = ( t ) => list.forEach( ( [ , f ], i ) => { ps[ i ].pose = f( t ); } );
 
 	}
 
@@ -415,7 +593,9 @@ export class BallparkApp {
 
 		}
 
-		if ( this.freeCam ) this.fly.update( dt );
+		if ( this.input.hit( 'KeyC' ) && this.director ) this.cycleCamera();
+		if ( this.camMode && this.camMode !== 'walk' ) this._broadcastCamera( dt );
+		else if ( this.freeCam ) this.fly.update( dt );
 		else this.walker.update( dt );
 
 		// ---- sky
@@ -427,6 +607,18 @@ export class BallparkApp {
 
 		// ---- world
 		this.ground.update( dt );
+		if ( this.poseTest ) this.poseTest( G.time.value );
+		if ( this.director ) {
+
+			this.director.update( dt );
+			this.radio.speed = this.director.speed;
+			this._weather();
+			this._scoreboard( dt );
+
+		}
+
+		this.players.update();
+		if ( this.gameHUD ) this.gameHUD.refresh();
 		this.localLights.update( this.camera, dt );
 
 		// ---- render

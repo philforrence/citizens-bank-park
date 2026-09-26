@@ -3,6 +3,7 @@ import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
 import { canvasTexture } from './geo.js';
+import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, LEVELS, fencePoint } from './layout.js';
 import { offsetPolyline } from './Bowl.js';
 
@@ -26,8 +27,8 @@ export class Landmarks {
 		this.steel = standard( { name: 'landmark-steel', color: new Color( 0.05, 0.06, 0.065 ), roughness: 0.6, metalness: 0.5 } );
 		this.steel.underwaterLighting = 'none';
 		this._scoreboard();
-		// light towers in the outfield: beside the scoreboard in left, over the Pavilion in right
-		for ( const [ a, d ] of [ [ - 49, 470 ], [ 36, 440 ] ] ) {
+		// the light tower over the Pavilion in right (the one in left stands beside the scoreboard)
+		for ( const [ a, d ] of [ [ 36, 440 ] ] ) {
 
 			const [ x, z ] = fencePoint( a, d );
 			bowl._lightTower( x, z, STREET, LEVELS.lightTowers );
@@ -53,87 +54,148 @@ export class Landmarks {
 
 	// ---------------------------------------------------------------- the scoreboard
 
+	// The 2004-2011 scoreboard, as it was for the 2008 World Series: a blue cabinet (about 97 x 79 ft) with
+	// the Coca-Cola and Motrin panels down its left, the amber matrix (the at-bat, due up, the lineup, the
+	// line score and the count) over the 69'7" x 39'5" video board, the "Phillies" script with its two
+	// stars on the steel above, green neon "Citizens Bank Park" and Harry the K's beneath, and the light
+	// tower beside it with its sponsors' panels.
 	_scoreboard() {
 
-		const W = 152 * FT, H = 86 * FT, TOP = 143.25 * FT;
-		const [ x, z ] = fencePoint( - 34.5, 452 );
+		const W = 97 * FT, H = 79 * FT;
+		const [ x, z ] = fencePoint( - 36, 452 );
 		const g = this._facingHome( x, z );
-		const y0 = TOP - H - 2.2;
-		this.scoreboardTexture = canvasTexture( 2048, 1160, drawScoreboard, 'scoreboard' );
+		const y0 = STREET + 10.5;
+		this.board = { W, H, y0 };
+		this.boardCanvas = new OffscreenCanvas( 1600, 1304 );
+		this.scoreboardTexture = canvasTexture( 1600, 1304, ( ctx, w, h ) => drawBoard2008( ctx, w, h, null ), 'scoreboard' );
 		const screen = standard( {
 			name: 'scoreboard', roughness: 0.4, textures: { bpBoard: this.scoreboardTexture },
 			surface: /* wgsl */`
 	let t = textureSample( bpBoard, smpAnisoClamp, in.uv ).rgb;
-	// an LED board: its own light, a little brighter after dark
-	s.albedo = t * 0.05;
-	s.emissive = t * mix( 2.2, 1.2, frame.night );
+	// LEDs and lit panels: their own light, a little brighter after dark
+	s.albedo = t * 0.06;
+	s.emissive = t * mix( 1.6, 0.55, frame.night );
 `,
 		} );
 		screen.underwaterLighting = 'none';
-		// the board's face (uv 0..1 across it), toward home plate (local -z... the group faces home)
-		const q = new Quads();
-		q.add( [ - W / 2, y0, - 0.68 ], [ W / 2, y0, - 0.68 ], [ W / 2, y0 + H, - 0.68 ], [ - W / 2, y0 + H, - 0.68 ], [ 0, 0, - 1 ] );
-		const geo = q.geometry();
-		const uv = geo.getAttribute( 'uv' ).array, pos = geo.getAttribute( 'position' ).array;
-		for ( let i = 0; i < uv.length / 2; i ++ ) {
-
-			// seen from home plate (looking along +z in the group), +x is on the left
-			uv[ i * 2 ] = 1 - ( pos[ i * 3 ] + W / 2 ) / W;
-			uv[ i * 2 + 1 ] = 1 - ( pos[ i * 3 + 1 ] - y0 ) / H;
-
-		}
-
-		const face = new Mesh( geo, screen );
+		const face = new Mesh( quadUV( W, H, y0, - 0.72 ), screen );
 		face.name = 'scoreboard-face';
 		g.add( face );
-		// the cabinet round it and the steel it stands on
-		const box = new Mesh( new BoxGeometry( W + 1.6, H + 1.6, 1.2 ), this.steel );
+		const cabinet = standard( { name: 'scoreboard-cabinet', color: new Color( 0.03, 0.06, 0.16 ), roughness: 0.6, metalness: 0.3 } );
+		cabinet.underwaterLighting = 'none';
+		const box = new Mesh( new BoxGeometry( W + 1.2, H + 1.2, 1.2 ), cabinet );
 		box.position.set( 0, y0 + H / 2, 0 );
 		box.castShadow = true;
 		g.add( box );
-		for ( const lx of [ - W / 3, 0, W / 3 ] ) {
+		// the steel it stands on and the frame the script sits on
+		for ( const lx of [ - W * 0.38, - W * 0.1, W * 0.18, W * 0.42 ] ) {
 
-			const leg = new Mesh( new BoxGeometry( 1.2, y0 - STREET + 0.5, 1.2 ), this.steel );
-			leg.position.set( lx, STREET + ( y0 - STREET ) / 2, 2 );
+			const leg = new Mesh( new BoxGeometry( 0.9, y0 - STREET + 0.5, 0.9 ), this.steel );
+			leg.position.set( lx, STREET + ( y0 - STREET ) / 2, 1.2 );
 			leg.castShadow = true;
 			g.add( leg );
 
 		}
 
-		// the team script on top: a lit sign
-		const sign = canvasTexture( 1024, 256, ( ctx, w, h ) => {
+		for ( const lx of [ - W * 0.32, 0, W * 0.3 ] ) {
+
+			const post = new Mesh( new BoxGeometry( 0.5, 7.5, 0.5 ), this.steel );
+			post.position.set( lx, y0 + H + 3.4, 0.4 );
+			g.add( post );
+
+		}
+
+		const beam = new Mesh( new BoxGeometry( W * 0.75, 0.5, 0.5 ), this.steel );
+		beam.position.set( 0, y0 + H + 1.1, 0.4 );
+		g.add( beam );
+
+		// the script and its two stars
+		const sign = canvasTexture( 1024, 320, ( ctx, w, h ) => {
 
 			ctx.clearRect( 0, 0, w, h );
-			ctx.fillStyle = '#ffffff';
-			ctx.font = 'italic 700 190px Georgia, "Times New Roman", serif';
+			ctx.font = 'italic 700 220px Georgia, "Times New Roman", serif';
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
-			ctx.lineWidth = 16;
-			ctx.strokeStyle = '#0a2a6b';
-			ctx.strokeText( 'Phillies', w / 2, h / 2 + 10 );
-			ctx.fillStyle = '#e81828';
-			ctx.fillText( 'Phillies', w / 2, h / 2 + 10 );
+			ctx.lineWidth = 14;
+			ctx.strokeStyle = '#c9a44a';
+			ctx.strokeText( 'Phillies', w / 2, h / 2 + 18 );
+			ctx.fillStyle = '#c8102e';
+			ctx.fillText( 'Phillies', w / 2, h / 2 + 18 );
+			// the underline swash
+			ctx.fillRect( w * 0.14, h * 0.86, w * 0.72, h * 0.05 );
+			for ( const sx of [ 0.46, 0.63 ] ) star( ctx, w * sx, h * 0.2, 26, '#1d3f8f' );
 
 		}, 'scriptSign' );
 		const signMat = standard( {
 			name: 'script-sign', roughness: 0.5, alphaTest: 0.5, side: 'double', textures: { bpScript: sign },
-			surface: 'let t = textureSample( bpScript, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.5; s.emissive = t.rgb * mix( 0.4, 1.6, frame.night );',
+			surface: 'let t = textureSample( bpScript, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.6; s.emissive = t.rgb * mix( 0.2, 0.6, frame.night );',
 		} );
 		signMat.underwaterLighting = 'none';
-		const sq = new Quads();
-		const SW = W * 0.62, SH = SW / 4, sy = y0 + H + 0.8;
-		sq.add( [ - SW / 2, sy, - 0.4 ], [ SW / 2, sy, - 0.4 ], [ SW / 2, sy + SH, - 0.4 ], [ - SW / 2, sy + SH, - 0.4 ], [ 0, 0, - 1 ] );
-		const sgeo = sq.geometry();
-		const suv = sgeo.getAttribute( 'uv' ).array, spos = sgeo.getAttribute( 'position' ).array;
-		for ( let i = 0; i < suv.length / 2; i ++ ) {
+		const SW = W * 0.78, SH = SW * 320 / 1024;
+		g.add( new Mesh( quadUV( SW, SH, y0 + H + 0.9, - 0.2 ), signMat ) );
 
-			suv[ i * 2 ] = 1 - ( spos[ i * 3 ] + SW / 2 ) / SW;
-			suv[ i * 2 + 1 ] = 1 - ( spos[ i * 3 + 1 ] - sy ) / SH;
+		// beneath: green neon "Citizens Bank Park", and the awnings of Harry the K's
+		const neon = canvasTexture( 1024, 128, ( ctx, w, h ) => {
 
-		}
+			ctx.clearRect( 0, 0, w, h );
+			ctx.font = '600 92px "Helvetica Neue", Helvetica, Arial, sans-serif';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.shadowColor = '#3cff7a';
+			ctx.shadowBlur = 14;
+			ctx.fillStyle = '#39d86b';
+			ctx.fillText( '✳ Citizens Bank Park', w / 2, h / 2 + 4 );
 
-		g.add( new Mesh( sgeo, signMat ) );
+		}, 'neonName' );
+		const neonMat = standard( {
+			name: 'neon', roughness: 0.4, alphaTest: 0.3, side: 'double', textures: { bpNeon: neon },
+			surface: 'let t = textureSample( bpNeon, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.2; s.emissive = t.rgb * mix( 1.2, 3.0, frame.night );',
+		} );
+		neonMat.underwaterLighting = 'none';
+		g.add( new Mesh( quadUV( W * 0.62, W * 0.62 / 8, y0 - 3.6, - 1.4 ), neonMat ) );
+		const awning = standard( { name: 'awning', color: new Color( 0.02, 0.03, 0.09 ), roughness: 0.8 } );
+		awning.underwaterLighting = 'none';
+		const aw = new Mesh( new BoxGeometry( W * 0.9, 1.1, 1.8 ), awning );
+		aw.position.set( 0, STREET + 3.4, - 2.2 );
+		aw.rotation.x = 0.35;
+		g.add( aw );
+
+		// the light tower beside it (center field side), with its four panels
+		const [ tx, tz ] = fencePoint( - 24.5, 455 );
+		this.bowl._lightTower( tx, tz, STREET, LEVELS.lightTowers );
+		const tg = this._facingHome( tx, tz );
+		const ads = [ [ 'TOYOTA', '#e00d1d', '#ffffff' ], [ 'Choose Blue.', '#1b5eb8', '#eef3fb' ], [ 'W.B. MASON', '#d71920', '#16181d' ], [ 'Budweiser', '#d4202f', '#101114' ] ];
+		ads.forEach( ( [ text, fg, bg ], i ) => {
+
+			const tex = canvasTexture( 512, 192, ( ctx, w, h ) => {
+
+				ctx.fillStyle = bg;
+				ctx.fillRect( 0, 0, w, h );
+				ctx.font = ( i === 3 ? 'italic 700 110px Georgia, serif' : '800 104px "Helvetica Neue", Helvetica, Arial, sans-serif' );
+				ctx.fillStyle = fg;
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				ctx.fillText( text, w / 2, h / 2 + 6, w - 30 );
+
+			}, 'towerAd' );
+			const m = standard( { name: 'tower-ad', roughness: 0.5, textures: { bpAd: tex }, surface: 'let t = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.7; s.emissive = t * mix( 0.2, 0.9, frame.night );' } );
+			m.underwaterLighting = 'none';
+			tg.add( new Mesh( quadUV( 8.5, 3.2, STREET + 30 - i * 4.4, - 2.4 ), m ) );
+
+		} );
+
 		this.scoreboard = g;
+
+	}
+
+	// redraw the board with the game's state (Director.boardState())
+	updateScoreboard( state ) {
+
+		const c = this.boardCanvas, ctx = c.getContext( '2d' );
+		drawBoard2008( ctx, c.width, c.height, state );
+		const img = ctx.getImageData( 0, 0, c.width, c.height );
+		this.scoreboardTexture.upload( new Uint8Array( img.data.buffer ) );
+		generateMipmaps( this.scoreboardTexture );
 
 	}
 
@@ -338,62 +400,202 @@ export class Landmarks {
 
 }
 
-// The scoreboard's picture: a line score, the count, and the welcome.
-function drawScoreboard( ctx, w, h ) {
+// A quad facing -z (home plate, in a _facingHome group) with uvs 0..1 across it as seen from home
+function quadUV( W, H, y0, z ) {
 
-	ctx.fillStyle = '#05070c';
+	const q = new Quads();
+	q.add( [ - W / 2, y0, z ], [ W / 2, y0, z ], [ W / 2, y0 + H, z ], [ - W / 2, y0 + H, z ], [ 0, 0, - 1 ] );
+	const geo = q.geometry();
+	const uv = geo.getAttribute( 'uv' ).array, pos = geo.getAttribute( 'position' ).array;
+	for ( let i = 0; i < uv.length / 2; i ++ ) {
+
+		// seen from home plate (looking along +z in the group), +x is on the left
+		uv[ i * 2 ] = 1 - ( pos[ i * 3 ] + W / 2 ) / W;
+		uv[ i * 2 + 1 ] = 1 - ( pos[ i * 3 + 1 ] - y0 ) / H;
+
+	}
+
+	return geo;
+
+}
+
+function star( ctx, cx, cy, r, color ) {
+
+	ctx.beginPath();
+	for ( let i = 0; i < 10; i ++ ) {
+
+		const a = - Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.42 : r;
+		ctx.lineTo( cx + Math.cos( a ) * rr, cy + Math.sin( a ) * rr );
+
+	}
+
+	ctx.closePath();
+	ctx.fillStyle = color;
+	ctx.fill();
+
+}
+
+// The 2008 board's face: the ad column on the left; the amber matrix (at-bat, due up, today, the lineup,
+// the line score, the count) over the video board.
+function drawBoard2008( ctx, w, h, st ) {
+
+	const amber = '#ffab2e';
+	ctx.fillStyle = '#05070b';
 	ctx.fillRect( 0, 0, w, h );
-	// top: a banner
-	const g = ctx.createLinearGradient( 0, 0, w, 0 );
-	g.addColorStop( 0, '#7a0a14' );
-	g.addColorStop( 0.5, '#c8102e' );
-	g.addColorStop( 1, '#7a0a14' );
-	ctx.fillStyle = g;
-	ctx.fillRect( 0, 0, w, 150 );
+	// ---- the ad column
+	const colW = w * 0.19;
+	ctx.fillStyle = '#c8102e';
+	ctx.fillRect( 8, 8, colW - 16, h * 0.47 );
+	// a bottle, roughly
+	ctx.fillStyle = '#f4f1ea';
+	const bx = colW / 2, by = h * 0.08;
+	ctx.beginPath();
+	ctx.moveTo( bx - 14, by ); ctx.lineTo( bx + 14, by ); ctx.lineTo( bx + 16, by + 60 ); ctx.quadraticCurveTo( bx + 50, by + 120, bx + 42, by + 200 );
+	ctx.quadraticCurveTo( bx + 34, by + 260, bx + 44, by + 330 ); ctx.lineTo( bx - 44, by + 330 ); ctx.quadraticCurveTo( bx - 34, by + 260, bx - 42, by + 200 );
+	ctx.quadraticCurveTo( bx - 50, by + 120, bx - 16, by + 60 ); ctx.closePath(); ctx.fill();
 	ctx.fillStyle = '#ffffff';
-	ctx.font = '700 104px "Helvetica Neue", Helvetica, Arial, sans-serif';
+	ctx.font = 'italic 700 58px Georgia, serif';
 	ctx.textAlign = 'center';
-	ctx.textBaseline = 'middle';
-	ctx.fillText( 'WELCOME TO CITIZENS BANK PARK', w / 2, 80 );
-	// the big middle panel
-	const mid = ctx.createLinearGradient( 0, 170, 0, 760 );
-	mid.addColorStop( 0, '#0b2a6f' );
-	mid.addColorStop( 1, '#061532' );
-	ctx.fillStyle = mid;
-	ctx.fillRect( 40, 170, w - 80, 590 );
-	ctx.fillStyle = '#ffffff';
-	ctx.font = '700 150px "Helvetica Neue", Helvetica, Arial, sans-serif';
-	ctx.fillText( 'SOUTH PHILADELPHIA', w / 2, 370 );
-	ctx.font = '500 84px "Helvetica Neue", Helvetica, Arial, sans-serif';
-	ctx.fillStyle = '#c9d6ff';
-	ctx.fillText( 'GATES ARE OPEN', w / 2, 540 );
-	ctx.fillText( 'ENJOY THE GAME', w / 2, 650 );
-	// the line score
-	const top = 800, rowH = 110;
-	ctx.font = '700 80px "Helvetica Neue", Helvetica, Arial, sans-serif';
-	const cols = [ '', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'R', 'H', 'E' ];
-	const x0 = 60, cw = ( w - 120 ) / ( cols.length + 2 );
-	cols.forEach( ( c, i ) => {
+	ctx.fillText( 'Coca-Cola', colW / 2, h * 0.44, colW - 30 );
+	ctx.fillStyle = '#16120e';
+	ctx.fillRect( 8, h * 0.5, colW - 16, h * 0.49 );
+	ctx.fillStyle = '#e8781e';
+	ctx.font = '800 56px "Helvetica Neue", Arial, sans-serif';
+	[ 'MEDICINE', 'WITH', 'MUSCLE' ].forEach( ( t, i ) => ctx.fillText( t, colW / 2, h * 0.58 + i * 66, colW - 30 ) );
+	ctx.fillStyle = '#e6c21c';
+	ctx.fillRect( colW * 0.18, h * 0.8, colW * 0.64, h * 0.1 );
+	ctx.fillStyle = '#1b3f8e';
+	ctx.font = 'italic 800 54px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( 'Motrin', colW / 2, h * 0.87, colW * 0.6 );
 
-		ctx.fillStyle = i >= 10 ? '#ffd24a' : '#9fb3e6';
-		ctx.fillText( c, x0 + ( i + 2.5 ) * cw, top + rowH / 2 );
+	// ---- the amber matrix
+	const mx = colW + 10, mw = w - mx - 8, mh = h * 0.47;
+	ctx.fillStyle = '#0a0703';
+	ctx.fillRect( mx, 8, mw, mh );
+	ctx.textAlign = 'left';
+	const txt = ( t, x, y, size = 40, color = amber, align = 'left' ) => {
+
+		ctx.fillStyle = color;
+		ctx.font = `700 ${ size }px "Courier New", Courier, monospace`;
+		ctx.textAlign = align;
+		ctx.shadowColor = color;
+		ctx.shadowBlur = 6;
+		ctx.fillText( t, x, y );
+		ctx.shadowBlur = 0;
+
+	};
+
+	const S = st || { teams: { away: { abbr: 'TB', club: 'Rays' }, home: { abbr: 'PHI', club: 'Phillies' } }, line: [], score: { away: 0, home: 0 }, hits: { away: 0, home: 0 }, errors: { away: 0, home: 0 }, count: [ 0, 0 ], outs: 0, lineup: [], dueUp: [], today: [], batter: null, video: { kind: 'title' } };
+	// the at-bat
+	const c1 = mx + 16;
+	txt( 'AT-BAT:', c1, 58, 30 );
+	if ( S.batter ) txt( S.batter.last, c1 + 20, 102, 42 );
+	txt( 'TODAY', c1, 156, 32 );
+	const tdy = S.today.length ? `${ S.today.filter( ( t ) => /SINGLED|DOUBLED|TRIPLED|HOMERED/.test( t ) ).length } FOR ${ S.today.filter( ( t ) => ! /WALKED|HIT BY|SACRIFICED/.test( t ) ).length }` : '0 FOR 0';
+	txt( tdy, c1 + 20, 196, 36 );
+	txt( `${ ( S.batting === 'home' ? S.teams.away : S.teams.home ).club.toUpperCase() }`, c1, 262, 30 );
+	txt( 'DUE UP:', c1, 298, 30 );
+	S.dueUp.forEach( ( d, i ) => txt( d, c1 + 12, 336 + i * 36, 30 ) );
+	// today's at-bats
+	const c2 = mx + mw * 0.3;
+	ctx.strokeStyle = amber;
+	ctx.lineWidth = 2;
+	ctx.strokeRect( c2, 22, mw * 0.36, mh - 150 );
+	if ( S.batter ) {
+
+		ctx.fillStyle = '#5a3a08';
+		ctx.fillRect( c2 + 4, 26, mw * 0.36 - 8, 52 );
+		txt( `${ S.batter.num }  ${ S.batter.last }  ${ S.batter.pos }`, c2 + 16, 66, 36 );
+
+	}
+
+	S.today.slice( - 4 ).forEach( ( t, i ) => txt( t, c2 + 16, 130 + i * 44, 28 ) );
+	// the lineup
+	const c3 = mx + mw * 0.7;
+	txt( ( S.batting === 'home' ? S.teams.home.club : S.teams.away.club ).toUpperCase(), c3 + mw * 0.14, 50, 34, amber, 'center' );
+	S.lineup.forEach( ( l, i ) => {
+
+		txt( `${ l.up ? '*' : ' ' }${ String( l.num ).padStart( 2, ' ' ) } ${ l.last }`, c3, 92 + i * 33, 28 );
+		txt( l.pos, mx + mw - 14, 92 + i * 33, 28, amber, 'right' );
 
 	} );
-	for ( const [ r, name ] of [ [ 1, 'VISITORS' ], [ 2, 'PHILLIES' ] ] ) {
+	// the line score and the count
+	const ly = mh - 110;
+	const cols = mw * 0.64 / 13;
+	const lx = mx + 16;
+	for ( let i = 1; i <= 9; i ++ ) txt( String( i ), lx + ( i + 2.6 ) * cols, ly, 32, amber, 'center' );
+	[ 'R', 'H', 'E' ].forEach( ( t, i ) => txt( t, lx + ( 12.2 + i * 0.9 ) * cols, ly, 32, amber, 'center' ) );
+	[ [ 'away', 0 ], [ 'home', 1 ] ].forEach( ( [ side, r ] ) => {
 
-		const y = top + r * rowH + rowH / 2;
-		ctx.fillStyle = r === 2 ? '#c8102e' : '#1d3a8a';
-		ctx.fillRect( x0, top + r * rowH + 8, cw * 2.2, rowH - 16 );
-		ctx.fillStyle = '#ffffff';
-		ctx.textAlign = 'center';
-		ctx.fillText( name, x0 + cw * 1.1, y, cw * 2 );
-		for ( let i = 1; i < cols.length; i ++ ) {
+		const y = ly + 42 + r * 42;
+		txt( S.teams[ side ].club.toUpperCase().slice( 0, 8 ), lx, y, 32 );
+		for ( let i = 1; i <= 9; i ++ ) {
 
-			ctx.fillStyle = i >= 10 ? '#ffd24a' : '#ffffff';
-			ctx.fillText( i >= 10 ? '0' : '', x0 + ( i + 2.5 ) * cw, y );
+			const v = S.line[ i - 1 ]?.[ r ];
+			if ( v != null ) txt( String( v ), lx + ( i + 2.6 ) * cols, y, 32, amber, 'center' );
 
 		}
 
+		[ S.score[ side ], S.hits[ side ], S.errors[ side ] ].forEach( ( v, i ) => txt( String( v ), lx + ( 12.2 + i * 0.9 ) * cols, y, 32, amber, 'center' ) );
+
+	} );
+	const cx = mx + mw * 0.78;
+	[ [ 'BALLS', S.count[ 0 ] ], [ 'STRIKES', S.count[ 1 ] ], [ 'OUTS', S.outs ] ].forEach( ( [ k, v ], i ) => {
+
+		txt( k, cx, ly + i * 40, 30 );
+		txt( String( v ), mx + mw - 18, ly + i * 40, 34, amber, 'right' );
+
+	} );
+
+	// ---- the video board
+	const vx = mx, vy = mh + 22, vw = mw, vh = h - vy - 44;
+	const grad = ctx.createLinearGradient( vx, vy, vx + vw, vy + vh );
+	const v = S.video || { kind: 'title' };
+	const phi = S.batting === 'home';
+	grad.addColorStop( 0, v.kind === 'batter' ? ( phi ? '#8d0b1c' : '#0a2656' ) : '#0b2a6f' );
+	grad.addColorStop( 1, v.kind === 'batter' ? ( phi ? '#3a0710' : '#08162f' ) : '#6b0a18' );
+	ctx.fillStyle = grad;
+	ctx.fillRect( vx, vy, vw, vh );
+	ctx.textAlign = 'center';
+	ctx.fillStyle = '#ffffff';
+	ctx.shadowColor = 'rgba( 0, 0, 0, 0.6 )';
+	ctx.shadowBlur = 16;
+	if ( v.kind === 'batter' && S.batter ) {
+
+		ctx.font = '900 360px "Helvetica Neue", Arial, sans-serif';
+		ctx.globalAlpha = 0.35;
+		ctx.fillText( S.batter.num, vx + vw * 0.72, vy + vh * 0.78 );
+		ctx.globalAlpha = 1;
+		ctx.font = '900 104px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( S.batter.name, vx + vw * 0.5, vy + vh * 0.56, vw - 80 );
+		ctx.font = '700 48px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( `#${ S.batter.num }  ·  ${ S.batter.pos }`, vx + vw * 0.5, vy + vh * 0.74 );
+
+	} else if ( v.kind === 'final' ) {
+
+		ctx.font = '900 118px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( 'WORLD', vx + vw / 2, vy + vh * 0.42 );
+		ctx.fillText( 'CHAMPIONS!', vx + vw / 2, vy + vh * 0.72, vw - 60 );
+
+	} else if ( v.kind === 'pitcher' ) {
+
+		ctx.font = '700 58px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( 'NOW PITCHING', vx + vw / 2, vy + vh * 0.4 );
+		ctx.font = '900 100px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( `#${ v.num } ${ ( v.name || '' ).toUpperCase() }`, vx + vw / 2, vy + vh * 0.66, vw - 60 );
+
+	} else {
+
+		ctx.font = '900 92px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( 'WORLD SERIES 2008', vx + vw / 2, vy + vh * 0.42, vw - 60 );
+		ctx.font = '700 64px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( S.inning ? `${ S.half === 'top' ? 'TOP' : 'BOTTOM' } ${ S.inning }  ·  ${ S.teams.away.abbr } ${ S.score.away }  ${ S.teams.home.abbr } ${ S.score.home }` : 'GAME 5', vx + vw / 2, vy + vh * 0.68, vw - 60 );
+
 	}
+
+	ctx.shadowBlur = 0;
+	ctx.fillStyle = '#9aa3ad';
+	ctx.font = '600 24px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( 'PHILIPS', vx + vw / 2, h - 14 );
 
 }
