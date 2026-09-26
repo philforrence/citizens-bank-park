@@ -60,6 +60,7 @@ export class Exterior {
 	// with a green steel grille onto the concourse; granite at the foot, a precast band and coping above.
 	let u = in.uv.x; let v = in.uv.y - ${ STREET.toFixed( 4 ) };
 	let bay = fract( u / 7.5 ) * 7.5;
+	let bayId = floor( u / 7.5 );
 	let row = floor( v / 0.075 );
 	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
 	// the courses fade to their average where they get finer than a pixel (no moire)
@@ -69,21 +70,55 @@ export class Exterior {
 	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, max( fr, fb ) );
 	var c = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
 	var rough = 0.85;
+	var e = vec3f( 0.0 );
+	let night = smoothstep( 0.1, 0.7, frame.night );
+	// the piers: rose cast stone, rusticated in 0.6 m courses, from the base up to the coping
+	let pier = bay < 1.3 && v > 0.6 && v < 6.2;
+	if ( pier ) {
+		let jv = abs( fract( v / 0.6 ) - 0.5 ) * 0.6;
+		let joint = 1.0 - ( 1.0 - smoothstep( 0.012, 0.03, 0.3 - jv ) ) * ( 1.0 - clamp( fwidth( v ) * 15.0, 0.0, 1.0 ) ) * 0.35;
+		c = vec3f( 0.6, 0.45, 0.37 ) * joint * ( 0.93 + 0.08 * mx_noise_float2( vec2f( u, v ) * 2.0 ) );
+		rough = 0.8;
+	}
+	// what fills each bay: the concourse behind green grilles, a glass curtain wall, or ticket windows
+	let kind = fract( sin( bayId * 12.9898 ) * 43758.5453 );
 	let opening = bay > 1.3 && bay < 7.2 && v > 0.9 && v < 4.7;
 	if ( opening ) {
-		// the concourse behind, in shade, through vertical bars
-		// bars 14 cm apart, blurred to their average where they're finer than a pixel (no moire)
-		let fb = fwidth( u ) / 0.14;
-		let bars = mix( smoothstep( 0.8 - fb, 0.8 + fb, fract( ( bay - 1.3 ) / 0.14 ) ), 0.2, clamp( fb * 1.5, 0.0, 1.0 ) );
-		let bar = bars + step( 4.5, v ) + step( v, 1.1 );
-		c = mix( vec3f( 0.025, 0.025, 0.028 ), vec3f( 0.02, 0.09, 0.055 ), clamp( bar, 0.0, 1.0 ) );
-		rough = mix( 0.9, 0.5, clamp( bar, 0.0, 1.0 ) );
-		// the concourse's lights inside, after dark
-		s.emissive = vec3f( 1.0, 0.68, 0.36 ) * ( 1.0 - clamp( bar, 0.0, 1.0 ) ) * smoothstep( 0.1, 0.7, frame.night ) * 0.22 * ( 0.5 + 0.5 * smoothstep( 1.0, 4.0, v ) );
+		let ou = bay - 1.3;
+		if ( kind < 0.55 ) {
+			// the concourse behind, in shade, through vertical bars 14 cm apart (averaged when too fine)
+			let fbar = fwidth( u ) / 0.14;
+			let bars = mix( smoothstep( 0.8 - fbar, 0.8 + fbar, fract( ou / 0.14 ) ), 0.2, clamp( fbar * 1.5, 0.0, 1.0 ) );
+			let bar = bars + step( 4.5, v ) + step( v, 1.1 );
+			c = mix( vec3f( 0.025, 0.025, 0.028 ), vec3f( 0.02, 0.09, 0.055 ), clamp( bar, 0.0, 1.0 ) );
+			rough = mix( 0.9, 0.5, clamp( bar, 0.0, 1.0 ) );
+			e = vec3f( 1.0, 0.68, 0.36 ) * ( 1.0 - clamp( bar, 0.0, 1.0 ) ) * night * 0.22 * ( 0.5 + 0.5 * smoothstep( 1.0, 4.0, v ) );
+		} else if ( kind < 0.82 ) {
+			// glass curtain wall on white mullions, 1.5 m grid
+			let mu = step( abs( fract( ou / 1.475 ) - 0.5 ), 0.03 ) + step( abs( fract( ( v - 0.9 ) / 1.27 ) - 0.5 ), 0.03 );
+			c = mix( vec3f( 0.07, 0.1, 0.13 ), vec3f( 0.8 ), clamp( mu, 0.0, 1.0 ) );
+			rough = mix( 0.06, 0.4, clamp( mu, 0.0, 1.0 ) );
+			e = vec3f( 1.0, 0.85, 0.62 ) * ( 1.0 - clamp( mu, 0.0, 1.0 ) ) * night * 0.35;
+		} else {
+			// ticket windows: glazed bays 1.3 m wide over a counter, a white home-plate number over each,
+			// TICKETS across the top
+			let wb = fract( ou / 1.475 ) * 1.475;
+			let glass = wb > 0.12 && wb < 1.35 && v > 1.15 && v < 2.7;
+			c = vec3f( 0.34, 0.33, 0.31 );
+			rough = 0.7;
+			if ( glass ) { c = vec3f( 0.05, 0.07, 0.08 ); rough = 0.08; e = vec3f( 1.0, 0.9, 0.7 ) * night * 0.45; }
+			let pc = vec2f( wb - 0.74, v - 3.05 );
+			let plate = abs( pc.x ) < 0.2 && pc.y < 0.18 && pc.y > - 0.18 + abs( pc.x ) * 0.6;
+			if ( plate ) { c = vec3f( 0.85 ); e = vec3f( 0.6 ) * night * 0.4; }
+			if ( v > 3.6 && v < 4.4 ) { c = vec3f( 0.05, 0.1, 0.25 ); let t = step( 0.5, fract( ou / 0.32 ) ) * step( 3.8, v ) * step( v, 4.2 ); c = mix( c, vec3f( 0.9 ), t * 0.8 ); e = vec3f( 0.9 ) * t * night * 0.6; }
+		}
 	}
-	if ( v < 0.6 ) { c = vec3f( 0.3, 0.29, 0.28 ) * ( 0.9 + 0.1 * mx_noise_float2( vec2f( u, v ) * 3.0 ) ); rough = 0.6; }
-	if ( v > 5.0 && v < 5.45 ) { c = vec3f( 0.55, 0.5, 0.42 ); rough = 0.7; }
+	// the base: red polished granite 1.5 m high with a black band at the foot
+	if ( v < 1.5 && ! opening ) { c = vec3f( 0.28, 0.12, 0.1 ) * ( 0.9 + 0.2 * mx_noise_float2( vec2f( u, v ) * 11.0 ) ); rough = 0.3; }
+	if ( v < 0.15 ) { c = vec3f( 0.03 ); rough = 0.35; }
+	if ( v > 5.0 && v < 5.45 && ! pier ) { c = vec3f( 0.55, 0.5, 0.42 ); rough = 0.7; }
 	if ( v > 6.2 ) { c = vec3f( 0.55, 0.5, 0.42 ); rough = 0.7; }
+	s.emissive = e;
 	s.albedo = c;
 	s.roughness = rough;
 `,
