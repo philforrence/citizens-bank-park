@@ -19,8 +19,10 @@ const FACADE = 6.5; // brick base height above the street
 
 // The gates: a point on the footprint's edge where each opens, its width, and its name
 export const GATES = [
-	{ name: 'THIRD BASE GATE', at: [ - 80.95, 32.03 ], width: 28 },
-	{ name: 'FIRST BASE GATE', at: [ 73.5, 25.48 ], width: 26 },
+	// the Third and First Base Gates are the stadium's open maroon frame (`open`: no brick across that
+	// width), their gate line between two stair towers that carry the light towers
+	{ name: 'THIRD BASE GATE', at: [ - 80.95, 32.03 ], width: 30, open: 56, frame: true },
+	{ name: 'FIRST BASE GATE', at: [ 73.5, 25.48 ], width: 30, open: 56, frame: true },
 	{ name: 'LEFT FIELD GATE', at: [ - 103.86, - 135.3 ], width: 28 },
 	{ name: 'HOME PLATE GATE', at: [ 0, 91.53 ], width: 16 },
 ];
@@ -75,8 +77,8 @@ export class Exterior {
 		this.brick = standard( {
 			name: 'facade-brick', color: new Color( 0.24, 0.065, 0.038 ), roughness: 0.85, modules: [ commonModule ],
 			surface: /* wgsl */`
-	// uv: x along the wall (m), y height above the street (m). Bays of 7.5 m: a brick pier, then an opening
-	// with a green steel grille onto the concourse; granite at the foot, a precast band and coping above.
+	// uv: x along the wall (m), y height above the street (m). The ground storey in rose granite with
+	// store fronts and ticket windows in some of its 7.5 m bays; brick above a precast band.
 	let u = in.uv.x; let v = in.uv.y - ${ STREET.toFixed( 4 ) };
 	let bay = fract( u / 7.5 ) * 7.5;
 	let bayId = floor( u / 7.5 );
@@ -91,33 +93,38 @@ export class Exterior {
 	var rough = 0.85;
 	var e = vec3f( 0.0 );
 	let night = smoothstep( 0.1, 0.7, frame.night );
-	// the piers: rose cast stone, rusticated in 0.6 m courses, from the base up to the coping
-	let pier = bay < 1.3 && v > 0.6 && v < 6.2;
-	if ( pier ) {
-		let jv = abs( fract( v / 0.6 ) - 0.5 ) * 0.6;
-		let joint = 1.0 - ( 1.0 - smoothstep( 0.012, 0.03, 0.3 - jv ) ) * ( 1.0 - clamp( fwidth( v ) * 15.0, 0.0, 1.0 ) ) * 0.35;
-		c = vec3f( 0.6, 0.45, 0.37 ) * joint * ( 0.93 + 0.08 * mx_noise_float2( vec2f( u, v ) * 2.0 ) );
-		rough = 0.8;
+	// the ground storey (to 5 m) in rose granite: flamed ashlar in 1.2 x 0.6 m blocks with 2 cm reveals
+	// over a black granite band, polished darker rose below it
+	let granite = v < 5.0;
+	if ( granite ) {
+		let gr = floor( v / 0.6 );
+		let gx = u / 1.2 + 0.5 * ( gr % 2.0 );
+		let jv = min( fract( v / 0.6 ), 1.0 - fract( v / 0.6 ) ) * 0.6;
+		let ju = min( fract( gx ), 1.0 - fract( gx ) ) * 1.2;
+		let reveal = 1.0 - ( 1.0 - smoothstep( 0.008, 0.02, min( jv, ju ) ) ) * ( 1.0 - clamp( fwidth( v ) * 20.0, 0.0, 1.0 ) ) * 0.45;
+		let tint = 0.92 + 0.1 * fract( sin( dot( vec2f( floor( gx ), gr ), vec2f( 12.9, 78.2 ) ) ) * 43758.5 );
+		c = vec3f( 0.46, 0.3, 0.22 ) * tint * reveal * ( 0.94 + 0.08 * mx_noise_float2( vec2f( u, v ) * 6.0 ) );
+		rough = 0.75;
+		if ( v < 1.3 ) { c = vec3f( 0.025 ); rough = 0.3; }
+		if ( v < 1.1 ) { c = vec3f( 0.21, 0.1, 0.085 ) * ( 0.9 + 0.15 * mx_noise_float2( vec2f( u, v ) * 9.0 ) ); rough = 0.25; }
 	}
-	// what fills each bay: the concourse behind green grilles, a glass curtain wall, or ticket windows
+	// what fills each bay: mostly plain granite (now and then a steel service door), dark glass store
+	// fronts on bronze mullions, or ticket windows
 	let kind = fract( sin( bayId * 12.9898 ) * 43758.5453 );
-	let opening = bay > 1.3 && bay < 7.2 && v > 0.9 && v < 4.7;
+	let opening = bay > 1.3 && bay < 7.2 && v > 0.9 && v < 4.7 && kind > 0.4;
+	let pier = false;
+	if ( kind < 0.14 && abs( bay - 4.25 ) < 0.9 && v < 2.5 ) {
+		c = vec3f( 0.1, 0.03, 0.03 ) * ( 0.9 + 0.1 * step( 0.5, fract( v / 0.5 ) ) ); rough = 0.5;
+		if ( abs( bay - 4.25 ) > 0.84 || v > 2.44 ) { c = vec3f( 0.05, 0.02, 0.02 ); }
+	}
 	if ( opening ) {
 		let ou = bay - 1.3;
-		if ( kind < 0.55 ) {
-			// the concourse behind, in shade, through vertical bars 14 cm apart (averaged when too fine)
-			let fbar = fwidth( u ) / 0.14;
-			let bars = mix( smoothstep( 0.8 - fbar, 0.8 + fbar, fract( ou / 0.14 ) ), 0.2, clamp( fbar * 1.5, 0.0, 1.0 ) );
-			let bar = bars + step( 4.5, v ) + step( v, 1.1 );
-			c = mix( vec3f( 0.025, 0.025, 0.028 ), vec3f( 0.02, 0.09, 0.055 ), clamp( bar, 0.0, 1.0 ) );
-			rough = mix( 0.9, 0.5, clamp( bar, 0.0, 1.0 ) );
-			e = vec3f( 1.0, 0.68, 0.36 ) * ( 1.0 - clamp( bar, 0.0, 1.0 ) ) * night * 0.22 * ( 0.5 + 0.5 * smoothstep( 1.0, 4.0, v ) );
-		} else if ( kind < 0.82 ) {
-			// glass curtain wall on white mullions, 1.5 m grid
-			let mu = step( abs( fract( ou / 1.475 ) - 0.5 ), 0.03 ) + step( abs( fract( ( v - 0.9 ) / 1.27 ) - 0.5 ), 0.03 );
-			c = mix( vec3f( 0.07, 0.1, 0.13 ), vec3f( 0.8 ), clamp( mu, 0.0, 1.0 ) );
-			rough = mix( 0.06, 0.4, clamp( mu, 0.0, 1.0 ) );
-			e = vec3f( 1.0, 0.85, 0.62 ) * ( 1.0 - clamp( mu, 0.0, 1.0 ) ) * night * 0.35;
+		if ( kind < 0.78 ) {
+			// dark glass on bronze-maroon mullions, 1.5 m grid, lit inside after dark
+			let mu = step( abs( fract( ou / 1.475 ) - 0.5 ), 0.035 ) + step( abs( fract( ( v - 0.9 ) / 1.27 ) - 0.5 ), 0.035 );
+			c = mix( vec3f( 0.035, 0.045, 0.055 ), vec3f( 0.042, 0.016, 0.018 ), clamp( mu, 0.0, 1.0 ) );
+			rough = mix( 0.05, 0.4, clamp( mu, 0.0, 1.0 ) );
+			e = vec3f( 1.0, 0.86, 0.64 ) * ( 1.0 - clamp( mu, 0.0, 1.0 ) ) * night * 0.3;
 		} else {
 			// ticket windows: glazed bays 1.3 m wide over a counter, a white home-plate number over each,
 			// TICKETS across the top
@@ -132,11 +139,9 @@ export class Exterior {
 			if ( v > 3.6 && v < 4.4 ) { c = vec3f( 0.05, 0.1, 0.25 ); let t = step( 0.5, fract( ou / 0.32 ) ) * step( 3.8, v ) * step( v, 4.2 ); c = mix( c, vec3f( 0.9 ), t * 0.8 ); e = vec3f( 0.9 ) * t * night * 0.6; }
 		}
 	}
-	// the base: red polished granite 1.5 m high with a black band at the foot
-	if ( v < 1.5 && ! opening ) { c = vec3f( 0.28, 0.12, 0.1 ) * ( 0.9 + 0.2 * mx_noise_float2( vec2f( u, v ) * 11.0 ) ); rough = 0.3; }
-	if ( v < 0.15 ) { c = vec3f( 0.03 ); rough = 0.35; }
-	if ( v > 5.0 && v < 5.45 && ! pier ) { c = vec3f( 0.55, 0.5, 0.42 ); rough = 0.7; }
-	if ( v > 6.2 ) { c = vec3f( 0.55, 0.5, 0.42 ); rough = 0.7; }
+	// a precast band over the granite, and the cap
+	if ( v > 5.0 && v < 5.35 ) { c = vec3f( 0.5, 0.46, 0.4 ); rough = 0.7; }
+	if ( v > 6.25 ) { c = vec3f( 0.5, 0.46, 0.4 ); rough = 0.7; }
 	s.emissive = e;
 	s.albedo = c;
 	s.roughness = rough;
@@ -157,8 +162,8 @@ export class Exterior {
 	s.albedo = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
 `,
 		} );
-		// the storeys over the base: brick with punched windows on a 3.75 m rhythm, cast-stone sills, a
-		// string course at each floor; offices lit behind them after dark
+		// the storeys over the base: plain red brick in big planes, tall dark-glass slots every 7.5 m (the
+		// offices behind them lit after dark), a soldier course at each floor
 		this.brickUpper = standard( {
 			name: 'facade-upper', color: new Color( 0.24, 0.065, 0.038 ), roughness: 0.85, modules: [ commonModule ],
 			surface: /* wgsl */`
@@ -172,23 +177,22 @@ export class Exterior {
 	var c = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
 	var rough = 0.85;
 	let fl = fract( v / 3.6 ) * 3.6;
-	let bay = fract( u / 3.75 ) * 3.75;
-	let win = fl > 0.95 && fl < 2.95 && bay > 1.0 && bay < 2.75;
-	let sill = fl > 0.8 && fl < 0.95 && bay > 0.9 && bay < 2.85;
-	if ( fl < 0.25 ) { c = vec3f( 0.55, 0.5, 0.42 ); rough = 0.7; }
-	if ( sill ) { c = vec3f( 0.6, 0.55, 0.47 ); rough = 0.7; }
+	// big blank planes of brick: windows only in tall dark-glass slots, one every 7.5 m, a soldier course
+	// at each floor
+	let bay = fract( u / 7.5 ) * 7.5 - 3.75;
+	let win = abs( bay ) < 0.45 && v > 0.9;
+	let sill = false;
+	if ( fl < 0.12 && ! win ) { c = c * 0.82; }
 	var e = vec3f( 0.0 );
 	if ( win ) {
-		// glass with a mullion, and a room behind it (interior mapping: the view ray traced into a box
-		// 4 m deep, its back wall, side walls, floor and ceiling), lit or dark, some with blinds down
-		let mull = step( abs( bay - 1.875 ), 0.03 );
+		let mull = max( step( abs( fl - 0.2 ), 0.2 ), step( 0.43, abs( bay ) ) );
 		let cell = floor( vec2f( u / 3.75, v / 3.6 ) );
 		let hh = fract( sin( vec3f( dot( cell, vec2f( 12.9898, 78.233 ) ), dot( cell, vec2f( 39.3, 11.1 ) ), dot( cell, vec2f( 73.1, 52.2 ) ) ) ) * 43758.5453 );
 		let N = normalize( in.N );
 		let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), N ) );
 		let Vd = normalize( in.P - frame.cameraPos );
 		let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - N ), 0.05 ) );
-		let ro = vec3f( bay - 1.875, fl - 0.95, 0.0 );
+		let ro = vec3f( bay, fl - 0.4, 0.0 );
 		let tx = ( select( -2.2, 2.2, rd.x > 0.0 ) - ro.x ) / rd.x;
 		let ty = ( select( -0.95, 2.05, rd.y > 0.0 ) - ro.y ) / rd.y;
 		let tz = 4.0 / rd.z;
@@ -218,7 +222,7 @@ export class Exterior {
 	s.emissive = e;
 `,
 		} );
-		this.coping = standard( { name: 'facade-coping-green', color: new Color( 0.03, 0.09, 0.06 ), roughness: 0.45, metalness: 0.5 } );
+		this.coping = standard( { name: 'facade-cap', color: new Color( 0.36, 0.33, 0.28 ), roughness: 0.7 } );
 		this.stone = standard( { name: 'precast', color: new Color( 0.55, 0.5, 0.42 ), roughness: 0.7 } );
 		this.copper = standard( { name: 'copper-roof', color: new Color( 0.12, 0.3, 0.24 ), roughness: 0.55, metalness: 0.3 } );
 		this.granite = standard( { name: 'granite', color: new Color( 0.22, 0.21, 0.21 ), roughness: 0.45 } );
@@ -523,12 +527,14 @@ export class Exterior {
 		const T = 0.8;
 		let u = 0;
 		this.gateEdges = [];
-		// how tall the brick is: four storeys of offices and shops either side of the Third Base, First
-		// Base and Home Plate Gates, three round the rest of the infield, the one-storey base in the outfield
+		// how tall the brick is: the plain brick masses flanking the Third and First Base Gates' frames,
+		// four storeys by the Home Plate entrance, three round the rest of the infield, the one-storey base
+		// in the outfield
 		const heightOf = ( A, B ) => {
 
 			const c = lerp2( A, B, 0.5 );
-			if ( [ GATES[ 0 ], GATES[ 1 ], GATES[ 3 ] ].some( ( g ) => segLen( g.at, c ) < 46 ) ) return 16;
+			if ( [ GATES[ 0 ], GATES[ 1 ] ].some( ( g ) => segLen( g.at, c ) < 70 ) ) return 20;
+			if ( segLen( GATES[ 3 ].at, c ) < 46 ) return 16;
 			return c[ 1 ] > - 60 ? 11.4 : FACADE;
 
 		};
@@ -547,7 +553,8 @@ export class Exterior {
 				const off = Math.abs( ( g.at[ 0 ] - a[ 0 ] ) * nx + ( g.at[ 1 ] - a[ 1 ] ) * nz );
 				if ( t > 0 && t < len && off < 1.0 ) {
 
-					cuts.push( [ Math.max( 0, t - g.width / 2 ), Math.min( len, t + g.width / 2 ) ] );
+					const hw = ( g.open || g.width ) / 2;
+					cuts.push( [ Math.max( 0, t - hw ), Math.min( len, t + hw ) ] );
 					g.edge = { a, ux, uz, nx, nz, t };
 
 				}
@@ -578,15 +585,15 @@ export class Exterior {
 
 					up.add( [ A[ 0 ], yb, A[ 1 ] ], [ B[ 0 ], yb, B[ 1 ] ], [ B[ 0 ], y1, B[ 1 ] ], [ A[ 0 ], y1, A[ 1 ] ], [ nx, 0, nz ], u + s, u + e );
 					up.add( [ Bi[ 0 ], yb, Bi[ 1 ] ], [ Ai[ 0 ], yb, Ai[ 1 ] ], [ Ai[ 0 ], y1, Ai[ 1 ] ], [ Bi[ 0 ], y1, Bi[ 1 ] ], [ - nx, 0, - nz ], u + e, u + s );
-					// green metal coping along the top
-					const o = 0.14;
-					trim.add( [ A[ 0 ] + nx * o, y1 - 0.55, A[ 1 ] + nz * o ], [ B[ 0 ] + nx * o, y1 - 0.55, B[ 1 ] + nz * o ], [ B[ 0 ] + nx * o, y1 + 0.35, B[ 1 ] + nz * o ], [ A[ 0 ] + nx * o, y1 + 0.35, A[ 1 ] + nz * o ], [ nx, 0, nz ] );
-					trim.add( [ A[ 0 ] + nx * o, y1 + 0.35, A[ 1 ] + nz * o ], [ B[ 0 ] + nx * o, y1 + 0.35, B[ 1 ] + nz * o ], [ Bi[ 0 ] - nx * o, y1 + 0.35, Bi[ 1 ] - nz * o ], [ Ai[ 0 ] - nx * o, y1 + 0.35, Ai[ 1 ] - nz * o ], [ 0, 1, 0 ] );
+					// a thin precast cap along the parapet
+					const o = 0.06;
+					trim.add( [ A[ 0 ] + nx * o, y1 - 0.2, A[ 1 ] + nz * o ], [ B[ 0 ] + nx * o, y1 - 0.2, B[ 1 ] + nz * o ], [ B[ 0 ] + nx * o, y1 + 0.12, B[ 1 ] + nz * o ], [ A[ 0 ] + nx * o, y1 + 0.12, A[ 1 ] + nz * o ], [ nx, 0, nz ] );
+					trim.add( [ A[ 0 ] + nx * o, y1 + 0.12, A[ 1 ] + nz * o ], [ B[ 0 ] + nx * o, y1 + 0.12, B[ 1 ] + nz * o ], [ Bi[ 0 ] - nx * o, y1 + 0.12, Bi[ 1 ] - nz * o ], [ Ai[ 0 ] - nx * o, y1 + 0.12, Ai[ 1 ] - nz * o ], [ 0, 1, 0 ] );
 
 				}
 				// coping on top and the piece's ends
 				cap.add( [ A[ 0 ] + nx * 0.15, y1, A[ 1 ] + nz * 0.15 ], [ B[ 0 ] + nx * 0.15, y1, B[ 1 ] + nz * 0.15 ], [ Bi[ 0 ] - nx * 0.15, y1, Bi[ 1 ] - nz * 0.15 ], [ Ai[ 0 ] - nx * 0.15, y1, Ai[ 1 ] - nz * 0.15 ], [ 0, 1, 0 ] );
-				for ( const [ P0, P1, d ] of [ [ A, Ai, - 1 ], [ B, Bi, 1 ] ] ) cap.add( [ P0[ 0 ], y0, P0[ 1 ] ], [ P1[ 0 ], y0, P1[ 1 ] ], [ P1[ 0 ], y1, P1[ 1 ] ], [ P0[ 0 ], y1, P0[ 1 ] ], [ ux * d, 0, uz * d ] );
+				for ( const [ P0, P1, d ] of [ [ A, Ai, - 1 ], [ B, Bi, 1 ] ] ) up.add( [ P0[ 0 ], y0, P0[ 1 ] ], [ P1[ 0 ], y0, P1[ 1 ] ], [ P1[ 0 ], y1, P1[ 1 ] ], [ P0[ 0 ], y1, P0[ 1 ] ], [ ux * d, 0, uz * d ], 0, T );
 				// collider
 				const c = lerp2( A, B, 0.5 );
 				const w = this.field.toWorld( c[ 0 ] - nx * T / 2, c[ 1 ] - nz * T / 2 );
@@ -623,16 +630,21 @@ export class Exterior {
 		const steel = this.gateSteel || ( this.gateSteel = standard( { name: 'gate-steel', color: new Color( 0.13, 0.035, 0.03 ), roughness: 0.55, metalness: 0.4 } ) );
 		steel.underwaterLighting = 'none';
 		const q = new Quads();
-		const half = W / 2 + 1.2, out = 4.6, inn = - 2.6, under = y0 + 4.9, top = y0 + 6.0;
+		// the frame gates' canopy runs the width of the frame, over the stair towers
+		const half = g.frame ? 25 : W / 2 + 1.2, out = g.frame ? 5 : 4.6, inn = - 2.6, under = y0 + ( g.frame ? 5.6 : 4.9 ), top = y0 + ( g.frame ? 6.8 : 6.0 );
 		// the canopy: a deck, its fascia all round, and the steel under it
 		q.add( P( - half, inn, top ), P( half, inn, top ), P( half, out, top ), P( - half, out, top ), [ 0, 1, 0 ] );
-		q.add( P( - half, inn, under ), P( half, inn, under ), P( half, out, under ), P( - half, out, under ), [ 0, - 1, 0 ] );
+		const soffit = new Quads();
+		soffit.add( P( - half, inn, under ), P( half, inn, under ), P( half, out, under ), P( - half, out, under ), [ 0, - 1, 0 ] );
+		// its downlights, in the wet plaza too
+		for ( let sk = - half + 1.5; sk < half; sk += 3 ) if ( this.reflect && /THIRD/.test( g.name ) && Math.abs( sk ) < half - 1 ) this.reflect.push( [ ...P( sk, out - 1.2, under - 0.05 ), 1.0, 0.78, 0.5, 0.9 ] );
 		q.add( P( - half, inn, under ), P( half, inn, under ), P( half, inn, top ), P( - half, inn, top ), [ - nx, 0, - nz ] );
 		for ( const e of [ - 1, 1 ] ) q.add( P( e * half, inn, under ), P( e * half, out, under ), P( e * half, out, top ), P( e * half, inn, top ), [ ux * e, 0, uz * e ] );
-		const nCol = Math.max( 2, Math.round( W / 7.5 ) );
+		const CW = g.frame ? 2 * half - 4 : W;
+		const nCol = Math.max( 2, Math.round( CW / 7.5 ) );
 		for ( let k = 0; k <= nCol; k ++ ) {
 
-			const s = - W / 2 + W * k / nCol;
+			const s = - CW / 2 + CW * k / nCol;
 			// columns out front and at the facade line, knee braces up to the canopy
 			beam( q, P( s, out - 0.8, y0 ), P( s, out - 0.8, under ), 0.4 );
 			beam( q, P( s, out - 0.8, under - 1.4 ), P( s, out - 2.4, under ), 0.18 );
@@ -644,6 +656,19 @@ export class Exterior {
 		}
 
 		beam( q, P( - half, out - 0.8, under - 0.2 ), P( half, out - 0.8, under - 0.2 ), 0.35 );
+		const cs = this.canopySoffit || ( this.canopySoffit = standard( { name: 'canopy-soffit', color: new Color( 0.1, 0.03, 0.03 ), roughness: 0.6, side: 'double',
+			surface: /* wgsl */`
+	// maroon steel deck on joists every 0.6 m, a warm downlight every 3 m in two rows
+	let p = in.P.xz;
+	let j = step( 0.42, abs( fract( ( p.x + p.y ) / 0.6 ) - 0.5 ) );
+	s.albedo = mat.color * mix( 1.0, 0.6, j );
+	let c = abs( fract( ( p.x - p.y ) / 3.0 ) - 0.5 ) * 3.0;
+	let r = abs( fract( ( p.x + p.y ) / 2.4 ) - 0.5 ) * 2.4;
+	let lamp = ( 1.0 - smoothstep( 0.14, 0.18, length( vec2f( c - 1.5, r - 1.2 ) ) ) );
+	s.emissive = vec3f( 1.0, 0.8, 0.52 ) * lamp * mix( 1.0, 5.0, smoothstep( 0.1, 0.7, frame.night ) ) + s.albedo * 0.2;
+` } ) );
+		cs.underwaterLighting = 'none';
+		this.group.add( new Mesh( soffit.geometry(), cs ) );
 		const m = new Mesh( q.geometry(), steel );
 		m.name = 'gate-canopy';
 		m.castShadow = true;
@@ -657,16 +682,12 @@ export class Exterior {
 			ctx.fillRect( 0, 0, w, h );
 			ctx.fillStyle = 'rgba( 255, 255, 255, 0.07 )';
 			ctx.fillRect( 0, 0, w, 8 ); ctx.fillRect( 0, h - 8, w, 8 );
-			// white channel letters with a red outline
-			ctx.font = '800 84px "Helvetica Neue", Helvetica, Arial, sans-serif';
+			// white serif capitals, widely spaced
+			ctx.font = '600 80px "Trajan Pro", Copperplate, "Copperplate Gothic Light", Georgia, serif';
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
-			ctx.lineJoin = 'round';
-			const t = g.name.split( '' ).join( String.fromCharCode( 8202 ) );
-			ctx.lineWidth = 9;
-			ctx.strokeStyle = '#c8102e';
-			ctx.strokeText( t, w / 2, h / 2 + 4 );
-			ctx.fillStyle = '#fff5e8';
+			const t = g.name.split( '' ).join( String.fromCharCode( 8201 ) );
+			ctx.fillStyle = '#fff8ee';
 			ctx.fillText( t, w / 2, h / 2 + 4 );
 
 		}, 'gateSign' );
@@ -689,19 +710,19 @@ export class Exterior {
 		// the gate line: one continuous run of galvanized welded-wire mesh, 3 m, across the whole opening,
 		// with turnstile lanes through it (a tripod turnstile and a round white scanner on a post in each)
 		const fence = this.fenceMat || ( this.fenceMat = standard( {
-			name: 'gate-mesh', color: new Color( 0.4, 0.42, 0.43 ), roughness: 0.4, metalness: 0.7, alphaTest: 0.5, side: 'double',
+			name: 'gate-grid', color: new Color( 0.78, 0.77, 0.73 ), roughness: 0.5, metalness: 0.0, alphaTest: 0.5, side: 'double',
 			surface: /* wgsl */`
-	// uv: x along the fence (m), y height (m): wires every 5 cm across, every 20 cm up, a frame
-	let fx = fwidth( in.uv.x ) / 0.05;
-	let fy = fwidth( in.uv.y ) / 0.2;
-	let vw = smoothstep( 0.38 - fx, 0.42, abs( fract( in.uv.x / 0.05 ) - 0.5 ) );
-	let hw = smoothstep( 0.44 - fy, 0.47, abs( fract( in.uv.y / 0.2 ) - 0.5 ) );
-	let frame = step( in.uv.y, 0.08 ) + step( 2.93, in.uv.y ) + step( abs( in.uv.y - 2.3 ), 0.04 );
+	// white-painted steel grid panels: bars every 10 cm across and 30 cm up, a frame round each 1.8 m panel
+	let fx = fwidth( in.uv.x ) / 0.1;
+	let fy = fwidth( in.uv.y ) / 0.3;
+	let vw = smoothstep( 0.4 - fx, 0.44, abs( fract( in.uv.x / 0.1 ) - 0.5 ) );
+	let hw = smoothstep( 0.42 - fy, 0.46, abs( fract( in.uv.y / 0.3 ) - 0.5 ) );
+	let frame = step( in.uv.y, 0.1 ) + step( 3.38, in.uv.y ) + step( abs( in.uv.y - 2.3 ), 0.05 ) + step( 0.47, abs( fract( in.uv.x / 1.8 ) - 0.5 ) );
 	s.alpha = max( max( max( vw, hw ), clamp( max( fx, fy ) * 0.5, 0.0, 0.55 ) ), clamp( frame, 0.0, 1.0 ) );
 ` } ) );
 		fence.underwaterLighting = 'none';
-		const bq = new Quads(), dq = new Quads(), post = new Quads();
-		const H = 3.0, LANE = 1.4, BAY = 3.6;
+		const bq = new Quads(), dq = new Quads(), post = new Quads(), bb = new Quads(), balls = [];
+		const H = 3.5, LANE = 1.4, BAY = 3.6;
 		const mesh = ( s1, s2, ya, yb ) => {
 
 			const A = P( s1, 0, y0 + ya ), B = P( s2, 0, y0 + ya ), l = Math.abs( s2 - s1 );
@@ -728,6 +749,9 @@ export class Exterior {
 			mesh( a, l0, 0, H );
 			mesh( l1, b, 0, H );
 			mesh( l0, l1, 2.3, H );
+			// maroon posts between the bays, and a baseball on the fixed panel of every other one
+			beam( post, P( a, 0, y0 ), P( a, 0, y0 + H + 0.1 ), 0.14 );
+			if ( k % 2 === 0 ) for ( const side of [ 1, - 1 ] ) balls.push( [ ( a + l0 ) / 2, side ] );
 			for ( const [ p0, p1 ] of [ [ a, l0 ], [ l1, b ] ] ) {
 
 				const c = P( ( p0 + p1 ) / 2, 0, 0 ), w = this.field.toWorld( c[ 0 ], c[ 2 ] );
@@ -786,7 +810,7 @@ export class Exterior {
 
 		// the glass block over the Third Base Gate, between the stair towers: tinted curtain wall on the
 		// concourse levels with a band of louvres on top, lit inside after dark
-		if ( /THIRD/.test( g.name ) ) {
+		if ( /THIRD/.test( g.name ) && ! g.frame ) {
 
 			const gl = this.gateGlass || ( this.gateGlass = standard( { name: 'gate-glass', color: new Color( 0.11, 0.2, 0.26 ), roughness: 0.08, metalness: 0.5, modules: [ commonModule ],
 				surface: /* wgsl */`
@@ -813,7 +837,9 @@ export class Exterior {
 
 		}
 
-		if ( /THIRD|FIRST/.test( g.name ) ) for ( const side of [ - 1, 1 ] ) this._stairTower( P, side * ( W / 2 + 5.5 ), - 7.5, [ nx, nz ] );
+		if ( /THIRD/.test( g.name ) ) this.reflect.push( [ ...P( 0, out, top + 1.0 ), 0.2, 1.0, 0.45, 1.6 ] );
+		// the open stair towers either side of the frame's gate line, carrying the light towers
+		if ( g.frame ) for ( const side of [ - 1, 1 ] ) this._stairTower( P, side * 20, - 1.5, [ nx, nz ] );
 		const bm = new Mesh( bq.geometry(), fence );
 		bm.name = 'gate-mesh';
 		bm.castShadow = true;
@@ -821,6 +847,31 @@ export class Exterior {
 		const disc = this.discMat || ( this.discMat = standard( { name: 'gate-disc', color: new Color( 0.85, 0.85, 0.82 ), roughness: 0.5 } ) );
 		disc.underwaterLighting = 'none';
 		this.group.add( new Mesh( dq.geometry(), disc ) );
+		// the baseballs on the gate panels: 0.9 m, white with red double stitching
+		const bmat = this.ballMat || ( this.ballMat = standard( { name: 'gate-baseball', color: new Color( 0.82, 0.81, 0.77 ), roughness: 0.55, side: 'double',
+			surface: /* wgsl */`
+	let p = ( in.uv - 0.5 ) * 2.0;
+	// two stitched seams curving in from either side
+	let d = min( abs( length( p - vec2f( -1.25, 0.0 ) ) - 0.95 ), abs( length( p - vec2f( 1.25, 0.0 ) ) - 0.95 ) );
+	let st = step( d, 0.07 ) * step( 0.5, fract( atan2( p.y, abs( p.x ) - 1.25 ) * 9.0 ) );
+	s.albedo = mix( mat.color, vec3f( 0.5, 0.02, 0.03 ), max( st, step( d, 0.02 ) ) );
+	s.emissive = s.albedo * smoothstep( 0.1, 0.7, frame.night ) * 0.15;
+` } ) );
+		bmat.underwaterLighting = 'none';
+		for ( const [ sc, side ] of balls ) {
+
+			const o = side * 0.03, r = 0.45, yc = y0 + 1.3;
+			for ( let k = 0; k < 20; k ++ ) {
+
+				const a0 = k / 20 * Math.PI * 2, a1 = ( k + 1 ) / 20 * Math.PI * 2;
+				bb.tri( P( sc, o, yc ), P( sc + Math.cos( a0 ) * r, o, yc + Math.sin( a0 ) * r ), P( sc + Math.cos( a1 ) * r, o, yc + Math.sin( a1 ) * r ), [ nx * side, 0, nz * side ],
+					[ 0.5, 0.5 ], [ 0.5 + Math.cos( a0 ) * 0.5, 0.5 + Math.sin( a0 ) * 0.5 ], [ 0.5 + Math.cos( a1 ) * 0.5, 0.5 + Math.sin( a1 ) * 0.5 ] );
+
+			}
+
+		}
+
+		if ( balls.length ) this.group.add( new Mesh( bb.geometry(), bmat ) );
 
 	}
 
@@ -828,7 +879,7 @@ export class Exterior {
 	// with grey mesh fronts, flights between them, a roof. P( s, o, y ) is the gate's frame, n its outward.
 	_stairTower( P, s, o, n ) {
 
-		const W = 8.5, D = 6.5, top = LEVELS.terraceConcourse + 3.2;
+		const W = 10, D = 7, top = LEVELS.terraceConcourse + 3.2;
 		const q = new Quads(), slab = new Quads(), mesh = new Quads();
 		const hw = W / 2, hd = D / 2;
 		for ( const [ a, b ] of [ [ - hw, - hd ], [ hw, - hd ], [ - hw, hd ], [ hw, hd ] ] ) beam( q, P( s + a, o + b, STREET ), P( s + a, o + b, top ), 0.45 );
@@ -881,28 +932,32 @@ export class Exterior {
 			this.wordTex = canvasTexture( 2048, 224, ( ctx, W, H ) => {
 
 				ctx.clearRect( 0, 0, W, H );
-				// the emblem: a green disc with a white star of eight points
-				const ex = 110, ey = H / 2, r = 86;
-				ctx.fillStyle = '#1f8a4c';
-				ctx.beginPath(); ctx.arc( ex, ey, r, 0, Math.PI * 2 ); ctx.fill();
-				ctx.fillStyle = '#ffffff';
-				ctx.beginPath();
-				for ( let i = 0; i < 16; i ++ ) {
+				// the bank's emblem (2006 on): the daisy wheel, four arrows of three stacked bars pointing in
+				// round a small square
+				const ex = 110, ey = H / 2, R = 92;
+				ctx.fillStyle = '#1e8c64';
+				for ( let k = 0; k < 4; k ++ ) {
 
-					const a = i * Math.PI / 8, rr = i % 2 ? r * 0.32 : r * 0.78;
-					ctx.lineTo( ex + Math.cos( a ) * rr, ey + Math.sin( a ) * rr );
+					ctx.save();
+					ctx.translate( ex, ey );
+					ctx.rotate( k * Math.PI / 2 );
+					for ( let b = 0; b < 3; b ++ ) {
+
+						const r0 = R * ( 0.28 + b * 0.25 ), len = R * ( 0.3 + b * 0.36 );
+						ctx.fillRect( - len / 2, - r0 - R * 0.16, len, R * 0.16 );
+
+					}
+
+					ctx.restore();
 
 				}
 
-				ctx.closePath(); ctx.fill();
-				ctx.fillStyle = '#1f8a4c';
-				ctx.beginPath(); ctx.arc( ex, ey, r * 0.2, 0, Math.PI * 2 ); ctx.fill();
-				ctx.font = '800 180px "Helvetica Neue", Helvetica, Arial, sans-serif';
+				ctx.font = '600 180px "Gill Sans", "Trebuchet MS", "Helvetica Neue", sans-serif';
 				ctx.textBaseline = 'middle';
-				ctx.lineWidth = 12;
-				ctx.strokeStyle = '#0f6b37';
+				ctx.lineWidth = 8;
+				ctx.strokeStyle = '#0f6b47';
 				ctx.strokeText( 'Citizens Bank Park', 230, H / 2 + 8, W - 250 );
-				ctx.fillStyle = '#1a9a50';
+				ctx.fillStyle = '#1e8c64';
 				ctx.fillText( 'Citizens Bank Park', 230, H / 2 + 8, W - 250 );
 
 			}, 'wordmark' );
@@ -950,7 +1005,25 @@ export class Exterior {
 
 		const P = ( s, o, y ) => [ c[ 0 ] + ux * s + nx * o, y, c[ 1 ] + uz * s + nz * o ];
 		const flip = ( ux * nz - uz * nx ) < 0;
-		this._wordmark( P, flip, len - 12, t.y + 1.6, 0.4, [ nx, nz ] );
+		// on a truss between the towers, level with the roof
+		const sy = LEVELS.roof - 1.0, sw = len - 17;
+		this._wordmark( P, flip, sw, sy + 0.9, 0.4, [ nx, nz ] );
+		const tq = new Quads();
+		const hs = len / 2 - 4;
+		for ( const yy of [ sy, sy + 0.9 ] ) for ( const oo of [ - 0.6, 0.6 ] ) beam( tq, P( - hs, oo, yy ), P( hs, oo, yy ), 0.18 );
+		for ( let k = 0; k <= 12; k ++ ) {
+
+			const ss = - hs + 2 * hs * k / 12;
+			beam( tq, P( ss, - 0.6, sy ), P( ss, - 0.6, sy + 0.9 ), 0.1 );
+			beam( tq, P( ss, 0.6, sy ), P( ss, 0.6, sy + 0.9 ), 0.1 );
+			if ( k < 12 ) beam( tq, P( ss, 0.6, sy ), P( ss + 2 * hs / 12, 0.6, sy + 0.9 ), 0.08 );
+
+		}
+
+		const tm = new Mesh( tq.geometry(), this.gateSteel );
+		tm.name = 'gate-sign-truss';
+		tm.castShadow = true;
+		this.group.add( tm );
 
 		// more on the roof's back edge behind home plate and behind first base, facing out
 		const rb = bowl.roofBack;

@@ -475,6 +475,28 @@ export function seatGeometry( down = false ) {
 
 }
 
+// A deck's underside, for a surface shader (world position in.P): light grey ribbed steel deck, dark red
+// girders every 9 m and joists every 3 m across them, strip lights down the middle of each joist bay; a
+// lift for the light bounced up off the floor and the field, so a ceiling is never a black void
+export const SOFFIT_WGSL = /* wgsl */`
+	{
+		let sq = in.P.xz;
+		let sfw = fwidth( sq.x ) + fwidth( sq.y ) + 0.001;
+		let gx = abs( fract( sq.x / 9.0 ) - 0.5 ) * 9.0;
+		let jz = abs( fract( sq.y / 3.0 ) - 0.5 ) * 3.0;
+		let rib = 0.82 + 0.18 * smoothstep( 0.18, 0.3, abs( fract( sq.y / 0.3 ) - 0.5 ) );
+		var sc = vec3f( 0.44, 0.42, 0.38 ) * mix( rib, 0.91, clamp( sfw * 6.0, 0.0, 1.0 ) );
+		if ( jz < 0.08 ) { sc = vec3f( 0.13, 0.04, 0.035 ); }
+		if ( gx < 0.2 ) { sc = vec3f( 0.1, 0.028, 0.024 ); }
+		let lx = abs( fract( sq.x / 4.5 + 0.25 ) - 0.5 ) * 4.5;
+		let lamp = ( 1.0 - smoothstep( 0.55, 0.62, lx ) ) * ( 1.0 - smoothstep( 0.05, 0.08, abs( jz - 1.5 ) ) ) * ( 1.0 - clamp( sfw * 3.0 - 0.5, 0.0, 0.8 ) );
+		let snk = smoothstep( 0.1, 0.7, frame.night );
+		s.albedo = sc;
+		s.roughness = 0.6;
+		s.emissive = sc * mix( 0.35, 0.18, snk ) + vec3f( 0.95, 0.97, 1.0 ) * lamp * mix( 2.0, 4.5, snk ) + vec3f( 0.9, 0.92, 1.0 ) * 0.02 * snk;
+	}
+`;
+
 export function standsMaterials() {
 
 	// after dark the bowl is lit by the towers and the concourse lights: a fill the spots alone don't
@@ -486,10 +508,7 @@ export function standsMaterials() {
 	let nk = smoothstep( 0.15, 0.7, frame.night );
 	s.emissive = s.albedo * nk * ( 0.06 + 0.06 * max( in.N.y, 0.0 ) );
 	if ( in.N.y < - 0.6 ) {
-		let g = abs( fract( in.P.xz / 5.0 ) - 0.5 );
-		let fx = 1.0 - smoothstep( 0.04, 0.06, max( g.x, g.y * 2.5 ) );
-		s.emissive += vec3f( 1.0, 0.86, 0.62 ) * fx * nk * 2.5;
-		s.emissive += vec3f( 1.0, 0.8, 0.55 ) * nk * 0.05;
+${ SOFFIT_WGSL }
 	}
 ` } );
 	// navy seats; per-instance colour carries a little fading

@@ -4,7 +4,7 @@ import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { beam, box, alongPolyline, nearestAlong } from './geo.js';
 import { GATES } from './Exterior.js';
-import { buildTier, tierTop, standsMaterials, Quads } from './Stands.js';
+import { buildTier, tierTop, standsMaterials, Quads, SOFFIT_WGSL } from './Stands.js';
 import { Crowd } from './Crowd.js';
 import { FT, FOOTPRINT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, BULLPENS, LEVELS, fencePoint } from './layout.js';
 
@@ -324,6 +324,7 @@ export class Bowl {
 		this._columns( line( path, D.t400Back - 0.4 ), STREET, t400Top - 1.2, 9.5 );
 		this._rearWall( line( path, D.t400Back - 0.4 ), t400Top - 1.2, L.roof - 1.0 );
 		this._frame( line( path, D.t400Back - 0.4 ), [ L.suites, L.clubConcourse, L.terraceConcourse, t400Top - 1.4 ], 9.5 );
+		this._outerRing( line( path, D.t400Back - 0.4 ), [ L.clubConcourse, L.terraceConcourse ] );
 		this._columns( line( infieldPath, D.clubBack + 8 - 0.4 ), STREET, L.clubConcourse - 0.6, 9.5 );
 
 		// elevators: behind home plate and toward first and third, stopping at each level
@@ -636,26 +637,33 @@ export class Bowl {
 
 		if ( ! towers ) return;
 		// light towers: masts at both ends of the roof, and a pair of broad frames rising from the street
-		// either side of the Third Base Gate and the First Base Gate, just behind the roof's back edge
+		// either side of the Third Base Gate and the First Base Gate, standing in the gate's stair towers at
+		// the facade, 40 m apart (Exterior: the frame gates)
 		for ( const [ x, z ] of [ B[ 0 ], B[ B.length - 1 ] ] ) this._lightTower( x, z, y, LEVELS.lightTowers );
 		this.gateTowers = [];
 		for ( const gate of GATES.slice( 0, 2 ) ) {
 
-			const s = nearestAlong( B, gate.at );
-			const pair = [ - 1, 1 ].map( ( side ) => {
+			// the facade edge the gate is on
+			let best = null;
+			for ( let i = 0; i < FOOTPRINT.length; i ++ ) {
 
-				const { p, dir } = alongPolyline( B, s + side * 17 );
-				// out from the roof's edge, away from the field
-				let nx = - dir[ 1 ], nz = dir[ 0 ];
-				if ( nx * p[ 0 ] + nz * ( p[ 1 ] + 40 ) < 0 ) {
+				const a = FOOTPRINT[ i ], b = FOOTPRINT[ ( i + 1 ) % FOOTPRINT.length ];
+				const ex = b[ 0 ] - a[ 0 ], ez = b[ 1 ] - a[ 1 ], l2 = ex * ex + ez * ez;
+				const t = Math.max( 0, Math.min( 1, ( ( gate.at[ 0 ] - a[ 0 ] ) * ex + ( gate.at[ 1 ] - a[ 1 ] ) * ez ) / l2 ) );
+				const d = Math.hypot( a[ 0 ] + ex * t - gate.at[ 0 ], a[ 1 ] + ez * t - gate.at[ 1 ] );
+				if ( ! best || d < best.d ) best = { d, u: [ ex / Math.sqrt( l2 ), ez / Math.sqrt( l2 ) ] };
 
-					nx = - nx; nz = - nz;
+			}
 
-				}
+			const [ ux, uz ] = best.u;
+			let nx = - uz, nz = ux;
+			if ( nx * gate.at[ 0 ] + nz * ( gate.at[ 1 ] + 40 ) < 0 ) {
 
-				return [ p[ 0 ] + nx * 2.2, p[ 1 ] + nz * 2.2 ];
+				nx = - nx; nz = - nz;
 
-			} );
+			}
+
+			const pair = [ - 1, 1 ].map( ( side ) => [ gate.at[ 0 ] + ux * side * 20 - nx * 3.5, gate.at[ 1 ] + uz * side * 20 - nz * 3.5 ] );
 			for ( const [ x, z ] of pair ) this._lightTower( x, z, STREET, LEVELS.lightTowers, [ 11, 3.2 ] );
 			this.gateTowers.push( { gate: gate.name, pair, y: y } );
 
@@ -842,6 +850,108 @@ export class Bowl {
 		m.castShadow = true;
 		m.receiveShadow = true;
 		this.group.add( m );
+
+	}
+
+	// The outer ring behind the grandstand: the club and terrace concourse floors reach out from the back
+	// of the upper deck (P, the frame's line) to the facade, so the main concourse is roofed over (its
+	// ceiling the floor above: girders, deck, strip lights) and from outside the frame reads as stacked,
+	// lit floors with their precast edges and guard rails, not an empty cage.
+	_outerRing( P, levels ) {
+
+		const F = FOOTPRINT;
+		// the nearest footprint edge along the ray p + t n
+		const hit = ( p, n ) => {
+
+			let best = Infinity;
+			for ( let i = 0; i < F.length; i ++ ) {
+
+				const a = F[ i ], b = F[ ( i + 1 ) % F.length ];
+				const ex = b[ 0 ] - a[ 0 ], ez = b[ 1 ] - a[ 1 ];
+				const den = n[ 0 ] * ez - n[ 1 ] * ex;
+				if ( Math.abs( den ) < 1e-6 ) continue;
+				const dx = a[ 0 ] - p[ 0 ], dz = a[ 1 ] - p[ 1 ];
+				const t = ( dx * ez - dz * ex ) / den, u = ( dx * n[ 1 ] - dz * n[ 0 ] ) / den;
+				if ( t > 0.5 && u >= 0 && u <= 1 ) best = Math.min( best, t );
+
+			}
+
+			return best;
+
+		};
+
+		// samples along the frame's line with their outward normals and the facade's distance
+		const S = [];
+		for ( let i = 0; i < P.length - 1; i ++ ) {
+
+			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
+			const len = Math.hypot( bx - ax, bz - az );
+			if ( len < 0.01 ) continue;
+			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
+			if ( nx * ( ( ax + bx ) / 2 ) + nz * ( ( az + bz ) / 2 + 40 ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			const k = Math.max( 1, Math.round( len / 2.5 ) );
+			for ( let j = 0; j <= k; j ++ ) {
+
+				if ( j === 0 && S.length ) continue;
+				const p = [ ax + ( bx - ax ) * j / k, az + ( bz - az ) * j / k ];
+				const d = hit( p, [ nx, nz ] );
+				S.push( { p, n: [ nx, nz ], d: d < 45 ? d - 0.9 : null } );
+
+			}
+
+		}
+
+		const q = new Quads(), rail = new Quads();
+		for ( const y of levels ) for ( let i = 0; i < S.length - 1; i ++ ) {
+
+			const A = S[ i ], B = S[ i + 1 ];
+			if ( A.d === null || B.d === null || A.d < 1 || B.d < 1 ) continue;
+			const ai = A.p, bi = B.p;
+			const ao = [ ai[ 0 ] + A.n[ 0 ] * A.d, ai[ 1 ] + A.n[ 1 ] * A.d ], bo = [ bi[ 0 ] + B.n[ 0 ] * B.d, bi[ 1 ] + B.n[ 1 ] * B.d ];
+			const t = y, b = y - 0.6;
+			q.add( [ ai[ 0 ], t, ai[ 1 ] ], [ bi[ 0 ], t, bi[ 1 ] ], [ bo[ 0 ], t, bo[ 1 ] ], [ ao[ 0 ], t, ao[ 1 ] ], [ 0, 1, 0 ] );
+			q.add( [ ai[ 0 ], b, ai[ 1 ] ], [ ao[ 0 ], b, ao[ 1 ] ], [ bo[ 0 ], b, bo[ 1 ] ], [ bi[ 0 ], b, bi[ 1 ] ], [ 0, - 1, 0 ] );
+			// the precast edge, a little deeper than the slab, and a pipe guard on it
+			const en = [ ( A.n[ 0 ] + B.n[ 0 ] ) / 2, 0, ( A.n[ 1 ] + B.n[ 1 ] ) / 2 ];
+			q.add( [ ao[ 0 ], y - 0.95, ao[ 1 ] ], [ bo[ 0 ], y - 0.95, bo[ 1 ] ], [ bo[ 0 ], y + 0.2, bo[ 1 ] ], [ ao[ 0 ], y + 0.2, ao[ 1 ] ], en );
+			for ( const h of [ 0.6, 1.1 ] ) beam( rail, [ ao[ 0 ] - A.n[ 0 ] * 0.1, y + h, ao[ 1 ] - A.n[ 1 ] * 0.1 ], [ bo[ 0 ] - B.n[ 0 ] * 0.1, y + h, bo[ 1 ] - B.n[ 1 ] * 0.1 ], 0.05 );
+			if ( i % 2 === 0 ) beam( rail, [ ao[ 0 ] - A.n[ 0 ] * 0.1, y + 0.2, ao[ 1 ] - A.n[ 1 ] * 0.1 ], [ ao[ 0 ] - A.n[ 0 ] * 0.1, y + 1.1, ao[ 1 ] - A.n[ 1 ] * 0.1 ], 0.05 );
+
+		}
+
+		const mat = standard( {
+			name: 'outer-floors', color: new Color( 0.5, 0.49, 0.46 ), roughness: 0.8, side: 'double', modules: [ commonModule ],
+			surface: /* wgsl */`
+	if ( in.N.y > 0.6 ) {
+		// the concourse floor: sealed concrete
+		s.albedo = vec3f( 0.36, 0.35, 0.33 ) * ( 0.9 + 0.1 * mx_noise_float2( in.P.xz * 0.4 ) );
+		s.roughness = 0.6;
+	} else if ( in.N.y < - 0.6 ) {
+${ SOFFIT_WGSL }
+	} else {
+		// the precast edge: light grey, a reveal along it
+		let v = fract( in.P.y );
+		s.albedo = vec3f( 0.5, 0.49, 0.46 ) * ( 0.92 + 0.08 * mx_noise_float2( in.P.xz * 2.0 ) ) * mix( 1.0, 0.6, step( 0.47, v ) * step( v, 0.5 ) );
+		s.roughness = 0.75;
+		s.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.1;
+	}
+`,
+		} );
+		mat.underwaterLighting = 'none';
+		mat.setDefine( 'DRY', 1 );
+		const m = new Mesh( q.geometry(), mat );
+		m.name = 'outer-floors';
+		m.castShadow = true;
+		m.receiveShadow = true;
+		this.group.add( m );
+		const r = new Mesh( rail.geometry(), this.materials.rail );
+		r.name = 'outer-floor-rails';
+		this.group.add( r );
 
 	}
 
