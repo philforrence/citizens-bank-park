@@ -1,4 +1,5 @@
-import { Group, Mesh, CylinderGeometry, BoxGeometry, Color } from '../engine/index.js';
+import { Group, Mesh, CylinderGeometry, BoxGeometry, BufferGeometry, Float32BufferAttribute, Color } from '../engine/index.js';
+import { moundHeight } from './Field.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
@@ -177,32 +178,103 @@ export class Details2008 {
 	}
 
 	// the infield tarp, rolled along the wall down the first base line, wrapped for the Series
+	// The infield tarp. Stowed: rolled along the wall past the first base dugout under its dark green
+	// cover, strapped every 3 m. At the suspension on October 27 (the rain in the top of the 6th) the crew
+	// pulled it over the whole infield: a pale sheet 44 m square on the diamond, sagging and folded,
+	// water standing in the folds. setTarp( k ) unrolls it (0 stowed .. 1 covering the infield).
 	_tarp() {
 
-		const tex = canvasTexture( 1024, 128, ( ctx, w, h ) => {
-
-			ctx.fillStyle = '#0a1f52';
-			ctx.fillRect( 0, 0, w, h );
-			ctx.font = '800 64px "Helvetica Neue", Arial, sans-serif';
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.fillStyle = '#f2f0ea';
-			ctx.fillText( "WORLD SERIES '08 on FOX", w / 2, h / 2 + 3 );
-
-		}, 'tarp' );
-		const mat = standard( { name: 'tarp', roughness: 0.55, textures: { bpTarp: tex }, surface: 's.albedo = textureSample( bpTarp, smpAnisoRepeat, vec2f( in.uv.y * 5.0, in.uv.x ) ).rgb * 0.8;' } );
-		mat.underwaterLighting = 'none';
+		const cover = standard( { name: 'tarp-roll', color: new Color( 0.035, 0.08, 0.05 ), roughness: 0.4, modules: [ commonModule ],
+			surface: 's.albedo = mat.color * ( 0.85 + 0.2 * mx_noise_float3( in.P * 1.5 ) ) * ( 1.0 - 0.6 * step( 0.93, fract( dot( in.P.xz, vec2f( 0.7071 ) ) / 3.0 ) ) );' } );
+		cover.underwaterLighting = 'none';
 		const [ a, b ] = [ FOUL_TERRITORY[ 4 ], FOUL_TERRITORY[ 3 ] ];
 		const len = Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] );
-		const roll = new Mesh( new CylinderGeometry( 0.55, 0.55, len - 1, 20 ), mat );
+		const roll = new Mesh( new CylinderGeometry( 0.65, 0.65, len - 1, 24 ), cover );
 		const mx = ( a[ 0 ] + b[ 0 ] ) / 2, mz = ( a[ 1 ] + b[ 1 ] ) / 2;
 		const nx = - ( b[ 1 ] - a[ 1 ] ) / len, nz = ( b[ 0 ] - a[ 0 ] ) / len;
 		const sgn = nx * - mx + nz * ( - 40 - mz ) > 0 ? 1 : - 1;
-		roll.position.set( mx + nx * sgn * 0.9, 0.55, mz + nz * sgn * 0.9 );
+		roll.position.set( mx + nx * sgn * 1.0, 0.65, mz + nz * sgn * 1.0 );
 		roll.rotation.set( 0, - Math.atan2( b[ 1 ] - a[ 1 ], b[ 0 ] - a[ 0 ] ), Math.PI / 2 );
 		roll.castShadow = true;
 		roll.receiveShadow = true;
 		this.group.add( roll );
+		this.tarpRoll = roll;
+
+		// the sheet: a grid over a 44 m square turned with the diamond, from behind the plate out past
+		// second; it drapes the mound, sags between, with folds
+		const S = 44, N = 64, c = [ 0, - 26 ];
+		const r2 = Math.SQRT1_2;
+		const pos = [], uv = [], index = [];
+		for ( let j = 0; j <= N; j ++ ) for ( let i = 0; i <= N; i ++ ) {
+
+			const u = i / N, v = j / N;
+			const lx = ( u - 0.5 ) * S, lz = ( v - 0.5 ) * S;
+			const x = c[ 0 ] + ( lx - lz ) * r2, z = c[ 1 ] + ( lx + lz ) * r2;
+			const fold = 0.06 * Math.sin( lx * 0.9 + Math.sin( lz * 0.4 ) * 2 ) + 0.04 * Math.sin( lz * 1.3 );
+			const edge = Math.min( u, 1 - u, v, 1 - v ) * S;
+			const y = moundHeight( x, z ) + 0.05 + Math.max( 0, fold ) * Math.min( 1, edge / 2 );
+			pos.push( x, y, z );
+			uv.push( u, v );
+
+		}
+
+		for ( let j = 0; j < N; j ++ ) for ( let i = 0; i < N; i ++ ) {
+
+			const k = j * ( N + 1 ) + i;
+			index.push( k, k + N + 1, k + 1, k + 1, k + N + 1, k + N + 2 );
+
+		}
+
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		g.setAttribute( 'uv', new Float32BufferAttribute( uv, 2 ) );
+		g.setIndex( index );
+		g.computeVertexNormals();
+		const nrm = g.getAttribute( 'normal' );
+		if ( nrm.array[ 1 ] < 0 ) for ( let i = 0; i < nrm.array.length; i ++ ) nrm.array[ i ] = - nrm.array[ i ];
+		g.computeBoundingSphere();
+		// it comes off the roll on the first base side: u = 1 is the first base edge
+		this.tarpMat = standard( { name: 'tarp', color: new Color( 0.62, 0.64, 0.6 ), roughness: 0.3, side: 'double', modules: [ commonModule ],
+			uniforms: { pull: [ 'f32', 0 ] },
+			vertex: /* wgsl */`
+	// the part not yet pulled out is the roll, lying along the sheet's leading edge as it crosses
+	let k = mat.pull;
+	let front = 1.0 - k;
+	let out = step( front, v.uv.x );
+	let lx = ( front - 0.5 ) * ${ S.toFixed( 1 ) }; let lz = ( v.uv.y - 0.5 ) * ${ S.toFixed( 1 ) };
+	let rolled = vec3f( ${ c[ 0 ].toFixed( 2 ) } + ( lx - lz ) * ${ r2.toFixed( 5 ) }, 0.55, ${ c[ 1 ].toFixed( 2 ) } + ( lx + lz ) * ${ r2.toFixed( 5 ) } );
+	let p = mix( rolled, v.position, out );
+	v.useWorld = true;
+	v.worldPos = ( v.model * vec4f( p, 1.0 ) ).xyz;
+	v.worldNormal = normalize( ( v.model * vec4f( v.normal, 0.0 ) ).xyz );
+	v.prevWorldPos = v.worldPos;
+`,
+			surface: /* wgsl */`
+	// pale vinyl, seams every 4 m, water standing in the low folds
+	let seam = step( 0.97, fract( in.uv.x * 11.0 ) );
+	let pud = smoothstep( 0.55, 0.75, mx_noise_float2( in.P.xz * 0.25 ) * 0.5 + 0.5 );
+	s.albedo = mat.color * ( 1.0 - 0.15 * seam ) * ( 1.0 - 0.3 * pud ) * ( 0.92 + 0.1 * mx_noise_float2( in.P.xz * 2.0 ) );
+	s.roughness = mix( 0.3, 0.04, pud );
+` } );
+		this.tarpMat.underwaterLighting = 'none';
+		this.tarpMat.setDefine( 'DRY', 1 );
+		const sheet = new Mesh( g, this.tarpMat );
+		sheet.name = 'tarp';
+		sheet.receiveShadow = true;
+		sheet.castShadow = true;
+		sheet.visible = false;
+		sheet.frustumCulled = false;
+		this.group.add( sheet );
+		this.tarpSheet = sheet;
+
+	}
+
+	setTarp( k ) {
+
+		if ( ! this.tarpSheet ) return;
+		this.tarpMat.uniforms.pull.value = k;
+		this.tarpSheet.visible = k > 0.001;
+		this.tarpRoll.visible = k < 0.98;
 
 	}
 

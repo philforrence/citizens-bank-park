@@ -418,6 +418,10 @@ export class BallparkApp {
 		const d = this.director;
 		const seg = d.segmentAt( d.t );
 		const { inning, half } = seg.snap;
+		// the suspension: the break after the top of the 6th on October 27, the crew pulls the tarp over
+		// the infield in the first seconds of it (it's off again when play resumes on the 29th)
+		const susp = seg.kind === 'switch' && inning === 6 && half === 'bottom';
+		this.details.setTarp( susp ? MathUtils.smoothstep( d.t - seg.t0, 2, 11 ) * ( 1 - MathUtils.smoothstep( d.t - seg.t0, seg.dur - 6, seg.dur - 1 ) ) : 0 );
 		// progress through the first night, 0 (first pitch) .. 1 (the suspension)
 		const firstNight = inning < 6 || ( inning === 6 && half === 'top' );
 		const k = firstNight ? Math.min( 1, ( ( inning - 1 ) * 2 + ( half === 'top' ? 0 : 1 ) ) / 10 ) : 0;

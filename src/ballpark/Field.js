@@ -299,8 +299,56 @@ export class Field {
 			if ( r.length < 2 ) return;
 			const home = i > 0 && i < runs.length - 1;
 			this._wall( r, home ? { pad: brick, trim: null, cap: tealCap, thickness: 0.35, name: 'backstop-wall' } : { pad, trim: null, cap, thickness: 0.35, name: 'foul-wall' } );
+			// the dark green pipe rail on top down the lines (behind home the net does the job)
+			if ( ! home ) this._pipeRail( r.map( ( q ) => q.p ), h, 0.2 );
 
 		} );
+
+	}
+
+	// A dark green pipe rail along the top of a wall: posts every 1.8 m, top and mid rails, pickets
+	// (an alpha-tested panel) between
+	_pipeRail( P, y0, back ) {
+
+		const green = this._railGreen || ( this._railGreen = standard( { name: 'field-rail', color: new Color( 0.015, 0.06, 0.035 ), roughness: 0.45, metalness: 0.6 } ) );
+		const pick = this._railPickets || ( this._railPickets = standard( { name: 'field-rail-pickets', color: new Color( 0.015, 0.06, 0.035 ), roughness: 0.45, metalness: 0.6, side: 'double', alphaTest: 0.5,
+			surface: 'let f = fwidth( in.uv.x ) / 0.12; s.alpha = max( step( 0.42 - f, abs( fract( in.uv.x / 0.12 ) - 0.5 ) ), clamp( f * 0.5, 0.0, 0.5 ) );' } ) );
+		for ( const m of [ green, pick ] ) m.underwaterLighting = 'none';
+		const q = new Quads(), pq = new Quads();
+		let u = 0;
+		for ( let i = 0; i < P.length - 1; i ++ ) {
+
+			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
+			const len = Math.hypot( bx - ax, bz - az );
+			if ( len < 0.2 ) continue;
+			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
+			if ( nx * ( 0 - ( ax + bx ) / 2 ) + nz * ( - BASE * Math.SQRT2 - ( az + bz ) / 2 ) > 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			// n now points away from the field: the rail sits a little back on the cap
+			const at = ( t, y ) => [ ax + ( bx - ax ) * t + nx * back, y, az + ( bz - az ) * t + nz * back ];
+			beam( q, at( 0, y0 + 0.95 ), at( 1, y0 + 0.95 ), 0.05 );
+			beam( q, at( 0, y0 + 0.45 ), at( 1, y0 + 0.45 ), 0.035 );
+			const n = Math.max( 1, Math.round( len / 1.8 ) );
+			for ( let k = 0; k <= n; k ++ ) beam( q, at( k / n, y0 ), at( k / n, y0 + 0.97 ), 0.05 );
+			pq.tri( at( 0, y0 + 0.05 ), at( 1, y0 + 0.05 ), at( 1, y0 + 0.93 ), [ - nx, 0, - nz ], [ u, 0 ], [ u + len, 0 ], [ u + len, 1 ] );
+			pq.tri( at( 0, y0 + 0.05 ), at( 1, y0 + 0.93 ), at( 0, y0 + 0.93 ), [ - nx, 0, - nz ], [ u, 0 ], [ u + len, 1 ], [ u, 1 ] );
+			u += len;
+
+		}
+
+		for ( const [ g, m ] of [ [ q, green ], [ pq, pick ] ] ) {
+
+			if ( ! g.count ) continue;
+			const mesh = new Mesh( g.geometry(), m );
+			mesh.name = 'field-rail';
+			mesh.castShadow = true;
+			this.group.add( mesh );
+
+		}
 
 	}
 
