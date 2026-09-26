@@ -501,7 +501,9 @@ export class Bowl {
 	let fw = fwidth( in.uv.x ) / 0.5;
 	let rib = smoothstep( 0.86, 0.95, abs( fract( in.uv.x / 0.5 ) - 0.5 ) * 2.0 ) * ( 1.0 - clamp( fw * 1.5, 0.0, 1.0 ) );
 	let weather = 0.88 + 0.16 * mx_noise_float2( in.P.xz * 0.05 ) + 0.05 * mx_noise_float2( in.P.xz * 0.8 );
-	s.albedo = select( vec3f( 0.3, 0.3, 0.29 ), mat.color * weather * ( 1.0 + 0.18 * rib ), top );
+	// underneath: ribbed metal deck, 0.3 m ribs
+	let under = 0.85 + 0.15 * step( 0.5, fract( in.uv.x / 0.3 ) ) * ( 1.0 - clamp( fw * 2.0, 0.0, 1.0 ) );
+	s.albedo = select( vec3f( 0.3, 0.3, 0.29 ) * under, mat.color * weather * ( 1.0 + 0.18 * rib ), top );
 	s.metalness = select( 0.2, 0.5, top );
 ` } ) );
 		const edge = this._roofEdge || ( this._roofEdge = standard( { name: 'roof-edge', color: new Color( 0.16, 0.33, 0.24 ), roughness: 0.4, metalness: 0.5 } ) );
@@ -559,6 +561,63 @@ export class Bowl {
 		edgeMesh.name = 'roof-edge';
 		edgeMesh.castShadow = true;
 		this.group.add( edgeMesh );
+
+		// under the front edge: a continuous steel truss (a lower chord 2 m down, posts every 6 m, a
+		// zig-zag of diagonals), with sports lights and speaker cabinets hung from it
+		const tq = new Quads(), lq = new Quads(), sq = new Quads();
+		for ( let i = 0; i < P.length - 1; i ++ ) {
+
+			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
+			const len = Math.hypot( bx - ax, bz - az );
+			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
+			if ( nx * ( ( ax + bx ) / 2 ) + nz * ( ( az + bz ) / 2 + 40 ) > 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			const o = - 0.6; // a little back from the fascia
+			const at = ( t, yy ) => [ ax + ( bx - ax ) * t - nx * o, yy, az + ( bz - az ) * t - nz * o ];
+			const yt = y - 0.6, yb = y - 2.6;
+			beam( tq, at( 0, yb ), at( 1, yb ), 0.28 );
+			const n = Math.max( 1, Math.round( len / 6 ) );
+			for ( let k = 0; k <= n; k ++ ) {
+
+				const t0 = k / n;
+				beam( tq, at( t0, yb ), at( t0, yt ), 0.2 );
+				if ( k < n ) {
+
+					const tm = ( k + 0.5 ) / n, t1 = ( k + 1 ) / n;
+					beam( tq, at( t0, yb ), at( tm, yt ), 0.13 );
+					beam( tq, at( tm, yt ), at( t1, yb ), 0.13 );
+					// a light and, every other bay, a speaker cabinet under the chord
+					const L = at( tm, yb - 0.35 );
+					box( lq, L, [ 0.7, 0.5, 0.7 ] );
+					if ( k % 2 === 0 ) {
+
+						const S = at( t0 + 0.12 / n * 3, yb - 0.7 );
+						box( sq, S, [ 0.6, 1.0, 0.6 ] );
+
+					}
+
+				}
+
+			}
+
+		}
+
+		const tm = new Mesh( tq.geometry(), steel );
+		tm.name = 'roof-front-truss';
+		tm.castShadow = true;
+		this.group.add( tm );
+		const lampMat = this._edgeLamp || ( this._edgeLamp = standard( { name: 'roof-edge-lights', color: new Color( 0.2, 0.2, 0.2 ), roughness: 0.4,
+			surface: 'if ( in.N.y < - 0.5 ) { s.emissive = vec3f( 1.0, 0.95, 0.85 ) * mix( 0.2, 6.0, smoothstep( 0.15, 0.75, frame.night ) ); }' } ) );
+		lampMat.underwaterLighting = 'none';
+		this.group.add( new Mesh( lq.geometry(), lampMat ) );
+		const spk = this._speakerMat || ( this._speakerMat = standard( { name: 'pa-speakers', color: new Color( 0.03, 0.03, 0.035 ), roughness: 0.6 } ) );
+		spk.underwaterLighting = 'none';
+		this.group.add( new Mesh( sq.geometry(), spk ) );
+		// the deck's underside ribbed: see the roof-deck material (in.N.y < 0)
 		if ( towers ) this.roofBack = { line: B, y };
 
 		if ( ! towers ) return;
