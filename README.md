@@ -20,7 +20,16 @@ all with a page listing them (see below).
    start) with the Mike Schmidt statue and the Veterans Stadium Liberty Bell, the streets, the Linc and
    the arena, Center City's skyline, the scoreboard, the Liberty Bell sign, Ashburn Alley, the batter's
    eye, and night games under the light towers.
-5. Hosting on GitHub Pages.
+5. **Game 5**: Game 5 of the 2008 World Series (Rays at Phillies, suspended in the rain on October 27
+   and finished on the 29th), replayed pitch by pitch from MLB's data with the players on the field, a
+   radio-style call, the ballpark's sounds, the rain and the live scoreboards; scrub anywhere in the game,
+   down to Brad Lidge on his knees, Carlos Ruiz's embrace and the dogpile.
+6. **Every detail**: the ballpark as it looked that October, from photos: the stands to the 2008 seating
+   chart, the LED ribbon (the batter, the score, WORLD CHAMPIONS), bunting, the Terrace ads and the pitch
+   speed board, rails down every aisle, the gates as built (canopies, bar gates, the twin light towers
+   and the big green sign over the Third Base Gate, stair towers, the steel frame), concession stands on
+   the concourse, jersey numbers, waving flags in the game's wind.
+7. Hosting on GitHub Pages.
 
 ## Requirements
 
@@ -43,7 +52,19 @@ later visits are much faster.
 | P | Photo mode |
 | F1 or ? | All controls |
 
-URL options: `?fly` starts in the free camera, `?noClouds`, `?noHaze`, `?scale=0.75` (internal resolution).
+The game panel at the bottom (G hides it):
+
+| Key | Action |
+|---|---|
+| K | Play / pause the replay |
+| , and . | Previous / next batter |
+| - and = | Slower / faster (0.5x to 16x) |
+| C | Camera: walk, center field, high home, follow the ball |
+| B | Radio call on / off |
+
+URL options: `?fly` starts in the free camera, `?noClouds`, `?noHaze`, `?scale=0.75` (internal resolution),
+`?t=1800` (seconds into the replay) or `?play=40` (the 40th plate appearance), `?hour=21` (time of day),
+`?weather=off` (no rain).
 
 ## Stages page
 
