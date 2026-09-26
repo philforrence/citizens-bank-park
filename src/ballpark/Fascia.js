@@ -429,12 +429,27 @@ function drawRibbon( ctx, w, h, design, st ) {
 
 		}
 
+		// the logo, WORLD SERIES 2008, "on", FOX: measured and centred on a navy block
+		const parts = [ [ 'WORLD SERIES 2008', '700 66px Georgia, "Times New Roman", serif', 0 ], [ 'on', 'italic 600 30px ' + SANS, 6 ], [ 'FOX', 'italic 900 62px ' + SANS, 0 ] ];
+		const gap = 18, logoW = 110;
+		const widths = parts.map( ( [ t, f ] ) => {
+
+			ctx.font = f;
+			return ctx.measureText( t ).width;
+
+		} );
+		const total = logoW + gap + widths.reduce( ( a, b ) => a + b + gap, 0 ) - gap;
+		let x = ( w - total ) / 2;
 		ctx.fillStyle = '#0d1f4f';
-		ctx.fillRect( w * 0.25, 4, w * 0.5, h - 8 );
-		mlbLogo( ctx, w * 0.27, 14, 110, 68 );
-		text( ctx, 'WORLD SERIES 2008', w * 0.51, H + 2, '700 70px Georgia, "Times New Roman", serif', '#ffffff', 'center' );
-		text( ctx, 'on', w * 0.672, H + 8, 'italic 600 30px ' + SANS, '#ffffff' );
-		text( ctx, 'FOX', w * 0.715, H + 2, 'italic 900 64px ' + SANS, '#ffffff' );
+		ctx.fillRect( x - 30, 4, total + 60, h - 8 );
+		mlbLogo( ctx, x, 14, logoW, 68 );
+		x += logoW + gap;
+		parts.forEach( ( [ t, f, dy ], i ) => {
+
+			text( ctx, t, x, H + 2 + dy, f, '#ffffff', 'left' );
+			x += widths[ i ] + gap;
+
+		} );
 		for ( const x of [ w * 0.1, w * 0.9 ] ) {
 
 			ctx.fillStyle = '#ffffff';

@@ -1,6 +1,7 @@
 import { Group, Mesh, InstancedMesh, BufferGeometry, Float32BufferAttribute, Matrix4, Quaternion, Vector2, Vector3, Color } from '../engine/index.js';
 import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { standard } from '../materials/Materials.js';
+import { beam } from './geo.js';
 
 // Seating tiers, built the way real stands are: the front edge is a polyline of straight sections;
 // each section's rows are straight and parallel to its front, rising step by step away from the
@@ -253,6 +254,61 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	if ( tier.frontWall ) wallAlong( q, secs, S0, base, tier.frontWall.top ?? ys[ 0 ], - 1 );
 	if ( tier.back ) wallAlong( q, secs, S0 + tier.rows * D, ys[ ys.length - 1 ], ys[ ys.length - 1 ] + tier.back.height, 1 );
 
+	// galvanized pipe: handrails down the middle of each aisle in runs of three rows, and on an upper
+	// deck a rail over its front wall
+	const rq = new Quads();
+	const RH = 0.9;
+	for ( let k = 0; k < secs.length - 1; k ++ ) {
+
+		const S = secs[ k ], T = secs[ k + 1 ];
+		if ( ! S.seats && ! T.seats ) continue;
+		const first = Math.max( S.skipRows || 0, T.skipRows || 0 );
+		// the aisle's middle: on the bisector at the sections' corner
+		const mid = ( r ) => {
+
+			const d = S0 + ( r + 0.5 ) * D, s = S.len - S.m1 * d;
+			return [ S.a[ 0 ] + S.ux * s + S.nx * d, ys[ r ] + RH, S.a[ 1 ] + S.uz * s + S.nz * d ];
+
+		};
+		for ( let r0 = first + 1; r0 < tier.rows - 1; r0 += 4 ) {
+
+			const r1 = Math.min( tier.rows - 1, r0 + 2 );
+			for ( let r = r0; r < r1; r ++ ) beam( rq, mid( r ), mid( r + 1 ), 0.045 );
+			for ( const r of [ r0, r1 ] ) {
+
+				const p = mid( r );
+				beam( rq, [ p[ 0 ], ys[ r ], p[ 2 ] ], p, 0.04 );
+
+			}
+
+		}
+
+	}
+
+	if ( tier.frontWall ) {
+
+		const top = tier.frontWall.top ?? ys[ 0 ], y = top + 0.32;
+		for ( const S of secs ) {
+
+			const d = S0 - 0.12;
+			const s0 = Math.min( S.len, S.m0 * d ), s1 = Math.max( s0, S.len - S.m1 * d );
+			const P = ( s, yy ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, yy, S.a[ 1 ] + S.uz * s + S.nz * d ];
+			beam( rq, P( s0, y ), P( s1, y ), 0.05 );
+			const n = Math.max( 1, Math.round( ( s1 - s0 ) / 2.2 ) );
+			for ( let i = 0; i <= n; i ++ ) beam( rq, P( s0 + ( s1 - s0 ) * i / n, top ), P( s0 + ( s1 - s0 ) * i / n, y ), 0.04 );
+
+		}
+
+	}
+
+	if ( rq.count ) {
+
+		const rails = new Mesh( rq.geometry(), materials.rail );
+		rails.name = tier.name + '-rails';
+		group.add( rails );
+
+	}
+
 	const concrete = new Mesh( q.geometry(), materials.concrete );
 	concrete.name = tier.name + '-steps';
 	concrete.castShadow = true;
@@ -337,8 +393,10 @@ export function standsMaterials() {
 	const concrete = standard( { name: 'stands-concrete', color: new Color( 0.32, 0.31, 0.29 ), roughness: 0.85 } );
 	// navy seats; per-instance colour carries a little fading
 	const seat = standard( { name: 'seats', color: new Color( 0.008, 0.017, 0.075 ), roughness: 0.55, side: 'double' } );
-	for ( const m of [ concrete, seat ] ) m.underwaterLighting = 'none';
-	return { concrete, seat, seatGeometry: seatGeometry() };
+	// galvanized steel for the rails
+	const rail = standard( { name: 'rails', color: new Color( 0.55, 0.56, 0.57 ), roughness: 0.35, metalness: 0.8 } );
+	for ( const m of [ concrete, seat, rail ] ) m.underwaterLighting = 'none';
+	return { concrete, seat, rail, seatGeometry: seatGeometry() };
 
 }
 
