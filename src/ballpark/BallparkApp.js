@@ -25,6 +25,8 @@ import { Colliders } from '../world/Colliders.js';
 
 import { DryWater, DRY_LEVEL } from './DryWater.js';
 import { Ground } from './Ground.js';
+import { Field } from './Field.js';
+import { FOOTPRINT } from './layout.js';
 import { Walker } from './Walker.js';
 
 const _up = new Vector3( 0, 1, 0 );
@@ -32,8 +34,10 @@ const _up = new Vector3( 0, 1, 0 );
 // South Philadelphia
 const LATITUDE = 39.9;
 
-// World axes (as Tidewater's sky): +x east, +y up, -z north. Metres.
-const START = { position: new Vector3( 0, 0, 0 ), yaw: 0 };
+// World axes (as Tidewater's sky): +x east, +y up, -z north. Metres. Home plate is at the origin
+// (see layout.js). For now you start in foul territory by third base, looking out to center field
+// (field frame [ x, z ] and the point you face).
+const START = { at: [ - 24, - 12 ], look: [ 0, - 110 ] };
 
 // the sun's declination on a date (degrees): where the sun really is in the sky today
 function solarDeclination( date = new Date() ) {
@@ -90,7 +94,7 @@ export class BallparkApp {
 
 		this.input = new Input( engine.domElement );
 		this.fly = new FlyCamera( camera, engine.domElement, this.input );
-		this.fly.setPose( new Vector3( 0, 12, 20 ), 0, - 0.3 );
+		this.fly.setPose( new Vector3( 0, 25, 60 ), 0.18, - 0.25 );
 
 		// ---------------------------------------------------------------- sky
 		await progress( 0.05, 'Building the sky…' );
@@ -118,14 +122,22 @@ export class BallparkApp {
 		// ---------------------------------------------------------------- world
 		await progress( 0.1, 'Laying the ground…' );
 		this.colliders = new Colliders();
-		this.ground = new Ground( { scene, colliders: this.colliders } );
+		this.field = new Field( { scene, colliders: this.colliders } );
+		this.ground = new Ground( { scene, hole: FOOTPRINT.map( ( [ x, z ] ) => {
+
+			const w = this.field.toWorld( x, z );
+			return [ w.x, w.z ];
+
+		} ) } );
 
 		this.sceneRenderer = new SceneRenderer( engine.meshRenderer, scene, camera );
 		if ( this.sky.background ) this.sceneRenderer.background = this.sky.background;
 		// point and spot lights (the flashlight on L now; stadium lights later)
 		this.localLights = new LocalLights();
 
-		this.walker = new Walker( { camera, input: this.input, ground: this.ground, colliders: this.colliders, start: START } );
+		const at = this.field.toWorld( ...START.at ), look = this.field.toWorld( ...START.look );
+		const start = { position: at, yaw: Math.atan2( - ( look.x - at.x ), - ( look.z - at.z ) ) };
+		this.walker = new Walker( { camera, input: this.input, ground: this.field, colliders: this.colliders, start } );
 		this.freeCam = qs.has( 'fly' );
 
 		// ---------------------------------------------------------------- post

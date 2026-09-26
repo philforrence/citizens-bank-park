@@ -1,0 +1,765 @@
+import { Group, Mesh, BufferGeometry, Float32BufferAttribute, BoxGeometry, CylinderGeometry, Vector2, Vector3, Color, MathUtils } from '../engine/index.js';
+import { triangulateShape } from '../engine/math/ShapeUtils.js';
+import { ShaderModule } from '../engine/gpu/Shader.js';
+import { Texture } from '../engine/gpu/Texture.js';
+import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
+import { commonModule } from '../engine/render/wgsl/common.js';
+import { standard } from '../materials/Materials.js';
+import {
+	FT, FIELD_BEARING, BASE, MOUND_CENTER, RUBBER_FRONT, MOUND_RADIUS, MOUND_HEIGHT,
+	FOOTPRINT, OUTFIELD, FOUL_TERRITORY, FOUL_WALL_HEIGHT, DUGOUTS, fencePoint, fieldBoundary,
+} from './layout.js';
+
+// The playing field: grass, the infield skin, the mound, the bases, the chalk, the warning track, the
+// outfield fence, the foul poles, the low wall round foul territory and the dugouts. Built in the field
+// frame (layout.js) inside `this.group`, which turns it onto the compass.
+//
+// The ground inside the stadium footprint is one surface: its shader decides per pixel between grass
+// (mown in a checkerboard that turns light / dark with the view, like real mowing stripes), dirt, the
+// warning track, chalk and the concrete apron outside the fence (the seating bowl goes there later).
+
+const TRACK = 15 * FT; // warning track width
+const PATH = 2 * FT; // half width of the dirt path along the baselines
+const GRASS_INSET = 7 * FT; // infield grass edge inside the first-second / second-third baselines
+const ARC = 95 * FT; // infield skin radius from the front of the rubber
+const PLATE_CIRCLE = 13 * FT;
+const DUGOUT_DEPTH = 1.2; // dugout floor below the field
+const DUGOUT_WIDTH = 2.6; // front to back
+const DUGOUT_ROOF = 1.0; // top of the roof above the field
+
+const f = ( x ) => {
+
+	const s = String( Math.round( x * 1e4 ) / 1e4 );
+	return s.includes( '.' ) || s.includes( 'e' ) ? s : s + '.0';
+
+};
+const wgslArray = ( name, pts ) => `var<private> ${ name }: array<vec2f, ${ pts.length }> = array<vec2f, ${ pts.length }>(\n\t${ pts.map( ( [ x, z ] ) => `vec2f( ${ f( x ) }, ${ f( z ) } )` ).join( ',\n\t' ) }\n);`;
+
+export class Field {
+
+	constructor( { scene, colliders } ) {
+
+		this.colliders = colliders;
+		this.group = new Group();
+		this.group.name = 'field';
+		this.group.rotation.y = - MathUtils.degToRad( FIELD_BEARING );
+		scene.add( this.group );
+		this.group.updateMatrixWorld( true );
+		this._cos = Math.cos( this.group.rotation.y );
+		this._sin = Math.sin( this.group.rotation.y );
+
+		this.boundary = fieldBoundary();
+		this.dugouts = Object.entries( DUGOUTS ).map( ( [ side, [ a, b ] ] ) => this._dugoutFrame( side, a, b ) );
+
+		this._buildSurface();
+		this._buildMound();
+		this._buildBases();
+		this._buildFence();
+		this._buildDistanceMarkers();
+		this._buildFoulPoles();
+		for ( const d of this.dugouts ) this._buildDugout( d );
+
+	}
+
+	// ---------------------------------------------------------------- frames
+
+	// field frame -> world (x, z)
+	toWorld( x, z, out = new Vector3() ) {
+
+		return out.set( x * this._cos + z * this._sin, 0, - x * this._sin + z * this._cos );
+
+	}
+
+	// world -> field frame [ x, z ]
+	toField( x, z ) {
+
+		return [ x * this._cos - z * this._sin, x * this._sin + z * this._cos ];
+
+	}
+
+	// ground height (world x, z): the mound, the dugout floors, else the field level
+	heightAt( wx, wz ) {
+
+		const [ x, z ] = this.toField( wx, wz );
+		for ( const d of this.dugouts ) if ( this._inDugout( d, x, z ) ) return - DUGOUT_DEPTH;
+		return moundHeight( x, z );
+
+	}
+
+	// ---------------------------------------------------------------- surface
+
+	_buildSurface() {
+
+		// the footprint, with the dugout pits cut out
+		const contour = FOOTPRINT.map( ( [ x, z ] ) => new Vector2( x, z ) );
+		const holes = this.dugouts.map( ( d ) => d.pit.map( ( [ x, z ] ) => new Vector2( x, z ) ) );
+		const tris = triangulateShape( contour, holes );
+		const all = contour.concat( ...holes );
+		const pos = [], nrm = [], uv = [];
+		for ( const p of all ) {
+
+			pos.push( p.x, 0, p.y );
+			nrm.push( 0, 1, 0 );
+			uv.push( p.x, p.y );
+
+		}
+
+		const index = [];
+		for ( const [ a, b, c ] of tris ) index.push( a, c, b ); // counter-clockwise seen from above
+		const geo = new BufferGeometry();
+		geo.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		geo.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
+		geo.setAttribute( 'uv', new Float32BufferAttribute( uv, 2 ) );
+		geo.setIndex( index );
+		geo.computeBoundingBox();
+		geo.computeBoundingSphere();
+
+		this.surfaceMaterial = fieldMaterial( this.boundary, this.group.rotation.y );
+		const mesh = new Mesh( geo, this.surfaceMaterial );
+		mesh.name = 'field-surface';
+		mesh.receiveShadow = true;
+		this.group.add( mesh );
+
+	}
+
+	_buildMound() {
+
+		// a polar grid over the mound circle, raised by moundHeight(); same surface shader (it's dirt)
+		const RINGS = 14, SEG = 72;
+		const pos = [], nrm = [], uv = [], index = [];
+		const cz = - MOUND_CENTER;
+		for ( let r = 0; r <= RINGS; r ++ ) {
+
+			const rad = MOUND_RADIUS * r / RINGS;
+			for ( let s = 0; s < SEG; s ++ ) {
+
+				const a = s / SEG * Math.PI * 2;
+				const x = Math.cos( a ) * rad, z = cz + Math.sin( a ) * rad;
+				pos.push( x, moundHeight( x, z ) + 0.002, z );
+				uv.push( x, z );
+				nrm.push( 0, 1, 0 );
+				if ( r === 0 ) break;
+
+			}
+
+		}
+
+		const ring = ( r, s ) => r === 0 ? 0 : 1 + ( r - 1 ) * SEG + ( s % SEG );
+		for ( let r = 0; r < RINGS; r ++ ) {
+
+			for ( let s = 0; s < SEG; s ++ ) {
+
+				if ( r === 0 ) index.push( 0, ring( 1, s + 1 ), ring( 1, s ) );
+				else index.push( ring( r, s ), ring( r, s + 1 ), ring( r + 1, s + 1 ), ring( r, s ), ring( r + 1, s + 1 ), ring( r + 1, s ) );
+
+			}
+
+		}
+
+		const geo = new BufferGeometry();
+		geo.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		geo.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
+		geo.setAttribute( 'uv', new Float32BufferAttribute( uv, 2 ) );
+		geo.setIndex( index );
+		geo.computeVertexNormals();
+		// computeVertexNormals follows the winding: make sure they point up
+		const n = geo.getAttribute( 'normal' );
+		if ( n.array[ 1 ] < 0 ) for ( let i = 0; i < n.array.length; i ++ ) n.array[ i ] = - n.array[ i ];
+		geo.computeBoundingSphere();
+		const mesh = new Mesh( geo, this.surfaceMaterial );
+		mesh.name = 'mound';
+		mesh.receiveShadow = true;
+		mesh.castShadow = true;
+		this.group.add( mesh );
+
+	}
+
+	_buildBases() {
+
+		const white = standard( { name: 'bases', color: new Color( 0.82, 0.82, 0.8 ), roughness: 0.6 } );
+		white.underwaterLighting = 'none';
+		const add = ( geo, x, y, z, ry = 0 ) => {
+
+			const m = new Mesh( geo, white );
+			m.position.set( x, y, z );
+			m.rotation.y = ry;
+			m.castShadow = true;
+			m.receiveShadow = true;
+			this.group.add( m );
+			return m;
+
+		};
+
+		// bases: 15 in square, 3 in high, turned 45 degrees with the diamond. First and third sit inside
+		// fair territory with their outer corner on the 90 ft point; second is centred on its point.
+		const S = 15 / 12 * FT, T = 3 / 12 * FT;
+		const baseGeo = new BoxGeometry( S, T, S );
+		const r2 = Math.SQRT1_2;
+		const along = ( a, b ) => [ a * r2 - b * r2, - a * r2 - b * r2 ]; // (along 1B line, along 3B line) -> field
+		const [ x1, z1 ] = along( BASE - S / 2, S / 2 );
+		const [ x2, z2 ] = along( BASE, BASE );
+		const [ x3, z3 ] = along( S / 2, BASE - S / 2 );
+		for ( const [ x, z ] of [ [ x1, z1 ], [ x2, z2 ], [ x3, z3 ] ] ) add( baseGeo, x, T / 2, z, Math.PI / 4 );
+
+		// home plate: a pentagon 17 in wide, the back tip at the origin
+		const w = 17 / 12 * FT / 2, d = 17 / 12 * FT, s = 8.5 / 12 * FT;
+		const outline = [ [ 0, 0 ], [ w, - ( d - s ) ], [ w, - d ], [ - w, - d ], [ - w, - ( d - s ) ] ];
+		add( slab( outline, 0.02 ), 0, 0, 0 );
+
+		// the pitcher's rubber: 24 x 6 in, its front edge 60 ft 6 in from home plate
+		const rub = new BoxGeometry( 24 / 12 * FT, 0.04, 6 / 12 * FT );
+		const rz = - RUBBER_FRONT - 3 / 12 * FT;
+		add( rub, 0, moundHeight( 0, rz ) + 0.01, rz );
+
+	}
+
+	// ---------------------------------------------------------------- walls
+
+	_buildFence() {
+
+		const pad = standard( { name: 'wall-padding', color: new Color( 0.012, 0.045, 0.03 ), roughness: 0.75 } );
+		const trim = standard( { name: 'wall-trim', color: new Color( 0.75, 0.55, 0.02 ), roughness: 0.6 } );
+		const cap = standard( { name: 'wall-cap', color: new Color( 0.2, 0.2, 0.19 ), roughness: 0.8 } );
+		for ( const m of [ pad, trim, cap ] ) m.underwaterLighting = 'none';
+
+		// outfield fence, pole to pole: padding, a yellow line along the top, a cap
+		const out = OUTFIELD.map( ( [ a, d, h ] ) => ( { p: fencePoint( a, d ), h: h * FT } ) );
+		this._wall( out, { pad, trim, cap, thickness: 0.45, name: 'outfield-wall' } );
+
+		// the low wall in front of the stands in foul territory, broken by the dugouts
+		const poleL = fencePoint( OUTFIELD[ 0 ][ 0 ], OUTFIELD[ 0 ][ 1 ] );
+		const poleR = fencePoint( OUTFIELD[ OUTFIELD.length - 1 ][ 0 ], OUTFIELD[ OUTFIELD.length - 1 ][ 1 ] );
+		const foul = [ poleR, ...FOUL_TERRITORY, poleL ];
+		const h = FOUL_WALL_HEIGHT * FT;
+		// split the run at the dugout openings
+		let run = [];
+		const runs = [];
+		for ( let i = 0; i < foul.length; i ++ ) {
+
+			const p = foul[ i ];
+			run.push( { p, h } );
+			const q = foul[ i + 1 ];
+			if ( ! q ) break;
+			for ( const d of this.dugouts ) {
+
+				// the dugout's front edge lies on this segment: end the run at its near end, restart at its far end
+				const ta = segmentParam( p, q, d.a ), tb = segmentParam( p, q, d.b );
+				if ( ta !== null && tb !== null ) {
+
+					const [ n, m ] = ta < tb ? [ d.a, d.b ] : [ d.b, d.a ];
+					run.push( { p: n, h } );
+					runs.push( run );
+					run = [ { p: m, h } ];
+
+				}
+
+			}
+
+		}
+
+		runs.push( run );
+		for ( const r of runs ) if ( r.length > 1 ) this._wall( r, { pad, trim: null, cap, thickness: 0.35, name: 'foul-wall' } );
+
+	}
+
+	// A wall along a polyline of { p: [ x, z ], h }: padded face toward the field, cap on top, plain back.
+	// Adds a solid collider per segment.
+	_wall( pts, { pad, trim, cap, thickness, name } ) {
+
+		const face = new Quads(), band = new Quads(), top = new Quads();
+		const BAND = 0.15;
+		let u = 0;
+		for ( let i = 0; i < pts.length - 1; i ++ ) {
+
+			const A = pts[ i ], B = pts[ i + 1 ];
+			const [ ax, az ] = A.p, [ bx, bz ] = B.p;
+			const len = Math.hypot( bx - ax, bz - az );
+			if ( len < 1e-3 ) continue;
+			// the normal toward the field: toward second base
+			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
+			const mx = ( ax + bx ) / 2, mz = ( az + bz ) / 2;
+			if ( nx * ( 0 - mx ) + nz * ( - BASE * Math.SQRT2 - mz ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			const ox = - nx * thickness, oz = - nz * thickness; // back face offset (away from the field)
+			const ha = A.h, hb = B.h;
+			const lo = trim ? BAND : 0;
+			face.add( [ ax, 0, az ], [ bx, 0, bz ], [ bx, hb - lo, bz ], [ ax, ha - lo, az ], [ nx, 0, nz ], u, u + len );
+			if ( trim ) band.add( [ ax, ha - BAND, az ], [ bx, hb - BAND, bz ], [ bx, hb, bz ], [ ax, ha, az ], [ nx, 0, nz ], u, u + len );
+			top.add( [ ax, ha, az ], [ bx, hb, bz ], [ bx + ox, hb, bz + oz ], [ ax + ox, ha, az + oz ], [ 0, 1, 0 ], u, u + len );
+			top.add( [ bx + ox, 0, bz + oz ], [ ax + ox, 0, az + oz ], [ ax + ox, ha, az + oz ], [ bx + ox, hb, bz + oz ], [ - nx, 0, - nz ], u, u + len );
+			u += len;
+
+			// collider: an oriented box along the segment (world frame)
+			const wa = this.toWorld( ax + ox / 2, az + oz / 2 ), wb = this.toWorld( bx + ox / 2, bz + oz / 2 );
+			const dx = wb.x - wa.x, dz = wb.z - wa.z;
+			const hMax = Math.max( ha, hb );
+			this.colliders.addBox(
+				new Vector3( ( wa.x + wb.x ) / 2, hMax / 2, ( wa.z + wb.z ) / 2 ),
+				new Vector3( len / 2, hMax / 2, Math.max( thickness, 0.3 ) / 2 ),
+				- Math.atan2( dz, dx ),
+				{ tag: name },
+			);
+
+		}
+
+		for ( const [ q, mat ] of [ [ face, pad ], [ band, trim ], [ top, cap ] ] ) {
+
+			if ( ! mat || ! q.count ) continue;
+			const m = new Mesh( q.geometry(), mat );
+			m.name = name;
+			m.castShadow = true;
+			m.receiveShadow = true;
+			this.group.add( m );
+
+		}
+
+	}
+
+	// The distances painted on the outfield fence (OUTFIELD rows marked 'mark'): white numbers from a
+	// canvas atlas on quads just in front of the padding.
+	_buildDistanceMarkers() {
+
+		const rows = OUTFIELD.map( ( r, i ) => ( { a: r[ 0 ], d: r[ 1 ], h: r[ 2 ] * FT, mark: r[ 3 ] === 'mark', i } ) ).filter( ( r ) => r.mark );
+		if ( ! rows.length || typeof OffscreenCanvas === 'undefined' ) return;
+		const CW = 512, CH = 192;
+		const canvas = new OffscreenCanvas( CW, CH * rows.length );
+		const ctx = canvas.getContext( '2d' );
+		ctx.fillStyle = '#fff';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.font = '700 170px "Helvetica Neue", Helvetica, Arial, sans-serif';
+		rows.forEach( ( r, k ) => ctx.fillText( String( r.d ), CW / 2, CH * ( k + 0.5 ) + 6, CW - 16 ) );
+		const img = ctx.getImageData( 0, 0, CW, CH * rows.length );
+		const tex = new Texture( { label: 'wallNumbers', width: CW, height: CH * rows.length, format: 'rgba8unorm', mips: true, usage: [ 'sample', 'copyDst' ], data: new Uint8Array( img.data.buffer ) } );
+		tex.getGPU();
+		generateMipmaps( tex );
+
+		const mat = standard( {
+			name: 'wall-numbers', color: new Color( 0.85, 0.85, 0.82 ), roughness: 0.7, alphaTest: 0.5,
+			textures: { bpNumbers: tex },
+			surface: 'let t = textureSample( bpNumbers, smpAnisoClamp, in.uv ); s.alpha = t.a;',
+		} );
+		mat.underwaterLighting = 'none';
+
+		const pos = [], nrm = [], uv = [];
+		rows.forEach( ( r, k ) => {
+
+			// the fence's direction here (from its neighbours) and the normal toward home plate
+			const prev = OUTFIELD[ Math.max( 0, r.i - 1 ) ], next = OUTFIELD[ Math.min( OUTFIELD.length - 1, r.i + 1 ) ];
+			const [ px, pz ] = fencePoint( prev[ 0 ], prev[ 1 ] ), [ qx, qz ] = fencePoint( next[ 0 ], next[ 1 ] );
+			const len = Math.hypot( qx - px, qz - pz );
+			const tx = ( qx - px ) / len, tz = ( qz - pz ) / len;
+			let nx = - tz, nz = tx;
+			const [ cx, cz ] = fencePoint( r.a, r.d );
+			if ( nx * - cx + nz * - cz < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			// near the poles the numbers sit a little along the fence into fair territory (the fence runs
+			// from the left field pole to the right field pole, so that's +t on the left, -t on the right)
+			const shift = Math.abs( r.a ) > 40 ? ( r.a < 0 ? 2.2 : - 2.2 ) : 0;
+			const ox = cx + tx * shift + nx * 0.03, oz = cz + tz * shift + nz * 0.03;
+			const H = Math.min( 1.1, r.h * 0.55 ), W = H * CW / CH;
+			const y0 = ( r.h - 0.15 ) / 2 - H / 2 + 0.05, y1 = y0 + H;
+			// left / right as seen from the field (facing -n)
+			const lx = ox - nz * W / 2, lz = oz + nx * W / 2, rx = ox + nz * W / 2, rz = oz - nx * W / 2;
+			const v0 = k / rows.length, v1 = ( k + 1 ) / rows.length;
+			const quad = [ [ lx, y0, lz, 0, v1 ], [ rx, y0, rz, 1, v1 ], [ rx, y1, rz, 1, v0 ], [ lx, y0, lz, 0, v1 ], [ rx, y1, rz, 1, v0 ], [ lx, y1, lz, 0, v0 ] ];
+			for ( const [ x, y, z, u, v ] of quad ) {
+
+				pos.push( x, y, z );
+				nrm.push( nx, 0, nz );
+				uv.push( u, v );
+
+			}
+
+		} );
+
+		const geo = new BufferGeometry();
+		geo.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		geo.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
+		geo.setAttribute( 'uv', new Float32BufferAttribute( uv, 2 ) );
+		geo.computeBoundingSphere();
+		mat.side = 'double';
+		const mesh = new Mesh( geo, mat );
+		mesh.name = 'wall-numbers';
+		mesh.receiveShadow = true;
+		this.group.add( mesh );
+
+	}
+
+	_buildFoulPoles() {
+
+		const yellow = standard( { name: 'foul-pole', color: new Color( 0.85, 0.6, 0.02 ), roughness: 0.5, metalness: 0.2 } );
+		yellow.underwaterLighting = 'none';
+		const H = 70 * FT, r2 = Math.SQRT1_2;
+		for ( const k of [ 0, OUTFIELD.length - 1 ] ) {
+
+			const [ a, d ] = OUTFIELD[ k ];
+			// the pole stands just behind the fence on the foul line
+			const [ x, z ] = fencePoint( a, d + 1.5 );
+			const pole = new Mesh( new CylinderGeometry( 0.2, 0.25, H, 20 ), yellow );
+			pole.position.set( x, H / 2, z );
+			pole.castShadow = true;
+			this.group.add( pole );
+			const w = this.toWorld( x, z );
+			this.colliders.addCylinder( w.x, w.z, 0.3, 0, H );
+			// the screen sticks out from it into fair territory, square to the foul line
+			const fx = - Math.sign( a ) * r2, fz = - r2;
+			const screen = new Mesh( new BoxGeometry( 0.9, H - 4, 0.05 ), yellow );
+			screen.position.set( x + fx * 0.55, H / 2 + 2, z + fz * 0.55 );
+			screen.rotation.y = Math.atan2( - fz, fx );
+			screen.castShadow = true;
+			this.group.add( screen );
+
+		}
+
+	}
+
+	// ---------------------------------------------------------------- dugouts
+
+	// A dugout along the foul territory wall from a to b ([ x, z ]): its pit (the hole in the field
+	// surface) is the strip between that line and DUGOUT_WIDTH behind it.
+	_dugoutFrame( side, a, b ) {
+
+		const [ ax, az ] = a, [ bx, bz ] = b;
+		const len = Math.hypot( bx - ax, bz - az );
+		const ux = ( bx - ax ) / len, uz = ( bz - az ) / len;
+		// away from the field (the side away from second base)
+		let nx = - uz, nz = ux;
+		const mx = ( ax + bx ) / 2, mz = ( az + bz ) / 2;
+		if ( nx * ( 0 - mx ) + nz * ( - BASE * Math.SQRT2 - mz ) > 0 ) {
+
+			nx = - nx; nz = - nz;
+
+		}
+
+		const W = DUGOUT_WIDTH;
+		const pit = [ [ ax, az ], [ bx, bz ], [ bx + nx * W, bz + nz * W ], [ ax + nx * W, az + nz * W ] ];
+		return { side, a, b, len, ux, uz, nx, nz, pit };
+
+	}
+
+	_inDugout( d, x, z ) {
+
+		const dx = x - d.a[ 0 ], dz = z - d.a[ 1 ];
+		const s = dx * d.ux + dz * d.uz, t = dx * d.nx + dz * d.nz;
+		return s > 0 && s < d.len && t > 0 && t < DUGOUT_WIDTH;
+
+	}
+
+	_buildDugout( d ) {
+
+		const concrete = standard( { name: 'dugout-concrete', color: new Color( 0.3, 0.3, 0.29 ), roughness: 0.85 } );
+		const roofMat = standard( { name: 'dugout-roof', color: new Color( 0.012, 0.045, 0.03 ), roughness: 0.7 } );
+		const bench = standard( { name: 'dugout-bench', color: new Color( 0.05, 0.08, 0.2 ), roughness: 0.6 } );
+		for ( const m of [ concrete, roofMat, bench ] ) m.underwaterLighting = 'none';
+		const { a, len, ux, uz, nx, nz } = d;
+		const yaw = - Math.atan2( uz, ux ); // local x along the dugout, local z away from the field
+		const worldYaw = yaw + this.group.rotation.y;
+		// a point along (s) and behind (t) the front edge, in the field frame
+		const at = ( s, t ) => [ a[ 0 ] + ux * s + nx * t, a[ 1 ] + uz * s + nz * t ];
+		// a box from s0..s1 along, t0..t1 back, y0..y1 up: a mesh, and optionally a collider
+		const box = ( mat, s0, s1, t0, t1, y0, y1, name, collider = null ) => {
+
+			const [ x, z ] = at( ( s0 + s1 ) / 2, ( t0 + t1 ) / 2 );
+			const m = new Mesh( new BoxGeometry( s1 - s0, y1 - y0, t1 - t0 ), mat );
+			m.position.set( x, ( y0 + y1 ) / 2, z );
+			m.rotation.y = yaw;
+			m.castShadow = true;
+			m.receiveShadow = true;
+			m.name = name;
+			this.group.add( m );
+			if ( collider ) {
+
+				const w = this.toWorld( x, z );
+				this.colliders.addBox( new Vector3( w.x, ( y0 + y1 ) / 2, w.z ), new Vector3( ( s1 - s0 ) / 2, ( y1 - y0 ) / 2, ( t1 - t0 ) / 2 ), worldYaw, { tag: name, ...collider } );
+
+			}
+
+			return m;
+
+		};
+
+		const D = DUGOUT_DEPTH, W = DUGOUT_WIDTH, R = DUGOUT_ROOF;
+		const STEPS = 4, RUN = 0.35, STAIR = STEPS * RUN;
+		const LIP = 0.3;
+		box( concrete, 0, len, 0, W, - D - 0.1, - D, 'dugout-floor' );
+		box( concrete, 0, len, W, W + 0.25, - D, R, 'dugout-back', { solid: true } );
+		box( concrete, - 0.25, 0, - 0.25, W + 0.25, - D, R, 'dugout-end', { solid: true } );
+		box( concrete, len, len + 0.25, - 0.25, W + 0.25, - D, R, 'dugout-end', { solid: true } );
+		// the front lip: the field's edge, from the floor up to the field (you can drop down from it)
+		box( concrete, 0, len, 0, LIP, - D, 0, 'dugout-lip', { walkable: true } );
+		// the roof over the middle; the stairs at both ends are open to the sky. You can stand on it
+		// but walk under it (it's not solid).
+		box( roofMat, STAIR, len - STAIR, - 0.45, W + 0.25, R - 0.25, R, 'dugout-roof', { walkable: true, solid: false } );
+		box( bench, STAIR + 0.3, len - STAIR - 0.3, W - 0.5, W, - D, - D + 0.45, 'dugout-bench', { walkable: true } );
+		// stairs down from field level at each end: step k from the end wall is k risers down
+		for ( let k = 0; k < STEPS; k ++ ) {
+
+			const top = - k * D / STEPS;
+			box( concrete, k * RUN, ( k + 1 ) * RUN, LIP, W, - D, top, 'dugout-step', { walkable: true } );
+			box( concrete, len - ( k + 1 ) * RUN, len - k * RUN, LIP, W, - D, top, 'dugout-step', { walkable: true } );
+
+		}
+
+	}
+
+}
+
+// ---------------------------------------------------------------- helpers
+
+// mound height at a field-frame point: 10 in at the rubber, easing down to the 18 ft circle
+export function moundHeight( x, z ) {
+
+	const r = Math.hypot( x, z + MOUND_CENTER ) / MOUND_RADIUS;
+	if ( r >= 1 ) return 0;
+	const t = MathUtils.clamp( ( r - 0.3 ) / 0.7, 0, 1 );
+	return MOUND_HEIGHT * ( 1 - t * t * ( 3 - 2 * t ) );
+
+}
+
+// where the point c lies on segment p -> q (0..1), or null if it isn't on it
+function segmentParam( p, q, c ) {
+
+	const ex = q[ 0 ] - p[ 0 ], ez = q[ 1 ] - p[ 1 ];
+	const L2 = ex * ex + ez * ez;
+	const t = ( ( c[ 0 ] - p[ 0 ] ) * ex + ( c[ 1 ] - p[ 1 ] ) * ez ) / L2;
+	const dx = p[ 0 ] + ex * t - c[ 0 ], dz = p[ 1 ] + ez * t - c[ 1 ];
+	return t >= 0 && t <= 1 && dx * dx + dz * dz < 0.25 ? t : null;
+
+}
+
+// a flat slab of the given outline ([ x, z ], counter-clockwise from above) and thickness
+function slab( outline, h ) {
+
+	const q = new Quads();
+	const n = outline.length;
+	for ( let i = 1; i < n - 1; i ++ ) q.tri( [ outline[ 0 ][ 0 ], h, outline[ 0 ][ 1 ] ], [ outline[ i ][ 0 ], h, outline[ i ][ 1 ] ], [ outline[ i + 1 ][ 0 ], h, outline[ i + 1 ][ 1 ] ], [ 0, 1, 0 ] );
+	for ( let i = 0; i < n; i ++ ) {
+
+		const [ ax, az ] = outline[ i ], [ bx, bz ] = outline[ ( i + 1 ) % n ];
+		const len = Math.hypot( bx - ax, bz - az );
+		q.add( [ ax, 0, az ], [ bx, 0, bz ], [ bx, h, bz ], [ ax, h, az ], [ ( bz - az ) / len, 0, - ( bx - ax ) / len ], 0, len );
+
+	}
+
+	return q.geometry();
+
+}
+
+// Collects flat-shaded quads / triangles into one geometry. Winding is fixed up so every face is
+// front-facing along the normal given.
+class Quads {
+
+	constructor() {
+
+		this.pos = [];
+		this.nrm = [];
+		this.uv = [];
+		this.count = 0;
+
+	}
+
+	add( a, b, c, d, n, u0 = 0, u1 = 1 ) {
+
+		this.tri( a, b, c, n, [ u0, a[ 1 ] ], [ u1, b[ 1 ] ], [ u1, c[ 1 ] ] );
+		this.tri( a, c, d, n, [ u0, a[ 1 ] ], [ u1, c[ 1 ] ], [ u0, d[ 1 ] ] );
+
+	}
+
+	tri( a, b, c, n, ua = [ 0, 0 ], ub = [ 0, 0 ], uc = [ 0, 0 ] ) {
+
+		// counter-clockwise around n
+		const e1 = [ b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ], b[ 2 ] - a[ 2 ] ], e2 = [ c[ 0 ] - a[ 0 ], c[ 1 ] - a[ 1 ], c[ 2 ] - a[ 2 ] ];
+		const cx = e1[ 1 ] * e2[ 2 ] - e1[ 2 ] * e2[ 1 ], cy = e1[ 2 ] * e2[ 0 ] - e1[ 0 ] * e2[ 2 ], cz = e1[ 0 ] * e2[ 1 ] - e1[ 1 ] * e2[ 0 ];
+		if ( cx * n[ 0 ] + cy * n[ 1 ] + cz * n[ 2 ] < 0 ) {
+
+			[ b, c ] = [ c, b ];
+			[ ub, uc ] = [ uc, ub ];
+
+		}
+
+		this.pos.push( ...a, ...b, ...c );
+		for ( let i = 0; i < 3; i ++ ) this.nrm.push( ...n );
+		this.uv.push( ...ua, ...ub, ...uc );
+		this.count ++;
+
+	}
+
+	geometry() {
+
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( this.pos, 3 ) );
+		g.setAttribute( 'normal', new Float32BufferAttribute( this.nrm, 3 ) );
+		g.setAttribute( 'uv', new Float32BufferAttribute( this.uv, 2 ) );
+		g.computeBoundingBox();
+		g.computeBoundingSphere();
+		return g;
+
+	}
+
+}
+
+// ---------------------------------------------------------------- the surface shader
+
+function fieldMaterial( boundary, yaw ) {
+
+	const module = new ShaderModule( {
+		name: 'ballparkField',
+		deps: [ commonModule ],
+		code: /* wgsl */`
+const BP_FT: f32 = ${ f( FT ) };
+const BP_BASE: f32 = ${ f( BASE ) };
+${ wgslArray( 'BP_FIELD', boundary ) }
+
+// signed distance to the fence line round the playing field (negative inside)
+fn bpFieldSd( p: vec2f ) -> f32 {
+	var d = 1e9;
+	var inside = false;
+	var j = ${ boundary.length - 1 };
+	for ( var i = 0; i < ${ boundary.length }; i++ ) {
+		let a = BP_FIELD[ i ];
+		let b = BP_FIELD[ j ];
+		let e = b - a;
+		let w = p - a;
+		let t = clamp( dot( w, e ) / dot( e, e ), 0.0, 1.0 );
+		d = min( d, length( w - e * t ) );
+		if ( ( a.y > p.y ) != ( b.y > p.y ) && p.x < e.x * ( p.y - a.y ) / e.y + a.x ) { inside = !inside; }
+		j = i;
+	}
+	return select( d, -d, inside );
+}
+
+// antialiased 0..1 coverage of a band |d| < w (d in metres), fw = the pixel footprint
+fn bpBand( d: f32, w: f32, fw: f32 ) -> f32 {
+	return 1.0 - smoothstep( w - fw, w + fw, abs( d ) );
+}
+
+// outline of the rectangle lo..hi (a chalk box), line half width w
+fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
+	let c = ( lo + hi ) * 0.5;
+	let h = ( hi - lo ) * 0.5;
+	let q = abs( p - c ) - h;
+	let sd = length( max( q, vec2f( 0.0 ) ) ) + min( max( q.x, q.y ), 0.0 );
+	return bpBand( sd, w, fw );
+}
+`,
+	} );
+
+	const r2 = Math.SQRT1_2;
+	const mat = standard( {
+		name: 'field',
+		roughness: 0.95,
+		modules: [ module ],
+		uniforms: { fieldYaw: [ 'vec2f', new Vector2( Math.cos( yaw ), Math.sin( yaw ) ) ] },
+		varyings: { vField: 'vec2f' },
+		vertex: 'o.vField = v.position.xz;',
+		surface: /* wgsl */`
+	let p = in.vs.vField;
+	let fw = max( length( fwidth( p ) ) * 0.75, 0.004 );
+	// the view direction in the field frame (for the mowing stripes)
+	let cy = mat.fieldYaw.x; let sy = mat.fieldYaw.y;
+	let Vf = normalize( vec2f( in.V.x * cy - in.V.z * sy, in.V.x * sy + in.V.z * cy ) + vec2f( 1e-4 ) );
+	// along the first base line (a) and the third base line (b)
+	let a = dot( p, vec2f( ${ f( r2 ) }, ${ f( - r2 ) } ) );
+	let b = dot( p, vec2f( ${ f( - r2 ) }, ${ f( - r2 ) } ) );
+	let sd = bpFieldSd( p );
+	let n1 = mx_noise_float2( p * 0.35 );
+	let n2 = mx_noise_float2( p * 2.7 );
+	let n3 = mx_noise_float2( p * 19.0 );
+
+	// ---- which surface
+	let plate = vec2f( 0.0, ${ f( - 17 / 12 * FT / 2 ) } );
+	let rubber = vec2f( 0.0, ${ f( - RUBBER_FRONT ) } );
+	let moundC = vec2f( 0.0, ${ f( - MOUND_CENTER ) } );
+	let first = vec2f( ${ f( BASE * r2 ) }, ${ f( - BASE * r2 ) } );
+	let third = vec2f( ${ f( - BASE * r2 ) }, ${ f( - BASE * r2 ) } );
+	// infield skin: inside the arc on the fair side, less the grass square inside the diamond
+	var dirt = length( p - rubber ) < ${ f( ARC ) } && a > -0.35 && b > -0.35;
+	let square = a > ${ f( PATH ) } && b > ${ f( PATH ) } && a < ${ f( BASE - GRASS_INSET ) } && b < ${ f( BASE - GRASS_INSET ) };
+	if ( square ) { dirt = false; }
+	// the paths along the baselines, the circle round home plate, the mound, the cut-outs round first and third
+	if ( abs( b ) < ${ f( PATH ) } && a > 0.0 && a < BP_BASE ) { dirt = true; }
+	if ( abs( a ) < ${ f( PATH ) } && b > 0.0 && b < BP_BASE ) { dirt = true; }
+	if ( length( p - plate ) < ${ f( PLATE_CIRCLE ) } ) { dirt = true; }
+	if ( length( p - moundC ) < ${ f( MOUND_RADIUS ) } ) { dirt = true; }
+	if ( length( p - first ) < 3.2 || length( p - third ) < 3.2 ) { dirt = true; }
+	let track = sd > -${ f( TRACK ) };
+	let outside = sd > 0.0;
+
+	// ---- colours
+	// grass: two mowing passes along the foul lines make a checkerboard; each pass looks light seen
+	// along the direction it was mown and dark against it
+	let cell = ${ f( 15 * FT ) };
+	let ma = sign( sin( a * PI / cell ) );
+	let mb = sign( sin( b * PI / cell ) );
+	let da = vec2f( ${ f( r2 ) }, ${ f( - r2 ) } );
+	let db = vec2f( ${ f( - r2 ) }, ${ f( - r2 ) } );
+	var mow = 1.0 + 0.14 * ma * dot( Vf, da ) + 0.14 * mb * dot( Vf, db );
+	// the infield grass: finer stripes along the line to second base
+	if ( square ) { mow = 1.0 + 0.12 * sign( sin( ( p.x ) * PI / ${ f( 5 * FT ) } ) ) * Vf.x; }
+	var col = vec3f( 0.045, 0.13, 0.028 ) * mow * ( 0.88 + 0.16 * n1 ) * ( 0.92 + 0.1 * n2 ) * ( 0.94 + 0.08 * n3 );
+	var rough = 0.95;
+	if ( dirt ) {
+		col = vec3f( 0.36, 0.165, 0.085 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );
+		rough = 0.92;
+		// the edge of the grass: a soft lip, not a razor line
+	}
+	if ( track ) {
+		col = vec3f( 0.16, 0.055, 0.035 ) * ( 0.9 + 0.12 * n1 ) * ( 0.9 + 0.15 * n3 );
+		rough = 0.95;
+	}
+
+	// ---- chalk
+	var chalk = 0.0;
+	let lw = ${ f( 1.5 / 12 * FT ) };
+	if ( ! outside ) {
+		// foul lines (the lines are fair): from past the batter's boxes to the fence
+		if ( a > 1.6 ) { chalk = max( chalk, bpBand( b - lw, lw, fw ) ); }
+		if ( b > 1.6 ) { chalk = max( chalk, bpBand( a - lw, lw, fw ) ); }
+		// batter's boxes: 4 x 6 ft, 6 in off the plate, centred on it
+		let bx0 = ${ f( 17 / 12 * FT / 2 + 6 / 12 * FT ) };
+		let zc = plate.y;
+		chalk = max( chalk, bpBox( p, vec2f( bx0, zc - ${ f( 3 * FT ) } ), vec2f( bx0 + ${ f( 4 * FT ) }, zc + ${ f( 3 * FT ) } ), lw, fw ) );
+		chalk = max( chalk, bpBox( p, vec2f( -bx0 - ${ f( 4 * FT ) }, zc - ${ f( 3 * FT ) } ), vec2f( -bx0, zc + ${ f( 3 * FT ) } ), lw, fw ) );
+		// catcher's box: 43 in wide, 8 ft back from the batter's boxes
+		let cb = zc + ${ f( 3 * FT ) };
+		if ( p.y > cb && p.y < cb + ${ f( 8 * FT ) } ) { chalk = max( chalk, bpBand( abs( p.x ) - ${ f( 43 / 24 * FT ) }, lw, fw ) ); }
+		if ( abs( p.x ) < ${ f( 43 / 24 * FT ) } ) { chalk = max( chalk, bpBand( p.y - cb - ${ f( 8 * FT ) }, lw, fw ) ); }
+		// runner's lane: the last 45 ft to first base, 3 ft into foul territory
+		if ( a > ${ f( BASE - 45 * FT ) } && a < BP_BASE ) { chalk = max( chalk, bpBand( b + ${ f( 3 * FT ) }, lw, fw ) ); }
+		if ( b < 0.0 && b > ${ f( - 3 * FT ) } ) { chalk = max( chalk, bpBand( a - ${ f( BASE - 45 * FT ) }, lw, fw ) ); }
+		// coaches' boxes: 20 x 10 ft, 15 ft off the lines by first and third
+		chalk = max( chalk, bpBox( vec2f( a, b ), vec2f( ${ f( BASE - 14 * FT ) }, ${ f( - 25 * FT ) } ), vec2f( ${ f( BASE + 6 * FT ) }, ${ f( - 15 * FT ) } ), lw, fw ) );
+		chalk = max( chalk, bpBox( vec2f( b, a ), vec2f( ${ f( BASE - 14 * FT ) }, ${ f( - 25 * FT ) } ), vec2f( ${ f( BASE + 6 * FT ) }, ${ f( - 15 * FT ) } ), lw, fw ) );
+		// on-deck circles
+		for ( var sgn = -1.0; sgn <= 1.0; sgn += 2.0 ) {
+			chalk = max( chalk, bpBand( length( p - vec2f( sgn * 11.0, 3.5 ) ) - ${ f( 2.5 * FT ) }, lw, fw ) );
+		}
+	}
+	if ( chalk > 0.0 ) {
+		col = mix( col, vec3f( 0.8, 0.8, 0.77 ) * ( 0.95 + 0.05 * n3 ), chalk );
+		rough = mix( rough, 0.8, chalk );
+	}
+
+	// ---- outside the fence: the concrete apron (the stands go here)
+	if ( outside ) {
+		col = vec3f( 0.3, 0.29, 0.27 ) * ( 0.85 + 0.15 * n1 ) * ( 0.95 + 0.06 * n3 );
+		rough = 0.85;
+	}
+
+	s.albedo = col;
+	s.roughness = rough;
+`,
+	} );
+	mat.underwaterLighting = 'none';
+	return mat;
+
+}
