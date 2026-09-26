@@ -271,6 +271,13 @@ export class Bowl {
 			{ name: 'terrace-400', front: line( path, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, portals: { every: 2, row: 5, rows: 4, width: 3 }, back: { height: 1.1 }, base: L.terraceConcourse - 0.7 },
 		];
 
+		// the left field upper deck (the 200s in left), over the back rows of the left field seats and the
+		// covered concourse behind them, up to Harry the K's under the scoreboard
+		const lfT = this.tiers[ 1 ];
+		const lfTop = lfT.start + lfT.rows * lfT.depth;
+		const lfY = STREET + 4.6;
+		tiers.push( { name: 'lf-deck', front: offsetPolyline( lfT.front, lfTop - 2.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: lfY, rows: 12, depth: ROW, rise: 0.48, section: 13, aisle: 1.2, soffit: 1.0, frontWall: { top: lfY + 1.0 }, back: { height: 1.2 }, base: lfY - 1.3 } );
+
 		// the Pavilion (201-211) and the Pavilion Deck (301-310) over the right field seats, from the 369 mark
 		// toward the pole (right-center is Ashburn Alley's: the rooftop seats and the Liberty Bell)
 		const rf = this.tiers[ 2 ];
@@ -284,6 +291,10 @@ export class Bowl {
 
 		this.upper = tiers;
 		for ( const t of tiers ) this.group.add( buildTier( t, this.ctx ) );
+		// the left field deck on columns from the concourse
+		const lfd = tiers.find( ( t ) => t.name === 'lf-deck' );
+		this._columns( offsetPolyline( lfd.front, 2.5, [ 0, 0 ] ), STREET, lfd.base, 9 );
+		this._columns( offsetPolyline( lfd.front, lfd.rows * lfd.depth - 0.6, [ 0, 0 ] ), STREET, lfd.y0 + ( lfd.rows - 1 ) * lfd.rise - 1.0, 9 );
 		// the Pavilion stands on columns from the right field concourse, front and back
 		const pav = tiers[ tiers.length - 2 ], deck = tiers[ tiers.length - 1 ];
 		this._columns( offsetPolyline( pav.front, 0.6, [ 0, 0 ] ), STREET, pav.base, 9 );

@@ -54,6 +54,7 @@ export class Fascia {
 		this._ribbon( tier( 'suite-seats' ) );
 		this._terrace( tier( 'terrace-300' ) );
 		this._pavilion( tier( 'pavilion' ) );
+		this._lfDeck( tier( 'lf-deck' ) );
 		this._bunting( [ tier( 'club-level' ), tier( 'pavilion' ) ] );
 		this._key = '';
 		this._pitchKey = '';
@@ -190,6 +191,40 @@ export class Fascia {
 
 		this._mesh( ads, this.adMaterial, 'pavilion-ads' );
 		this._mesh( sp, speedMat, 'pitch-speed' );
+
+	}
+
+	// the left field upper deck's fascia: GEICO three times, then Jefferson University Hospital
+	_lfDeck( t ) {
+
+		if ( ! t ) return;
+		const segs = facing( t.front, t.outward );
+		const total = segs.reduce( ( a, S ) => a + S.len, 0 );
+		const tex = canvasTexture( 2048, 128, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#f2f1ec'; ctx.fillRect( 0, 0, w, h );
+			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			for ( let k = 0; k < 3; k ++ ) {
+
+				ctx.fillStyle = '#1a3e8c';
+				ctx.font = '900 88px "Helvetica Neue", Arial, sans-serif';
+				ctx.fillText( 'GEICO', w * ( 0.1 + k * 0.17 ), h / 2 + 4 );
+
+			}
+
+			ctx.fillStyle = '#0d3b6e'; ctx.fillRect( w * 0.62, 10, w * 0.37, h - 20 );
+			ctx.fillStyle = '#ffffff';
+			ctx.font = '700 44px Georgia, serif';
+			ctx.fillText( 'Jefferson University Hospitals', w * 0.805, h / 2 + 3, w * 0.35 );
+
+		}, 'lfDeckAds' );
+		const mat = standard( { name: 'lf-deck-ads', roughness: 0.5, textures: { bpLf: tex },
+			surface: 'let t = textureSample( bpLf, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.6; s.emissive = t * mix( 0.1, 0.4, frame.night );' } );
+		mat.underwaterLighting = 'none';
+		const q = new Quads();
+		const y0 = t.base + 0.25;
+		along( q, segs, 1, total - 1, y0, y0 + 1.0, 0.05, ( ss ) => ( ss - 1 ) / ( total - 2 ), 0, 1 );
+		this._mesh( q, mat, 'lf-deck-ads' );
 
 	}
 

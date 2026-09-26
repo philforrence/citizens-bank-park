@@ -218,13 +218,69 @@ export class Landmarks {
 			surface: 'let t = textureSample( bpNeon, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.2; s.emissive = t.rgb * mix( 1.2, 3.0, frame.night );',
 		} );
 		neonMat.underwaterLighting = 'none';
-		g.add( new Mesh( quadUV( W * 0.62, W * 0.62 / 8, y0 - 3.6, - 1.4 ), neonMat ) );
-		const awning = standard( { name: 'awning', color: new Color( 0.02, 0.03, 0.09 ), roughness: 0.8 } );
+		// Harry the K's Broadcast Bar under the board: two brick storeys at the top of the left field upper
+		// deck, the bar's glass under navy awnings facing the field, the green Citizens Bank Park letters
+		// across the brick above
+		const hb = this._hkBrick || ( this._hkBrick = standard( { name: 'harrys-brick', color: new Color( 0.26, 0.075, 0.045 ), roughness: 0.85, modules: [ commonModule ],
+			surface: /* wgsl */`
+	let row = floor( in.P.y / 0.075 );
+	let N = abs( in.N );
+	let u = select( in.P.x, in.P.z, N.x > N.z );
+	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
+	let fr = clamp( fwidth( in.P.y ) / 0.075 * 1.5 - 0.25, 0.0, 1.0 );
+	let mortar = mix( step( 0.88, fract( in.P.y / 0.075 ) ) + step( 0.93, fract( bu ) ), 0.15, fr );
+	s.albedo = mix( mat.color * ( 0.9 + 0.2 * mx_noise_float2( floor( vec2f( bu, row ) ) * 0.37 ) ), vec3f( 0.42, 0.4, 0.36 ), clamp( mortar, 0.0, 1.0 ) * 0.75 );
+` } ) );
+		hb.underwaterLighting = 'none';
+		const HW = W + 8, HD = 9, HY0 = STREET + 9.2, HY1 = y0 - 0.25;
+		const house = new Mesh( new BoxGeometry( HW, HY1 - STREET, HD ), hb );
+		house.position.set( - 2, STREET + ( HY1 - STREET ) / 2, - 1.0 + HD / 2 );
+		house.castShadow = true;
+		house.receiveShadow = true;
+		g.add( house );
+		const bar = canvasTexture( 1024, 128, ( ctx, w, h ) => {
+
+			// the bar's glass: warm light, people-height shapes, mullions
+			ctx.fillStyle = '#2a2016'; ctx.fillRect( 0, 0, w, h );
+			for ( let x = 0; x < w; x += 64 ) {
+
+				ctx.fillStyle = '#e0a860'; ctx.fillRect( x + 4, 8, 56, h - 16 );
+				ctx.fillStyle = 'rgba( 40, 26, 14, 0.5 )'; ctx.fillRect( x + 18, 60, 14, h - 68 );
+
+			}
+
+		}, 'harrysGlass' );
+		const barMat = standard( { name: 'harrys-glass', roughness: 0.1, textures: { bpBar: bar },
+			surface: 'let t = textureSample( bpBar, smpAnisoRepeat, in.uv ).rgb; s.albedo = t * 0.15; s.emissive = t * mix( 0.15, 0.6, frame.night );' } );
+		barMat.underwaterLighting = 'none';
+		const gq = new Quads();
+		const gz = - 1.02, gy0 = HY0 - 4.0, gy1 = HY0 - 0.9;
+		gq.tri( [ HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy1, gz ], [ 0, 0, - 1 ], [ 0, 1 ], [ 8, 1 ], [ 8, 0 ] );
+		gq.tri( [ HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy1, gz ], [ HW / 2 - 2, gy1, gz ], [ 0, 0, - 1 ], [ 0, 1 ], [ 8, 0 ], [ 0, 0 ] );
+		g.add( new Mesh( gq.geometry(), barMat ) );
+		const awning = standard( { name: 'harrys-awnings', color: new Color( 0.012, 0.025, 0.1 ), roughness: 0.75, side: 'double' } );
 		awning.underwaterLighting = 'none';
-		const aw = new Mesh( new BoxGeometry( W * 0.9, 1.1, 1.8 ), awning );
-		aw.position.set( 0, STREET + 3.4, - 2.2 );
-		aw.rotation.x = 0.35;
-		g.add( aw );
+		const awq = new Quads();
+		for ( let k = 0; k < 6; k ++ ) {
+
+			const xa = HW / 2 - 2 - k * HW / 6 - 0.3, xb = xa - HW / 6 + 0.6;
+			awq.add( [ xa, HY0 - 0.4, gz ], [ xb, HY0 - 0.4, gz ], [ xb, HY0 - 1.3, gz - 1.6 ], [ xa, HY0 - 1.3, gz - 1.6 ], [ 0, 0.8, - 0.5 ] );
+
+		}
+
+		g.add( new Mesh( awq.geometry(), awning ) );
+		g.add( new Mesh( quadUV( W * 0.62, W * 0.62 / 8, HY0 + 0.3, - 1.05 ), neonMat ) );
+		const hk = canvasTexture( 512, 96, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#0c1a44'; ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#f2ede1'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.font = "italic 700 50px Georgia, serif"; ctx.fillText( "Harry the K's", w / 2, h * 0.45 );
+			ctx.font = '600 16px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'BROADCAST BAR & GRILLE', w / 2, h * 0.85 );
+
+		}, 'harrysSign' );
+		const hkMat = standard( { name: 'harrys-sign', roughness: 0.5, textures: { bpHK: hk }, surface: 'let t = textureSample( bpHK, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.7; s.emissive = t * step( 0.5, t.r ) * mix( 0.2, 1.0, frame.night );' } );
+		hkMat.underwaterLighting = 'none';
+		g.add( new Mesh( quadUV( 8, 1.5, gy0 - 1.8, - 1.04 ), hkMat ) );
 
 		// the ad column built into the board's center field edge, inside the same dark frame: TOYOTA,
 		// Choose Blue, W.B. MASON, Budweiser top to bottom; the light tower rises right behind it
