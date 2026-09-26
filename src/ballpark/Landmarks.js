@@ -128,13 +128,77 @@ export class Landmarks {
 			for ( const sx of [ 0.46, 0.63 ] ) star( ctx, w * sx, h * 0.2, 26, '#1d3f8f' );
 
 		}, 'scriptSign' );
+		// channel letters: the lit faces toward the field; behind them, the letters' maroon backs (the same
+		// outline, 0.9 m back, seen reversed from outside as they should be) and their returns between
 		const signMat = standard( {
-			name: 'script-sign', roughness: 0.5, alphaTest: 0.5, side: 'double', textures: { bpScript: sign },
+			name: 'script-sign', roughness: 0.5, alphaTest: 0.5, textures: { bpScript: sign },
 			surface: 'let t = textureSample( bpScript, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.6; s.emissive = t.rgb * mix( 0.2, 0.6, frame.night );',
 		} );
-		signMat.underwaterLighting = 'none';
+		const backMat = standard( {
+			name: 'script-backs', color: new Color( 0.1, 0.022, 0.022 ), roughness: 0.6, metalness: 0.3, alphaTest: 0.5, side: 'double', textures: { bpScript: sign },
+			surface: 'let t = textureSample( bpScript, smpAnisoClamp, in.uv ); s.alpha = t.a;',
+		} );
+		for ( const m of [ signMat, backMat ] ) m.underwaterLighting = 'none';
 		const SW = W * 0.78, SH = SW * 320 / 1024;
 		g.add( new Mesh( quadUV( SW, SH, y0 + H + 0.9, - 0.2 ), signMat ) );
+		for ( let k = 1; k <= 6; k ++ ) g.add( new Mesh( quadUV( SW, SH, y0 + H + 0.9, - 0.2 + k * 0.15 ), backMat ) );
+
+		// the cabinet's back and sides: light royal-blue ribbed siding, a column of louvres up one side,
+		// and on the back a huge Phillies cap and ball on navy with Citizens Bank Park along the top
+		const siding = standard( { name: 'board-siding', color: new Color( 0.03, 0.11, 0.39 ), roughness: 0.45, metalness: 0.6,
+			surface: /* wgsl */`
+	let N = abs( in.N );
+	let u = select( in.P.x, in.P.z, N.x > N.z );
+	let fw = fwidth( u ) / 0.1;
+	let rib = 0.85 + 0.15 * step( 0.5, fract( u / 0.1 ) ) * ( 1.0 - clamp( fw * 2.0, 0.0, 1.0 ) );
+	s.albedo = mat.color * rib;
+` } );
+		siding.underwaterLighting = 'none';
+		const shell = new Mesh( new BoxGeometry( W + 1.3, H + 1.3, 1.1 ), siding );
+		shell.position.set( 0, y0 + H / 2, 0.06 );
+		g.add( shell );
+		const rear = canvasTexture( 1024, 832, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#14254f';
+			ctx.fillRect( 0, 0, w, h );
+			// the cap: red crown, bill, white P
+			ctx.fillStyle = '#c8102e';
+			ctx.beginPath(); ctx.ellipse( w * 0.38, h * 0.55, w * 0.22, h * 0.26, 0, Math.PI, 0 ); ctx.fill();
+			ctx.fillRect( w * 0.16, h * 0.54, w * 0.44, h * 0.06 );
+			ctx.beginPath(); ctx.ellipse( w * 0.52, h * 0.62, w * 0.2, h * 0.05, - 0.1, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#ffffff';
+			ctx.font = 'italic 700 250px Georgia, serif';
+			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.fillText( 'P', w * 0.37, h * 0.42 );
+			// the ball
+			ctx.beginPath(); ctx.arc( w * 0.76, h * 0.58, h * 0.14, 0, Math.PI * 2 ); ctx.fill();
+			ctx.strokeStyle = '#c8102e'; ctx.lineWidth = 8;
+			ctx.beginPath(); ctx.arc( w * 0.66, h * 0.58, h * 0.11, - 0.9, 0.9 ); ctx.stroke();
+			ctx.beginPath(); ctx.arc( w * 0.86, h * 0.58, h * 0.11, Math.PI - 0.9, Math.PI + 0.9 ); ctx.stroke();
+			ctx.fillStyle = '#1a9a50';
+			ctx.font = '800 64px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'Citizens Bank Park', w / 2, h * 0.1 );
+
+		}, 'boardRear' );
+		const rearMat = standard( { name: 'board-rear', roughness: 0.55, textures: { bpRear: rear }, surface: 'let t = textureSample( bpRear, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.8; s.emissive = t * step( 0.5, t.g - t.r ) * smoothstep( 0.1, 0.7, frame.night ) * 1.5;' } );
+		rearMat.underwaterLighting = 'none';
+		const rq = new Quads();
+		// seen from behind (looking along -z in the group), +x is on the viewer's right
+		const zr = 0.62;
+		rq.tri( [ - W / 2, y0, zr ], [ W / 2, y0, zr ], [ W / 2, y0 + H, zr ], [ 0, 0, 1 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+		rq.tri( [ - W / 2, y0, zr ], [ W / 2, y0 + H, zr ], [ - W / 2, y0 + H, zr ], [ 0, 0, 1 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+		g.add( new Mesh( rq.geometry(), rearMat ) );
+		// louvres up the side
+		const louvre = standard( { name: 'board-louvres', color: new Color( 0.015, 0.06, 0.22 ), roughness: 0.5, metalness: 0.5,
+			surface: 's.albedo = mat.color * ( 0.6 + 0.4 * step( 0.5, fract( in.P.y / 0.12 ) ) );' } );
+		louvre.underwaterLighting = 'none';
+		for ( let k = 0; k < 9; k ++ ) {
+
+			const lv = new Mesh( new BoxGeometry( 0.08, 0.8, 1.6 ), louvre );
+			lv.position.set( - W / 2 - 0.68, y0 + 1.5 + k * ( H - 3 ) / 8, 0.06 );
+			g.add( lv );
+
+		}
 
 		// beneath: green neon "Citizens Bank Park", and the awnings of Harry the K's
 		const neon = canvasTexture( 1024, 128, ( ctx, w, h ) => {
@@ -150,7 +214,7 @@ export class Landmarks {
 
 		}, 'neonName' );
 		const neonMat = standard( {
-			name: 'neon', roughness: 0.4, alphaTest: 0.3, side: 'double', textures: { bpNeon: neon },
+			name: 'neon', roughness: 0.4, alphaTest: 0.3, textures: { bpNeon: neon },
 			surface: 'let t = textureSample( bpNeon, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.2; s.emissive = t.rgb * mix( 1.2, 3.0, frame.night );',
 		} );
 		neonMat.underwaterLighting = 'none';
