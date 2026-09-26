@@ -2,7 +2,7 @@ import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometr
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
-import { flatPolygon, offsetLoop, canvasTexture, segLen, lerp2, beam } from './geo.js';
+import { flatPolygon, offsetLoop, canvasTexture, segLen, lerp2, beam, box } from './geo.js';
 import { FOOTPRINT, LEVELS } from './layout.js';
 import { STATUES } from './data/surroundings.js';
 
@@ -153,17 +153,31 @@ export class Exterior {
 		this.pavers = standard( {
 			name: 'plaza-pavers', color: new Color( 0.3, 0.14, 0.09 ), roughness: 0.8, modules: [ commonModule ],
 			surface: /* wgsl */`
-	// brick pavers in a herringbone of 0.2 x 0.1 m, bands of granite every 6 m
+	// light concrete slabs (1.5 m, saw-cut joints) crossed by bands of red brick pavers every 10 m, laid in
+	// herringbone; each slab a little different, the brick weathered
 	let p = in.uv;
-	let q = vec2f( p.x + p.y, p.x - p.y ) * 0.7071;
-	let cell = floor( q / vec2f( 0.2, 0.1 ) );
-	let f = fract( q / vec2f( 0.2, 0.1 ) );
-	let mortar = clamp( step( 0.9, f.x ) + step( 0.85, f.y ), 0.0, 1.0 );
-	let tone = 0.8 + 0.35 * fract( sin( dot( cell, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
-	var c = mix( mat.color * tone, vec3f( 0.3, 0.28, 0.26 ), mortar * 0.7 );
-	let band = abs( fract( p / 6.0 ) - 0.5 );
-	if ( min( band.x, band.y ) > 0.47 ) { c = vec3f( 0.33, 0.32, 0.31 ); }
-	s.albedo = c * ( 0.92 + 0.1 * mx_noise_float2( p * 0.4 ) );
+	let g = abs( fract( p / 10.0 ) - 0.5 ) * 10.0; // metres from the middle of a 10 m cell
+	let band = max( g.x, g.y ) > 4.4;
+	let fw = fwidth( p.x ) + 0.002;
+	var c: vec3f;
+	if ( band ) {
+		let q = vec2f( p.x + p.y, p.x - p.y ) * 0.7071;
+		let cell = floor( q / vec2f( 0.2, 0.1 ) );
+		let f = fract( q / vec2f( 0.2, 0.1 ) );
+		let far = clamp( fw * 12.0 - 0.3, 0.0, 1.0 );
+		let mortar = mix( clamp( step( 0.9, f.x ) + step( 0.85, f.y ), 0.0, 1.0 ), 0.2, far );
+		let tone = mix( 0.8 + 0.35 * fract( sin( dot( cell, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, far );
+		c = mix( mat.color * tone, vec3f( 0.3, 0.28, 0.26 ), mortar * 0.7 );
+		// the band's edge in granite
+		if ( max( g.x, g.y ) < 4.55 ) { c = vec3f( 0.3, 0.3, 0.29 ); }
+	} else {
+		let slab = floor( p / 1.5 );
+		let sj = abs( fract( p / 1.5 ) - 0.5 ) * 1.5;
+		let joint = ( 1.0 - smoothstep( 0.72, 0.74 + fw, max( sj.x, sj.y ) ) );
+		let tint = 0.92 + 0.12 * fract( sin( dot( slab, vec2f( 41.3, 17.7 ) ) ) * 7543.21 );
+		c = vec3f( 0.46, 0.44, 0.4 ) * tint * mix( 0.72, 1.0, joint );
+	}
+	s.albedo = c * ( 0.9 + 0.12 * mx_noise_float2( p * 0.35 ) + 0.05 * mx_noise_float2( p * 4.0 ) );
 `,
 		} );
 		for ( const m of [ this.brick, this.brickUpper, this.coping, this.brickPlain, this.stone, this.copper, this.granite, this.bronze, this.paving, this.pavers ] ) m.underwaterLighting = 'none';
@@ -223,6 +237,106 @@ export class Exterior {
 		for ( let x = - 126; x <= - 76; x += 10 ) trees.push( [ x, 95 ] );
 		for ( let z = 20; z <= 85; z += 10 ) trees.push( [ - 130, z ] );
 		for ( const [ x, z ] of trees ) this._tree( x, z, trunk, leaves );
+		this._plazaFurniture( trunk, leaves );
+
+	}
+
+	// Round raised brick planters with cast-stone caps, shrubs and fall flowers; trees in grates; benches
+	// facing the gate; bollards along the curb. Kept off the walk from the corner to the gate.
+	_plazaFurniture( trunk, leaves ) {
+
+		const start = [ - 112, 78 ], gate = GATES[ 0 ].at;
+		const clearOfWalk = ( x, z, r ) => {
+
+			const dx = gate[ 0 ] - start[ 0 ], dz = gate[ 1 ] - start[ 1 ], l2 = dx * dx + dz * dz;
+			const t = Math.max( 0, Math.min( 1, ( ( x - start[ 0 ] ) * dx + ( z - start[ 1 ] ) * dz ) / l2 ) );
+			return Math.hypot( start[ 0 ] + dx * t - x, start[ 1 ] + dz * t - z ) > r + 3;
+
+		};
+		const brick = new Quads(), stone = new Quads(), steel = new Quads(), wood = new Quads();
+		const planters = [ [ - 124, 70, 3.2 ], [ - 96, 84, 3.0 ], [ - 124, 50, 2.6 ], [ - 104, 36, 2.8 ], [ - 84, 66, 2.6 ], [ - 116, 22, 2.4 ] ].filter( ( [ x, z, r ] ) => clearOfWalk( x, z, r ) );
+		const shrub = standard( { name: 'shrubs', color: new Color( 0.06, 0.14, 0.04 ), roughness: 0.9, modules: [ commonModule ],
+			surface: /* wgsl */`
+	let n = mx_noise_float3( in.P * 2.3 );
+	var c = mat.color * ( 0.7 + 0.6 * n );
+	// mums: rust, gold and purple clumps
+	let f = mx_noise_float3( in.P * 5.0 + vec3f( 3.0 ) );
+	if ( f > 0.35 ) { c = select( select( vec3f( 0.35, 0.08, 0.03 ), vec3f( 0.5, 0.35, 0.03 ), f > 0.45 ), vec3f( 0.22, 0.05, 0.2 ), f > 0.55 ); }
+	s.albedo = c;
+` } );
+		shrub.underwaterLighting = 'none';
+		for ( const [ x, z, r ] of planters ) {
+
+			const N = 24, h = 0.6;
+			for ( let i = 0; i < N; i ++ ) {
+
+				const a0 = i / N * Math.PI * 2, a1 = ( i + 1 ) / N * Math.PI * 2;
+				const P = ( a, rr, y ) => [ x + Math.cos( a ) * rr, y, z + Math.sin( a ) * rr ];
+				const n = [ Math.cos( ( a0 + a1 ) / 2 ), 0, Math.sin( ( a0 + a1 ) / 2 ) ];
+				brick.add( P( a0, r, STREET ), P( a1, r, STREET ), P( a1, r, STREET + h ), P( a0, r, STREET + h ), n );
+				stone.add( P( a0, r + 0.08, STREET + h ), P( a1, r + 0.08, STREET + h ), P( a1, r - 0.35, STREET + h ), P( a0, r - 0.35, STREET + h ), [ 0, 1, 0 ] );
+				stone.add( P( a0, r + 0.08, STREET + h - 0.12 ), P( a1, r + 0.08, STREET + h - 0.12 ), P( a1, r + 0.08, STREET + h ), P( a0, r + 0.08, STREET + h ), n );
+
+			}
+
+			// the shrubs: a low mound of clumps
+			for ( let k = 0; k < 7; k ++ ) {
+
+				const a = k / 7 * Math.PI * 2 + x, rr = k === 0 ? 0 : r * 0.55;
+				const m = new Mesh( new SphereGeometry( k === 0 ? r * 0.55 : r * 0.35, 10, 7 ), shrub );
+				m.position.set( x + Math.cos( a ) * rr, STREET + h + 0.1, z + Math.sin( a ) * rr );
+				m.scale.y = 0.55;
+				m.castShadow = true;
+				this.group.add( m );
+
+			}
+
+			const w = this.field.toWorld( x, z );
+			this.colliders.addCylinder( w.x, w.z, r, this.field.y0 + STREET, this.field.y0 + STREET + h );
+
+		}
+
+		// trees in grates across the plaza
+		for ( const [ x, z ] of [ [ - 118, 88 ], [ - 88, 90 ], [ - 126, 36 ], [ - 96, 20 ], [ - 110, 58 ], [ - 72, 74 ] ].filter( ( [ x, z ] ) => clearOfWalk( x, z, 1.5 ) ) ) {
+
+			this._tree( x, z, trunk, leaves );
+			box( steel, [ x, STREET + 0.03, z ], [ 1.8, 0.04, 1.8 ] );
+
+		}
+
+		// benches facing the gate: slats on steel legs
+		const face = Math.atan2( gate[ 0 ] - start[ 0 ], gate[ 1 ] - start[ 1 ] );
+		for ( const [ x, z ] of [ [ - 124, 60 ], [ - 100, 88 ], [ - 90, 76 ], [ - 122, 30 ] ].filter( ( [ x, z ] ) => clearOfWalk( x, z, 1.2 ) ) ) {
+
+			const c = Math.cos( face ), sn = Math.sin( face );
+			const P = ( a, y, b ) => [ x + a * c + b * sn, y, z - a * sn + b * c ];
+			for ( const a of [ - 0.8, 0.8 ] ) beam( steel, P( a, STREET, 0 ), P( a, STREET + 0.45, 0 ), 0.08 );
+			for ( let k = 0; k < 4; k ++ ) beam( wood, P( - 0.95, STREET + 0.46, - 0.2 + k * 0.13 ), P( 0.95, STREET + 0.46, - 0.2 + k * 0.13 ), 0.07 );
+			for ( let k = 0; k < 2; k ++ ) beam( wood, P( - 0.95, STREET + 0.7 + k * 0.16, - 0.28 ), P( 0.95, STREET + 0.7 + k * 0.16, - 0.28 ), 0.07 );
+			const w = this.field.toWorld( x, z );
+			this.colliders.addCylinder( w.x, w.z, 0.9, this.field.y0 + STREET, this.field.y0 + STREET + 0.8 );
+
+		}
+
+		// bollards along the plaza's street edges
+		for ( let x = - 128; x <= - 74; x += 2.4 ) beam( steel, [ x, STREET, 97 ], [ x, STREET + 0.9, 97 ], 0.2 );
+		for ( let z = 14; z <= 94; z += 2.4 ) beam( steel, [ - 132, STREET, z ], [ - 132, STREET + 0.9, z ], 0.2 );
+
+		const mats = [
+			[ brick, this.brickPlain, 'planters' ], [ stone, this.stone, 'planter-caps' ],
+			[ steel, this.metal || ( this.metal = standard( { name: 'plaza-steel', color: new Color( 0.3, 0.31, 0.32 ), roughness: 0.45, metalness: 0.7 } ) ), 'plaza-steel' ],
+			[ wood, this.wood || ( this.wood = standard( { name: 'bench-wood', color: new Color( 0.22, 0.13, 0.07 ), roughness: 0.7 } ) ), 'benches' ],
+		];
+		for ( const [ q, mat, name ] of mats ) {
+
+			mat.underwaterLighting = 'none';
+			const m = new Mesh( q.geometry(), mat );
+			m.name = name;
+			m.castShadow = true;
+			m.receiveShadow = true;
+			this.group.add( m );
+
+		}
 
 	}
 
