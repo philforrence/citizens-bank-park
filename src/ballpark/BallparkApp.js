@@ -34,6 +34,7 @@ import { Details2008 } from './Details2008.js';
 import { Fascia } from './Fascia.js';
 import { Concourse } from './Concourse.js';
 import { Complex } from './Complex.js';
+import { SkyGlow } from './SkyGlow.js';
 import { Players } from './game/Players.js';
 import * as Motions from './game/Motions.js';
 import { Ball } from './game/Ball.js';
@@ -78,6 +79,7 @@ export class BallparkApp {
 			exposure: 0.55,
 			renderScale: 1, // internal resolution (the temporal upscaler reconstructs the output)
 		};
+		this.skyGlow = 0.006; // the urban sky glow at night (see _weather)
 		this.qs = new URLSearchParams( location.search );
 		// ?hour=21 sets the time of day (the game started at 8:37 pm)
 		if ( this.qs.has( 'hour' ) ) this.settings.timeOfDay = Number( this.qs.get( 'hour' ) ) || this.settings.timeOfDay;
@@ -170,6 +172,10 @@ export class BallparkApp {
 			if ( qs.has( 'paused' ) ) this.director.playing = false;
 
 		}
+		// the city's glow in the night air and the halos round the light banks; Center City is north
+		// (world -z)
+		this.skyGlowLayer = new SkyGlow( scene, this.bowl.lightSources().map( ( l ) => l.position ) );
+		this._north = new Vector3( 0, 0, - 1 );
 		// the haze thickens toward "sea level": put that under the field, which is below the street
 		G.seaLevel.value = this.field.y0 - 1;
 		// what you walk on: street level round the pit, the field (and the seats' colliders) inside it
@@ -398,6 +404,7 @@ export class BallparkApp {
 	_weather() {
 
 		const F = this.field;
+		this.skyGlow = 0.006;
 		// the flags: a breeze by default; the replay's nights were windy (the 27th a rainstorm out of the
 		// north-west, the 29th cold, blowing 20-30 mph)
 		const flagWind = ( wx, wz, k ) => {
@@ -433,6 +440,8 @@ export class BallparkApp {
 		this.field.surfaceMaterial.uniforms.wet.value = wet;
 		// everything else open to the sky: soaked on the 27th, drying out on the 29th
 		G.wet.value = firstNight ? 0.45 + 0.55 * k : 0.12;
+		// the low cloud on the 27th glows with the park's and the city's light
+		this.skyGlow = firstNight ? 0.016 + 0.008 * k : 0.006;
 		this.sound.setRain( rain );
 		if ( this.clouds ) this.clouds.coverage.value = firstNight ? 0.85 + 0.12 * k : 0.55;
 		if ( this.haze ) this.haze.density.value = firstNight ? 1.3 + 1.2 * k : 1.0;
@@ -501,7 +510,16 @@ export class BallparkApp {
 		// below the horizon the moon takes over as the key light
 		const night = MathUtils.smoothstep( - dir.y, 0.02, 0.18 );
 		G.night.value = night;
-		this.sky.starIntensity.value = night;
+		// over South Philadelphia only a few of the brightest stars get through the city's glow
+		this.sky.starIntensity.value = night * 0.08;
+		this.sky.glow.value = night * this.skyGlow;
+		if ( this.skyGlowLayer ) {
+
+			// the glow over the city, and the halos round the light banks (bigger in the rain)
+			const r = this.rain ? this.rain.amount : 0;
+			this.skyGlowLayer.set( { glow: night * this.skyGlow, halo: night * ( 0.35 + 1.1 * r ), haloSize: 22 + 20 * r, toward: this._north } );
+
+		}
 		const moon = new Vector3( - dir.x, Math.abs( dir.y ) * 0.8 + 0.25, - dir.z ).normalize();
 		this.sky.moonDir.value.copy( moon );
 		const light = dir.y > - 0.07 ? dir : moon;

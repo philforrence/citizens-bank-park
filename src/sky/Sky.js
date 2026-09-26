@@ -44,7 +44,15 @@ export class Sky {
 			moonDir: [ 'vec3f', new Vector3( - 0.3, 0.5, 0.8 ).normalize() ],
 			sunDiskIntensity: [ 'f32', 1 ],
 			starIntensity: [ 'f32', 0 ],
+			// urban sky glow (light pollution, lit low cloud): its strength, and the direction it's
+			// brightest toward (a city centre) with how much it leans that way
+			glow: [ 'f32', 0 ],
+			glowDir: [ 'vec3f', new Vector3( 0, 0, - 1 ) ],
+			glowColor: [ 'vec3f', new Vector3( 1.0, 0.62, 0.34 ) ],
 		}, { label: 'sky' } );
+		this.glow = this.params.fields.glow;
+		this.glowDir = this.params.fields.glowDir;
+		this.glowColor = this.params.fields.glowColor;
 		this.sunDiskIntensity = this.params.fields.sunDiskIntensity;
 		this.moonDir = this.params.fields.moonDir;
 		this.starIntensity = this.params.fields.starIntensity;
@@ -65,9 +73,10 @@ export class Sky {
 		const clouds = this.clouds;
 		const deps = [ commonModule, this.atmosphere.module ];
 		if ( clouds ) deps.push( clouds.module );
+		// the glow is scattered light in the air under the clouds: added over them
 		const composite = ( sampler ) => clouds
-			? `let c = ${ sampler }( dir );\n\treturn base * c.a + c.rgb;`
-			: 'return base;';
+			? `let c = ${ sampler }( dir );\n\treturn base * c.a + c.rgb + skyGlow( dir );`
+			: 'return base + skyGlow( dir );';
 
 		return new ShaderModule( {
 			name: 'sky',
@@ -152,6 +161,16 @@ fn skyMoonSky( dir: vec3f ) -> vec3f {
 	let grad = mix( 1.7, 1.0, sat( dir.y * 3.0 ) );
 	let up = smoothstep( -0.05, 0.15, skyParams.moonDir.y );
 	return vec3f( 0.005, 0.0068, 0.0105 ) * ( grad + aureole ) * frame.night * up;
+}
+
+// Urban sky glow: warm, brightest at the horizon and toward the city centre, fading up the sky; with
+// low cloud the whole dome is lit from below.
+fn skyGlow( dir: vec3f ) -> vec3f {
+	if ( skyParams.glow < 0.001 ) { return vec3f( 0.0 ); }
+	let h = sat( dir.y );
+	let toward = sat( dot( normalize( vec3f( dir.x, 0.0, dir.z ) + vec3f( 1e-4, 0.0, 0.0 ) ), skyParams.glowDir ) );
+	let k = ( 0.35 + 1.6 * pow( 1.0 - h, 4.0 ) ) * ( 1.0 + 1.4 * toward * toward * pow( 1.0 - h, 2.0 ) );
+	return skyParams.glowColor * k * skyParams.glow * smoothstep( -0.1, 0.02, dir.y );
 }
 
 // Everything behind the clouds except the sun and moon disks. The night terms are only
