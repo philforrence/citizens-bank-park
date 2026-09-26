@@ -5,6 +5,8 @@ import { Quads } from './Stands.js';
 import { flatPolygon, offsetLoop, canvasTexture, segLen, lerp2, beam, box } from './geo.js';
 import { FOOTPRINT, LEVELS } from './layout.js';
 import { STATUES } from './data/surroundings.js';
+import { bakePose, neutralPose, PART } from './game/Rig.js';
+import * as M from './game/Motions.js';
 
 // Outside the ballpark at street level: the brick facade round the footprint with the gates in it, the
 // sidewalks, the plaza at the Third Base Gate (Pattison Avenue and Citizens Bank Way) with the Mike
@@ -851,11 +853,23 @@ export class Exterior {
 
 		const at = ( name ) => ( STATUES[ name ] || [] )[ 0 ];
 		// the Mike Schmidt statue at the Third Base Gate, Robin Roberts at First Base, Steve Carlton at Left Field
-		const list = [ [ 'Mike Schmidt', 'batter' ], [ 'Robin Roberts', 'pitcher' ], [ 'Steve Carlton', 'pitcher' ], [ 'Connie Mack', 'standing' ] ];
-		for ( const [ name, pose ] of list ) {
+		// Frudakis's bronzes (2004): Schmidt in his home run follow-through, head up; Roberts mid-windup;
+		// Carlton in his high leg kick; Connie Mack standing, his scorecard raised
+		const schmidt = M.swing( 0.5 );
+		schmidt.head = [ - 0.35, 0.5 ];
+		const mack = neutralPose();
+		mack.glove = false;
+		mack.handR = [ 0.3, 1.75, - 0.15 ];
+		const list = [
+			[ 'Mike Schmidt', schmidt, 'MIKE SCHMIDT', '1972 - 1989', [] ],
+			[ 'Robin Roberts', M.delivery( 0.22 ), 'ROBIN ROBERTS', '1948 - 1961', [ PART.bat ] ],
+			[ 'Steve Carlton', M.delivery( 0.4 ), 'STEVE CARLTON', '1972 - 1986', [ PART.bat ] ],
+			[ 'Connie Mack', mack, 'CONNIE MACK', '1901 - 1950', [ PART.bat, PART.glove ] ],
+		];
+		for ( const [ name, pose, label, years, drop ] of list ) {
 
 			const p = at( name );
-			if ( p ) this._statue( p[ 0 ], p[ 1 ], pose );
+			if ( p ) this._statue( p[ 0 ], p[ 1 ], pose, label, years, drop, name === 'Steve Carlton' ? 'R' : 'L' );
 
 		}
 
@@ -864,25 +878,57 @@ export class Exterior {
 
 	}
 
-	// a bronze figure on a granite pedestal, facing the gate / the street corner
-	_statue( x, z, pose ) {
+	// a bronze figure (the players' own body, posed and baked) on a polished granite pedestal with its
+	// engraved plate, facing the stadium
+	_statue( x, z, pose, label, years, drop, gloveHand ) {
 
 		const g = new Group();
 		g.position.set( x, STREET, z );
-		const ped = new Mesh( new BoxGeometry( 2.2, 1.8, 2.2 ), this.granite );
-		ped.position.y = 0.9;
+		if ( ! this.pedestal ) {
+
+			this.pedestal = standard( { name: 'statue-granite', color: new Color( 0.11, 0.035, 0.03 ), roughness: 0.22, metalness: 0.1 } );
+			this.statueBronze = standard( { name: 'statue-bronze', color: new Color( 0.2, 0.12, 0.05 ), roughness: 0.35, metalness: 0.9, modules: [ commonModule ],
+				surface: '// patina: dark in the hollows, a touch of verdigris\n	let n = mx_noise_float3( in.P * 2.5 ) * 0.5 + 0.5;\n	s.albedo = mix( mat.color, vec3f( 0.06, 0.1, 0.07 ), smoothstep( 0.7, 0.95, n ) * 0.5 ) * ( 0.8 + 0.3 * mx_noise_float3( in.P * 9.0 ) );' } );
+			for ( const m of [ this.pedestal, this.statueBronze ] ) m.underwaterLighting = 'none';
+
+		}
+
+		const ped = new Mesh( new BoxGeometry( 3.0, 1.2, 3.0 ), this.pedestal );
+		ped.position.y = 0.6;
 		ped.castShadow = true;
 		ped.receiveShadow = true;
 		g.add( ped );
-		const fig = figure( this.bronze, pose );
-		fig.position.y = 1.8;
-		fig.scale.setScalar( 1.6 ); // 10 ft
+		// the plate: the name and the years cut into the granite, gilded
+		const plate = canvasTexture( 512, 192, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#2a1512';
+			ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#c9a44a';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.font = '700 56px Georgia, serif';
+			ctx.fillText( label, w / 2, h * 0.4, w - 30 );
+			ctx.font = '500 36px Georgia, serif';
+			ctx.fillText( years, w / 2, h * 0.75 );
+
+		}, 'statuePlate' );
+		const pm = standard( { name: 'statue-plate', roughness: 0.3, metalness: 0.4, textures: { bpPlate: plate }, surface: 's.albedo = textureSample( bpPlate, smpAnisoClamp, in.uv ).rgb;' } );
+		pm.underwaterLighting = 'none';
+		const pq = new Quads();
+		pq.tri( [ 1.0, 0.2, - 1.505 ], [ - 1.0, 0.2, - 1.505 ], [ - 1.0, 0.95, - 1.505 ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+		pq.tri( [ 1.0, 0.2, - 1.505 ], [ - 1.0, 0.95, - 1.505 ], [ 1.0, 0.95, - 1.505 ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+		g.add( new Mesh( pq.geometry(), pm ) );
+		const fig = new Mesh( bakePose( pose, { gloveHand, drop } ), this.statueBronze );
+		fig.position.y = 1.2;
+		fig.scale.setScalar( 1.65 ); // 10 ft
+		fig.castShadow = true;
+		fig.receiveShadow = true;
 		g.add( fig );
 		// face the stadium's middle
 		g.rotation.y = Math.atan2( - ( 4 - x ), - ( - 31 - z ) ) + Math.PI;
 		this.group.add( g );
 		const w = this.field.toWorld( x, z );
-		this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + 0.9, w.z ), new Vector3( 1.1, 0.9, 1.1 ), this.field.group.rotation.y + g.rotation.y, { tag: 'statue', walkable: true } );
+		this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + 0.6, w.z ), new Vector3( 1.5, 0.6, 1.5 ), this.field.group.rotation.y + g.rotation.y, { tag: 'statue', walkable: true } );
 
 	}
 

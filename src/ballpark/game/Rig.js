@@ -260,3 +260,41 @@ function basisAt( o, x, y, z ) {
 }
 
 void _b; void _c; void _k;
+
+// A pose baked into a static mesh (statues): the body posed on the CPU, in the player's own frame (feet
+// on y = 0, facing -z). Parts listed in `drop` (PART codes) are left out.
+export function bakePose( pose, { gloveHand = 'L', drop = [] } = {} ) {
+
+	const src = buildPlayerGeometry();
+	const mats = new Float32Array( NB * 16 );
+	solvePose( new Matrix4(), pose, mats, 0, gloveHand );
+	const P = src.getAttribute( 'position' ), N = src.getAttribute( 'normal' ), Bn = src.getAttribute( 'aBone' ), Pt = src.getAttribute( 'aPart' );
+	const index = src.index.array;
+	const m = new Matrix4(), v = new Vector3(), n = new Vector3();
+	const pos = [], nrm = [], part = [];
+	for ( let i = 0; i < index.length; i += 3 ) {
+
+		const tri = [ index[ i ], index[ i + 1 ], index[ i + 2 ] ];
+		if ( tri.some( ( k ) => drop.includes( Math.round( Pt.array[ k ] ) ) ) ) continue;
+		for ( const k of tri ) {
+
+			m.fromArray( mats, Math.round( Bn.array[ k ] ) * 16 );
+			v.fromBufferAttribute( P, k ).applyMatrix4( m );
+			n.fromBufferAttribute( N, k ).transformDirection( m );
+			pos.push( v.x, v.y, v.z );
+			nrm.push( n.x, n.y, n.z );
+			part.push( Pt.array[ k ] );
+
+		}
+
+	}
+
+	const g = new BufferGeometry();
+	g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+	g.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
+	g.setAttribute( 'aPart', new Float32BufferAttribute( part, 1 ) );
+	g.computeBoundingBox();
+	g.computeBoundingSphere();
+	return g;
+
+}
