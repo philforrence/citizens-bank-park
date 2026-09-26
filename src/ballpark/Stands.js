@@ -389,7 +389,9 @@ export function standsMaterials() {
 
 	// after dark the bowl is lit by the towers and the concourse lights: a fill the spots alone don't
 	// give (stronger on what faces up), and light fixtures in every soffit
-	const concrete = standard( { name: 'stands-concrete', color: new Color( 0.32, 0.31, 0.29 ), roughness: 0.85,
+	// double-sided: seen from below or behind, the treads and risers close the decks up (no seats
+	// floating against the sky)
+	const concrete = standard( { name: 'stands-concrete', color: new Color( 0.32, 0.31, 0.29 ), roughness: 0.85, side: 'double',
 		surface: /* wgsl */`
 	let nk = smoothstep( 0.15, 0.7, frame.night );
 	s.emissive = s.albedo * nk * ( 0.22 + 0.18 * max( in.N.y, 0.0 ) );

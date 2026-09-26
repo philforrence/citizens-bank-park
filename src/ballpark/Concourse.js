@@ -159,9 +159,9 @@ export class Concourse {
 			const ux = S.ux, uz = S.uz, o = 0.05;
 			const P = ( a, yy ) => [ cx + ux * a + S.nx * o, yy, cz + uz * a + S.nz * o ];
 			const u0 = ( n % 8 ) / 8, v0 = Math.floor( n / 8 ) / 8, du = 1 / 8;
-			// seen from the concourse (looking along -n), left is +u when u x n points up
-			const flip = ( ux * S.nz - uz * S.nx ) > 0;
-			const [ L, R ] = flip ? [ 0.5, - 0.5 ] : [ - 0.5, 0.5 ];
+			// seen from the concourse (looking along -n) the viewer's right is ( nz, -nx )
+			const rightIsU = ( ux * S.nz - uz * S.nx ) > 0;
+			const [ L, R ] = rightIsU ? [ - 0.5, 0.5 ] : [ 0.5, - 0.5 ];
 			face.tri( P( L, y1 - 1.0 ), P( R, y1 - 1.0 ), P( R, y1 ), [ S.nx, 0, S.nz ], [ u0, v0 + du ], [ u0 + du, v0 + du ], [ u0 + du, v0 ] );
 			face.tri( P( L, y1 - 1.0 ), P( R, y1 ), P( L, y1 ), [ S.nx, 0, S.nz ], [ u0, v0 + du ], [ u0 + du, v0 ], [ u0, v0 ] );
 			// its back, toward the field
