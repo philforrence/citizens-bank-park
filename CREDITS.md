@@ -90,3 +90,10 @@ These are published techniques. No code from the papers is included.
 
 The cloud noise, lighting and sampling scheme (`src/sky/Clouds.js`) is adapted from DRG Software Solutions'
 own *Sky Pro WebGPU*. It is published here under this repository's MIT license by its copyright holder.
+
+## Citizens Bank Park
+
+- Stadium footprint and field outline: © OpenStreetMap contributors, available under the Open Database
+  License (https://www.openstreetmap.org/copyright). Ways 255489463 (Citizens Bank Park) and 92483441.
+- Home plate, base positions and field bearing were measured on aerial imagery for reference only; no
+  imagery is included in this project.
