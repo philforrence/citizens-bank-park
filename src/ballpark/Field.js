@@ -226,6 +226,12 @@ export class Field {
 		const rub = new BoxGeometry( 24 / 12 * FT, 0.05, 6 / 12 * FT );
 		const rz = - RUBBER_FRONT - 3 / 12 * FT;
 		add( rub, 0, moundHeight( 0, rz ) - 0.01, rz );
+		// the rosin bag on the back of the mound
+		const rosin = new Mesh( new BoxGeometry( 0.12, 0.05, 0.08 ), this._rosinMat || ( this._rosinMat = standard( { name: 'rosin-bag', color: new Color( 0.78, 0.76, 0.72 ), roughness: 0.95 } ) ) );
+		this._rosinMat.underwaterLighting = 'none';
+		rosin.position.set( 0.35, moundHeight( 0.35, rz - 0.6 ) + 0.02, rz - 0.6 );
+		rosin.rotation.y = 0.4;
+		this.group.add( rosin );
 
 	}
 
@@ -240,6 +246,8 @@ export class Field {
 	let seam = 1.0 - ( 1.0 - smoothstep( 0.0, 0.02 + fwidth( in.uv.x ), abs( fract( in.uv.x / 1.28 + 0.5 ) - 0.5 ) * 1.28 ) ) * ( 1.0 - clamp( fwidth( in.uv.x ) * 8.0, 0.0, 1.0 ) ) * 0.5;
 	s.albedo = mat.color * seam * ( 0.93 + 0.1 * mx_noise_float2( in.uv * vec2f( 0.7, 3.0 ) ) );
 	s.sheenColor = vec3f( 0.06 );
+	// under the lights, lit from every bank (a lift the spots alone miss)
+	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;
 ` } );
 		// behind home plate the wall is red brick under a teal padded cap
 		const brick = standard( { name: 'backstop-brick', color: new Color( 0.26, 0.07, 0.04 ), roughness: 0.85,
@@ -253,8 +261,9 @@ export class Field {
 	s.albedo = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
 	// the teal pad along the top
 	if ( v > ${ ( 4.5 * 0.3048 - 0.3 ).toFixed( 3 ) } ) { s.albedo = vec3f( 0.02, 0.13, 0.12 ); s.roughness = 0.6; }
+	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;
 ` } );
-		const tealCap = standard( { name: 'backstop-cap', color: new Color( 0.02, 0.13, 0.12 ), roughness: 0.6 } );
+		const tealCap = standard( { name: 'backstop-cap', color: new Color( 0.02, 0.13, 0.12 ), roughness: 0.6, surface: 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
 		const trim = standard( { name: 'wall-trim', color: new Color( 0.75, 0.55, 0.02 ), roughness: 0.6 } );
 		const cap = standard( { name: 'wall-cap', color: new Color( 0.2, 0.2, 0.19 ), roughness: 0.8 } );
 		for ( const m of [ pad, trim, cap, brick, tealCap ] ) m.underwaterLighting = 'none';
@@ -1037,6 +1046,8 @@ function fieldMaterial( boundary, yaw ) {
 		code: /* wgsl */`
 const BP_FT: f32 = ${ f( FT ) };
 const BP_BASE: f32 = ${ f( BASE ) };
+// where the infielders stand (1B, 2B, SS, 3B)
+const BP_SPOTS = array<vec2f, 4>( ${ [ [ 39, 112 ], [ 15, 148 ], [ - 13, 146 ], [ - 38, 108 ] ].map( ( [ deg, ft ] ) => { const r = deg * Math.PI / 180, d = ft * FT; return `vec2f( ${ f( Math.sin( r ) * d ) }, ${ f( - Math.cos( r ) * d ) } )`; } ).join( ', ' ) } );
 ${ wgslArray( 'BP_FIELD', boundary ) }
 
 // signed distance to the fence line round the playing field (negative inside)
@@ -1063,6 +1074,28 @@ fn bpBand( d: f32, w: f32, fw: f32 ) -> f32 {
 }
 
 // outline of the rectangle lo..hi (a chalk box), line half width w
+// is this (edge-roughened) field point on the infield skin?
+fn bpDirt( pe: vec2f ) -> bool {
+	let ae = dot( pe, vec2f( ${ f( Math.SQRT1_2 ) }, ${ f( - Math.SQRT1_2 ) } ) );
+	let be = dot( pe, vec2f( ${ f( - Math.SQRT1_2 ) }, ${ f( - Math.SQRT1_2 ) } ) );
+	let plate = vec2f( 0.0, ${ f( - 17 / 12 * FT / 2 ) } );
+	let rubber = vec2f( 0.0, ${ f( - RUBBER_FRONT ) } );
+	let moundC = vec2f( 0.0, ${ f( - MOUND_CENTER ) } );
+	let first = vec2f( ${ f( BASE * Math.SQRT1_2 ) }, ${ f( - BASE * Math.SQRT1_2 ) } );
+	let third = vec2f( ${ f( - BASE * Math.SQRT1_2 ) }, ${ f( - BASE * Math.SQRT1_2 ) } );
+	var dirt = length( pe - rubber ) < ${ f( ARC ) } && ae > -0.35 && be > -0.35;
+	let square = ae > ${ f( PATH ) } && be > ${ f( PATH ) } && ae < ${ f( BASE - GRASS_INSET ) } && be < ${ f( BASE - GRASS_INSET ) };
+	if ( square ) { dirt = false; }
+	if ( abs( be ) < ${ f( PATH ) } && ae > 0.0 && ae < BP_BASE ) { dirt = true; }
+	if ( abs( ae ) < ${ f( PATH ) } && be > 0.0 && be < BP_BASE ) { dirt = true; }
+	// the runner's lane, the last 45 ft to first: the dirt widens into foul territory
+	if ( be < ${ f( 2 * FT ) } && be > ${ f( - 3.5 * FT ) } && ae > ${ f( BASE - 45 * FT ) } && ae < BP_BASE ) { dirt = true; }
+	if ( length( pe - plate ) < ${ f( PLATE_CIRCLE ) } ) { dirt = true; }
+	if ( length( pe - moundC ) < ${ f( MOUND_RADIUS ) } ) { dirt = true; }
+	if ( length( pe - first ) < 3.2 || length( pe - third ) < 3.2 ) { dirt = true; }
+	return dirt;
+}
+
 fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	let c = ( lo + hi ) * 0.5;
 	let h = ( hi - lo ) * 0.5;
@@ -1106,15 +1139,8 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	let pe = p + vec2f( mx_noise_float2( p * 7.0 ), mx_noise_float2( p * 7.0 + 17.0 ) ) * 0.03;
 	let ae = dot( pe, vec2f( ${ f( r2 ) }, ${ f( - r2 ) } ) );
 	let be = dot( pe, vec2f( ${ f( - r2 ) }, ${ f( - r2 ) } ) );
-	var dirt = length( pe - rubber ) < ${ f( ARC ) } && ae > -0.35 && be > -0.35;
 	let square = ae > ${ f( PATH ) } && be > ${ f( PATH ) } && ae < ${ f( BASE - GRASS_INSET ) } && be < ${ f( BASE - GRASS_INSET ) };
-	if ( square ) { dirt = false; }
-	// the paths along the baselines, the circle round home plate, the mound, the cut-outs round first and third
-	if ( abs( be ) < ${ f( PATH ) } && ae > 0.0 && ae < BP_BASE ) { dirt = true; }
-	if ( abs( ae ) < ${ f( PATH ) } && be > 0.0 && be < BP_BASE ) { dirt = true; }
-	if ( length( pe - plate ) < ${ f( PLATE_CIRCLE ) } ) { dirt = true; }
-	if ( length( pe - moundC ) < ${ f( MOUND_RADIUS ) } ) { dirt = true; }
-	if ( length( pe - first ) < 3.2 || length( pe - third ) < 3.2 ) { dirt = true; }
+	var dirt = bpDirt( pe );
 	let track = sd > -${ f( TRACK ) };
 	let outside = sd > 0.0;
 
@@ -1159,6 +1185,11 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		let gn = vec2f( mx_noise_float2( q * vec2f( 170.0, 28.0 ) ), mx_noise_float2( q * vec2f( 28.0, 170.0 ) + 7.0 ) );
 		s.normal = normalize( s.normal + vec3f( gn.x, 0.0, gn.y ) * 0.4 * bladeK );
 	}
+	// where the grass meets the clay it stands a few cm proud: a dark lip on the grass side
+	if ( ! dirt && ! outside && fw < 0.05 ) {
+		let o = 0.06;
+		if ( bpDirt( pe + vec2f( o, 0.0 ) ) || bpDirt( pe - vec2f( o, 0.0 ) ) || bpDirt( pe + vec2f( 0.0, o ) ) || bpDirt( pe - vec2f( 0.0, o ) ) ) { col = col * 0.8; }
+	}
 	if ( dirt ) {
 		// the infield clay: a warm orange-tan
 		col = vec3f( 0.56, 0.27, 0.11 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );
@@ -1166,13 +1197,33 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		// stride in front of it, and the batter's boxes and catcher's box round the plate
 		let tp = p - rubber;
 		let tableK = 1.0 - smoothstep( 0.0, 0.25, max( abs( tp.x ) - 0.85, abs( tp.y + 0.2 ) - 0.55 ) );
-		let lp = ( p - rubber - vec2f( 0.0, 1.6 ) ) / vec2f( 0.62, 0.48 );
-		let landK = 1.0 - smoothstep( 0.0, 0.35, length( lp ) - 1.0 );
+		// the two holes dug by the pitchers' landing feet, a stride in front of the rubber
+		let lp1 = ( p - rubber - vec2f( 0.25, 1.7 ) ) / vec2f( 0.3, 0.38 );
+		let lp2 = ( p - rubber - vec2f( - 0.25, 1.7 ) ) / vec2f( 0.3, 0.38 );
+		let landK = 1.0 - smoothstep( 0.0, 0.4, min( length( lp1 ), length( lp2 ) ) - 1.0 );
 		let hp = p - plate;
 		let boxK = 1.0 - smoothstep( 0.0, 0.35, max( abs( hp.x ) - 1.95, abs( hp.y - 0.3 ) - 1.55 ) );
 		let clay = max( max( tableK, landK ), boxK );
 		let scuff = 0.78 + 0.3 * mx_noise_float2( p * 5.0 ) + 0.12 * mx_noise_float2( p * 23.0 );
+		// the mound's paler buff clay
+		let moundK = 1.0 - smoothstep( ${ f( MOUND_RADIUS ) } - 0.08, ${ f( MOUND_RADIUS ) } + 0.02, length( p - moundC ) );
+		col = mix( col, vec3f( 0.57, 0.33, 0.19 ) * ( 0.9 + 0.12 * n2 ), moundK * 0.85 );
 		col = mix( col, vec3f( 0.36, 0.15, 0.07 ) * scuff, clay * 0.6 );
+		col = mix( col, vec3f( 0.3, 0.1, 0.05 ) * scuff, landK * 0.45 );
+		// drag arcs round the mound (the crew's mats), footwork scuffs where the infielders stand, the
+		// base paths trodden darker; up close, the clay's granules
+		let near = 1.0 - smoothstep( 0.004, 0.03, fw );
+		let rm = length( p - moundC );
+		let arcs = sin( rm * 125.0 + mx_noise_float2( p * 0.6 ) * 3.0 ) * ( 1.0 - moundK ) * ( 1.0 - clay );
+		col = col * ( 1.0 + 0.035 * arcs * ( 1.0 - smoothstep( 0.01, 0.05, fw ) ) );
+		let wear = max( max( 1.0 - smoothstep( 1.2, 3.2, length( p - BP_SPOTS[ 0 ] ) ), 1.0 - smoothstep( 1.2, 3.2, length( p - BP_SPOTS[ 1 ] ) ) ),
+			max( 1.0 - smoothstep( 1.2, 3.2, length( p - BP_SPOTS[ 2 ] ) ), 1.0 - smoothstep( 1.2, 3.2, length( p - BP_SPOTS[ 3 ] ) ) ) );
+		let bpath = max( 1.0 - smoothstep( 0.1, 0.45, abs( b ) ), 1.0 - smoothstep( 0.1, 0.45, abs( a ) ) );
+		let scuffs = smoothstep( 0.35, 0.8, mx_noise_float2( p * 3.5 ) ) * wear;
+		col = col * ( 1.0 - 0.14 * scuffs - 0.08 * bpath * ( 1.0 - moundK ) );
+		let gcell = floor( p / 0.004 );
+		let gran = fract( sin( dot( gcell, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+		col = col * ( 1.0 + ( gran - 0.5 ) * 0.16 * near );
 		rough = 0.92;
 		// the edge of the grass: a soft lip, not a razor line
 	}
@@ -1201,11 +1252,18 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		if ( a > ${ f( BASE - 45 * FT ) } && a < BP_BASE ) { chalk = max( chalk, bpBand( b + ${ f( 3 * FT ) }, lw, fw ) ); }
 		if ( b < 0.0 && b > ${ f( - 3 * FT ) } ) { chalk = max( chalk, bpBand( a - ${ f( BASE - 45 * FT ) }, lw, fw ) ); }
 		// coaches' boxes: 20 x 10 ft, 15 ft off the lines by first and third
-		chalk = max( chalk, bpBox( vec2f( a, b ), vec2f( ${ f( BASE - 14 * FT ) }, ${ f( - 25 * FT ) } ), vec2f( ${ f( BASE + 6 * FT ) }, ${ f( - 15 * FT ) } ), lw, fw ) );
-		chalk = max( chalk, bpBox( vec2f( b, a ), vec2f( ${ f( BASE - 14 * FT ) }, ${ f( - 25 * FT ) } ), vec2f( ${ f( BASE + 6 * FT ) }, ${ f( - 15 * FT ) } ), lw, fw ) );
+		// (only the outer 20 ft line of each was chalked, with a short tick at each end)
+		for ( var cs = 0; cs < 2; cs ++ ) {
+			let q = select( vec2f( b, a ), vec2f( a, b ), cs == 0 );
+			if ( q.x > ${ f( BASE - 14 * FT ) } && q.x < ${ f( BASE + 6 * FT ) } ) { chalk = max( chalk, bpBand( q.y + ${ f( 25 * FT ) }, lw, fw ) ); }
+			if ( q.y > ${ f( - 25 * FT ) } && q.y < ${ f( - 24 * FT ) } ) {
+				chalk = max( chalk, bpBand( q.x - ${ f( BASE - 14 * FT ) }, lw, fw ) );
+				chalk = max( chalk, bpBand( q.x - ${ f( BASE + 6 * FT ) }, lw, fw ) );
+			}
+		}
 		// on-deck circles
 		for ( var sgn = -1.0; sgn <= 1.0; sgn += 2.0 ) {
-			chalk = max( chalk, bpBand( length( p - vec2f( sgn * 11.0, 3.5 ) ) - ${ f( 2.5 * FT ) }, lw, fw ) );
+			chalk = max( chalk, bpBand( length( p - vec2f( sgn * 13.9, 4.6 ) ) - ${ f( 2.5 * FT ) }, lw, fw ) );
 		}
 	}
 	if ( chalk > 0.0 ) {

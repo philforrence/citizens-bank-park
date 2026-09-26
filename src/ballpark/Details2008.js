@@ -45,11 +45,19 @@ export class Details2008 {
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
 			ctx.lineWidth = 20;
+			ctx.lineJoin = 'round';
 			ctx.strokeStyle = '#f2f0ea';
-			ctx.strokeText( 'Phillies', w / 2, h / 2 + 10 );
-			ctx.fillStyle = '#c8102e';
-			ctx.fillText( 'Phillies', w / 2, h / 2 + 10 );
-			for ( const sx of [ 0.47, 0.64 ] ) star( ctx, w * sx, h * 0.14, 26, '#1d3f8f' );
+			ctx.strokeText( 'Phillies', w / 2, h / 2 + 10, w - 30 );
+			ctx.fillStyle = '#ba0c2f';
+			ctx.fillText( 'Phillies', w / 2, h / 2 + 10, w - 30 );
+			// the stars dot the two i's (measured on the word as drawn)
+			const full = Math.min( w - 30, ctx.measureText( 'Phillies' ).width ), k = full / ctx.measureText( 'Phillies' ).width, x0 = w / 2 - full / 2;
+			for ( const pre of [ 'Ph', 'Phill' ] ) {
+
+				const xi = x0 + ( ctx.measureText( pre ).width + ctx.measureText( 'i' ).width * 0.6 ) * k;
+				star( ctx, xi + 6, h * 0.2, 22, '#284898' );
+
+			}
 
 		}, 'grassScript' );
 		const onDeck = canvasTexture( 256, 256, ( ctx, w ) => {
@@ -63,7 +71,7 @@ export class Details2008 {
 			ctx.translate( w / 2, w / 2 );
 			ctx.scale( 0.2, 0.2 );
 			ctx.translate( - 512, - 256 );
-			drawWorldSeriesLogo( ctx, 1024, 512 );
+			drawWorldSeriesLogo( ctx, 1024, 512, { clear: false } );
 			ctx.restore();
 
 		}, 'onDeck' );
@@ -100,9 +108,9 @@ export class Details2008 {
 		};
 
 		const wsMat = paint( ws, 'ws-logo' );
-		decal( wsMat, [ - 16.3, - 2.8 ], 9.6, 4.8, 0.38 );
-		decal( wsMat, [ 16.3, - 2.8 ], 9.6, 4.8, - 0.38 );
-		decal( paint( script, 'grass-script' ), [ 0, 9.0 ], 11.5, 3.6, 0 );
+		decal( wsMat, [ - 12.0, - 3.8 ], 6.6, 3.3, 0.38 );
+		decal( wsMat, [ 12.0, - 3.8 ], 6.6, 3.3, - 0.38 );
+		decal( paint( script, 'grass-script' ), [ 0, 8.5 ], 7.4, 2.4, 0 );
 		const od = paint( onDeck, 'on-deck' );
 		for ( const side of [ 'home', 'away' ] ) decal( od, ON_DECK[ side ], 1.55, 1.55, 0 );
 
@@ -139,8 +147,8 @@ export class Details2008 {
 			ctx.fillText( 'neweracap.com', w * 0.72, h / 2 + 3 );
 
 		}, 'dugoutBand' );
-		const top = standard( { name: 'dugout-roof-2008', roughness: 0.6, textures: { bpRoof: tex }, surface: 's.albedo = textureSample( bpRoof, smpAnisoClamp, in.uv ).rgb * 0.85;' } );
-		const front = standard( { name: 'dugout-band', roughness: 0.6, textures: { bpBand: band }, surface: 's.albedo = textureSample( bpBand, smpAnisoClamp, in.uv ).rgb * 0.85;' } );
+		const top = standard( { name: 'dugout-roof-2008', roughness: 0.6, textures: { bpRoof: tex }, surface: 's.albedo = textureSample( bpRoof, smpAnisoClamp, in.uv ).rgb * 0.85; s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.3;' } );
+		const front = standard( { name: 'dugout-band', roughness: 0.6, textures: { bpBand: band }, surface: 's.albedo = textureSample( bpBand, smpAnisoClamp, in.uv ).rgb * 0.85; s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
 		for ( const m of [ top, front ] ) m.underwaterLighting = 'none';
 		for ( const [ a, b ] of Object.values( DUGOUTS ) ) {
 
@@ -163,7 +171,8 @@ export class Details2008 {
 			q.add( at( L, - 0.45, 1.005 ), at( R, - 0.45, 1.005 ), at( R, 2.85, 1.005 ), at( L, 2.85, 1.005 ), [ 0, 1, 0 ] );
 			const g = q.geometry();
 			setUV( g, ( p ) => [ ( ( p[ 0 ] - a[ 0 ] ) * ux + ( p[ 2 ] - a[ 1 ] ) * uz - L ) / ( R - L ), ( ( p[ 0 ] - a[ 0 ] ) * nx + ( p[ 2 ] - a[ 1 ] ) * nz + 0.45 ) / 3.3 ] );
-			this.group.add( new Mesh( g, top ) );
+			// the visitors' (third base) roof read Citizens Bank Park, in the ballpark's green
+			this.group.add( new Mesh( g, flip ? this._cbpRoof() : top ) );
 			// the front band faces the field: read left to right from there (the viewer's right is ( -nz, nx ))
 			const rightIsU = ( ux * - nz + uz * nx ) > 0;
 			const [ FL, FR ] = rightIsU ? [ s0, s1 ] : [ s1, s0 ];
@@ -174,6 +183,26 @@ export class Details2008 {
 			this.group.add( new Mesh( fg, front ) );
 
 		}
+
+	}
+
+	_cbpRoof() {
+
+		if ( this.cbpRoofMat ) return this.cbpRoofMat;
+		const tex = canvasTexture( 2048, 160, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#eeece6';
+			ctx.fillRect( 0, 0, w, h );
+			ctx.font = '600 118px "Gill Sans", "Trebuchet MS", "Helvetica Neue", sans-serif';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillStyle = '#1f5a3a';
+			ctx.fillText( 'Citizens Bank Park', w / 2, h / 2 + 6, w - 200 );
+
+		}, 'dugoutRoofCBP' );
+		this.cbpRoofMat = standard( { name: 'dugout-roof-cbp', roughness: 0.6, textures: { bpRoof: tex }, surface: 's.albedo = textureSample( bpRoof, smpAnisoClamp, in.uv ).rgb * 0.85; s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.3;' } );
+		this.cbpRoofMat.underwaterLighting = 'none';
+		return this.cbpRoofMat;
 
 	}
 
@@ -321,7 +350,7 @@ export class Details2008 {
 		const panel = ( draw, label ) => {
 
 			const tex = canvasTexture( 1024, 384, draw, label );
-			const m = standard( { name: 'wall-ad', roughness: 0.7, textures: { bpAd: tex }, surface: 's.albedo = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb * 0.8;' } );
+			const m = standard( { name: 'wall-ad', roughness: 0.7, textures: { bpAd: tex }, surface: 's.albedo = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb * 0.8; s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
 			m.underwaterLighting = 'none';
 			return m;
 
@@ -579,10 +608,10 @@ function star( ctx, cx, cy, r, color ) {
 // The 2008 World Series logo as it was painted on the grass (hesb/2986447135.jpg): WORLD SERIES in cream
 // serif letters, each on a navy field that follows the letters, a white outline round the whole shape,
 // the MLB batter logo in a white frame on top and 2008 in gold on a navy pill below. Grass all round.
-function drawWorldSeriesLogo( ctx, w, h ) {
+function drawWorldSeriesLogo( ctx, w, h, { clear = true } = {} ) {
 
 	ctx.save();
-	ctx.clearRect( 0, 0, w, h );
+	if ( clear ) ctx.clearRect( 0, 0, w, h );
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'alphabetic';
 	ctx.lineJoin = 'round';
@@ -673,7 +702,7 @@ function adMaterial( big, small, bg, fg ) {
 		ctx.fillText( small, w / 2, h * 0.8, w - 60 );
 
 	}, 'wallAd' );
-	const m = standard( { name: 'wall-ad', roughness: 0.7, textures: { bpAd: tex }, surface: 's.albedo = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb * 0.75;' } );
+	const m = standard( { name: 'wall-ad', roughness: 0.7, textures: { bpAd: tex }, surface: 's.albedo = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb * 0.75; s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
 	m.underwaterLighting = 'none';
 	return m;
 
