@@ -197,16 +197,31 @@ function crowdMaterial() {
 	let st = smoothstep( h.x * 0.92, h.x * 0.92 + 0.08, mat.stand );
 	let up = smoothstep( h.y * 0.9, h.y * 0.9 + 0.1, mat.cheer );
 	let clap = mat.clap * step( h.z, 0.8 ) * ( 1.0 - up ) * ( 0.3 + 0.08 * sin( t * 15.0 + h.w * 40.0 ) );
-	let a = max( up * ( 0.88 + 0.12 * sin( t * 6.0 + h.w * 30.0 ) ), clap );
+	// the rally towels twirled over their heads: each at his own pace (1.4 to 2.3 turns a second), the
+	// phase rippling across the stands so neighbours are close but never together
+	let hasTowel = fract( h.z * 5.0 ) <= 0.75;
+	let tw = select( 0.0, smoothstep( fract( h.z * 13.0 ) * 0.9, fract( h.z * 13.0 ) * 0.9 + 0.1, mat.towel ), hasTowel );
+	let a = max( max( up * ( 0.88 + 0.12 * sin( t * 6.0 + h.w * 30.0 ) ), clap ), tw );
 	var p = mix( v.position + v.aSitUp * a, v.aStand + v.aStandUp * a, st );
-	// the towel's free end waves
-	if ( v.aPart > 5.1 && v.aPart < 5.4 ) { p.x += sin( t * 9.0 + h.w * 50.0 ) * 0.16 * a; p.z += cos( t * 7.0 + h.z * 20.0 ) * 0.06 * a; }
+	if ( v.aPart > 4.9 && v.aPart < 5.4 ) {
+		let hand = mix( vec3f( ${ SIT_UP.hand.join( ', ' ) } ), vec3f( ${ STAND_UP.hand.join( ', ' ) } ), st );
+		let th = t * ( 9.0 + 5.5 * fract( h.w * 17.0 ) ) + dot( seat.xz, vec2f( 0.31, 0.23 ) ) + h.x * 1.2;
+		let rad = vec3f( cos( th ), 0.0, sin( th ) );
+		let tan = vec3f( - sin( th ), 0.0, cos( th ) );
+		let upP = v.position + v.aSitUp;
+		let sd = sign( upP.x - ${ SIT_UP.hand[ 0 ] } );
+		let tip = v.aPart > 5.1;
+		let spin = hand + select( tan * sd * 0.07 + vec3f( 0.0, 0.03, 0.0 ), rad * 0.36 + tan * sd * 0.1 + vec3f( 0.0, 0.1 + 0.05 * sin( th * 2.0 ), 0.0 ), tip );
+		// held still (up or on the lap) it just flaps a little
+		if ( tip ) { p.x += sin( t * 9.0 + h.w * 50.0 ) * 0.16 * a; p.z += cos( t * 7.0 + h.z * 20.0 ) * 0.06 * a; }
+		p = mix( p, spin, tw );
+	}
 	p.y += max( 0.0, sin( t * 8.0 + h.w * 30.0 ) ) * 0.14 * mat.jump * st;
 	p.x += sin( t * 0.6 + h.z * 20.0 ) * 0.012 * ( p.y - 0.45 );
 `;
 	const mat = standard( {
 		name: 'crowd', roughness: 0.8, side: 'double',
-		uniforms: { stand: [ 'f32', 0.03 ], cheer: [ 'f32', 0 ], clap: [ 'f32', 0 ], jump: [ 'f32', 0 ], time: [ 'f32', 0 ], dt: [ 'f32', 0.016 ], rain: [ 'f32', 0 ] },
+		uniforms: { stand: [ 'f32', 0.03 ], cheer: [ 'f32', 0 ], clap: [ 'f32', 0 ], jump: [ 'f32', 0 ], towel: [ 'f32', 0 ], time: [ 'f32', 0 ], dt: [ 'f32', 0.016 ], rain: [ 'f32', 0 ] },
 		attributes: { aStand: 'vec3f', aStandN: 'vec3f', aSitUp: 'vec3f', aStandUp: 'vec3f', aPart: 'f32' },
 		varyings: { vPart: 'f32', vSeed: 'vec4f', vHead: 'vec3f' },
 		vertex: /* wgsl */`
@@ -217,13 +232,13 @@ function crowdMaterial() {
 	var keep = true;
 	// the bareheaded have no brim; only some have towels
 	if ( v.aPart > 3.5 && v.aPart < 4.5 && fract( h.w * 7.0 ) > 0.45 ) { keep = false; }
-	if ( v.aPart > 4.9 && v.aPart < 5.4 && fract( h.z * 5.0 ) > 0.5 ) { keep = false; }
+	if ( v.aPart > 4.9 && v.aPart < 5.4 && fract( h.z * 5.0 ) > 0.75 ) { keep = false; }
 	var t = mat.time;
 	${ pose }
 	let cur = p;
 	t = mat.time - mat.dt;
 	{
-	${ pose.replace( /var p =/, 'var pp =' ).replace( /\bp\./g, 'pp.' ) }
+	${ pose.replace( /\bp\b/g, 'pp' ) }
 	v.prevWorldPos = select( ( v.prevModel * vec4f( pp, 1.0 ) ).xyz, ( v.prevModel * vec4f( 0.0, 0.0, 0.0, 1.0 ) ).xyz, ! keep );
 	}
 	let lp = select( vec4f( 0.0, 0.0, 0.0, 1.0 ), vec4f( cur, 1.0 ), keep );
@@ -299,7 +314,7 @@ export class Crowd {
 		this.meshes = [];
 		this.count = 0;
 		this.time = 0;
-		this._mood = { stand: 0.03, cheer: 0, clap: 0, jump: 0 };
+		this._mood = { stand: 0.03, cheer: 0, clap: 0, jump: 0, towel: 0.03 };
 
 	}
 
@@ -335,7 +350,7 @@ export class Crowd {
 	mood( d ) {
 
 		const seg = d.segmentAt( d.t );
-		const m = { stand: 0.03, cheer: 0, clap: 0.05, jump: 0 };
+		const m = { stand: 0.03, cheer: 0, clap: 0.05, jump: 0, towel: 0.03 };
 		if ( ! seg ) return m;
 		const s = seg.snap || {}, lt = d.t - seg.t0;
 		const phPitch = s.half === 'top', late = s.inning >= 9;
@@ -344,8 +359,8 @@ export class Crowd {
 
 			if ( phPitch ) {
 
-				if ( two ) m.stand = 0.12 + ( outs2 ? 0.3 : 0 ) + ( late ? 0.4 : 0 ), m.clap = 0.6;
-				else if ( late ) m.stand = 0.3, m.clap = 0.4;
+				if ( two ) m.stand = 0.12 + ( outs2 ? 0.3 : 0 ) + ( late ? 0.4 : 0 ), m.clap = 0.6, m.towel = 0.3 + ( outs2 ? 0.25 : 0 ) + ( late ? 0.4 : 0 );
+				else if ( late ) m.stand = 0.3, m.clap = 0.4, m.towel = 0.5;
 
 			} else {
 
@@ -371,6 +386,7 @@ export class Crowd {
 				m.stand = Math.max( m.stand, ( big ? 0.85 : 0.35 ) * k );
 				m.cheer = ( big ? 0.6 : 0.2 ) * k;
 				m.clap = 0.6;
+				m.towel = ( big ? 0.85 : 0.45 ) * k;
 
 			}
 
@@ -381,6 +397,7 @@ export class Crowd {
 			m.stand = 1;
 			m.cheer = 0.9;
 			m.jump = 1;
+			m.towel = 1;
 
 		}
 
@@ -394,12 +411,13 @@ export class Crowd {
 		const target = d ? this.mood( d ) : this._mood;
 		// the crowd takes a moment to rise and to settle
 		const k = 1 - Math.exp( - dt * 2.5 );
-		for ( const key of [ 'stand', 'cheer', 'clap', 'jump' ] ) this._mood[ key ] += ( target[ key ] - this._mood[ key ] ) * k;
+		for ( const key of [ 'stand', 'cheer', 'clap', 'jump', 'towel' ] ) this._mood[ key ] += ( target[ key ] - this._mood[ key ] ) * k;
 		const U = this.material.uniforms;
 		U.stand.value = this._mood.stand;
 		U.cheer.value = this._mood.cheer;
 		U.clap.value = this._mood.clap;
 		U.jump.value = this._mood.jump;
+		U.towel.value = this._mood.towel;
 		U.time.value = this.time;
 		U.dt.value = dt;
 		U.rain.value = rain;
