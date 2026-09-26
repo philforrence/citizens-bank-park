@@ -801,6 +801,8 @@ export class Exterior {
 			}
 
 			const sp = l1 - 0.2;
+			// a ticket taker by each lane's scanner, inside, facing out; the way in through the lane
+			( this.lanes ||= [] ).push( { at: P( l1 + 0.35, - 0.8, y0 ), entry: P( ( l0 + l1 ) / 2, 1.5, y0 ), face: [ nx, nz ], gate: g.name } );
 			beam( post, P( sp, - 0.4, y0 ), P( sp, - 0.4, y0 + 1.05 ), 0.06 );
 			for ( const side of [ 1, - 1 ] ) {
 
@@ -871,6 +873,8 @@ export class Exterior {
 		if ( /THIRD/.test( g.name ) ) this.reflect.push( [ ...P( 0, out, top + 1.0 ), 0.2, 1.0, 0.45, 1.6 ] );
 		// the open stair towers either side of the frame's gate line, carrying the light towers
 		if ( g.frame ) for ( const side of [ - 1, 1 ] ) this._stairTower( P, side * 20, - 1.5, [ nx, nz ] );
+		// security either side of the gate line, just inside
+		for ( const e of [ - 1, 1 ] ) ( this.gateGuards ||= [] ).push( { at: P( e * ( W / 2 - 1.2 ), - 1.6, y0 ), face: [ nx, nz ] } );
 		const bm = new Mesh( bq.geometry(), fence );
 		bm.name = 'gate-mesh';
 		bm.castShadow = true;

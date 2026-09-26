@@ -239,6 +239,7 @@ export class Concourse {
 
 				} ) ) continue;
 				const st = k ++ % STANDS.length;
+				( this.standSpots ||= [] ).push( { mid, n: [ nx, nz ], u: [ ux, uz ] } );
 				const y0 = STREET, y1 = STREET + H;
 				const P = ( p, y ) => [ p[ 0 ], y, p[ 1 ] ];
 				// the box: sides, back and roof in the concourse's precast; the front, below the counter,
@@ -264,7 +265,9 @@ export class Concourse {
 				const row = ( r ) => ( st * 2 + r ) / ( STANDS.length * 2 );
 				f( L, R, y0 + 3.3, y0 + H, row( 0 ), row( 1 ) ); // the name
 				f( L, R, y0 + 2.45, y0 + 3.3, row( 1 ), row( 2 ) ); // the menu
-				f( L, R, y0 + 1.1, y0 + 2.45, 0, 1, glow ); // the kitchen
+				// the opening over the counter: the staff and the kitchen's back wall behind them
+				const [ BL, BR ] = ( flip ? [ B0, B1 ] : [ B1, B0 ] ).map( ( b ) => [ b[ 0 ] + nx * 0.05, b[ 1 ] + nz * 0.05 ] );
+				f( BL, BR, y0 + 0.9, y0 + 2.6, 0, 1, glow );
 				// a trash can and a recycling bin in the gap after it
 				if ( j < n - 1 ) for ( const [ o2, off ] of [ [ 0.35, - 0.3 ], [ 0.35, 0.3 ] ] ) {
 
@@ -282,7 +285,7 @@ export class Concourse {
 
 		}
 
-		const precast = standard( { name: 'concession-body', color: new Color( 0.5, 0.47, 0.42 ), roughness: 0.75 } );
+		const precast = standard( { name: 'concession-body', color: new Color( 0.5, 0.47, 0.42 ), roughness: 0.75, side: 'double' } );
 		const signMat = standard( { name: 'concession-signs', roughness: 0.4, textures: { bpStand: signs },
 			surface: 'let t = textureSample( bpStand, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.5; s.emissive = t * mix( 0.25, 0.55, frame.night );' } );
 		const kitchen = standard( { name: 'concession-kitchen', color: new Color( 0.06, 0.055, 0.05 ), roughness: 0.6,

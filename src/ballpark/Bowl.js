@@ -1213,6 +1213,8 @@ ${ SOFFIT_WGSL }
 	let stain = 1.0 - 0.18 * smoothstep( 0.55, 0.8, mx_noise_float2( p * 1.3 + vec2f( 7.0 ) ) );
 	s.albedo = mat.color * joint * wear * stain * ( 0.95 + 0.06 * mx_noise_float2( p * 9.0 ) );
 	s.roughness = mix( 0.45, 0.7, mx_noise_float2( p * 0.5 ) * 0.5 + 0.5 );
+	// under the floors above: the sky's light only comes in from the field side
+	s.ao = 0.45;
 `,
 		} );
 		mat.underwaterLighting = 'none';

@@ -33,6 +33,7 @@ import { Landmarks } from './Landmarks.js';
 import { Details2008 } from './Details2008.js';
 import { Fascia } from './Fascia.js';
 import { Concourse } from './Concourse.js';
+import { People } from './People.js';
 import { Complex } from './Complex.js';
 import { SkyGlow } from './SkyGlow.js';
 import { batchStatic } from './geo.js';
@@ -157,6 +158,7 @@ export class BallparkApp {
 		this.details = new Details2008( { field: this.field } );
 		this.fascia = new Fascia( { field: this.field, bowl: this.bowl } );
 		this.concourse = new Concourse( { field: this.field, bowl: this.bowl, colliders: this.colliders } );
+		this.people = new People( { field: this.field, bowl: this.bowl, concourse: this.concourse, exterior: this.exterior } );
 		// the hundreds of little static meshes merged by material into a few draws
 		const batched = batchStatic( this.field.group );
 		console.info( `static batching: ${ batched.before } meshes into ${ batched.after }` );
@@ -745,6 +747,7 @@ export class BallparkApp {
 		}
 
 		this.bowl.crowd.update( this.director, dt, this._crowdRain || 0 );
+		this.people.update( dt, this.director );
 
 		this.players.update();
 		if ( this.gameHUD ) this.gameHUD.refresh();
