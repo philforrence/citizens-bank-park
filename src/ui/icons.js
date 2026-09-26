@@ -107,21 +107,19 @@ export function icon( name, className = '' ) {
 
 }
 
-// Brand mark: a low sun over a swell line inside a ring. Gradient ids are
+// Brand mark: a baseball. Gradient ids are
 // suffixed so several marks can coexist in one document.
 let brandId = 0;
 export function brandMark( className = '' ) {
 
+	// a baseball: white ball, red stitching
 	const id = `tw-bm-${ ++ brandId }`;
 	return `<svg class="tw-mark${className ? ' ' + className : ''}" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
 		<defs>
-			<linearGradient id="${id}-a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a8fbf1"/><stop offset="1" stop-color="#3fb4d6"/></linearGradient>
-			<linearGradient id="${id}-s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd8a6"/><stop offset="1" stop-color="#ff9f5a"/></linearGradient>
+			<radialGradient id="${id}-b" cx=".38" cy=".34" r=".75"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d9d4c7"/></radialGradient>
 		</defs>
-		<circle cx="16" cy="16" r="14" fill="none" stroke="url(#${id}-a)" stroke-width="1.4" opacity=".55"/>
-		<circle cx="16" cy="13" r="4.2" fill="url(#${id}-s)"/>
-		<path d="M5.5 18.5c2.1 0 2.9-2.6 5.2-2.6s3.1 2.6 5.3 2.6 3.1-2.6 5.3-2.6 3 2.6 5.2 2.6" fill="none" stroke="url(#${id}-a)" stroke-width="2" stroke-linecap="round"/>
-		<path d="M8.5 23c1.6 0 2.2-1.8 3.9-1.8s2.3 1.8 3.9 1.8 2.3-1.8 3.9-1.8 2.2 1.8 3.8 1.8" fill="none" stroke="url(#${id}-a)" stroke-width="1.6" stroke-linecap="round" opacity=".6"/>
+		<circle cx="16" cy="16" r="12.5" fill="url(#${id}-b)"/>
+		<path d="M9.2 6.6c3.4 2.6 5.1 5.9 5.1 9.4s-1.7 6.8-5.1 9.4M22.8 6.6c-3.4 2.6-5.1 5.9-5.1 9.4s1.7 6.8 5.1 9.4" fill="none" stroke="#e81828" stroke-width="1.3" stroke-linecap="round" stroke-dasharray="1.6 1.4"/>
 	</svg>`;
 
 }

@@ -1,0 +1,395 @@
+import { Vector3, Euler, Color, MathUtils } from '../engine/index.js';
+import { GPU } from '../engine/gpu/GPU.js';
+import { ShaderModule } from '../engine/gpu/Shader.js';
+import { SunShadows } from '../engine/render/Shadows.js';
+import { FrameUniforms } from '../engine/render/Frame.js';
+import { SceneLighting, surfaceModule } from '../engine/render/wgsl/lighting.js';
+
+import { Engine } from '../core/Engine.js';
+import { Input } from '../core/Input.js';
+import { G } from '../core/Globals.js';
+import { SceneRenderer, LAYERS } from '../core/SceneRenderer.js';
+
+import { Atmosphere, SUN_ILLUMINANCE } from '../sky/Atmosphere.js';
+import { Sky, sunDirectionFromTime } from '../sky/Sky.js';
+import { SkyProClouds } from '../sky/SkyProClouds.js';
+import { Environment } from '../sky/Environment.js';
+import { LocalLights } from '../materials/LocalLights.js';
+
+import { Underwater } from '../post/Underwater.js';
+import { PostFX } from '../post/PostFX.js';
+import { AirHaze } from '../post/AirHaze.js';
+import { updateCameraVelocity } from '../post/CameraVelocity.js';
+import { FlyCamera } from '../player/FlyCamera.js';
+import { Colliders } from '../world/Colliders.js';
+
+import { DryWater, DRY_LEVEL } from './DryWater.js';
+import { Ground } from './Ground.js';
+import { Walker } from './Walker.js';
+
+const _up = new Vector3( 0, 1, 0 );
+
+// South Philadelphia
+const LATITUDE = 39.9;
+
+// World axes (as Tidewater's sky): +x east, +y up, -z north. Metres.
+const START = { position: new Vector3( 0, 0, 0 ), yaw: 0 };
+
+// the sun's declination on a date (degrees): where the sun really is in the sky today
+function solarDeclination( date = new Date() ) {
+
+	const start = Date.UTC( date.getUTCFullYear(), 0, 0 );
+	const day = ( date.getTime() - start ) / 86400000;
+	return - 23.44 * Math.cos( 2 * Math.PI / 365 * ( day + 10 ) );
+
+}
+
+// The ballpark app: Tidewater's engine, sky, lighting and post chain, with the ocean, island and
+// fishing game taken out. Systems are built in init(), then frame() runs every animation frame.
+export class BallparkApp {
+
+	constructor() {
+
+		this.settings = {
+			timeOfDay: 16.0, // local solar time, hours
+			sunAzimuth: 0, // degrees: turns the sun's daily path about the vertical
+			timeSpeed: 0, // hours per real second
+			exposure: 0.55,
+			renderScale: 1, // internal resolution (the temporal upscaler reconstructs the output)
+		};
+		this.qs = new URLSearchParams( location.search );
+		this.declination = solarDeclination();
+
+	}
+
+	async init( onProgress = () => {} ) {
+
+		const qs = this.qs;
+		// report a stage, then let the page paint it before the (synchronous) stage work starts
+		const progress = async ( p, text, until ) => {
+
+			onProgress( p, text, until );
+			if ( typeof requestAnimationFrame === 'function' ) await new Promise( ( r ) => requestAnimationFrame( () => setTimeout( r, 0 ) ) );
+
+		};
+
+		await progress( 0.02, 'Starting WebGPU…' );
+		const engine = this.engine = new Engine( document.getElementById( 'app' ) );
+		await engine.init();
+		const renderer = engine;
+		const { scene, camera } = engine;
+		camera.near = 0.1;
+		camera.updateProjectionMatrix();
+		this.renderer = renderer;
+		this.scene = scene;
+		this.camera = camera;
+
+		// no sea: the camera and every pixel are always in air
+		G.cameraWaterHeight.value = DRY_LEVEL;
+		G.cameraUnderwater.value = 0;
+
+		this.input = new Input( engine.domElement );
+		this.fly = new FlyCamera( camera, engine.domElement, this.input );
+		this.fly.setPose( new Vector3( 0, 12, 20 ), 0, - 0.3 );
+
+		// ---------------------------------------------------------------- sky
+		await progress( 0.05, 'Building the sky…' );
+		this.atmosphere = new Atmosphere( renderer );
+		this.sky = new Sky( this.atmosphere );
+		if ( ! qs.has( 'noClouds' ) ) {
+
+			this.clouds = new SkyProClouds( renderer, this.atmosphere );
+			if ( this.clouds.ready ) await this.clouds.ready;
+			this.sky.clouds = this.clouds;
+			// cloud shadows drifting over the ground (the only direct-light modulation without the sea)
+			SceneLighting.set( 'directModulation', new ShaderModule( {
+				name: 'hook-directModulation-clouds',
+				deps: [ surfaceModule, this.clouds.shadowModule ],
+				code: 'fn hookDirectModulation( P: vec3f, N: vec3f ) -> vec3f { return vec3f( cloudsShadow( P.xz ) ); }',
+			} ) );
+
+		}
+
+		// 3 cascades: 0-10 m (fine contact detail), 10-60 m, 60-400 m (the whole ballpark)
+		this.shadows = new SunShadows( { size: 2048, splits: [ 10, 60, 400 ], lightMargin: 200, normalBias: [ 0.015, 0.06, 0.3 ], bias: 0.00002 } );
+		this.shadows.layerMask = ( 1 << LAYERS.OPAQUE ) | ( 1 << LAYERS.TRANSPARENT );
+		this.environment = new Environment( renderer, scene, this.sky );
+
+		// ---------------------------------------------------------------- world
+		await progress( 0.1, 'Laying the ground…' );
+		this.colliders = new Colliders();
+		this.ground = new Ground( { scene, colliders: this.colliders } );
+
+		this.sceneRenderer = new SceneRenderer( engine.meshRenderer, scene, camera );
+		if ( this.sky.background ) this.sceneRenderer.background = this.sky.background;
+		// point and spot lights (the flashlight on L now; stadium lights later)
+		this.localLights = new LocalLights();
+
+		this.walker = new Walker( { camera, input: this.input, ground: this.ground, colliders: this.colliders, start: START } );
+		this.freeCam = qs.has( 'fly' );
+
+		// ---------------------------------------------------------------- post
+		await progress( 0.2, 'Preparing the shaders…' );
+		this.water = new DryWater();
+		// the lens / medium composite of the post chain (always "in air" here)
+		this.underwater = new Underwater( {
+			depthTexture: this.sceneRenderer.sceneRT.depthTexture, maskTexture: this.sceneRenderer.waterMaskTexture,
+			query: this.water, caustics: null, fft: null,
+		} );
+		// aerial perspective and volumetric sun shafts
+		this.haze = qs.has( 'noHaze' ) ? null : new AirHaze( {
+			depthTexture: this.sceneRenderer.sceneRT.depthTexture, underwater: this.underwater, atmosphere: this.atmosphere,
+			sky: this.sky, clouds: this.clouds, terrain: null, csm: this.shadows,
+		} );
+		// a summer afternoon in the city, not a humid tropical island
+		if ( this.haze ) this.haze.density.value = 1.0;
+		this.post = new PostFX( renderer, { sceneRenderer: this.sceneRenderer, camera, underwater: this.underwater, clouds: this.clouds, sunDir: this.atmosphere.sunDir, haze: this.haze } );
+		G.exposure.value = this.settings.exposure;
+		if ( qs.has( 'scale' ) ) this.settings.renderScale = Number( qs.get( 'scale' ) ) || 1;
+		this.setRenderScale( this.settings.renderScale );
+
+		engine.domElement.addEventListener( 'click', () => {
+
+			if ( window.__ui && window.__ui.isPointerOverUI ) return;
+			this.input.requestLock();
+
+		} );
+
+		this.updateSun();
+		window.__app = this;
+		this.gpu = GPU; // console / test access
+
+		// compile pipelines asynchronously (keeps the page responsive), then prime a few frames behind
+		// the loading screen so any remaining first-use stalls happen there
+		await progress( 0.25, 'Compiling shaders…', 0.95 );
+		await this.precompile();
+		await progress( 0.96, 'Warming up…' );
+		for ( let i = 0; i < 2; i ++ ) {
+
+			this.frame( 1 / 60 );
+			await GPU.queue.onSubmittedWorkDone();
+
+		}
+
+	}
+
+	async precompile() {
+
+		const mr = this.engine.meshRenderer;
+		if ( ! this.post._built ) {
+
+			this.post._build();
+			this.post._outW = 0; // as PostFX.beginFrame: size the new targets
+
+		}
+
+		await GPU.pipelinesReady();
+		mr.precompiling = true;
+		try {
+
+			this.frame( 1 / 60 );
+
+		} catch ( e ) {
+
+			console.warn( 'precompile failed', e );
+
+		}
+
+		mr.precompiling = false;
+		await GPU.pipelinesReady();
+		await GPU.queue.onSubmittedWorkDone();
+
+	}
+
+	// ---------------------------------------------------------------- sun / sky
+
+	updateSun() {
+
+		const s = this.settings;
+		const dir = sunDirectionFromTime( s.timeOfDay, LATITUDE, this.declination ).applyAxisAngle( _up, MathUtils.degToRad( s.sunAzimuth || 0 ) );
+		// the sky is always scattered sunlight, even with the sun below the horizon (twilight)
+		this.atmosphere.sunDir.value.copy( dir );
+		// below the horizon the moon takes over as the key light
+		const night = MathUtils.smoothstep( - dir.y, 0.02, 0.18 );
+		G.night.value = night;
+		this.sky.starIntensity.value = night;
+		const moon = new Vector3( - dir.x, Math.abs( dir.y ) * 0.8 + 0.25, - dir.z ).normalize();
+		this.sky.moonDir.value.copy( moon );
+		const light = dir.y > - 0.07 ? dir : moon;
+		G.sunDir.value.copy( light );
+
+	}
+
+	applyAtmosphereReadback() {
+
+		const a = this.atmosphere;
+		if ( ! a.sunTransmittance ) return;
+		const sunTrue = a.sunDir.value;
+		const sunUp = sunTrue.y > - 0.07; // same switch as updateSun()
+		const T = a.sunTransmittance;
+		const horizonFade = MathUtils.smoothstep( sunTrue.y, - 0.03, 0.02 );
+		let c;
+		if ( sunUp ) c = new Color( T[ 0 ], T[ 1 ], T[ 2 ] ).multiplyScalar( SUN_ILLUMINANCE * horizonFade );
+		else c = new Color( 0.6, 0.7, 1.0 ).multiplyScalar( 0.12 * G.night.value );
+		G.sunColor.value.copy( c );
+		const irr = a.skyIrradiance;
+		const nightAmb = 0.012 * G.night.value;
+		G.skyIrradiance.value.setRGB( irr[ 0 ] + nightAmb * 0.6, irr[ 1 ] + nightAmb * 0.7, irr[ 2 ] + nightAmb );
+		G.horizonColor.value.setRGB( a.horizon[ 0 ], a.horizon[ 1 ], a.horizon[ 2 ] );
+
+	}
+
+	// T: let the day run (about 8 minutes per day) or stop it
+	toggleTime() {
+
+		const s = this.settings;
+		if ( s.timeSpeed !== 0 ) {
+
+			this._timeSpeed = s.timeSpeed;
+			s.timeSpeed = 0;
+
+		} else {
+
+			s.timeSpeed = this._timeSpeed || 0.05;
+
+		}
+
+		if ( this.ui ) {
+
+			this.ui.s.advance = s.timeSpeed !== 0;
+			this.ui.ui.refresh();
+			this.ui.ui.toast( s.timeSpeed !== 0 ? 'Time running' : 'Time paused' );
+
+		}
+
+	}
+
+	// Free camera on F; walking resumes from where the camera is, facing the same way.
+	setFreeCam( on ) {
+
+		if ( on === this.freeCam ) return;
+		this.freeCam = on;
+		const e = new Euler().setFromQuaternion( this.camera.quaternion, 'YXZ' );
+		if ( on ) {
+
+			this.fly.setPose( this.camera.position.clone(), e.y, e.x );
+			this.fly.velocity.set( 0, 0, 0 );
+
+		} else {
+
+			const c = this.camera.position;
+			this.walker.setPose( new Vector3( c.x, c.y - 1.62, c.z ), e.y, MathUtils.clamp( e.x, - 1.5, 1.5 ) );
+
+		}
+
+	}
+
+	// ---------------------------------------------------------------- loop
+
+	start() {
+
+		this.engine.start( ( dt, t ) => this.frame( dt, t ) );
+
+	}
+
+	updateFPS( dt ) {
+
+		const f = this._fps || ( this._fps = { el: document.getElementById( 'fps' ), acc: 0, n: 0, worst: 0 } );
+		f.acc += dt;
+		f.n ++;
+		f.worst = Math.max( f.worst, dt );
+		if ( f.acc >= 0.5 ) {
+
+			const fps = f.n / f.acc;
+			const text = `${ fps.toFixed( 0 ) } fps · ${ ( 1000 * f.acc / f.n ).toFixed( 1 ) } ms · max ${ ( f.worst * 1000 ).toFixed( 1 ) } ms`;
+			if ( f.el ) f.el.textContent = text;
+			this.fps = fps;
+			f.acc = 0;
+			f.n = 0;
+			f.worst = 0;
+
+		}
+
+	}
+
+	frame( dt ) {
+
+		const t0 = performance.now();
+		this._frame( dt );
+		const ms = performance.now() - t0;
+		this.cpuMs = this.cpuMs === undefined ? ms : this.cpuMs * 0.95 + ms * 0.05;
+
+	}
+
+	_frame( dt ) {
+
+		GPU.beginFrame();
+		FrameUniforms.fields.frameIndex.value = GPU.frame;
+		const s = this.settings;
+		this.updateFPS( dt );
+		G.dt.value = dt;
+		G.time.value += dt;
+		if ( s.timeSpeed !== 0 ) s.timeOfDay = ( s.timeOfDay + dt * s.timeSpeed + 24 ) % 24;
+
+		// ---- input + player
+		if ( this.input.hit( 'KeyF' ) ) this.setFreeCam( ! this.freeCam );
+		if ( this.input.hit( 'KeyT' ) ) this.toggleTime();
+		if ( this.input.hit( 'KeyL' ) ) {
+
+			const on = this.localLights.toggleFlashlight();
+			if ( this.ui ) this.ui.ui.toast( on ? 'Flashlight on' : 'Flashlight off' );
+
+		}
+
+		if ( this.freeCam ) this.fly.update( dt );
+		else this.walker.update( dt );
+
+		// ---- sky
+		this.updateSun();
+		this.atmosphere.update( dt, this.camera.position.y );
+		this.applyAtmosphereReadback();
+		if ( this.clouds ) this.clouds.update( dt, this.camera );
+		this.environment.update( dt );
+
+		// ---- world
+		this.ground.update( dt );
+		this.localLights.update( this.camera, dt );
+
+		// ---- render
+		G.exposure.value = s.exposure;
+		updateCameraVelocity( this.camera );
+		this.post.lens.update( dt, false );
+		if ( this.post.flare ) {
+
+			this.post.flare.setDepthHeight( this.sceneRenderer.sceneRT.height );
+			this.post.flare.update( this.camera, dt, { aboveWater: true } );
+
+		}
+
+		// the post chain sets the TAAU jitter + internal size and writes the camera into the frame
+		// uniforms; shadows then render with this frame's sun and camera
+		this.post.beginFrame();
+		this.underwater.updateCamera( this.camera );
+		this.shadows.render( this.scene, this.engine.meshRenderer, this.shadows.update( this.camera, G.sunDir.value ) );
+		this.sceneRenderer.render();
+		if ( this.post.flare ) this.post.flare.kernel.dispatch( 1 );
+		this.post.render();
+		this.post.endFrame();
+		GPU.submit();
+
+		if ( this.ui ) this.ui.update( dt );
+		this.input.endFrame();
+
+	}
+
+	// Internal render resolution relative to the output (0.5..1)
+	setRenderScale( v ) {
+
+		const scale = MathUtils.clamp( Math.round( v * 20 ) / 20, 0.5, 1 );
+		this.settings.renderScale = scale;
+		this.post.setScale( scale );
+		if ( this.clouds ) this.clouds.resolutionScale = scale;
+
+	}
+
+}
