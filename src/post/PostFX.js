@@ -79,6 +79,11 @@ export class PostFX {
 			warmth: [ 'f32', 0.02 ],
 			grain: [ 'f32', 0.012 ],
 			sharpen: [ 'f32', 0.45 ], // RCAS strength (0 = off, 1 = strong)
+			// depth of field (a long lens): 0 = off; in focus at dofFocus (m); dofScale: how fast it
+			// softens with the depth's ratio to the focus
+			dof: [ 'f32', 0 ],
+			dofFocus: [ 'f32', 100 ],
+			dofScale: [ 'f32', 4 ],
 		}, { label: 'post' } );
 		this.params = this.uniforms.fields;
 
@@ -468,6 +473,7 @@ ${ reduce }
 				postResolved: { texture: () => this.taau.output },
 				postBloom: { texture: () => this.bloomTex.texture },
 				postHalf: { texture: () => this.half.texture },
+				postQuarter: { texture: () => this.bloomDown[ 1 ].texture },
 				postExposure: { storage: this.exposure, access: 'read' },
 			},
 			code: ACES + /* wgsl */`
@@ -507,8 +513,29 @@ fn postHash( p: vec2u, f: u32 ) -> f32 {
 
 fn bloomAt( uv: vec2f ) -> vec3f { return textureSampleLevel( postBloom, smpLinearClamp, uv, 0.0 ).rgb * post.bloom; }
 
+// depth of field: what's far from the focus distance softens toward the half- and quarter-size
+// images of the frame (a TV camera's long lens on the batter: the stands behind him go soft)
+fn postViewDepth( uv: vec2f, d: f32 ) -> f32 {
+	let v = frame.invProj * vec4f( uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, d, 1.0 );
+	return - v.z / v.w;
+}
+fn dofBlur( uv: vec2f, c: vec3f ) -> vec3f {
+	if ( post.dof <= 0.001 ) { return c; }
+	let dims = vec2i( textureDimensions( mbDepth ) );
+	let d = textureLoad( mbDepth, clamp( vec2i( uv * vec2f( dims ) ), vec2i( 0 ), dims - 1 ), 0 );
+	let z = select( postViewDepth( uv, d ), 1e5, d < 1e-7 );
+	// (in front of the focus it softens half as fast: the pitcher stays readable)
+	let r = 1.0 - post.dofFocus / max( z, 0.1 );
+	let k = clamp( abs( r ) * post.dofScale * select( 1.0, 0.45, r < 0.0 ), 0.0, 1.0 ) * post.dof;
+	if ( k < 0.02 ) { return c; }
+	let h = textureSampleLevel( postHalf, smpLinearClamp, uv, 0.0 ).rgb;
+	let q = textureSampleLevel( postQuarter, smpLinearClamp, uv, 0.0 ).rgb;
+	let blur = mix( h, q, smoothstep( 0.35, 1.0, k ) ) + bloomAt( uv );
+	return mix( c, blur, smoothstep( 0.0, 0.45, k ) );
+}
+
 fn lensSharp( uv: vec2f ) -> vec3f {
-	var c = mbApply( rcas( uv ), uv ) + bloomAt( uv );
+	var c = dofBlur( uv, mbApply( rcas( uv ), uv ) + bloomAt( uv ) );
 ${ this.flare ? '	c += flareLight( uv );' : '' }
 	return c;
 }
@@ -607,6 +634,16 @@ fn fragment( in: FSIn ) -> vec4f {
 	internalSize( target = new Vector2() ) {
 
 		return target.set( this._inW, this._inH );
+
+	}
+
+	// a camera cut: nothing carries over from the last frame (no motion from the jump, no history in
+	// the temporal resolve)
+	cut() {
+
+		this._hasPrev = false;
+		this.motionBlur._hasPrev = false;
+		this.taau._needsRestart = true;
 
 	}
 

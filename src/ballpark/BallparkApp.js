@@ -302,6 +302,9 @@ export class BallparkApp {
 
 		const modes = [ 'walk', 'center', 'high', 'follow' ];
 		this.camMode = mode || modes[ ( modes.indexOf( this.camMode || 'walk' ) + 1 ) % modes.length ];
+		this.post?.cut();
+		if ( this.post ) this.post.params.dof.value = 0;
+		this._lastEye = null;
 		if ( this.camMode === 'walk' ) {
 
 			this.camera.fov = this._walkFov || 62;
@@ -385,6 +388,23 @@ export class BallparkApp {
 
 		}
 
+		// the long lens from center field: in focus on the plate, the stands behind soft (the other
+		// cameras' wider lenses keep everything sharp)
+		const P = this.post.params;
+		const dofOn = this.camMode === 'center' && fov < 12;
+		P.dof.value += ( ( dofOn ? 1 : 0 ) - P.dof.value ) * Math.min( 1, dt * 4 );
+		P.dofFocus.value = eye.distanceTo( this._camAim || target );
+		P.dofScale.value = 2.6;
+
+		// a cut (another camera, or a jump in the replay): start clean
+		if ( this._lastEye && this._lastEye.distanceTo( eye ) > 3 ) {
+
+			this._camAim = null;
+			this.post?.cut();
+
+		}
+
+		this._lastEye = ( this._lastEye || new Vector3() ).copy( eye );
 		// ease toward the target (a camera operator, not a snap)
 		const k = 1 - Math.exp( - dt * 6 );
 		this._camAim = this._camAim ? this._camAim.lerp( target, k ) : target.clone();
@@ -711,6 +731,10 @@ export class BallparkApp {
 		if ( this.director ) {
 
 			this.director.update( dt );
+			// a jump in the replay (scrubbing, skipping) is a cut too: the players are somewhere else
+			const dT = this.director.t - ( this._lastDirT ?? this.director.t );
+			if ( Math.abs( dT ) > 1 + dt * this.director.speed ) this.post?.cut();
+			this._lastDirT = this.director.t;
 			this.radio.speed = this.director.speed;
 			this.radio.sync( this.director.t, this.director.playing );
 			this._weather();
