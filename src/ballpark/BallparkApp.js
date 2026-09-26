@@ -199,7 +199,7 @@ export class BallparkApp {
 		for ( const { position, dir } of this.bowl.lightSources() ) {
 
 			this.localLights.add( {
-				position, dir, color: new Color( 1.0, 0.97, 0.9 ), intensity: 3000, range: 380,
+				position, dir, color: new Color( 1.0, 0.97, 0.9 ), intensity: 2200, range: 380,
 				cosInner: Math.cos( MathUtils.degToRad( 34 ) ), cosOuter: Math.cos( MathUtils.degToRad( 78 ) ), kind: 'stadium', priority: 0,
 			} );
 
@@ -527,7 +527,16 @@ export class BallparkApp {
 		}
 		const moon = new Vector3( - dir.x, Math.abs( dir.y ) * 0.8 + 0.25, - dir.z ).normalize();
 		this.sky.moonDir.value.copy( moon );
-		const light = dir.y > - 0.07 ? dir : moon;
+		// after dark the key light (and its shadows) is the stadium's: the banks on the roof behind home
+		// plate, high over the field, so the players' shadows fall out toward center field
+		if ( ! this._stadiumKey && this.field ) {
+
+			this.field.group.updateMatrixWorld( true );
+			this._stadiumKey = new Vector3( 0.12, 0.78, 0.62 ).normalize().transformDirection( this.field.group.matrixWorld );
+
+		}
+
+		const light = dir.y > - 0.07 ? dir : ( this._stadiumKey || moon );
 		G.sunDir.value.copy( light );
 
 	}
@@ -542,7 +551,7 @@ export class BallparkApp {
 		const horizonFade = MathUtils.smoothstep( sunTrue.y, - 0.03, 0.02 );
 		let c;
 		if ( sunUp ) c = new Color( T[ 0 ], T[ 1 ], T[ 2 ] ).multiplyScalar( SUN_ILLUMINANCE * horizonFade );
-		else c = new Color( 0.6, 0.7, 1.0 ).multiplyScalar( 0.12 * G.night.value );
+		else c = new Color( 1.0, 0.95, 0.86 ).multiplyScalar( 0.75 * G.night.value );
 		G.sunColor.value.copy( c );
 		const irr = a.skyIrradiance;
 		const nightAmb = 0.012 * G.night.value;

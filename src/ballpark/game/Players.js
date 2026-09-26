@@ -1,4 +1,4 @@
-import { InstancedMesh, Matrix4, Vector3, Quaternion } from '../../engine/index.js';
+import { InstancedMesh, Matrix4, Vector3, Quaternion, PlaneGeometry, Color } from '../../engine/index.js';
 import { StorageBuffer } from '../../engine/gpu/Texture.js';
 import { standard } from '../../materials/Materials.js';
 import { buildPlayerGeometry, solvePose, neutralPose, NB, PART, BONES } from './Rig.js';
@@ -48,6 +48,17 @@ export class Players {
 		this.mesh.castShadow = true;
 		this.mesh.receiveShadow = true;
 		parent.add( this.mesh );
+		// a soft contact shadow on the ground under each player (grounds them under any light)
+		const blobGeo = new PlaneGeometry( 1, 1 );
+		blobGeo.rotateX( - Math.PI / 2 );
+		this.blobMat = standard( { name: 'player-contact', color: new Color( 0, 0, 0 ), transparent: true, depthWrite: false, lit: false,
+			surface: 'let r = length( in.uv - 0.5 ) * 2.0; s.albedo = vec3f( 0.0 ); s.alpha = ( 1.0 - smoothstep( 0.2, 1.0, r ) ) * 0.55;' } );
+		this.blobMat.underwaterLighting = 'none';
+		this.blobs = new InstancedMesh( blobGeo, this.blobMat, MAX );
+		this.blobs.name = 'player-contact-shadows';
+		this.blobs.frustumCulled = false;
+		this.blobs.layers.set( 2 );
+		parent.add( this.blobs );
 		this._root = new Matrix4();
 		this._first = true;
 
@@ -128,6 +139,30 @@ export class Players {
 		let used = 0;
 		for ( let i = 0; i < MAX; i ++ ) if ( this.slots[ i ] && this.slots[ i ].visible ) used = i + 1;
 		this.mesh.count = Math.max( 1, used );
+		// the contact shadows: under the pelvis, stretched along the stance, fading as he leaves the ground
+		const bm = new Matrix4(), bq = new Quaternion(), bs = new Vector3(), bp = new Vector3();
+		for ( let i = 0; i < used; i ++ ) {
+
+			const p = this.slots[ i ];
+			if ( ! p || ! p.visible || p.tilt ) {
+
+				this.blobs.setMatrixAt( i, bm.makeScale( 0, 0, 0 ) );
+				continue;
+
+			}
+
+			const po = p.pose, lift = Math.max( 0, Math.min( po.footL[ 1 ], po.footR[ 1 ] ) - 0.08 );
+			const k = Math.max( 0.2, 1 - lift * 2 );
+			const spread = Math.hypot( po.footL[ 0 ] - po.footR[ 0 ], po.footL[ 2 ] - po.footR[ 2 ] );
+			bq.setFromAxisAngle( bs.set( 0, 1, 0 ), p.yaw + Math.atan2( po.footR[ 2 ] - po.footL[ 2 ], po.footR[ 0 ] - po.footL[ 0 ] ) * - 1 );
+			bp.set( ( po.footL[ 0 ] + po.footR[ 0 ] ) / 2, 0, ( po.footL[ 2 ] + po.footR[ 2 ] ) / 2 ).applyQuaternion( new Quaternion().setFromAxisAngle( bs.set( 0, 1, 0 ), p.yaw ) );
+			bm.compose( new Vector3( p.x + bp.x, ( p.y || 0 ) + 0.012, p.z + bp.z ), bq, new Vector3( ( 0.6 + spread ) * k, 1, 0.55 * k ) );
+			this.blobs.setMatrixAt( i, bm );
+
+		}
+
+		this.blobs.count = Math.max( 1, used );
+		this.blobs.instanceMatrix.needsUpdate = true;
 		if ( this._atlasDirty ) {
 
 			const img = this.atlasCtx.getImageData( 0, 0, ATLAS, ATLAS );

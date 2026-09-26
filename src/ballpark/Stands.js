@@ -466,7 +466,7 @@ export function standsMaterials() {
 	const concrete = standard( { name: 'stands-concrete', color: new Color( 0.32, 0.31, 0.29 ), roughness: 0.85, side: 'double',
 		surface: /* wgsl */`
 	let nk = smoothstep( 0.15, 0.7, frame.night );
-	s.emissive = s.albedo * nk * ( 0.22 + 0.18 * max( in.N.y, 0.0 ) );
+	s.emissive = s.albedo * nk * ( 0.06 + 0.06 * max( in.N.y, 0.0 ) );
 	if ( in.N.y < - 0.6 ) {
 		let g = abs( fract( in.P.xz / 5.0 ) - 0.5 );
 		let fx = 1.0 - smoothstep( 0.04, 0.06, max( g.x, g.y * 2.5 ) );
@@ -476,7 +476,7 @@ export function standsMaterials() {
 ` } );
 	// navy seats; per-instance colour carries a little fading
 	const seat = standard( { name: 'seats', color: new Color( 1, 1, 1 ), roughness: 0.5, side: 'double', vertexColors: true,
-		surface: 's.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.45;' } );
+		surface: 's.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.12;' } );
 	// galvanized steel for the rails
 	const rail = standard( { name: 'rails', color: new Color( 0.55, 0.56, 0.57 ), roughness: 0.35, metalness: 0.8 } );
 	// a portal's mouth: the dark tunnel, a lit ceiling at its top, EXIT in green over it
