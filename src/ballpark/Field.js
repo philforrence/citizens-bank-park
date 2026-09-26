@@ -5,7 +5,7 @@ import { Texture } from '../engine/gpu/Texture.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
-import { beam } from './geo.js';
+import { beam, canvasTexture } from './geo.js';
 import {
 	FT, FIELD_BEARING, BASE, MOUND_CENTER, RUBBER_FRONT, MOUND_RADIUS, MOUND_HEIGHT,
 	FOOTPRINT, OUTFIELD, FOUL_TERRITORY, FOUL_WALL_HEIGHT, DUGOUTS, BULLPENS, LEVELS, fencePoint, fieldBoundary,
@@ -233,11 +233,13 @@ export class Field {
 
 	_buildFence() {
 
-		const pad = standard( { name: 'wall-padding', color: new Color( 0.014, 0.075, 0.045 ), roughness: 0.7, modules: [ commonModule ],
+		// the 2008 pads: teal vinyl
+		const pad = this._padMat = standard( { name: 'wall-padding', color: new Color( 0.027, 0.168, 0.133 ), roughness: 0.55, modules: [ commonModule ],
 			surface: /* wgsl */`
-	// vinyl pads, a seam every 1.5 m
-	let seam = 1.0 - ( 1.0 - smoothstep( 0.0, 0.03 + fwidth( in.uv.x ), abs( fract( in.uv.x / 1.5 + 0.5 ) - 0.5 ) * 1.5 ) ) * ( 1.0 - clamp( fwidth( in.uv.x ) * 8.0, 0.0, 1.0 ) ) * 0.45;
-	s.albedo = mat.color * seam * ( 0.92 + 0.12 * mx_noise_float2( in.uv * vec2f( 0.7, 3.0 ) ) );
+	// vinyl pads 1.28 m wide, a dark seam between them
+	let seam = 1.0 - ( 1.0 - smoothstep( 0.0, 0.02 + fwidth( in.uv.x ), abs( fract( in.uv.x / 1.28 + 0.5 ) - 0.5 ) * 1.28 ) ) * ( 1.0 - clamp( fwidth( in.uv.x ) * 8.0, 0.0, 1.0 ) ) * 0.5;
+	s.albedo = mat.color * seam * ( 0.93 + 0.1 * mx_noise_float2( in.uv * vec2f( 0.7, 3.0 ) ) );
+	s.sheenColor = vec3f( 0.06 );
 ` } );
 		// behind home plate the wall is red brick under a teal padded cap
 		const brick = standard( { name: 'backstop-brick', color: new Color( 0.26, 0.07, 0.04 ), roughness: 0.85,
@@ -257,9 +259,22 @@ export class Field {
 		const cap = standard( { name: 'wall-cap', color: new Color( 0.2, 0.2, 0.19 ), roughness: 0.8 } );
 		for ( const m of [ pad, trim, cap, brick, tealCap ] ) m.underwaterLighting = 'none';
 
-		// outfield fence, pole to pole: padding, a yellow line along the top, a cap
+		// outfield fence, pole to pole: padding and a cap (no yellow line along the top in 2008: only the
+		// home run stripes at the 387 and 409 corners)
 		const out = OUTFIELD.map( ( [ a, d, h ] ) => ( { p: fencePoint( a, d ), h: h * FT } ) );
-		this._wall( out, { pad, trim, cap, thickness: 0.45, name: 'outfield-wall' } );
+		this._wall( out, { pad, trim: null, cap, thickness: 0.45, name: 'outfield-wall' } );
+		for ( const ft of [ 387, 409 ] ) {
+
+			const k = OUTFIELD.findIndex( ( [ , d ] ) => Math.round( d ) === ft );
+			if ( k < 0 ) continue;
+			const [ a, d, h ] = OUTFIELD[ k ];
+			const [ sx, sz ] = fencePoint( a, d - 0.03 );
+			const st = new Mesh( new BoxGeometry( 0.1, h * FT, 0.03 ), trim );
+			st.position.set( sx, h * FT / 2, sz );
+			st.rotation.y = Math.atan2( sx, sz );
+			this.group.add( st );
+
+		}
 
 		// the low wall in front of the stands in foul territory, broken by the dugouts
 		const poleL = fencePoint( OUTFIELD[ 0 ][ 0 ], OUTFIELD[ 0 ][ 1 ] );
@@ -525,13 +540,15 @@ export class Field {
 		const yellow = standard( { name: 'foul-pole', color: new Color( 0.76, 0.6, 0.1 ), roughness: 0.5, metalness: 0.3 } );
 		const screenMat = standard( { name: 'foul-pole-screen', color: new Color( 0.76, 0.6, 0.1 ), roughness: 0.5, metalness: 0.3, side: 'double', alphaTest: 0.5,
 			surface: /* wgsl */`
-	// a wire mesh in a frame: 5 cm squares, solid at the edges
-	let p = in.uv * vec2f( 0.9, ${ ( 85 * FT - 4 ).toFixed( 2 ) } );
+	// a wire mesh in a frame: 5 cm squares; far off it thins to a dither (it never reads as a plank)
+	let p = in.uv * vec2f( 0.4, 8.0 );
 	let g = abs( fract( p / 0.05 ) - 0.5 );
 	let fw = fwidth( p.x ) / 0.05;
 	let wire = step( 0.4 - fw, max( g.x, g.y ) );
-	let frame = step( 0.84, abs( in.uv.x - 0.5 ) * 2.0 ) + step( abs( in.uv.y - 0.5 ) * 2.0, - 1.0 );
-	s.alpha = max( max( wire, clamp( fw * 0.8, 0.0, 0.55 ) ), frame );
+	let frame = step( 0.8, abs( in.uv.x - 0.5 ) * 2.0 );
+	let far = clamp( fw - 0.5, 0.0, 1.0 );
+	let dither = step( fract( sin( dot( floor( in.P.xy * 40.0 ) + floor( in.P.zz * 40.0 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.2 );
+	s.alpha = mix( max( wire, frame ), max( dither, frame * 0.5 ), far );
 ` } );
 		for ( const m of [ yellow, screenMat ] ) m.underwaterLighting = 'none';
 		const H = 85 * FT, r2 = Math.SQRT1_2;
@@ -540,18 +557,37 @@ export class Field {
 			const [ a, d ] = OUTFIELD[ k ];
 			// the pole stands just behind the fence on the foul line
 			const [ x, z ] = fencePoint( a, d + 1.5 );
-			const pole = new Mesh( new CylinderGeometry( 0.18, 0.24, H, 24 ), yellow );
+			const pole = new Mesh( new CylinderGeometry( 0.23, 0.25, H, 32 ), yellow );
 			pole.position.set( x, H / 2, z );
 			pole.castShadow = true;
 			this.group.add( pole );
-			// the collar where it meets the wall top, and a round cap
+			// a pad sleeve where it meets the wall top, a round cap
 			const wallH = OUTFIELD[ k ][ 2 ] * FT;
-			const collar = new Mesh( new CylinderGeometry( 0.36, 0.38, 0.8, 24 ), yellow );
-			collar.position.set( x, wallH + 0.4, z );
-			this.group.add( collar );
-			const capTop = new Mesh( new CylinderGeometry( 0.05, 0.2, 0.35, 16 ), yellow );
+			const sleeve = new Mesh( new CylinderGeometry( 0.3, 0.3, 0.8, 32 ), this._padMat || yellow );
+			sleeve.position.set( x, wallH + 0.4, z );
+			this.group.add( sleeve );
+			const capTop = new Mesh( new CylinderGeometry( 0.05, 0.23, 0.35, 16 ), yellow );
 			capTop.position.set( x, H + 0.17, z );
 			this.group.add( capTop );
+			// its distance painted up the field side in black: 329 in left, 330 in right
+			const num = k === 0 ? '329' : '330';
+			const tex = canvasTexture( 256, 1024, ( ctx, w, h ) => {
+
+				ctx.clearRect( 0, 0, w, h );
+				ctx.fillStyle = '#111111';
+				ctx.font = '800 300px "Arial Narrow", "Helvetica Neue", Arial, sans-serif';
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				num.split( '' ).forEach( ( c, i ) => ctx.fillText( c, w / 2, h * ( 0.18 + i * 0.32 ), w * 0.9 ) );
+
+			}, 'poleNumber' + num );
+			const nm = standard( { name: 'pole-number', roughness: 0.5, alphaTest: 0.5, textures: { pnTex: tex }, surface: 'let t = textureSample( pnTex, smpAnisoClamp, in.uv ); s.albedo = t.rgb; s.alpha = t.a;' } );
+			nm.underwaterLighting = 'none';
+			const sl = new Mesh( new CylinderGeometry( 0.252, 0.252, 2.9, 32, 1, true, 0, Math.PI * 0.55 ), nm );
+			sl.position.set( x, wallH + 0.9 + 1.45, z );
+			// the painted side toward home plate
+			sl.rotation.y = Math.atan2( - x, - z ) - Math.PI * 0.275;
+			this.group.add( sl );
 			// the yellow stripe down the padding in front of it
 			const [ sx, sz ] = fencePoint( a, d - 0.03 );
 			const stripe = new Mesh( new BoxGeometry( 0.12, wallH, 0.04 ), yellow );
@@ -560,23 +596,23 @@ export class Field {
 			this.group.add( stripe );
 			const w = this.toWorld( x, z );
 			this.colliders.addCylinder( w.x, w.z, 0.3, this.y0, this.y0 + H );
-			// the screen sticks out from it into fair territory, square to the foul line
+			// the narrow screen on its top third, in fair territory
 			const fx = - Math.sign( a ) * r2, fz = - r2;
+			const SH = 8;
 			const sq = new Quads();
-			sq.add( [ - 0.45, - ( H - 4 ) / 2, 0 ], [ 0.45, - ( H - 4 ) / 2, 0 ], [ 0.45, ( H - 4 ) / 2, 0 ], [ - 0.45, ( H - 4 ) / 2, 0 ], [ 0, 0, 1 ] );
+			sq.add( [ - 0.2, - SH / 2, 0 ], [ 0.2, - SH / 2, 0 ], [ 0.2, SH / 2, 0 ], [ - 0.2, SH / 2, 0 ], [ 0, 0, 1 ] );
 			const sg = sq.geometry();
 			const suv = sg.getAttribute( 'uv' ).array, spos = sg.getAttribute( 'position' ).array;
 			for ( let i = 0; i < suv.length / 2; i ++ ) {
 
-				suv[ i * 2 ] = spos[ i * 3 ] / 0.9 + 0.5;
-				suv[ i * 2 + 1 ] = spos[ i * 3 + 1 ] / ( H - 4 ) + 0.5;
+				suv[ i * 2 ] = spos[ i * 3 ] / 0.4 + 0.5;
+				suv[ i * 2 + 1 ] = spos[ i * 3 + 1 ] / SH + 0.5;
 
 			}
 
 			const screen = new Mesh( sg, screenMat );
-			screen.position.set( x + fx * 0.55, H / 2 + 2, z + fz * 0.55 );
+			screen.position.set( x + fx * 0.45, H - SH / 2 - 0.5, z + fz * 0.45 );
 			screen.rotation.y = Math.atan2( - fz, fx );
-			screen.castShadow = true;
 			this.group.add( screen );
 
 		}

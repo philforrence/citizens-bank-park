@@ -207,9 +207,11 @@ export class BallparkApp {
 		}
 
 		// the plaza's lamp posts
-		for ( const position of this.exterior.lampSources() ) {
+		for ( const { position, tall } of this.exterior.lampSources() ) {
 
-			this.localLights.add( { position, color: new Color( 1.0, 0.78, 0.5 ), intensity: 110, range: 26, kind: 'lamp' } );
+			// full cut-off: a pool of light under each
+			this.localLights.add( { position, dir: new Vector3( 0, - 1, 0 ), color: new Color( 1.0, 0.78, 0.5 ), intensity: tall ? 140 : 70, range: tall ? 20 : 12,
+				cosInner: Math.cos( MathUtils.degToRad( 45 ) ), cosOuter: Math.cos( MathUtils.degToRad( 72 ) ), kind: 'lamp' } );
 
 		}
 

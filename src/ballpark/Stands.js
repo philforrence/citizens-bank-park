@@ -156,7 +156,8 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const seatEnds = ( d ) => ends( d );
 
 		const at = ( s, d ) => [ a[ 0 ] + ux * s + nx * d, a[ 1 ] + uz * s + nz * d ];
-		const yawSeat = Math.atan2( - nx, - nz ); // seats face the field (-n)
+		// seats face the field (-n): a turn of yaw takes the seat's own -z to ( -sin yaw, 0, -cos yaw )
+		const yawSeat = Math.atan2( nx, nz );
 		const first = S.skipRows || 0;
 		for ( let r = first; r < tier.rows; r ++ ) {
 

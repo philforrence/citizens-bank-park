@@ -24,7 +24,9 @@ export const GATES = [
 	{ name: 'THIRD BASE GATE', at: [ - 80.95, 32.03 ], width: 30, open: 56, frame: true },
 	{ name: 'FIRST BASE GATE', at: [ 73.5, 25.48 ], width: 30, open: 56, frame: true },
 	{ name: 'LEFT FIELD GATE', at: [ - 103.86, - 135.3 ], width: 28 },
-	{ name: 'HOME PLATE GATE', at: [ 0, 91.53 ], width: 16 },
+	// behind home plate, the private entrance to the suites and the clubs (there was no Home Plate Gate)
+	{ name: 'SUITE & CLUB ENTRANCE', at: [ 0, 91.53 ], width: 12 },
+	{ name: 'RIGHT FIELD GATE', at: [ 112, - 153.03 ], width: 24 },
 ];
 
 // the paved plaza in the notch at the south-west corner, in front of the Third Base Gate
@@ -341,30 +343,59 @@ export class Exterior {
 		m.name = 'third-base-plaza';
 		m.receiveShadow = true;
 		this.group.add( m );
-		// lamp posts round the plaza (their light: lampSources())
+		// the park's pole lights round the plaza (their light: lampSources()): silver-grey round poles,
+		// the tall ones (9 m) with three maroon bell shades on arms, the pedestrian ones (4.5 m) with a flat
+		// disc head; full cut-off, the light only from the lens underneath
 		this.lamps = [];
-		const post = standard( { name: 'lamp-post', color: new Color( 0.02, 0.06, 0.04 ), roughness: 0.5, metalness: 0.6 } );
-		const glow = standard( { name: 'lamp-glass', color: new Color( 0.9, 0.85, 0.7 ), roughness: 0.3,
-			surface: 's.emissive = vec3f( 1.0, 0.8, 0.55 ) * smoothstep( 0.1, 0.7, frame.night ) * 25.0;' } );
-		for ( const mm of [ post, glow ] ) mm.underwaterLighting = 'none';
-		for ( const [ x, z ] of [ [ - 122, 88 ], [ - 104, 88 ], [ - 86, 88 ], [ - 123, 64 ], [ - 123, 40 ], [ - 110, 30 ], [ - 92, 52 ], [ - 76, 76 ], [ - 60, 30 ], [ - 100, 4 ] ] ) {
+		const pole = standard( { name: 'lamp-pole', color: new Color( 0.27, 0.28, 0.29 ), roughness: 0.4, metalness: 0.7 } );
+		const shade = standard( { name: 'lamp-shade', color: new Color( 0.1, 0.03, 0.03 ), roughness: 0.45, metalness: 0.4 } );
+		const lens = standard( { name: 'lamp-lens', color: new Color( 0.9, 0.87, 0.8 ), roughness: 0.3,
+			surface: 's.emissive = vec3f( 1.0, 0.82, 0.58 ) * mix( 0.2, 30.0, smoothstep( 0.1, 0.7, frame.night ) ) * step( in.N.y, -0.5 );' } );
+		for ( const mm of [ pole, shade, lens ] ) mm.underwaterLighting = 'none';
+		const bellGeo = new LatheGeometry( [ new Vector2( 0.02, 0.32 ), new Vector2( 0.12, 0.3 ), new Vector2( 0.2, 0.18 ), new Vector2( 0.3, 0.04 ), new Vector2( 0.34, 0.0 ) ], 14 );
+		const lensGeo = new CylinderGeometry( 0.3, 0.3, 0.02, 14 );
+		const discGeo = new CylinderGeometry( 0.36, 0.36, 0.08, 18 );
+		[ [ - 122, 88 ], [ - 104, 88 ], [ - 86, 88 ], [ - 123, 64 ], [ - 123, 40 ], [ - 110, 30 ], [ - 92, 52 ], [ - 76, 76 ], [ - 60, 30 ], [ - 100, 4 ] ].forEach( ( [ x, z ], i ) => {
 
-			const pl = new Mesh( new CylinderGeometry( 0.08, 0.12, 4.6, 8 ), post );
-			pl.position.set( x, STREET + 2.3, z );
+			const tall = i % 3 !== 2, H = tall ? 9 : 4.5;
+			const pl = new Mesh( new CylinderGeometry( tall ? 0.09 : 0.07, tall ? 0.14 : 0.1, H, 10 ), pole );
+			pl.position.set( x, STREET + H / 2, z );
 			pl.castShadow = true;
 			this.group.add( pl );
-			const head = new Mesh( new CylinderGeometry( 0.22, 0.16, 0.6, 8 ), glow );
-			head.position.set( x, STREET + 4.8, z );
-			this.group.add( head );
-			const cap = new Mesh( new ConeGeometry( 0.32, 0.3, 8 ), post );
-			cap.position.set( x, STREET + 5.25, z );
-			this.group.add( cap );
-			this.lamps.push( [ x, STREET + 4.8, z ] );
-			this.reflect.push( [ x, STREET + 4.8, z, 1.0, 0.72, 0.42, 6.0 ] );
-			const w = this.field.toWorld( x, z );
-			this.colliders.addCylinder( w.x, w.z, 0.15, this.field.y0 + STREET, this.field.y0 + STREET + 4.6 );
+			if ( tall ) {
 
-		}
+				for ( let k = 0; k < 3; k ++ ) {
+
+					const a = k * Math.PI * 2 / 3 + 0.4, ax = x + Math.cos( a ) * 0.75, az = z + Math.sin( a ) * 0.75, y = STREET + H - 0.5;
+					const arm = new Mesh( new CylinderGeometry( 0.03, 0.03, 0.8, 6 ), pole );
+					arm.position.set( x + Math.cos( a ) * 0.38, y + 0.25, z + Math.sin( a ) * 0.38 );
+					arm.rotation.set( 0, - a, Math.PI / 2 );
+					this.group.add( arm );
+					const b = new Mesh( bellGeo, shade );
+					b.position.set( ax, y - 0.1, az );
+					this.group.add( b );
+					const l = new Mesh( lensGeo, lens );
+					l.position.set( ax, y - 0.11, az );
+					this.group.add( l );
+
+				}
+
+				this.lamps.push( [ x, STREET + H - 0.65, z, 1 ] );
+
+			} else {
+
+				const d = new Mesh( discGeo, lens );
+				d.position.set( x, STREET + H + 0.04, z );
+				this.group.add( d );
+				this.lamps.push( [ x, STREET + H - 0.02, z, 0 ] );
+
+			}
+
+			this.reflect.push( [ x, STREET + H - 0.6, z, 1.0, 0.72, 0.42, tall ? 7.0 : 4.0 ] );
+			const w = this.field.toWorld( x, z );
+			this.colliders.addCylinder( w.x, w.z, 0.15, this.field.y0 + STREET, this.field.y0 + STREET + H );
+
+		} );
 
 		// trees along the plaza's street edges
 		const trunk = standard( { name: 'trunk', color: new Color( 0.08, 0.06, 0.05 ), roughness: 0.9 } );
@@ -503,10 +534,10 @@ export class Exterior {
 	// the plaza's lamps as point lights (world frame), for LocalLights
 	lampSources() {
 
-		return ( this.lamps || [] ).map( ( [ x, y, z ] ) => {
+		return ( this.lamps || [] ).map( ( [ x, y, z, tall ] ) => {
 
 			const w = this.field.toWorld( x, z );
-			return new Vector3( w.x, this.field.y0 + y, w.z );
+			return { position: new Vector3( w.x, this.field.y0 + y, w.z ), tall: !! tall };
 
 		} );
 
@@ -1060,7 +1091,7 @@ export class Exterior {
 
 	_buildStatues() {
 
-		const at = ( name ) => ( STATUES[ name ] || [] )[ 0 ];
+		const at = ( name ) => ( STATUES[ name ] || STATUES[ name + ' Statue' ] || [] )[ 0 ];
 		// the Mike Schmidt statue at the Third Base Gate, Robin Roberts at First Base, Steve Carlton at Left Field
 		// Frudakis's bronzes (2004): Schmidt in his home run follow-through, head up; Roberts mid-windup;
 		// Carlton in his high leg kick; Connie Mack standing, his scorecard raised
@@ -1078,12 +1109,20 @@ export class Exterior {
 		for ( const [ name, pose, label, years, drop ] of list ) {
 
 			const p = at( name );
-			if ( p ) this._statue( p[ 0 ], p[ 1 ], pose, label, years, drop, name === 'Steve Carlton' ? 'R' : 'L' );
+			if ( ! p ) continue;
+			this._statue( p[ 0 ], p[ 1 ], pose, label, years, drop, name === 'Steve Carlton' ? 'R' : 'L' );
+			// Carlton's stands on a paved forecourt outside the Left Field Gate
+			if ( name === 'Steve Carlton' ) {
+
+				const f = new Mesh( flatPolygon( [ [ p[ 0 ] - 10, p[ 1 ] - 7 ], [ p[ 0 ] + 10, p[ 1 ] - 7 ], [ p[ 0 ] + 10, p[ 1 ] + 7 ], [ p[ 0 ] - 10, p[ 1 ] + 7 ] ], [], STREET + 0.03 ), this.pavers );
+				f.receiveShadow = true;
+				this.group.add( f );
+
+			}
 
 		}
 
-		// the 19 ft Liberty Bell that stood on top of Veterans Stadium, in the plaza by the gate
-		this._bell( - 116, 40 );
+		// (the Vet's Liberty Bell only came to the plaza in 2019)
 
 	}
 
