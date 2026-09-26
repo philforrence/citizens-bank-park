@@ -1,5 +1,6 @@
 import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, TubeGeometry, CatmullRomCurve3, BufferGeometry, Float32BufferAttribute, Vector3, Color } from '../engine/index.js';
-import { figure } from './Exterior.js';
+import { bakePose } from './game/Rig.js';
+import * as Motions from './game/Motions.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
@@ -590,19 +591,36 @@ export class Landmarks {
 		// a brick pier, the Sherwin-Williams sign under it
 		this._clock( - 7, zRoof, STREET + Hb, brick );
 
-		// the Richie Ashburn statue, behind center field on the Alley
-		const bronze = standard( { name: 'ashburn-bronze', color: new Color( 0.18, 0.1, 0.04 ), roughness: 0.35, metalness: 0.9 } );
-		bronze.underwaterLighting = 'none';
+		// the Richie Ashburn statue on the Alley: the posed bronze (his swing, the follow-through) on a
+		// polished dark granite plinth with its plate
+		const bronze = standard( { name: 'ashburn-bronze', color: new Color( 0.2, 0.12, 0.05 ), roughness: 0.35, metalness: 0.9, modules: [ commonModule ],
+			surface: 'let n = mx_noise_float3( in.P * 2.5 ) * 0.5 + 0.5; s.albedo = mix( mat.color, vec3f( 0.06, 0.1, 0.07 ), smoothstep( 0.7, 0.95, n ) * 0.5 ) * ( 0.8 + 0.3 * mx_noise_float3( in.P * 9.0 ) );' } );
+		const granite = standard( { name: 'ashburn-granite', color: new Color( 0.03, 0.03, 0.032 ), roughness: 0.2, metalness: 0.1 } );
+		for ( const m of [ bronze, granite ] ) m.underwaterLighting = 'none';
 		const ash = new Group();
 		ash.position.set( - 2, STREET, zBack + D + 3.5 );
-		ash.rotation.y = 0;
-		const ped = new Mesh( new BoxGeometry( 1.8, 1.4, 1.8 ), trim );
-		ped.position.y = 0.7;
+		const ped = new Mesh( new BoxGeometry( 1.8, 1.5, 1.8 ), granite );
+		ped.position.y = 0.75;
+		ped.castShadow = true;
 		ash.add( ped );
-		const fig = figure( bronze, 'batter' );
-		fig.position.y = 1.4;
-		fig.scale.setScalar( 1.6 );
+		const pose = Motions.swing( 0.45 );
+		pose.head = [ - 0.2, 0.4 ];
+		const fig = new Mesh( bakePose( pose ), bronze );
+		fig.position.y = 1.5;
+		fig.scale.setScalar( 1.15 );
+		fig.castShadow = true;
 		ash.add( fig );
+		const plate = canvasTexture( 512, 160, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#1a1714'; ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#c9a44a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.font = '700 52px Georgia, serif'; ctx.fillText( 'RICHIE ASHBURN', w / 2, h * 0.4 );
+			ctx.font = '500 32px Georgia, serif'; ctx.fillText( '1948 - 1959', w / 2, h * 0.76 );
+
+		}, 'ashburnPlate' );
+		const pm = standard( { name: 'ashburn-plate', roughness: 0.3, metalness: 0.4, textures: { bpPlate: plate }, surface: 's.albedo = textureSample( bpPlate, smpAnisoClamp, in.uv ).rgb;' } );
+		pm.underwaterLighting = 'none';
+		ash.add( new Mesh( quadUV( 1.4, 0.44, 0.7, - 0.905 ), pm ) );
 		ash.rotation.y = Math.PI;
 		this.group.add( ash );
 
@@ -1107,7 +1125,7 @@ export class Landmarks {
 	_battersEye() {
 
 		const ivy = standard( {
-			name: 'ivy', color: new Color( 0.035, 0.09, 0.03 ), roughness: 0.85, modules: [ commonModule ],
+			name: 'ivy', color: new Color( 0.022, 0.06, 0.025 ), roughness: 0.92, modules: [ commonModule ],
 			surface: /* wgsl */`
 	let p = in.P;
 	let n = mx_noise_float3( p * 2.3 ) * 0.5 + mx_noise_float3( p * 7.1 ) * 0.3 + mx_noise_float3( p * 0.6 ) * 0.4;
@@ -1134,18 +1152,30 @@ export class Landmarks {
 			}
 
 			q.add( [ ax, 0, az ], [ bx, 0, bz ], [ bx, STREET, bz ], [ ax, STREET, az ], [ nx, 0, nz ] );
-			// evergreens along the foot of the wall
-			const n = Math.floor( len / 2.2 );
+			// a stand of evergreens and junipers at the foot of the wall: irregular heights and shapes, a few
+			// tall spruces among low spreading junipers, stacked tiers of cones leaning a little
+			const n = Math.floor( len / 1.9 );
 			for ( let k = 0; k < n; k ++ ) {
 
-				const t = ( k + 0.5 ) / n;
-				const x = ax + ( bx - ax ) * t + nx * 1.4, z = az + ( bz - az ) * t + nz * 1.4;
-				const h = 2.4 + 1.2 * Math.abs( Math.sin( x * 3.7 + z * 1.3 ) );
-				const c = new Mesh( new ConeGeometry( 1.0, h, 8 ), shrub );
-				c.position.set( x, h / 2, z );
-				c.castShadow = true;
-				c.receiveShadow = true;
-				this.group.add( c );
+				const r1 = Math.abs( Math.sin( ( ax + k * 7.1 ) * 12.9898 + az * 3.3 ) * 43758.5453 ) % 1, r2 = Math.abs( Math.sin( ( k + 1 ) * 78.233 + ax ) * 12543.21 ) % 1;
+				const t = ( k + 0.3 + 0.4 * r2 ) / n;
+				const off = 0.9 + 1.4 * r1;
+				const x = ax + ( bx - ax ) * t + nx * off, z = az + ( bz - az ) * t + nz * off;
+				const tall = r1 > 0.72;
+				const h = tall ? 4.2 + 1.6 * r2 : 1.4 + 1.6 * r2;
+				const rad = tall ? 1.1 + 0.3 * r2 : 1.0 + 0.7 * r1;
+				const tiers = tall ? 4 : 2;
+				for ( let j = 0; j < tiers; j ++ ) {
+
+					const f = j / tiers;
+					const c = new Mesh( new ConeGeometry( rad * ( 1 - f * 0.55 ), h * ( 0.6 - f * 0.12 ), 9 ), shrub );
+					c.position.set( x + ( r2 - 0.5 ) * 0.2 * j, h * ( 0.3 + f * 0.55 ), z + ( r1 - 0.5 ) * 0.2 * j );
+					c.rotation.set( ( r1 - 0.5 ) * 0.12, r2 * 6.28, ( r2 - 0.5 ) * 0.12 );
+					c.castShadow = true;
+					c.receiveShadow = true;
+					this.group.add( c );
+
+				}
 
 			}
 
