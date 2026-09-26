@@ -4,3 +4,4 @@ dist
 *.log
 stages
 tools/osm/*.json
+tools/radio/.cache

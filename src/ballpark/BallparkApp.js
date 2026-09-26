@@ -239,6 +239,7 @@ export class BallparkApp {
 			if ( window.__ui && window.__ui.isPointerOverUI ) return;
 			this.input.requestLock();
 			if ( this.audio ) this.audio.resume();
+			if ( this.radio ) this.radio.unlock();
 
 		} );
 
@@ -667,6 +668,7 @@ export class BallparkApp {
 
 			this.director.update( dt );
 			this.radio.speed = this.director.speed;
+			this.radio.sync( this.director.t, this.director.playing );
 			this._weather();
 			this._scoreboard( dt );
 

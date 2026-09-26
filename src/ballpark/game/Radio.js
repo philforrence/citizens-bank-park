@@ -1,13 +1,31 @@
-// A radio-style call of the replay, read by the browser's speech synthesis from the game data: the batter
-// coming up, each pitch, each play, the score. Lines queue up; at high speeds only the plays are called.
+// The radio call of the replay: a play-by-play man and a colour man (tools/radio: the script is
+// written from the game data and voiced offline, then mixed with an AM-radio sound into one track on the
+// replay's clock, public/audio/radio/game5.mp3). The track plays in step with the replay: seeking the
+// game seeks the call, the playback rate follows the replay's speed up to 2x (beyond that it's silent).
+// If the track can't be loaded, the browser's speech synthesis reads the replay's cues instead.
 export class Radio {
 
 	constructor() {
 
 		this.muted = false;
+		this.speed = 1;
 		this.ok = typeof speechSynthesis !== 'undefined';
 		this.voice = null;
-		this.speed = 1;
+		this.track = null;
+		this.trackOk = false;
+		if ( typeof Audio !== 'undefined' ) {
+
+			const a = new Audio( 'audio/radio/game5.mp3' );
+			a.preload = 'auto';
+			a.addEventListener( 'canplay', () => { this.trackOk = true; } );
+			a.addEventListener( 'error', () => { this.trackOk = false; this.track = null; } );
+			this.track = a;
+
+		}
+
+		// browsers let audio start once the page has had a click or a key press
+		if ( typeof window !== 'undefined' ) for ( const ev of [ 'pointerdown', 'keydown' ] ) window.addEventListener( ev, () => this.unlock(), { once: true, capture: true } );
+
 		if ( this.ok ) {
 
 			const pick = () => {
@@ -24,9 +42,36 @@ export class Radio {
 
 	}
 
+	// keep the track on the replay's clock (every frame)
+	sync( t, playing ) {
+
+		const a = this.track;
+		if ( ! a || ! this.trackOk ) return;
+		const on = playing && ! this.muted && this.speed <= 2 && this.unlocked;
+		if ( ! on ) {
+
+			if ( ! a.paused ) a.pause();
+			return;
+
+		}
+
+		if ( Math.abs( a.playbackRate - this.speed ) > 0.01 ) a.playbackRate = this.speed;
+		if ( Math.abs( a.currentTime - t ) > 0.35 ) a.currentTime = t;
+		if ( a.paused ) a.play().catch( () => {} );
+
+	}
+
+	// audio can only start after a click / key press
+	unlock() {
+
+		this.unlocked = true;
+
+	}
+
+	// the speech fallback reads the replay's cues (only without the track)
 	say( text, { important = false } = {} ) {
 
-		if ( ! this.ok || this.muted || ! text ) return;
+		if ( this.trackOk || ! this.ok || this.muted || ! text ) return;
 		// don't let a backlog build: drop pitch-by-pitch lines when behind, and at high speed
 		if ( ! important && ( this.speed > 2 || speechSynthesis.pending ) ) return;
 		const u = new SpeechSynthesisUtterance( text );
@@ -40,6 +85,7 @@ export class Radio {
 	stop() {
 
 		if ( this.ok ) speechSynthesis.cancel();
+		if ( this.track && ! this.track.paused ) this.track.pause();
 
 	}
 

@@ -104,3 +104,11 @@ The players' pitching delivery, swing and running are retargeted from the CMU Gr
 Capture Database (http://mocap.cs.cmu.edu), created with funding from NSF EIA-0196217, via the
 Motionbuilder-friendly BVH conversion by B. Hahne (cgspeed.com). Clips 124_01 (baseball pitch),
 124_07 (baseball swing), 16_55 (run) and 16_35 (run/jog). `tools/build-mocap.mjs` does the retargeting.
+
+## Radio call
+
+The radio call is written from the game data (`tools/radio/build-script.mjs`) and voiced offline with
+Piper (https://github.com/rhasspy/piper, MIT): the en_US-joe-medium voice (CC0 dataset) for the
+play-by-play and en_US-norman-medium (public-domain LibriVox recordings) for the colour, mixed with an
+AM-radio treatment by `tools/radio/build-audio.py` into `public/audio/radio/game5.mp3`. It is not the
+real 2008 broadcast.
