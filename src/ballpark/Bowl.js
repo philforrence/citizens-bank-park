@@ -264,7 +264,8 @@ export class Bowl {
 			// Hall of Fame Club (212-232): 8 rows up to the club concourse
 			{ name: 'club-level', front: line( infieldPath, D.club ), outward: [ 0, - 40 ], y0: clubY, rows: ROWS.club, depth: ROW, rise: 0.46, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: clubY + 1.0 }, base: clubY - 1.2 },
 			// Terrace: the 300s over the club seats, up to the terrace walkway
-			{ name: 'terrace-300', front: line( path, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1 },
+			// (behind home plate the press box takes its place: no seats there)
+			{ name: 'terrace-300', front: line( path, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1, skip: [ [ 4, 6 ] ] },
 			// ... and the 400s behind the walkway
 			{ name: 'terrace-400', front: line( path, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, back: { height: 1.1 }, base: L.terraceConcourse - 0.7 },
 		];
@@ -292,6 +293,8 @@ export class Bowl {
 		this._roof( offsetPolyline( deck.front, deckBack * 0.3, [ 0, 0 ] ), deckBack * 0.78, pavRoofY, { towers: false } );
 		this._rearWall( offsetPolyline( deck.front, deckBack - 0.4, [ 0, 0 ] ), deckTop - 1.2, pavRoofY - 1.0 );
 
+		this._pressBox( line( path, D.t300 ).slice( 4, 8 ), t300Y - 1.1, L.terraceConcourse - 0.15, ROWS.t300 * ROW );
+
 		// the walkway between the 300s and 400s, and the club concourse behind the club seats
 		const t300 = tiers[ 2 ], t400 = tiers[ 3 ], club = tiers[ 1 ];
 		this._strip( line( path, D.t300Back ), 2.4, L.terraceConcourse, 'terrace-walkway', false ); // the 400s start behind it
@@ -312,6 +315,72 @@ export class Bowl {
 		// elevators: behind home plate and toward first and third, stopping at each level
 		this._elevators( path, top );
 		void club; void t300;
+
+	}
+
+	// The press box and broadcast booths behind home plate, in place of the 300s there: a maroon
+	// spandrel, a band of big glass windows tilted out at the top, white trim, a roof the terrace walkway
+	// runs over; lit inside after dark. P: its front line (field frame), y0..y1, depth back to the walkway.
+	_pressBox( P, y0, y1, depth ) {
+
+		const maroon = standard( { name: 'press-maroon', color: new Color( 0.15, 0.03, 0.03 ), roughness: 0.6 } );
+		const trim = standard( { name: 'press-trim', color: new Color( 0.75, 0.74, 0.7 ), roughness: 0.5 } );
+		const glass = standard( { name: 'press-glass', color: new Color( 0.03, 0.045, 0.055 ), roughness: 0.06, metalness: 0.6, modules: [ commonModule ],
+			surface: /* wgsl */`
+	// mullions every 1.5 m; inside, the booths' lights and people-height shapes glow warm after dark
+	let mull = step( abs( fract( in.uv.x / 1.5 ) - 0.5 ), 0.025 );
+	let booth = 0.6 + 0.4 * step( 0.5, fract( in.uv.x / 4.5 + 0.3 ) );
+	s.albedo = mix( mat.color, vec3f( 0.7 ), mull );
+	s.emissive = vec3f( 1.0, 0.86, 0.64 ) * ( 1.0 - mull ) * booth * mix( 0.05, 0.5, smoothstep( 0.1, 0.7, frame.night ) );
+` } );
+		for ( const m of [ maroon, trim, glass ] ) m.underwaterLighting = 'none';
+		const qm = new Quads(), qt = new Quads(), qg = new Quads();
+		const yS = y0 + 1.4, yG = yS + 2.7, tilt = 0.45;
+		const back = offsetPolyline( P, depth, [ 0, - 40 ] );
+		let u = 0;
+		for ( let i = 0; i < P.length - 1; i ++ ) {
+
+			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
+			const len = Math.hypot( bx - ax, bz - az );
+			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
+			if ( nx * ( 0 - ( ax + bx ) / 2 ) + nz * ( - 40 - ( az + bz ) / 2 ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			// n points to the field; the facade leans out toward it at the top
+			const at = ( p, o, y ) => [ p[ 0 ] + nx * o, y, p[ 1 ] + nz * o ];
+			const A = [ ax, az ], B = [ bx, bz ];
+			qm.add( at( A, 0, y0 ), at( B, 0, y0 ), at( B, 0, yS ), at( A, 0, yS ), [ nx, 0, nz ], u, u + len );
+			qg.add( at( A, 0, yS ), at( B, 0, yS ), at( B, tilt, yG ), at( A, tilt, yG ), [ nx, 0.16, nz ], u, u + len );
+			qt.add( at( A, tilt, yG ), at( B, tilt, yG ), at( B, tilt, y1 ), at( A, tilt, y1 ), [ nx, 0, nz ], u, u + len );
+			qt.add( at( A, tilt, yS - 0.12 ), at( B, tilt, yS - 0.12 ), at( B, 0, yS + 0.05 ), at( A, 0, yS + 0.05 ), [ nx, 1, nz ], u, u + len );
+			// the roof it carries (the walkway's approach), from the front back to the walkway
+			qm.add( at( A, tilt, y1 ), at( B, tilt, y1 ), [ back[ i + 1 ][ 0 ], y1, back[ i + 1 ][ 1 ] ], [ back[ i ][ 0 ], y1, back[ i ][ 1 ] ], [ 0, 1, 0 ] );
+			u += len;
+
+		}
+
+		// the ends closed
+		for ( const [ p, b ] of [ [ P[ 0 ], back[ 0 ] ], [ P[ P.length - 1 ], back[ back.length - 1 ] ] ] ) {
+
+			const ex = b[ 0 ] - p[ 0 ], ez = b[ 1 ] - p[ 1 ], el = Math.hypot( ex, ez );
+			qm.add( [ p[ 0 ], y0, p[ 1 ] ], [ b[ 0 ], y0, b[ 1 ] ], [ b[ 0 ], y1, b[ 1 ] ], [ p[ 0 ], y1, p[ 1 ] ], [ - ez / el, 0, ex / el ] );
+
+		}
+
+		for ( const [ q, m, name ] of [ [ qm, maroon, 'press-box' ], [ qt, trim, 'press-trim' ], [ qg, glass, 'press-glass' ] ] ) {
+
+			const mesh = new Mesh( q.geometry(), m );
+			mesh.name = name;
+			mesh.castShadow = m !== glass;
+			mesh.receiveShadow = true;
+			this.group.add( mesh );
+
+		}
+
+		for ( let i = 0; i < P.length - 1; i ++ ) this._walkable( P[ i ], P[ i + 1 ], back[ i + 1 ], back[ i ], y1, 'press-roof' );
 
 	}
 
