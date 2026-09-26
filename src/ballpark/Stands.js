@@ -436,30 +436,21 @@ export function seatGeometry() {
 	};
 
 	const w = 0.46 / 2;
-	// the back: three panels bowed 3 cm, leaning back 12 degrees, 4 cm thick
+	// the back: one panel leaning back 12 degrees, 4 cm thick (front, back, top)
 	const lean = Math.tan( 0.21 ), b0 = 0.44, b1 = 0.8, bz = 0.14, t = 0.035;
-	const z = ( x, y ) => bz + ( y - b0 ) * lean + 0.03 * ( x / w ) * ( x / w );
-	const xs = [ - w, - w / 3, w / 3, w ];
-	for ( let i = 0; i < 3; i ++ ) {
-
-		const [ xa, xb ] = [ xs[ i ], xs[ i + 1 ] ];
-		add( BLUE, [ xa, b0, z( xa, b0 ) ], [ xb, b0, z( xb, b0 ) ], [ xb, b1, z( xb, b1 ) ], [ xa, b1, z( xa, b1 ) ], [ 0, lean, - 1 ] );
-		add( BLUE, [ xb, b0, z( xb, b0 ) + t ], [ xa, b0, z( xa, b0 ) + t ], [ xa, b1, z( xa, b1 ) + t ], [ xb, b1, z( xb, b1 ) + t ], [ 0, - lean, 1 ] );
-		add( BLUE, [ xa, b1, z( xa, b1 ) ], [ xb, b1, z( xb, b1 ) ], [ xb, b1, z( xb, b1 ) + t ], [ xa, b1, z( xa, b1 ) + t ], [ 0, 1, 0 ] );
-
-	}
+	const z = ( y ) => bz + ( y - b0 ) * lean;
+	add( BLUE, [ - w, b0, z( b0 ) ], [ w, b0, z( b0 ) ], [ w, b1, z( b1 ) ], [ - w, b1, z( b1 ) ], [ 0, lean, - 1 ] );
+	add( BLUE, [ w, b0, z( b0 ) + t ], [ - w, b0, z( b0 ) + t ], [ - w, b1, z( b1 ) + t ], [ w, b1, z( b1 ) + t ], [ 0, - lean, 1 ] );
+	add( BLUE, [ - w, b1, z( b1 ) ], [ w, b1, z( b1 ) ], [ w, b1, z( b1 ) + t ], [ - w, b1, z( b1 ) + t ], [ 0, 1, 0 ] );
 
 	// the pan, folded up (75 degrees) in front of the back's lower half
 	const pz = 0.02, p0 = 0.26, p1 = 0.62, tip = Math.tan( 0.26 );
 	const zp = ( y ) => pz + ( y - p0 ) * tip;
 	add( BLUE, [ - w + 0.01, p0, zp( p0 ) ], [ w - 0.01, p0, zp( p0 ) ], [ w - 0.01, p1, zp( p1 ) ], [ - w + 0.01, p1, zp( p1 ) ], [ 0, tip, - 1 ] );
-	add( BLUE, [ w - 0.01, p0, zp( p0 ) + 0.03 ], [ - w + 0.01, p0, zp( p0 ) + 0.03 ], [ - w + 0.01, p1, zp( p1 ) + 0.03 ], [ w - 0.01, p1, zp( p1 ) + 0.03 ], [ 0, - tip, 1 ] );
 	// the standard: a cast leg from the tread, the armrest on top
 	const sx = - w - 0.025;
 	add( GREY, [ sx, 0, - 0.02 ], [ sx, 0, 0.2 ], [ sx, 0.6, 0.2 ], [ sx, 0.6, - 0.02 ], [ - 1, 0, 0 ] );
-	add( GREY, [ sx + 0.04, 0, 0.2 ], [ sx + 0.04, 0, - 0.02 ], [ sx + 0.04, 0.6, - 0.02 ], [ sx + 0.04, 0.6, 0.2 ], [ 1, 0, 0 ] );
 	add( GREY, [ sx - 0.005, 0.6, - 0.14 ], [ sx + 0.045, 0.6, - 0.14 ], [ sx + 0.045, 0.6, 0.22 ], [ sx - 0.005, 0.6, 0.22 ], [ 0, 1, 0 ] );
-	add( GREY, [ sx - 0.005, 0.56, - 0.14 ], [ sx + 0.045, 0.56, - 0.14 ], [ sx + 0.045, 0.6, - 0.14 ], [ sx - 0.005, 0.6, - 0.14 ], [ 0, 0, - 1 ] );
 	const g = q.geometry();
 	g.setAttribute( 'color', new Float32BufferAttribute( col, 3 ) );
 	return g;

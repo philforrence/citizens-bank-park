@@ -35,6 +35,7 @@ import { Fascia } from './Fascia.js';
 import { Concourse } from './Concourse.js';
 import { Complex } from './Complex.js';
 import { SkyGlow } from './SkyGlow.js';
+import { batchStatic } from './geo.js';
 import { Players } from './game/Players.js';
 import * as Motions from './game/Motions.js';
 import { Ball } from './game/Ball.js';
@@ -156,6 +157,9 @@ export class BallparkApp {
 		this.details = new Details2008( { field: this.field } );
 		this.fascia = new Fascia( { field: this.field, bowl: this.bowl } );
 		this.concourse = new Concourse( { field: this.field, bowl: this.bowl, colliders: this.colliders } );
+		// the hundreds of little static meshes merged by material into a few draws
+		const batched = batchStatic( this.field.group );
+		console.info( `static batching: ${ batched.before } meshes into ${ batched.after }` );
 		this.players = new Players( { parent: this.field.group } );
 		if ( qs.has( 'poses' ) ) this._poseLineup();
 		else {

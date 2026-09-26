@@ -66,7 +66,7 @@ export function buildPlayerGeometry() {
 
 	const B = BONES, P = PART, D = DIM;
 	const cyl = ( r0, r1, h, seg = 12 ) => new CylinderGeometry( r0, r1, h, seg, 1, false );
-	const sph = ( r, w = 14, h = 10 ) => new SphereGeometry( r, w, h );
+	const sph = ( r, w = 12, h = 8 ) => new SphereGeometry( r, w, h );
 	// a lathed shape: profile [ [ radius, y ], ... ] bottom to top, closed at both ends
 	const lathe = ( prof, seg = 16 ) => new LatheGeometry( [ new Vector2( 0, prof[ 0 ][ 1 ] ), ...prof.map( ( [ r, y ] ) => new Vector2( r, y ) ), new Vector2( 0, prof[ prof.length - 1 ][ 1 ] ) ], seg );
 	// a limb segment along -y from its joint: radius profile [ [ r, fraction of the length ], ... ]
@@ -86,12 +86,12 @@ export function buildPlayerGeometry() {
 
 	// ---- the head: skull, jaw and chin, nose, ears; hair under the cap; the cap (crown, button, bill)
 	// or the batting helmet (shell, ear flap, short bill), or the catcher's mask
-	add( sph( 0.106, 26, 18 ), B.head, P.skin, 0, 0.19, 0.005, 0, 0, 0, 0.88, 1.06, 1 );
+	add( sph( 0.106, 20, 14 ), B.head, P.skin, 0, 0.19, 0.005, 0, 0, 0, 0.88, 1.06, 1 );
 	add( sph( 0.076, 14, 10 ), B.head, P.skin, 0, 0.128, - 0.028, 0, 0, 0, 1.0, 0.85, 1.0 );
 	add( sph( 0.03, 10, 8 ), B.head, P.skin, 0, 0.115, - 0.075, 0, 0, 0, 1.1, 0.8, 0.75 );
 	add( new BoxGeometry( 0.024, 0.04, 0.03 ), B.head, P.skin, 0, 0.178, - 0.1, - 0.25, 0, 0 );
 	for ( const x of [ - 0.092, 0.092 ] ) add( sph( 0.026, 10, 8 ), B.head, P.skin, x, 0.18, 0.012, 0, 0, 0, 0.45, 1.0, 0.75 );
-	add( sph( 0.104, 26, 16 ), B.head, P.hair, 0, 0.198, 0.014, 0, 0, 0, 0.9, 1.02, 1.0 );
+	add( sph( 0.104, 18, 10 ), B.head, P.hair, 0, 0.198, 0.014, 0, 0, 0, 0.9, 1.02, 1.0 );
 	add( sph( 0.112, 18, 10 ), B.head, P.cap, 0, 0.232, 0.004, 0, 0, 0, 0.95, 0.72, 1.03 );
 	add( cyl( 0.01, 0.01, 0.012, 8 ), B.head, P.cap, 0, 0.314, 0.004 );
 	add( lathe( [ [ 0.0, - 0.004 ], [ 0.085, - 0.004 ], [ 0.085, 0.004 ], [ 0.0, 0.004 ] ], 20 ), B.head, P.cap, 0, 0.222, - 0.098, 0.18, 0, 0, 1, 1, 0.72 );

@@ -1,4 +1,4 @@
-import { BufferGeometry, Float32BufferAttribute, Vector2 } from '../engine/index.js';
+import { BufferGeometry, BufferAttribute, Float32BufferAttribute, Mesh, Matrix3, Matrix4, Vector2, Vector3 } from '../engine/index.js';
 import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { Texture } from '../engine/gpu/Texture.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
@@ -182,5 +182,87 @@ export function nearestAlong( P, p ) {
 	}
 
 	return bestS;
+
+}
+
+// Static batching: every plain mesh under `root` (position / normal / uv only, not instanced, on the
+// default layer, not flagged userData.dynamic) is merged with the others that share its material and
+// shadow flags into one mesh, its transform baked in (relative to root). Hundreds of little meshes (poles,
+// posts, trees, statues, boxes) become a few draws. Returns how many meshes went in and came out.
+export function batchStatic( root ) {
+
+	root.updateMatrixWorld( true );
+	const inv = root.matrixWorld.clone().invert();
+	const groups = new Map();
+	const ok = new Set( [ 'position', 'normal', 'uv' ] );
+	root.traverse( ( o ) => {
+
+		if ( ! o.isMesh || o.isInstancedMesh || ! o.visible || o.userData.dynamic || o.layers.mask !== 1 || o.frustumCulled === false ) return;
+		const g = o.geometry;
+		const names = Object.keys( g.attributes );
+		if ( ! g.getAttribute( 'position' ) || ! g.getAttribute( 'normal' ) || names.some( ( n ) => ! ok.has( n ) ) || g.morphAttributes && Object.keys( g.morphAttributes ).length ) return;
+		// every ancestor visible
+		for ( let p = o.parent; p && p !== root; p = p.parent ) if ( ! p.visible || p.userData.dynamic ) return;
+		const key = o.material.id + '|' + o.castShadow + '|' + o.receiveShadow;
+		if ( ! groups.has( key ) ) groups.set( key, [] );
+		groups.get( key ).push( o );
+
+	} );
+	let before = 0, after = 0;
+	const m = new Matrix4(), nm = new Matrix3(), v = new Vector3();
+	for ( const list of groups.values() ) {
+
+		if ( list.length < 2 ) continue;
+		before += list.length;
+		after ++;
+		let nv = 0, ni = 0;
+		for ( const o of list ) {
+
+			const g = o.geometry;
+			nv += g.getAttribute( 'position' ).count;
+			ni += g.index ? g.index.count : g.getAttribute( 'position' ).count;
+
+		}
+
+		const pos = new Float32Array( nv * 3 ), nrm = new Float32Array( nv * 3 ), uv = new Float32Array( nv * 2 ), idx = new Uint32Array( ni );
+		let vo = 0, io = 0;
+		for ( const o of list ) {
+
+			const g = o.geometry, P = g.getAttribute( 'position' ), N = g.getAttribute( 'normal' ), U = g.getAttribute( 'uv' );
+			m.multiplyMatrices( inv, o.matrixWorld );
+			nm.getNormalMatrix( m );
+			for ( let i = 0; i < P.count; i ++ ) {
+
+				v.fromBufferAttribute( P, i ).applyMatrix4( m );
+				pos[ ( vo + i ) * 3 ] = v.x; pos[ ( vo + i ) * 3 + 1 ] = v.y; pos[ ( vo + i ) * 3 + 2 ] = v.z;
+				v.fromBufferAttribute( N, i ).applyMatrix3( nm ).normalize();
+				nrm[ ( vo + i ) * 3 ] = v.x; nrm[ ( vo + i ) * 3 + 1 ] = v.y; nrm[ ( vo + i ) * 3 + 2 ] = v.z;
+				if ( U ) { uv[ ( vo + i ) * 2 ] = U.getX( i ); uv[ ( vo + i ) * 2 + 1 ] = U.getY( i ); }
+
+			}
+
+			if ( g.index ) for ( let i = 0; i < g.index.count; i ++ ) idx[ io ++ ] = g.index.array[ i ] + vo;
+			else for ( let i = 0; i < P.count; i ++ ) idx[ io ++ ] = vo + i;
+			vo += P.count;
+			o.parent.remove( o );
+
+		}
+
+		const geo = new BufferGeometry();
+		geo.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		geo.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
+		geo.setAttribute( 'uv', new Float32BufferAttribute( uv, 2 ) );
+		geo.setIndex( new BufferAttribute( idx, 1 ) );
+		geo.computeBoundingBox();
+		geo.computeBoundingSphere();
+		const mesh = new Mesh( geo, list[ 0 ].material );
+		mesh.name = 'batch:' + ( list[ 0 ].name || list[ 0 ].material.name );
+		mesh.castShadow = list[ 0 ].castShadow;
+		mesh.receiveShadow = list[ 0 ].receiveShadow;
+		root.add( mesh );
+
+	}
+
+	return { before, after };
 
 }

@@ -124,6 +124,10 @@ export class Players {
 
 		this.bones.write( D );
 		this.infoBuffer.write( this.info );
+		// draw only as many instances as there are slots in use
+		let used = 0;
+		for ( let i = 0; i < MAX; i ++ ) if ( this.slots[ i ] && this.slots[ i ].visible ) used = i + 1;
+		this.mesh.count = Math.max( 1, used );
 		if ( this._atlasDirty ) {
 
 			const img = this.atlasCtx.getImageData( 0, 0, ATLAS, ATLAS );

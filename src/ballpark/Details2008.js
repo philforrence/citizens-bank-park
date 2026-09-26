@@ -197,6 +197,7 @@ export class Details2008 {
 		roll.rotation.set( 0, - Math.atan2( b[ 1 ] - a[ 1 ], b[ 0 ] - a[ 0 ] ), Math.PI / 2 );
 		roll.castShadow = true;
 		roll.receiveShadow = true;
+		roll.userData.dynamic = true; // shown and hidden
 		this.group.add( roll );
 		this.tarpRoll = roll;
 
