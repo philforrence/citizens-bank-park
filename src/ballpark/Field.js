@@ -391,20 +391,34 @@ export class Field {
 		const CW = 512, CH = 192;
 		const canvas = new OffscreenCanvas( CW, CH * rows.length );
 		const ctx = canvas.getContext( '2d' );
-		ctx.fillStyle = '#fff';
+		// cream athletic block numerals with a dark outline
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'middle';
-		ctx.font = '700 170px "Helvetica Neue", Helvetica, Arial, sans-serif';
-		rows.forEach( ( r, k ) => ctx.fillText( String( Math.round( r.d ) ), CW / 2, CH * ( k + 0.5 ) + 6, CW - 16 ) );
+		ctx.font = '900 168px "Arial Narrow", "Helvetica Neue", Impact, Arial, sans-serif';
+		ctx.lineJoin = 'round';
+		rows.forEach( ( r, k ) => {
+
+			const t = String( Math.round( r.d ) ), y = CH * ( k + 0.5 ) + 6;
+			ctx.save();
+			ctx.translate( CW / 2, y );
+			ctx.scale( 0.82, 1 );
+			ctx.lineWidth = 14;
+			ctx.strokeStyle = '#0e2a24';
+			ctx.strokeText( t, 0, 0 );
+			ctx.fillStyle = '#ede0a6';
+			ctx.fillText( t, 0, 0 );
+			ctx.restore();
+
+		} );
 		const img = ctx.getImageData( 0, 0, CW, CH * rows.length );
-		const tex = new Texture( { label: 'wallNumbers', width: CW, height: CH * rows.length, format: 'rgba8unorm', mips: true, usage: [ 'sample', 'copyDst' ], data: new Uint8Array( img.data.buffer ) } );
+		const tex = new Texture( { label: 'wallNumbers', width: CW, height: CH * rows.length, format: 'rgba8unorm-srgb', mips: true, usage: [ 'sample', 'copyDst' ], data: new Uint8Array( img.data.buffer ) } );
 		tex.getGPU();
 		generateMipmaps( tex );
 
 		const mat = standard( {
 			name: 'wall-numbers', color: new Color( 0.85, 0.85, 0.82 ), roughness: 0.7, alphaTest: 0.5,
 			textures: { bpNumbers: tex },
-			surface: 'let t = textureSample( bpNumbers, smpAnisoClamp, in.uv ); s.alpha = t.a;',
+			surface: 'let t = textureSample( bpNumbers, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.9;',
 		} );
 		mat.underwaterLighting = 'none';
 
@@ -426,7 +440,7 @@ export class Field {
 
 			// moved along the fence off corners and poles (t runs from the left field pole toward right)
 			const ox = cx + tx * r.shift + nx * 0.03, oz = cz + tz * r.shift + nz * 0.03;
-			const H = Math.min( 1.1, r.h * 0.55 ), W = H * CW / CH;
+			const H = Math.min( 0.95, r.h * 0.5 ), W = H * CW / CH;
 			const y0 = ( r.h - 0.15 ) / 2 - H / 2 + 0.05, y1 = y0 + H;
 			// left / right as seen from the field (facing -n)
 			const lx = ox - nz * W / 2, lz = oz + nx * W / 2, rx = ox + nz * W / 2, rz = oz - nx * W / 2;
@@ -457,23 +471,59 @@ export class Field {
 
 	_buildFoulPoles() {
 
-		const yellow = standard( { name: 'foul-pole', color: new Color( 0.85, 0.6, 0.02 ), roughness: 0.5, metalness: 0.2 } );
-		yellow.underwaterLighting = 'none';
+		// round steel poles in a soft cream-yellow, the wing a wire screen, on a collar at the wall top
+		const yellow = standard( { name: 'foul-pole', color: new Color( 0.76, 0.6, 0.1 ), roughness: 0.5, metalness: 0.3 } );
+		const screenMat = standard( { name: 'foul-pole-screen', color: new Color( 0.76, 0.6, 0.1 ), roughness: 0.5, metalness: 0.3, side: 'double', alphaTest: 0.5,
+			surface: /* wgsl */`
+	// a wire mesh in a frame: 5 cm squares, solid at the edges
+	let p = in.uv * vec2f( 0.9, ${ ( 85 * FT - 4 ).toFixed( 2 ) } );
+	let g = abs( fract( p / 0.05 ) - 0.5 );
+	let fw = fwidth( p.x ) / 0.05;
+	let wire = step( 0.4 - fw, max( g.x, g.y ) );
+	let frame = step( 0.84, abs( in.uv.x - 0.5 ) * 2.0 ) + step( abs( in.uv.y - 0.5 ) * 2.0, - 1.0 );
+	s.alpha = max( max( wire, clamp( fw * 0.8, 0.0, 0.55 ) ), frame );
+` } );
+		for ( const m of [ yellow, screenMat ] ) m.underwaterLighting = 'none';
 		const H = 85 * FT, r2 = Math.SQRT1_2;
 		for ( const k of [ 0, OUTFIELD.length - 1 ] ) {
 
 			const [ a, d ] = OUTFIELD[ k ];
 			// the pole stands just behind the fence on the foul line
 			const [ x, z ] = fencePoint( a, d + 1.5 );
-			const pole = new Mesh( new CylinderGeometry( 0.2, 0.25, H, 20 ), yellow );
+			const pole = new Mesh( new CylinderGeometry( 0.18, 0.24, H, 24 ), yellow );
 			pole.position.set( x, H / 2, z );
 			pole.castShadow = true;
 			this.group.add( pole );
+			// the collar where it meets the wall top, and a round cap
+			const wallH = OUTFIELD[ k ][ 2 ] * FT;
+			const collar = new Mesh( new CylinderGeometry( 0.36, 0.38, 0.8, 24 ), yellow );
+			collar.position.set( x, wallH + 0.4, z );
+			this.group.add( collar );
+			const capTop = new Mesh( new CylinderGeometry( 0.05, 0.2, 0.35, 16 ), yellow );
+			capTop.position.set( x, H + 0.17, z );
+			this.group.add( capTop );
+			// the yellow stripe down the padding in front of it
+			const [ sx, sz ] = fencePoint( a, d - 0.03 );
+			const stripe = new Mesh( new BoxGeometry( 0.12, wallH, 0.04 ), yellow );
+			stripe.position.set( sx, wallH / 2, sz );
+			stripe.rotation.y = Math.atan2( sx, sz );
+			this.group.add( stripe );
 			const w = this.toWorld( x, z );
 			this.colliders.addCylinder( w.x, w.z, 0.3, this.y0, this.y0 + H );
 			// the screen sticks out from it into fair territory, square to the foul line
 			const fx = - Math.sign( a ) * r2, fz = - r2;
-			const screen = new Mesh( new BoxGeometry( 0.9, H - 4, 0.05 ), yellow );
+			const sq = new Quads();
+			sq.add( [ - 0.45, - ( H - 4 ) / 2, 0 ], [ 0.45, - ( H - 4 ) / 2, 0 ], [ 0.45, ( H - 4 ) / 2, 0 ], [ - 0.45, ( H - 4 ) / 2, 0 ], [ 0, 0, 1 ] );
+			const sg = sq.geometry();
+			const suv = sg.getAttribute( 'uv' ).array, spos = sg.getAttribute( 'position' ).array;
+			for ( let i = 0; i < suv.length / 2; i ++ ) {
+
+				suv[ i * 2 ] = spos[ i * 3 ] / 0.9 + 0.5;
+				suv[ i * 2 + 1 ] = spos[ i * 3 + 1 ] / ( H - 4 ) + 0.5;
+
+			}
+
+			const screen = new Mesh( sg, screenMat );
 			screen.position.set( x + fx * 0.55, H / 2 + 2, z + fz * 0.55 );
 			screen.rotation.y = Math.atan2( - fz, fx );
 			screen.castShadow = true;

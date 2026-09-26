@@ -162,29 +162,44 @@ export class Landmarks {
 		aw.rotation.x = 0.35;
 		g.add( aw );
 
-		// the light tower beside it (center field side), with its four panels
-		const [ tx, tz ] = fencePoint( - 24.5, 455 );
-		this.bowl._lightTower( tx, tz, STREET, LEVELS.lightTowers );
-		const tg = this._facingHome( tx, tz );
-		const ads = [ [ 'TOYOTA', '#e00d1d', '#ffffff' ], [ 'Choose Blue.', '#1b5eb8', '#eef3fb' ], [ 'W.B. MASON', '#d71920', '#16181d' ], [ 'Budweiser', '#d4202f', '#101114' ] ];
-		ads.forEach( ( [ text, fg, bg ], i ) => {
+		// the ad column built into the board's center field edge, inside the same dark frame: TOYOTA,
+		// Choose Blue, W.B. MASON, Budweiser top to bottom; the light tower rises right behind it
+		const CW = 5.6, cx = - ( W / 2 + 0.6 + CW / 2 );
+		const frame = new Mesh( new BoxGeometry( CW + 0.8, H + 1.2, 1.2 ), cabinet );
+		frame.position.set( cx, y0 + H / 2, 0 );
+		frame.castShadow = true;
+		g.add( frame );
+		g.updateMatrix();
+		const tw = new Vector3( cx, 0, 4.2 ).applyMatrix4( g.matrix );
+		this.bowl._lightTower( tw.x, tw.z, STREET, LEVELS.lightTowers );
+		const ads = [ [ 'TOYOTA', '#e00d1d', '#ffffff' ], [ 'Choose Blue.', '#1b5eb8', '#ffffff' ], [ 'W.B. MASON', '#d71920', '#ffffff' ], [ 'Budweiser', '#c8102e', '#ffffff' ] ];
+		const adTex = canvasTexture( 512, 192 * 4, ( ctx, w ) => {
 
-			const tex = canvasTexture( 512, 192, ( ctx, w, h ) => {
+			ads.forEach( ( [ text, fg, bg ], i ) => {
 
+				const y = i * 192;
 				ctx.fillStyle = bg;
-				ctx.fillRect( 0, 0, w, h );
-				ctx.font = ( i === 3 ? 'italic 700 110px Georgia, serif' : '800 104px "Helvetica Neue", Helvetica, Arial, sans-serif' );
+				ctx.fillRect( 0, y, w, 192 );
+				ctx.strokeStyle = '#1b2233';
+				ctx.lineWidth = 8;
+				ctx.strokeRect( 4, y + 4, w - 8, 184 );
+				ctx.font = ( i === 3 ? 'italic 700 104px Georgia, serif' : '800 96px "Helvetica Neue", Helvetica, Arial, sans-serif' );
 				ctx.fillStyle = fg;
 				ctx.textAlign = 'center';
 				ctx.textBaseline = 'middle';
-				ctx.fillText( text, w / 2, h / 2 + 6, w - 30 );
+				ctx.fillText( text, w / 2, y + 100, w - 40 );
 
-			}, 'towerAd' );
-			const m = standard( { name: 'tower-ad', roughness: 0.5, textures: { bpAd: tex }, surface: 'let t = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.7; s.emissive = t * mix( 0.2, 0.9, frame.night );' } );
-			m.underwaterLighting = 'none';
-			tg.add( new Mesh( quadUV( 8.5, 3.2, STREET + 30 - i * 4.4, - 2.4 ), m ) );
+			} );
 
-		} );
+		}, 'boardAds' );
+		const adMat = standard( { name: 'board-ads', roughness: 0.5, textures: { bpAd: adTex }, surface: 'let t = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.6; s.emissive = t * mix( 0.25, 0.7, frame.night );' } );
+		adMat.underwaterLighting = 'none';
+		const aq = new Quads();
+		// seen from home plate +x is on the left: u runs toward -x
+		const xl = cx + CW / 2, xr = cx - CW / 2, zf = - 0.72;
+		aq.tri( [ xl, y0, zf ], [ xr, y0, zf ], [ xr, y0 + H, zf ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+		aq.tri( [ xl, y0, zf ], [ xr, y0 + H, zf ], [ xl, y0 + H, zf ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+		g.add( new Mesh( aq.geometry(), adMat ) );
 
 		this.scoreboard = g;
 
@@ -569,21 +584,27 @@ export class Landmarks {
 
 	}
 
+	// The clock over center field as it was in 2008: a square white face with a thick navy ring carrying
+	// white bar markers and navy hands, on an open maroon steel truss over a brick pier, and the MAB
+	// Paints oval hung beneath it.
 	_clock( x, z, y, brick ) {
 
 		const face = canvasTexture( 512, 512, ( ctx, w, h ) => {
 
-			ctx.fillStyle = '#0d1f4d';
-			ctx.fillRect( 0, 0, w, h );
 			ctx.fillStyle = '#f7f6f2';
-			ctx.fillRect( 36, 36, w - 72, h - 72 );
-			ctx.fillStyle = '#111';
+			ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#1c2b5a';
+			ctx.fillRect( 40, 40, w - 80, h - 80 );
+			ctx.fillStyle = '#f7f6f2';
+			ctx.fillRect( 110, 110, w - 220, h - 220 );
+			// twelve white bars round the navy ring
+			ctx.fillStyle = '#f7f6f2';
 			for ( let i = 0; i < 12; i ++ ) {
 
 				ctx.save();
 				ctx.translate( w / 2, h / 2 );
 				ctx.rotate( i * Math.PI / 6 );
-				ctx.fillRect( - 9, - 200, 18, i % 3 ? 44 : 70 );
+				ctx.fillRect( - 10, - 206, 20, i % 3 ? 44 : 62 );
 				ctx.restore();
 
 			}
@@ -594,46 +615,65 @@ export class Landmarks {
 				ctx.save();
 				ctx.translate( w / 2, h / 2 );
 				ctx.rotate( ang );
-				ctx.fillRect( - wd / 2, - len, wd, len + 20 );
+				ctx.fillStyle = '#1c2b5a';
+				ctx.fillRect( - wd / 2, - len, wd, len + 22 );
 				ctx.restore();
 
 			};
 
-			hand( ( 7 + 8 / 60 ) / 12 * Math.PI * 2, 120, 18 );
-			hand( 8 / 60 * Math.PI * 2, 180, 12 );
+			hand( ( 7 + 8 / 60 ) / 12 * Math.PI * 2, 100, 20 );
+			hand( 8 / 60 * Math.PI * 2, 140, 13 );
+			ctx.fillStyle = '#1c2b5a';
+			ctx.beginPath(); ctx.arc( w / 2, h / 2, 14, 0, Math.PI * 2 ); ctx.fill();
 
 		}, 'clock' );
-		const sw = canvasTexture( 1024, 160, ( ctx, w, h ) => {
+		const mab = canvasTexture( 1024, 320, ( ctx, w, h ) => {
 
-			ctx.fillStyle = '#12378a';
-			ctx.fillRect( 0, 0, w, h );
-			ctx.fillStyle = '#ffffff';
-			ctx.font = '800 96px "Helvetica Neue", Arial, sans-serif';
+			ctx.clearRect( 0, 0, w, h );
+			ctx.fillStyle = '#c8102e';
+			ctx.beginPath(); ctx.ellipse( w / 2, h / 2, w / 2 - 6, h / 2 - 6, 0, 0, Math.PI * 2 ); ctx.fill();
+			const g = ctx.createLinearGradient( 0, 0, 0, h );
+			g.addColorStop( 0, '#f1f2f4' ); g.addColorStop( 0.5, '#b9bdc4' ); g.addColorStop( 1, '#e8eaee' );
+			ctx.fillStyle = g;
+			ctx.beginPath(); ctx.ellipse( w / 2, h / 2, w / 2 - 34, h / 2 - 30, 0, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#c8102e';
+			ctx.font = 'italic 900 150px "Helvetica Neue", Arial, sans-serif';
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
-			ctx.fillText( 'SHERWIN-WILLIAMS', w / 2, h / 2 + 4, w - 40 );
+			ctx.fillText( 'MAB', w * 0.37, h / 2 + 6 );
+			ctx.font = 'italic 800 84px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'PAINTS', w * 0.68, h / 2 + 10 );
 
-		}, 'sherwin' );
-		const fm = standard( { name: 'clock-face', roughness: 0.5, textures: { bpClock: face }, surface: 'let t = textureSample( bpClock, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.85; s.emissive = t * 0.4 * frame.night;' } );
-		const sm = standard( { name: 'clock-sign', roughness: 0.5, textures: { bpSign: sw }, surface: 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.8; s.emissive = t * 0.5 * frame.night;' } );
+		}, 'mabPaints' );
+		const fm = standard( { name: 'clock-face', roughness: 0.5, textures: { bpClock: face }, surface: 'let t = textureSample( bpClock, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.85; s.emissive = t * 0.5 * frame.night;' } );
+		const sm = standard( { name: 'clock-sign', roughness: 0.4, alphaTest: 0.5, textures: { bpSign: mab }, surface: 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ); s.albedo = t.rgb * 0.85; s.alpha = t.a; s.emissive = t.rgb * 0.45 * frame.night;' } );
 		for ( const m of [ fm, sm ] ) m.underwaterLighting = 'none';
 		const pier = new Mesh( new BoxGeometry( 4, 5, 3 ), brick );
 		pier.position.set( x, y + 2.5, z );
 		this.group.add( pier );
-		for ( const lx of [ - 1.6, 1.6 ] ) {
+		// the truss: four posts, girts and X bracing from the pier up to the face
+		const S = 4.6, fy = y + 10.2, fz = z + 0.4;
+		const q = new Quads();
+		const t0 = y + 5, t1 = fy - S / 2;
+		for ( const [ lx, lz ] of [ [ - 1.8, - 1.1 ], [ 1.8, - 1.1 ], [ - 1.8, 1.1 ], [ 1.8, 1.1 ] ] ) beam( q, [ x + lx, t0, z + lz ], [ x + lx, fy + S / 2, z + lz ], 0.22 );
+		for ( const yy of [ t0, ( t0 + t1 ) / 2, t1 ] ) for ( const lz of [ - 1.1, 1.1 ] ) beam( q, [ x - 1.8, yy, z + lz ], [ x + 1.8, yy, z + lz ], 0.16 );
+		for ( const lz of [ - 1.1, 1.1 ] ) {
 
-			const leg = new Mesh( new BoxGeometry( 0.35, 6, 0.35 ), this.steel );
-			leg.position.set( x + lx, y + 8, z );
-			this.group.add( leg );
+			beam( q, [ x - 1.8, t0, z + lz ], [ x + 1.8, ( t0 + t1 ) / 2, z + lz ], 0.1 );
+			beam( q, [ x + 1.8, t0, z + lz ], [ x - 1.8, ( t0 + t1 ) / 2, z + lz ], 0.1 );
+			beam( q, [ x - 1.8, ( t0 + t1 ) / 2, z + lz ], [ x + 1.8, t1, z + lz ], 0.1 );
+			beam( q, [ x + 1.8, ( t0 + t1 ) / 2, z + lz ], [ x - 1.8, t1, z + lz ], 0.1 );
 
 		}
 
-		const S = 4.6, fy = y + 9.5, fz = z + 0.4;
+		const truss = new Mesh( q.geometry(), this.steel );
+		truss.castShadow = true;
+		this.group.add( truss );
 		const add = ( mat, w, h, cy ) => {
 
-			const q = new Quads();
-			q.add( [ x - w / 2, cy - h / 2, fz ], [ x + w / 2, cy - h / 2, fz ], [ x + w / 2, cy + h / 2, fz ], [ x - w / 2, cy + h / 2, fz ], [ 0, 0, 1 ] );
-			const g = q.geometry();
+			const qq = new Quads();
+			qq.add( [ x - w / 2, cy - h / 2, fz ], [ x + w / 2, cy - h / 2, fz ], [ x + w / 2, cy + h / 2, fz ], [ x - w / 2, cy + h / 2, fz ], [ 0, 0, 1 ] );
+			const g = qq.geometry();
 			const uv = g.getAttribute( 'uv' ).array, pos = g.getAttribute( 'position' ).array;
 			for ( let i = 0; i < uv.length / 2; i ++ ) {
 
@@ -650,7 +690,7 @@ export class Landmarks {
 		back.position.set( x, fy, z + 0.1 );
 		this.group.add( back );
 		add( fm, S, S, fy );
-		add( sm, 5.5, 0.9, y + 6.4 );
+		add( sm, 5.0, 1.56, ( t0 + t1 ) / 2 );
 
 	}
 

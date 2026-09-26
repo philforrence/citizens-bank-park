@@ -2,7 +2,7 @@ import { Group, Mesh, CylinderGeometry, BoxGeometry, Color } from '../engine/ind
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
-import { canvasTexture } from './geo.js';
+import { canvasTexture, beam } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, LEVELS, BULLPENS, fencePoint } from './layout.js';
 import { ON_DECK } from './game/Plays.js';
@@ -334,33 +334,57 @@ export class Details2008 {
 	}
 
 	// flower boxes along the top of the left field wall (gold mums in October)
+	// Over the left field wall, in front of the first row of seats: a galvanized guard rail, square
+	// posts every 2 m, a top pipe and a mid rail, chain-link in the panels (2008; no flower boxes here)
 	_planters() {
 
-		const mat = standard( { name: 'mums', color: new Color( 0.6, 0.38, 0.02 ), roughness: 0.9, modules: [ commonModule ],
+		const steel = standard( { name: 'lf-guard-rail', color: new Color( 0.52, 0.54, 0.55 ), roughness: 0.45, metalness: 0.8 } );
+		const mesh = standard( { name: 'lf-chain-link', color: new Color( 0.5, 0.52, 0.53 ), roughness: 0.5, metalness: 0.7, side: 'double', alphaTest: 0.5,
 			surface: /* wgsl */`
-	let n = mx_noise_float3( in.P * 9.0 );
-	let leaf = smoothstep( 0.1, 0.4, mx_noise_float3( in.P * 3.0 + 7.0 ) );
-	s.albedo = mix( vec3f( 0.03, 0.08, 0.02 ), mat.color * ( 0.8 + 0.4 * n ), 0.35 + 0.5 * leaf );
+	// 5 cm diamonds, fading to a faint veil when finer than a pixel
+	let p = vec2f( in.uv.x + in.uv.y, in.uv.x - in.uv.y ) / 0.05;
+	let g = abs( fract( p ) - 0.5 );
+	let fw = fwidth( p.x );
+	let wire = step( 0.42 - fw, max( g.x, g.y ) );
+	s.alpha = max( wire * step( fw, 0.9 ), clamp( fw * 0.35, 0.0, 0.3 ) );
 ` } );
-		mat.underwaterLighting = 'none';
+		for ( const m of [ steel, mesh ] ) m.underwaterLighting = 'none';
 		const at = ( i ) => fencePoint( OUTFIELD[ i ][ 0 ], OUTFIELD[ i ][ 1 ] );
 		const pts = [ at( 0 ), at( 1 ), at( 3 ) ];
+		const q = new Quads(), c = new Quads();
+		const y0 = 10.5 * FT, H = 1.05;
+		let u = 0;
 		for ( let i = 0; i < pts.length - 1; i ++ ) {
 
 			const [ a, b ] = [ pts[ i ], pts[ i + 1 ] ];
 			const len = Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] );
-			let nx = - ( b[ 1 ] - a[ 1 ] ) / len, nz = ( b[ 0 ] - a[ 0 ] ) / len;
+			const ux = ( b[ 0 ] - a[ 0 ] ) / len, uz = ( b[ 1 ] - a[ 1 ] ) / len;
+			let nx = - uz, nz = ux;
 			if ( nx * - a[ 0 ] + nz * - a[ 1 ] > 0 ) {
 
 				nx = - nx; nz = - nz;
 
 			}
 
-			const box = new Mesh( new BoxGeometry( len, 0.55, 1.0 ), mat );
-			box.position.set( ( a[ 0 ] + b[ 0 ] ) / 2 + nx * 0.95, 10.5 * FT + 0.15, ( a[ 1 ] + b[ 1 ] ) / 2 + nz * 0.95 );
-			box.rotation.y = - Math.atan2( b[ 1 ] - a[ 1 ], b[ 0 ] - a[ 0 ] );
-			box.receiveShadow = true;
-			this.group.add( box );
+			// just behind the wall's cap
+			const o = 0.55;
+			const P = ( t, y ) => [ a[ 0 ] + ux * t + nx * o, y, a[ 1 ] + uz * t + nz * o ];
+			beam( q, P( 0, y0 + H ), P( len, y0 + H ), 0.05 );
+			beam( q, P( 0, y0 + H * 0.5 ), P( len, y0 + H * 0.5 ), 0.035 );
+			const n = Math.max( 1, Math.round( len / 2 ) );
+			for ( let k = 0; k <= n; k ++ ) beam( q, P( len * k / n, y0 ), P( len * k / n, y0 + H ), 0.06 );
+			c.tri( P( 0, y0 ), P( len, y0 ), P( len, y0 + H ), [ - nx, 0, - nz ], [ u, 0 ], [ u + len, 0 ], [ u + len, H ] );
+			c.tri( P( 0, y0 ), P( len, y0 + H ), P( 0, y0 + H ), [ - nx, 0, - nz ], [ u, 0 ], [ u + len, H ], [ u, H ] );
+			u += len;
+
+		}
+
+		for ( const [ g, m, name ] of [ [ q, steel, 'lf-guard-rail' ], [ c, mesh, 'lf-chain-link' ] ] ) {
+
+			const mm = new Mesh( g.geometry(), m );
+			mm.name = name;
+			mm.castShadow = true;
+			this.group.add( mm );
 
 		}
 
