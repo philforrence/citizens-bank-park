@@ -874,9 +874,14 @@ export class Bowl {
 	let u = in.uv.x; let v = in.uv.y;
 	let row = floor( v / 0.075 );
 	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
-	let mortar = step( 0.9, fract( v / 0.075 ) ) + step( 0.94, fract( bu ) );
-	let tone = 0.85 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
-	s.albedo = mix( mat.color * tone, vec3f( 0.35, 0.33, 0.3 ), clamp( mortar, 0.0, 1.0 ) );
+	// courses fade to their average where they get finer than a pixel (no moire); a broad mottle keeps
+	// the far walls from going flat
+	let fr = clamp( fwidth( v ) / 0.075 * 1.5 - 0.25, 0.0, 1.0 );
+	let fb = clamp( fwidth( bu ) * 1.5 - 0.25, 0.0, 1.0 );
+	let mortar = mix( step( 0.9, fract( v / 0.075 ) ), 0.1, fr ) + mix( step( 0.94, fract( bu ) ), 0.06, max( fr, fb ) );
+	let tone = mix( 0.85 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 1.0, max( fr, fb ) );
+	let mottle = 0.92 + 0.12 * mx_noise_float2( vec2f( u, v ) * 0.35 );
+	s.albedo = mix( mat.color * tone * mottle, vec3f( 0.35, 0.33, 0.3 ), clamp( mortar, 0.0, 1.0 ) );
 `,
 		} );
 		brick.underwaterLighting = 'none';

@@ -437,37 +437,123 @@ export class Landmarks {
 	// of concrete banded in brick, and picnic tables by Bull's BBQ.
 	_alleyLife( blocks, zFront ) {
 
+		// each stand its own sign (drawn in its own style), a menu board over an open counter onto a
+		// lit kitchen, a flat dark canopy with downlights over it, and TVs on the piers between
 		const vendors = [
-			[ "BULL'S BBQ", '#5a1a0c', '#f2c14e' ], [ "TONY LUKE'S", '#b3121b', '#ffffff' ], [ "CHICKIE'S & PETE'S", '#0c3c7a', '#f7d117' ],
-			[ "CAMPO'S", '#0b2a5b', '#ffffff' ], [ 'PLANET HOAGIE', '#1d6b34', '#ffffff' ], [ 'SEASONS PIZZA', '#1a1a1a', '#f5c400' ],
-			[ 'GOLDEN BEAR', '#7a4a12', '#ffffff' ], [ 'BREWERYTOWN', '#3b2314', '#f2c14e' ],
+			[ "BULL'S BBQ", ( c, W, H ) => {
+
+				c.fillStyle = '#4a120a'; c.fillRect( 0, 0, W, H );
+				c.strokeStyle = '#e8b04a'; c.lineWidth = 6; c.strokeRect( 10, 10, W - 20, H - 20 );
+				c.fillStyle = '#f2c14e'; c.font = '900 84px Georgia, serif'; c.fillText( "BULL'S", W * 0.36, H * 0.5 );
+				c.font = 'italic 800 60px Georgia, serif'; c.fillText( 'BBQ', W * 0.72, H * 0.55 );
+
+			} ],
+			[ "TONY LUKE'S", ( c, W, H ) => {
+
+				c.fillStyle = '#1a1614'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#d4202f'; c.font = '900 92px "Helvetica Neue", Arial, sans-serif'; c.fillText( "TONY LUKE'S", W / 2, H * 0.52, W - 60 );
+
+			} ],
+			[ "CHICKIE'S & PETE'S", ( c, W, H ) => {
+
+				c.fillStyle = '#0c3c7a'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#e24a1b'; c.beginPath(); c.ellipse( 90, H / 2, 48, 34, 0, 0, Math.PI * 2 ); c.fill();
+				c.fillStyle = '#f7d117'; c.font = '900 64px "Helvetica Neue", Arial, sans-serif'; c.fillText( "CHICKIE'S & PETE'S", W * 0.57, H * 0.4, W - 200 );
+				c.font = '700 34px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'CRAB FRIES', W * 0.57, H * 0.76 );
+
+			} ],
+			[ "CAMPO'S", ( c, W, H ) => {
+
+				c.fillStyle = '#ffffff'; c.fillRect( 0, 0, W, H );
+				c.strokeStyle = '#1d6b34'; c.lineWidth = 12; c.strokeRect( 8, 8, W - 16, H - 16 );
+				c.fillStyle = '#c8102e'; c.beginPath(); c.ellipse( W * 0.33, H / 2, 150, 46, 0, 0, Math.PI * 2 ); c.fill();
+				c.fillStyle = '#ffffff'; c.font = 'italic 900 64px Georgia, serif'; c.fillText( "Campo's", W * 0.33, H * 0.54 );
+				c.fillStyle = '#1d6b34'; c.font = 'italic 700 34px Georgia, serif'; c.fillText( "Philadelphia's Cheesesteak", W * 0.72, H * 0.54, W * 0.5 );
+
+			} ],
+			[ 'PLANET HOAGIE', ( c, W, H ) => {
+
+				c.fillStyle = '#1d6b34'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#f5c400'; c.beginPath(); c.arc( 80, H / 2, 38, 0, Math.PI * 2 ); c.fill();
+				c.strokeStyle = '#f5c400'; c.lineWidth = 6; c.beginPath(); c.ellipse( 80, H / 2, 62, 16, - 0.3, 0, Math.PI * 2 ); c.stroke();
+				c.fillStyle = '#ffffff'; c.font = '900 72px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'PLANET HOAGIE', W * 0.57, H * 0.53, W - 190 );
+
+			} ],
+			[ 'SEASONS PIZZA', ( c, W, H ) => {
+
+				c.fillStyle = '#f2e8cf'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#c8102e'; c.font = '900 80px Georgia, serif'; c.fillText( 'SEASONS PIZZA', W / 2, H * 0.54, W - 60 );
+
+			} ],
+			[ 'GOLDEN BEAR', ( c, W, H ) => {
+
+				c.fillStyle = '#6b3f10'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#f2c14e'; c.font = '800 76px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'GOLDEN BEAR', W / 2, H * 0.5, W - 60 );
+				c.font = '600 30px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'ICE CREAM', W / 2, H * 0.82 );
+
+			} ],
+			[ 'BREWERYTOWN', ( c, W, H ) => {
+
+				// a painted panel: a brewery skyline at dusk, the name across it
+				const g = c.createLinearGradient( 0, 0, 0, H );
+				g.addColorStop( 0, '#2a3a5c' ); g.addColorStop( 1, '#c8742a' );
+				c.fillStyle = g; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#2a1a10';
+				for ( let x = 0; x < W; x += 90 ) c.fillRect( x, H * ( 0.55 + 0.2 * Math.abs( Math.sin( x ) ) ), 70, H );
+				c.fillRect( W * 0.8, H * 0.2, 26, H );
+				c.fillStyle = '#f7e6c0'; c.font = '900 76px Georgia, serif'; c.fillText( 'BREWERYTOWN', W / 2, H * 0.42, W - 60 );
+
+			} ],
 		];
-		const signs = canvasTexture( 1024, 96 * vendors.length, ( ctx, W ) => {
+		const SH = 176;
+		const signs = canvasTexture( 1024, SH * vendors.length, ( ctx, W ) => {
 
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
-			vendors.forEach( ( [ name, bg, fg ], i ) => {
+			vendors.forEach( ( [ , draw ], i ) => {
 
-				ctx.fillStyle = bg;
-				ctx.fillRect( 0, i * 96, W, 96 );
-				ctx.strokeStyle = fg;
-				ctx.lineWidth = 4;
-				ctx.strokeRect( 8, i * 96 + 8, W - 16, 80 );
-				ctx.fillStyle = fg;
-				ctx.font = '900 60px "Helvetica Neue", Helvetica, Arial, sans-serif';
-				ctx.fillText( name, W / 2, i * 96 + 50, W - 60 );
+				ctx.save();
+				ctx.translate( 0, i * SH );
+				ctx.beginPath(); ctx.rect( 0, 0, W, SH ); ctx.clip();
+				draw( ctx, W, SH );
+				ctx.restore();
 
 			} );
 
 		}, 'alleySigns' );
 		const signMat = standard( { name: 'alley-signs', roughness: 0.4, textures: { bpAlley: signs },
 			surface: 'let t = textureSample( bpAlley, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.55; s.emissive = t * mix( 0.2, 0.6, frame.night );' } );
-		const awning = standard( { name: 'alley-awnings', color: new Color( 0.3, 0.02, 0.03 ), roughness: 0.8, side: 'double', modules: [ commonModule ],
-			surface: 's.albedo = mix( vec3f( 0.3, 0.02, 0.03 ), vec3f( 0.75, 0.72, 0.66 ), step( 0.5, fract( ( in.P.x + in.P.z ) / 0.9 ) ) );' } );
-		const kitchen = standard( { name: 'alley-kitchens', color: new Color( 0.06, 0.055, 0.05 ), roughness: 0.3,
-			surface: 's.emissive = vec3f( 1.0, 0.78, 0.5 ) * ( 0.025 + 0.06 * step( 0.9, fract( in.P.y * 3.0 ) ) ) * mix( 0.6, 1.0, frame.night );' } );
+		// the canopy: dark, flat, downlights in its underside
+		const awning = standard( { name: 'alley-canopy', color: new Color( 0.045, 0.028, 0.024 ), roughness: 0.6, side: 'double', modules: [ commonModule ],
+			surface: `
+	if ( in.N.y < - 0.5 ) {
+		let g = abs( fract( vec2f( in.P.x / 1.5, 0.5 ) ) - 0.5 );
+		s.emissive = vec3f( 1.0, 0.86, 0.62 ) * ( 1.0 - smoothstep( 0.05, 0.08, g.x ) ) * mix( 0.8, 2.0, frame.night );
+	}
+` } );
+		// the kitchen through the counter: stainless, shelves, a menu board across the top, lit warm
+		const kitchen = standard( { name: 'alley-kitchens', color: new Color( 0.06, 0.055, 0.05 ), roughness: 0.3, modules: [ commonModule ],
+			surface: /* wgsl */`
+	let y = in.P.y - ${ STREET.toFixed( 3 ) };
+	// a dim, warm-lit kitchen: steel shelving, a hood, shapes of equipment
+	let steel = 0.8 + 0.2 * step( 0.5, fract( in.P.x * 1.3 ) );
+	let shelf = step( 0.92, fract( y / 0.45 ) );
+	var c = vec3f( 0.05, 0.05, 0.052 ) * steel + vec3f( 0.15 ) * shelf;
+	var e = vec3f( 1.0, 0.86, 0.62 ) * ( 0.05 + 0.08 * shelf ) * steel;
+	if ( y > 2.25 ) {
+		// the menu board: dark with rows of white items and yellow prices
+		let row = fract( ( y - 2.25 ) / 0.11 );
+		let item = step( 0.35, row ) * step( row, 0.75 ) * step( 0.2, fract( in.P.x * 0.9 ) ) * step( fract( in.P.x * 0.9 ), 0.72 );
+		c = vec3f( 0.02 );
+		e = mix( vec3f( 0.0 ), select( vec3f( 1.0, 0.8, 0.2 ), vec3f( 0.9 ), fract( in.P.x * 0.9 ) < 0.55 ), item ) * 0.6;
+	}
+	s.albedo = c;
+	s.emissive = e * mix( 0.7, 1.2, frame.night );
+` } );
+		const tvMat = this._alleyTV || ( this._alleyTV = standard( { name: 'alley-tvs', color: new Color( 0.02, 0.02, 0.025 ), roughness: 0.2,
+			surface: 'let u = in.uv; s.emissive = mix( vec3f( 0.12, 0.3, 0.1 ), vec3f( 0.1, 0.16, 0.35 ), step( 0.45, u.y ) ) * 0.9 + vec3f( 0.5, 0.35, 0.2 ) * step( abs( u.x - 0.5 ), 0.06 ) * step( abs( u.y - 0.35 ), 0.1 ) * 0.6;' } ) );
 		const steel = standard( { name: 'alley-steel', color: new Color( 0.05, 0.12, 0.08 ), roughness: 0.5, metalness: 0.5 } );
-		const q = new Quads(), aw = new Quads(), glow = new Quads(), metal = new Quads(), wood = new Quads();
+		const q = new Quads(), aw = new Quads(), glow = new Quads(), metal = new Quads(), wood = new Quads(), tv = new Quads();
 		const z = zFront + 0.02;
 		let k = 0;
 		for ( const [ x0, x1 ] of blocks ) {
@@ -478,18 +564,32 @@ export class Landmarks {
 				const a = x0 + ( x1 - x0 ) * j / n + 0.6, b = x0 + ( x1 - x0 ) * ( j + 1 ) / n - 0.6;
 				const v0 = k / vendors.length, v1 = ( k + 1 ) / vendors.length;
 				k = ( k + 1 ) % vendors.length;
-				// the sign over the counter, facing the field (+z)
-				q.tri( [ a, STREET + 3.0, z ], [ b, STREET + 3.0, z ], [ b, STREET + 3.9, z ], [ 0, 0, 1 ], [ 0, v1 ], [ 1, v1 ], [ 1, v0 ] );
-				q.tri( [ a, STREET + 3.0, z ], [ b, STREET + 3.9, z ], [ a, STREET + 3.9, z ], [ 0, 0, 1 ], [ 0, v1 ], [ 1, v0 ], [ 0, v0 ] );
-				// the kitchen behind the counter opening, the counter, the awning over it all
-				glow.add( [ a, STREET + 1.1, z - 0.01 ], [ b, STREET + 1.1, z - 0.01 ], [ b, STREET + 2.7, z - 0.01 ], [ a, STREET + 2.7, z - 0.01 ], [ 0, 0, 1 ] );
-				box( metal, [ ( a + b ) / 2, STREET + 1.05, z + 0.3 ], [ b - a, 0.08, 0.6 ] );
-				box( metal, [ ( a + b ) / 2, STREET + 0.5, z + 0.05 ], [ b - a, 1.0, 0.1 ] );
-				aw.add( [ a - 0.3, STREET + 4.3, z ], [ b + 0.3, STREET + 4.3, z ], [ b + 0.3, STREET + 3.7, z + 1.6 ], [ a - 0.3, STREET + 3.7, z + 1.6 ], [ 0, 1, 0.4 ] );
+				// the sign, 1.4 m tall, over the canopy
+				q.tri( [ a, STREET + 3.25, z ], [ b, STREET + 3.25, z ], [ b, STREET + 4.65, z ], [ 0, 0, 1 ], [ 0, v1 ], [ 1, v1 ], [ 1, v0 ] );
+				q.tri( [ a, STREET + 3.25, z ], [ b, STREET + 4.65, z ], [ a, STREET + 4.65, z ], [ 0, 0, 1 ], [ 0, v1 ], [ 1, v0 ], [ 0, v0 ] );
+				// the opening onto the kitchen (menu board across its top), the counter, the canopy
+				glow.add( [ a + 0.3, STREET + 0.95, z - 0.01 ], [ b - 0.3, STREET + 0.95, z - 0.01 ], [ b - 0.3, STREET + 3.1, z - 0.01 ], [ a + 0.3, STREET + 0.95 + 2.15, z - 0.01 ], [ 0, 0, 1 ] );
+				box( metal, [ ( a + b ) / 2, STREET + 0.93, z + 0.28 ], [ b - a - 0.4, 0.06, 0.56 ] );
+				box( metal, [ ( a + b ) / 2, STREET + 0.46, z + 0.04 ], [ b - a - 0.4, 0.92, 0.08 ] );
+				aw.add( [ a - 0.2, STREET + 3.2, z ], [ b + 0.2, STREET + 3.2, z ], [ b + 0.2, STREET + 3.2, z + 1.2 ], [ a - 0.2, STREET + 3.2, z + 1.2 ], [ 0, - 1, 0 ] );
+				aw.add( [ a - 0.2, STREET + 3.2, z + 1.2 ], [ b + 0.2, STREET + 3.2, z + 1.2 ], [ b + 0.2, STREET + 3.4, z + 1.2 ], [ a - 0.2, STREET + 3.4, z + 1.2 ], [ 0, 0, 1 ] );
+				// a TV on the pier after it
+				if ( j < n - 1 || true ) {
+
+					const tx = b + 0.6;
+					tv.tri( [ tx - 0.45, STREET + 2.3, z + 0.08 ], [ tx + 0.45, STREET + 2.3, z + 0.08 ], [ tx + 0.45, STREET + 2.82, z + 0.08 ], [ 0, 0, 1 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+					tv.tri( [ tx - 0.45, STREET + 2.3, z + 0.08 ], [ tx + 0.45, STREET + 2.82, z + 0.08 ], [ tx - 0.45, STREET + 2.82, z + 0.08 ], [ 0, 0, 1 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+					box( metal, [ tx, STREET + 2.56, z + 0.04 ], [ 1.0, 0.62, 0.06 ] );
+
+				}
 
 			}
 
 		}
+
+		const tvMesh = new Mesh( tv.geometry(), tvMat );
+		tvMesh.name = 'alley-tvs';
+		this.group.add( tvMesh );
 
 		// lamp posts along the Alley with a pair of vertical banners
 		const banner = canvasTexture( 256, 768, ( ctx, W, H ) => {
