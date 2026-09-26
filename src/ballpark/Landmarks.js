@@ -3,7 +3,7 @@ import { figure } from './Exterior.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
-import { canvasTexture } from './geo.js';
+import { canvasTexture, beam, box } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, LEVELS, fencePoint } from './layout.js';
 import { offsetPolyline } from './Bowl.js';
@@ -287,8 +287,10 @@ export class Landmarks {
 	let u = select( in.P.x, in.P.z, N.x > N.z );
 	let row = floor( in.P.y / 0.075 );
 	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
-	let mortar = clamp( step( 0.88, fract( in.P.y / 0.075 ) ) + step( 0.93, fract( bu ) ), 0.0, 1.0 );
-	let tone = 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	let fr = clamp( fwidth( in.P.y ) / 0.075 * 1.5 - 0.25, 0.0, 1.0 );
+	let fb = clamp( fwidth( bu ) * 1.5 - 0.25, 0.0, 1.0 );
+	let mortar = clamp( mix( step( 0.88, fract( in.P.y / 0.075 ) ), 0.12, fr ) + mix( step( 0.93, fract( bu ) ), 0.07, max( fb, fr ) ), 0.0, 1.0 );
+	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, max( fr, fb ) );
 	s.albedo = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
 `,
 		} );
@@ -313,14 +315,12 @@ export class Landmarks {
 			const r = new Mesh( new BoxGeometry( w, 0.08, 0.08 ), rail );
 			r.position.set( cx, STREET + Hb + 1.1, cz + D / 2 );
 			this.group.add( r );
-			// storefront band facing the field
-			const band = new Mesh( new BoxGeometry( w - 1, 2.6, 0.1 ), rail );
-			band.position.set( cx, STREET + 1.9, cz + D / 2 + 0.05 );
-			this.group.add( band );
 			const wpos = this.field.toWorld( cx, cz );
 			this.colliders.addBox( new Vector3( wpos.x, this.field.y0 + STREET + Hb / 2, wpos.z ), new Vector3( w / 2, Hb / 2, D / 2 ), this.field.group.rotation.y, { tag: 'ashburn-alley', walkable: true } );
 
 		}
+
+		this._alleyLife( blocks, zBack + D );
 
 		// 2008: the retired numbers on two small brick buildings up on the roofs, either side of the clock:
 		// 1 Ashburn, 14 Bunning, 20 Schmidt; 32 Carlton, 36 Roberts, 42 Robinson (in blue)
@@ -414,6 +414,158 @@ export class Landmarks {
 
 		// flagpoles behind center field: the flags wave in the wind (see Flags)
 		this.flags = new Flags( this.group, [ - 20, - 12, - 4, 4, 12, 20 ].map( ( x, i ) => ( { x, z: zBack + 1, y0: STREET + Hb, h: [ 19, 22, 26, 22, 19, 17 ][ i ] } ) ), trim );
+
+	}
+
+	// The Alley's life: the concession stands in the buildings' ground floors (signs over the counters,
+	// menu boards, striped awnings, the kitchens glowing), lamp posts with Ashburn Alley banners, a floor
+	// of concrete banded in brick, and picnic tables by Bull's BBQ.
+	_alleyLife( blocks, zFront ) {
+
+		const vendors = [
+			[ "BULL'S BBQ", '#5a1a0c', '#f2c14e' ], [ "TONY LUKE'S", '#b3121b', '#ffffff' ], [ "CHICKIE'S & PETE'S", '#0c3c7a', '#f7d117' ],
+			[ "CAMPO'S", '#0b2a5b', '#ffffff' ], [ 'PLANET HOAGIE', '#1d6b34', '#ffffff' ], [ 'SEASONS PIZZA', '#1a1a1a', '#f5c400' ],
+			[ 'GOLDEN BEAR', '#7a4a12', '#ffffff' ], [ 'BREWERYTOWN', '#3b2314', '#f2c14e' ],
+		];
+		const signs = canvasTexture( 1024, 96 * vendors.length, ( ctx, W ) => {
+
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			vendors.forEach( ( [ name, bg, fg ], i ) => {
+
+				ctx.fillStyle = bg;
+				ctx.fillRect( 0, i * 96, W, 96 );
+				ctx.strokeStyle = fg;
+				ctx.lineWidth = 4;
+				ctx.strokeRect( 8, i * 96 + 8, W - 16, 80 );
+				ctx.fillStyle = fg;
+				ctx.font = '900 60px "Helvetica Neue", Helvetica, Arial, sans-serif';
+				ctx.fillText( name, W / 2, i * 96 + 50, W - 60 );
+
+			} );
+
+		}, 'alleySigns' );
+		const signMat = standard( { name: 'alley-signs', roughness: 0.4, textures: { bpAlley: signs },
+			surface: 'let t = textureSample( bpAlley, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.55; s.emissive = t * mix( 0.2, 0.6, frame.night );' } );
+		const awning = standard( { name: 'alley-awnings', color: new Color( 0.3, 0.02, 0.03 ), roughness: 0.8, side: 'double', modules: [ commonModule ],
+			surface: 's.albedo = mix( vec3f( 0.3, 0.02, 0.03 ), vec3f( 0.75, 0.72, 0.66 ), step( 0.5, fract( ( in.P.x + in.P.z ) / 0.9 ) ) );' } );
+		const kitchen = standard( { name: 'alley-kitchens', color: new Color( 0.06, 0.055, 0.05 ), roughness: 0.3,
+			surface: 's.emissive = vec3f( 1.0, 0.78, 0.5 ) * ( 0.025 + 0.06 * step( 0.9, fract( in.P.y * 3.0 ) ) ) * mix( 0.6, 1.0, frame.night );' } );
+		const steel = standard( { name: 'alley-steel', color: new Color( 0.05, 0.12, 0.08 ), roughness: 0.5, metalness: 0.5 } );
+		const q = new Quads(), aw = new Quads(), glow = new Quads(), metal = new Quads(), wood = new Quads();
+		const z = zFront + 0.02;
+		let k = 0;
+		for ( const [ x0, x1 ] of blocks ) {
+
+			const n = Math.max( 1, Math.round( ( x1 - x0 ) / 9 ) );
+			for ( let j = 0; j < n; j ++ ) {
+
+				const a = x0 + ( x1 - x0 ) * j / n + 0.6, b = x0 + ( x1 - x0 ) * ( j + 1 ) / n - 0.6;
+				const v0 = k / vendors.length, v1 = ( k + 1 ) / vendors.length;
+				k = ( k + 1 ) % vendors.length;
+				// the sign over the counter, facing the field (+z)
+				q.tri( [ a, STREET + 3.0, z ], [ b, STREET + 3.0, z ], [ b, STREET + 3.9, z ], [ 0, 0, 1 ], [ 0, v1 ], [ 1, v1 ], [ 1, v0 ] );
+				q.tri( [ a, STREET + 3.0, z ], [ b, STREET + 3.9, z ], [ a, STREET + 3.9, z ], [ 0, 0, 1 ], [ 0, v1 ], [ 1, v0 ], [ 0, v0 ] );
+				// the kitchen behind the counter opening, the counter, the awning over it all
+				glow.add( [ a, STREET + 1.1, z - 0.01 ], [ b, STREET + 1.1, z - 0.01 ], [ b, STREET + 2.7, z - 0.01 ], [ a, STREET + 2.7, z - 0.01 ], [ 0, 0, 1 ] );
+				box( metal, [ ( a + b ) / 2, STREET + 1.05, z + 0.3 ], [ b - a, 0.08, 0.6 ] );
+				box( metal, [ ( a + b ) / 2, STREET + 0.5, z + 0.05 ], [ b - a, 1.0, 0.1 ] );
+				aw.add( [ a - 0.3, STREET + 4.3, z ], [ b + 0.3, STREET + 4.3, z ], [ b + 0.3, STREET + 3.7, z + 1.6 ], [ a - 0.3, STREET + 3.7, z + 1.6 ], [ 0, 1, 0.4 ] );
+
+			}
+
+		}
+
+		// lamp posts along the Alley with a pair of vertical banners
+		const banner = canvasTexture( 256, 768, ( ctx, W, H ) => {
+
+			ctx.fillStyle = '#efe6d2';
+			ctx.fillRect( 0, 0, W, H );
+			ctx.fillStyle = '#2e8b57';
+			ctx.fillRect( 0, 0, W, 110 );
+			ctx.fillStyle = '#ffffff';
+			ctx.textAlign = 'center';
+			ctx.font = '800 44px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'ASHBURN', W / 2, 52 );
+			ctx.font = '600 32px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'ALLEY', W / 2, 92 );
+			// a sepia ballplayer, sliding
+			ctx.fillStyle = '#8a6a4a';
+			ctx.beginPath(); ctx.ellipse( W * 0.55, 250, 34, 40, 0, 0, Math.PI * 2 ); ctx.fill();
+			ctx.beginPath(); ctx.moveTo( W * 0.3, 300 ); ctx.lineTo( W * 0.75, 300 ); ctx.lineTo( W * 0.85, 560 ); ctx.lineTo( W * 0.2, 600 ); ctx.fill();
+			ctx.fillStyle = '#6b4c32';
+			ctx.font = 'italic 700 40px Georgia, serif';
+			ctx.fillText( 'Phillies', W / 2, 420 );
+			ctx.fillStyle = '#0b2a5b';
+			ctx.beginPath(); ctx.moveTo( W / 2, 640 ); ctx.lineTo( W * 0.8, 690 ); ctx.lineTo( W / 2, 740 ); ctx.lineTo( W * 0.2, 690 ); ctx.fill();
+
+		}, 'alleyBanner' );
+		const bannerMat = standard( { name: 'alley-banners', roughness: 0.8, side: 'double', textures: { bpBan: banner },
+			surface: 's.albedo = textureSample( bpBan, smpAnisoClamp, in.uv ).rgb * 0.8;' } );
+		const bq = new Quads();
+		const zl = zFront + 6.5;
+		for ( let x = - 58; x <= 58; x += 12 ) {
+
+			if ( Math.abs( x + 2 ) < 5 ) continue;
+			beam( metal, [ x, STREET, zl ], [ x, STREET + 7.5, zl ], 0.16 );
+			beam( metal, [ x - 0.6, STREET + 7.4, zl ], [ x + 0.6, STREET + 7.4, zl ], 0.08 );
+			for ( const side of [ - 1, 1 ] ) {
+
+				const bx0 = x + side * 0.12, bx1 = x + side * 1.0;
+				const [ L, R ] = side > 0 ? [ bx0, bx1 ] : [ bx1, bx0 ];
+				for ( const f of [ 1, - 1 ] ) {
+
+					bq.tri( [ L, STREET + 3.6, zl + 0.02 * f ], [ R, STREET + 3.6, zl + 0.02 * f ], [ R, STREET + 6.3, zl + 0.02 * f ], [ 0, 0, f ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+					bq.tri( [ L, STREET + 3.6, zl + 0.02 * f ], [ R, STREET + 6.3, zl + 0.02 * f ], [ L, STREET + 6.3, zl + 0.02 * f ], [ 0, 0, f ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+
+				}
+
+			}
+
+			const w = this.field.toWorld( x, zl );
+			this.colliders.addCylinder( w.x, w.z, 0.15, this.field.y0 + STREET, this.field.y0 + STREET + 7.5 );
+
+		}
+
+		// picnic tables by Bull's BBQ (the first block's west end)
+		for ( const [ x, zz ] of [ [ - 56, zFront + 3.2 ], [ - 50, zFront + 3.2 ], [ - 44, zFront + 3.2 ] ] ) {
+
+			box( wood, [ x, STREET + 0.75, zz ], [ 2.2, 0.06, 0.8 ] );
+			for ( const o of [ - 0.65, 0.65 ] ) box( wood, [ x, STREET + 0.45, zz + o ], [ 2.2, 0.05, 0.3 ] );
+			for ( const o of [ - 0.8, 0.8 ] ) box( metal, [ x + o, STREET + 0.37, zz ], [ 0.06, 0.74, 1.5 ] );
+			const w = this.field.toWorld( x, zz );
+			this.colliders.addCylinder( w.x, w.z, 1.1, this.field.y0 + STREET, this.field.y0 + STREET + 0.8 );
+
+		}
+
+		// the Alley's floor: concrete banded in brick pavers
+		const floor = standard( { name: 'alley-floor', color: new Color( 0.3, 0.13, 0.08 ), roughness: 0.75, modules: [ commonModule ],
+			surface: /* wgsl */`
+	let p = in.P.xz;
+	let band = abs( fract( p.x / 8.0 ) - 0.5 ) * 8.0 > 3.3;
+	var c = vec3f( 0.44, 0.42, 0.38 ) * ( 0.92 + 0.1 * fract( sin( dot( floor( p / 1.5 ), vec2f( 41.3, 17.7 ) ) ) * 7543.21 ) );
+	if ( band ) {
+		let f = fract( vec2f( p.x / 0.2, p.y / 0.1 + 0.5 * floor( p.x / 0.2 ) ) );
+		let fw = clamp( fwidth( p.x ) * 30.0 - 0.3, 0.0, 1.0 );
+		c = mix( mat.color * ( 0.85 + 0.25 * mx_noise_float2( floor( p / 0.2 ) ) ), vec3f( 0.3, 0.28, 0.26 ), mix( clamp( step( 0.9, f.x ) + step( 0.85, f.y ), 0.0, 1.0 ), 0.2, fw ) * 0.6 );
+	}
+	s.albedo = c * ( 0.9 + 0.12 * mx_noise_float2( p * 0.3 ) );
+` } );
+		const fl = new Quads();
+		const fx0 = blocks[ 0 ][ 0 ] - 2, fx1 = blocks[ blocks.length - 1 ][ 1 ] + 2;
+		fl.add( [ fx0, STREET + 0.012, zFront ], [ fx1, STREET + 0.012, zFront ], [ fx1, STREET + 0.012, zFront + 8.5 ], [ fx0, STREET + 0.012, zFront + 8.5 ], [ 0, 1, 0 ] );
+
+		const woodMat = this._alleyWood || ( this._alleyWood = standard( { name: 'picnic-wood', color: new Color( 0.3, 0.18, 0.09 ), roughness: 0.8 } ) );
+		for ( const [ g, m, name ] of [ [ q, signMat, 'alley-signs' ], [ aw, awning, 'alley-awnings' ], [ glow, kitchen, 'alley-kitchens' ], [ metal, steel, 'alley-steel' ], [ bq, bannerMat, 'alley-banners' ], [ wood, woodMat, 'picnic-tables' ], [ fl, floor, 'alley-floor' ] ] ) {
+
+			m.underwaterLighting = 'none';
+			const mesh = new Mesh( g.geometry(), m );
+			mesh.name = name;
+			mesh.castShadow = m !== floor && m !== kitchen;
+			mesh.receiveShadow = true;
+			this.group.add( mesh );
+
+		}
 
 	}
 
