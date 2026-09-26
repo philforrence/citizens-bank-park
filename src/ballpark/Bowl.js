@@ -17,7 +17,11 @@ import { FT, FOOTPRINT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, BULLPENS, LEVELS, fen
 // above the field: street level is LEVELS.mainConcourse.
 
 const STREET = LEVELS.mainConcourse;
-const ROW = 0.84; // row depth (33 in)
+const ROW = 0.84; // row depth in the upper decks (33 in)
+const FROW = 0.8; // and at field level (31.5 in)
+// rows by level, from the seating chart (2008): field level 37 in the infield, 16 in right, 21 in left;
+// the Hall of Fame Club 8, the Terrace 300s 8 and 400s 16, the Pavilion 12 and the Pavilion Deck 21
+const ROWS = { field: 37, right: 16, left: 21, club: 8, t300: 8, t400: 16, pavilion: 12, pavilionDeck: 21 };
 
 export class Bowl {
 
@@ -75,9 +79,10 @@ export class Bowl {
 			front: FOUL_TERRITORY,
 			outward: [ 0, - 40 ],
 			y0: 1.2,
-			rows: 20,
-			depth: ROW,
-			rise: 0.3,
+			rows: ROWS.field,
+			depth: FROW,
+			// the risers grow toward the back (the sightline curve): 1.2 m at the front row, the street at the top
+			rise: ( r ) => 0.1 + 0.12 * r / ( ROWS.field - 1 ),
 			section: 16,
 			aisle: 1.2,
 			skipRows: ( k ) => dugoutSegs.includes( k ) ? 4 : 0,
@@ -92,9 +97,9 @@ export class Bowl {
 			start: 1.5,
 			frontY: 0,
 			y0: 10.5 * FT + 0.4,
-			rows: 11,
-			depth: ROW,
-			rise: 0.31,
+			rows: ROWS.left,
+			depth: FROW,
+			rise: ( STREET - 0.05 - ( 10.5 * FT + 0.4 ) ) / ( ROWS.left - 1 ),
 			section: 14,
 			aisle: 1.2,
 		};
@@ -108,9 +113,9 @@ export class Bowl {
 			start: 0.6,
 			frontY: 0,
 			y0: 13.25 * FT + 0.35,
-			rows: 9,
-			depth: ROW,
-			rise: 0.33,
+			rows: ROWS.right,
+			depth: FROW,
+			rise: ( STREET - 0.05 - ( 13.25 * FT + 0.35 ) ) / ( ROWS.right - 1 ),
 			section: 14,
 			aisle: 1.2,
 		};
@@ -193,47 +198,60 @@ export class Bowl {
 		const line = ( P, d ) => offsetPolyline( P, d, [ 0, - 40 ] );
 		const L = LEVELS;
 
+		// front edges back from the top of the field level seats (negative: overhanging them)
+		const D = {
+			suites: top - 4.5, club: top - 3.0, t300: top - 2.0,
+		};
+		D.clubBack = D.club + ROWS.club * ROW;
+		D.t300Back = D.t300 + ROWS.t300 * ROW;
+		D.t400 = D.t300Back + 2.4;
+		D.t400Back = D.t400 + ROWS.t400 * ROW;
+		this.D = D;
+		const clubY = L.clubConcourse - ( ROWS.club - 1 ) * 0.46 - 0.2;
+		const t300Y = L.terraceConcourse - ( ROWS.t300 - 1 ) * 0.52 - 0.3;
 		const tiers = [
 			// suite level: two rows in front of the suites
-			{ name: 'suite-seats', front: line( infieldPath, top - 1.0 ), outward: [ 0, - 40 ], y0: L.suites - 0.6, rows: 2, depth: 0.95, rise: 0.35, section: 12, aisle: 1.4, soffit: 0.9, frontWall: { top: L.suites + 0.2 }, base: L.suites - 1.5 },
-			// Hall of Fame Club: 13 rows up to the club concourse
-			{ name: 'club-level', front: line( infieldPath, top + 4.5 ), outward: [ 0, - 40 ], y0: L.clubConcourse - 12 * 0.46 - 0.2, rows: 13, depth: ROW, rise: 0.46, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.clubConcourse - 12 * 0.46 + 0.8 }, base: L.clubConcourse - 12 * 0.46 - 1.2 },
-			// Terrace: 300s up to the walkway
-			{ name: 'terrace-300', front: line( path, top + 10 ), outward: [ 0, - 40 ], y0: L.terraceConcourse - 8 * 0.52, rows: 9, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: L.terraceConcourse - 8 * 0.52 + 1.0 }, base: L.terraceConcourse - 8 * 0.52 - 1.1 },
-			// ... and the 400s above it, behind the walkway
-			{ name: 'terrace-400', front: line( path, top + 10 + 9 * ROW + 2.4 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: 18, depth: ROW, rise: 0.6, section: 14, aisle: 1.2, soffit: 1.2, back: { height: 2.5 }, base: L.terraceConcourse - 0.7 },
+			{ name: 'suite-seats', front: line( infieldPath, D.suites ), outward: [ 0, - 40 ], y0: L.suites - 0.6, rows: 2, depth: 0.95, rise: 0.35, section: 12, aisle: 1.4, soffit: 0.9, frontWall: { top: L.suites + 0.2 }, base: L.suites - 1.5 },
+			// Hall of Fame Club (212-232): 8 rows up to the club concourse
+			{ name: 'club-level', front: line( infieldPath, D.club ), outward: [ 0, - 40 ], y0: clubY, rows: ROWS.club, depth: ROW, rise: 0.46, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: clubY + 1.0 }, base: clubY - 1.2 },
+			// Terrace: the 300s over the club seats, up to the terrace walkway
+			{ name: 'terrace-300', front: line( path, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1 },
+			// ... and the 400s behind the walkway
+			{ name: 'terrace-400', front: line( path, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, back: { height: 2.5 }, base: L.terraceConcourse - 0.7 },
 		];
 
-		// the Pavilion: over the right field seats, from the 398 corner to short of the pole (the Terrace
-		// deck comes round to the pole)
+		// the Pavilion (201-211) and the Pavilion Deck (301-310) over the right field seats, from the 369 mark
+		// toward the pole (right-center is Ashburn Alley's: the rooftop seats and the Liberty Bell)
 		const rf = this.tiers[ 2 ];
 		const rfTop = rf.start + rf.rows * rf.depth;
-		const [ c398, c369, pole ] = rf.front;
-		const pavFront = [ c398, c369, [ c369[ 0 ] + ( pole[ 0 ] - c369[ 0 ] ) * 0.62, c369[ 1 ] + ( pole[ 1 ] - c369[ 1 ] ) * 0.62 ] ];
-		tiers.push( { name: 'pavilion', front: offsetPolyline( pavFront, rfTop + 1.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: L.suites + 0.4, rows: 12, depth: ROW, rise: 0.5, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.suites + 1.4 }, back: { height: 2.5 }, base: L.suites - 0.7 } );
+		const [ , c369, pole ] = rf.front;
+		const pavFront = [ c369, [ c369[ 0 ] + ( pole[ 0 ] - c369[ 0 ] ) * 0.62, c369[ 1 ] + ( pole[ 1 ] - c369[ 1 ] ) * 0.62 ] ];
+		tiers.push( { name: 'pavilion', front: offsetPolyline( pavFront, rfTop + 1.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: L.suites + 0.4, rows: ROWS.pavilion, depth: ROW, rise: 0.5, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.suites + 1.4 }, back: { height: 2.5 }, base: L.suites - 0.7 } );
+		const pdY = L.suites + 0.4 + ( ROWS.pavilion - 1 ) * 0.5 + 4.2;
+		tiers.push( { name: 'pavilion-deck', front: offsetPolyline( pavFront, rfTop + 4.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: pdY, rows: ROWS.pavilionDeck, depth: ROW, rise: 0.55, section: 14, aisle: 1.2, soffit: 1.2, frontWall: { top: pdY + 1.0 }, back: { height: 2.5 }, base: pdY - 1.1 } );
 
 		this.upper = tiers;
 		for ( const t of tiers ) this.group.add( buildTier( t, this.ctx ) );
 		// the Pavilion stands on columns from the right field concourse, front and back
-		const pav = tiers[ tiers.length - 1 ];
+		const pav = tiers[ tiers.length - 2 ], deck = tiers[ tiers.length - 1 ];
 		this._columns( offsetPolyline( pav.front, 0.6, [ 0, 0 ] ), STREET, pav.base, 9 );
-		this._columns( offsetPolyline( pav.front, pav.rows * pav.depth - 0.6, [ 0, 0 ] ), STREET, pav.y0 + ( pav.rows - 1 ) * pav.rise - 1.0, 9 );
+		this._columns( offsetPolyline( deck.front, deck.rows * deck.depth - 0.6, [ 0, 0 ] ), STREET, deck.y0 + ( deck.rows - 1 ) * deck.rise - 1.0, 9 );
 
 		// the walkway between the 300s and 400s, and the club concourse behind the club seats
 		const t300 = tiers[ 2 ], t400 = tiers[ 3 ], club = tiers[ 1 ];
-		this._strip( line( path, top + 10 + 9 * ROW ), 2.4, L.terraceConcourse, 'terrace-walkway', false ); // the 400s start behind it
-		this._strip( line( infieldPath, top + 4.5 + 13 * ROW ), 9, L.clubConcourse, 'club-concourse' );
+		this._strip( line( path, D.t300Back ), 2.4, L.terraceConcourse, 'terrace-walkway', false ); // the 400s start behind it
+		this._strip( line( infieldPath, D.clubBack ), 8, L.clubConcourse, 'club-concourse' );
 		// suites: a glass front and a roof slab over them, behind the suite seats
-		this._suites( line( infieldPath, top - 1.0 + 2 * 0.95 ), 7, L.suites, L.clubConcourse - 12 * 0.46 - 1.2 );
+		this._suites( line( infieldPath, D.suites + 2 * 0.95 ), 7, L.suites, clubY - 1.2 );
 		// the roof over the 400s, and the light towers standing on it
 		const back400 = t400.rows * ROW;
-		this._roof( line( path, top + 10 + 9 * ROW + 2.4 + back400 * 0.35 ), back400 * 0.75, L.roof );
+		this._roof( line( path, D.t400 + back400 * 0.35 ), back400 * 0.75, L.roof );
 		// behind the top row: a parapet up to the roof; under it all, the columns carrying the decks over
 		// the open main concourse
 		const t400Top = t400.y0 + ( t400.rows - 1 ) * t400.rise;
-		this._rearWall( line( path, top + 10 + 9 * ROW + 2.4 + back400 ), t400Top - 1.2, L.roof - 1.0 );
-		this._columns( line( path, top + 10 + 9 * ROW + 2.4 + back400 - 0.4 ), STREET, t400Top - 1.2, 9.5 );
-		this._columns( line( infieldPath, top + 4.5 + 13 * ROW + 9 - 0.4 ), STREET, L.clubConcourse - 0.6, 9.5 );
+		this._rearWall( line( path, D.t400Back ), t400Top - 1.2, L.roof - 1.0 );
+		this._columns( line( path, D.t400Back - 0.4 ), STREET, t400Top - 1.2, 9.5 );
+		this._columns( line( infieldPath, D.clubBack + 8 - 0.4 ), STREET, L.clubConcourse - 0.6, 9.5 );
 
 		// elevators: behind home plate and toward first and third, stopping at each level
 		this._elevators( path, top );
@@ -501,9 +519,9 @@ export class Bowl {
 		const L = LEVELS;
 		const levels = [
 			{ name: 'Main concourse', d: top + 14, y: STREET },
-			{ name: 'Suite level', d: top + 3.0, y: L.suites },
-			{ name: 'Club level', d: top + 4.5 + 13 * ROW + 4.5, y: L.clubConcourse },
-			{ name: 'Terrace', d: top + 10 + 9 * ROW + 1.2, y: L.terraceConcourse },
+			{ name: 'Suite level', d: this.D.suites + 2 * 0.95 + 3.0, y: L.suites },
+			{ name: 'Club level', d: this.D.clubBack + 4.0, y: L.clubConcourse },
+			{ name: 'Terrace', d: this.D.t300Back + 1.2, y: L.terraceConcourse },
 		];
 		const door = standard( { name: 'elevator-door', color: new Color( 0.5, 0.52, 0.55 ), roughness: 0.3, metalness: 0.8 } );
 		const sign = standard( { name: 'elevator-sign', color: new Color( 0.02, 0.1, 0.05 ), roughness: 0.5, emissive: new Color( 0.05, 0.6, 0.3 ) } );
