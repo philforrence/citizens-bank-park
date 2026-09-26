@@ -2,6 +2,8 @@ import { Group, Mesh, BoxGeometry, BufferGeometry, Float32BufferAttribute, Vecto
 import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
+import { beam, box, alongPolyline, nearestAlong } from './geo.js';
+import { GATES } from './Exterior.js';
 import { buildTier, tierTop, standsMaterials, Quads } from './Stands.js';
 import { FT, FOOTPRINT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, BULLPENS, LEVELS, fencePoint } from './layout.js';
 
@@ -251,6 +253,7 @@ export class Bowl {
 		const t400Top = t400.y0 + ( t400.rows - 1 ) * t400.rise;
 		this._rearWall( line( path, D.t400Back ), t400Top - 1.2, L.roof - 1.0 );
 		this._columns( line( path, D.t400Back - 0.4 ), STREET, t400Top - 1.2, 9.5 );
+		this._frame( line( path, D.t400Back - 0.4 ), [ L.suites, L.clubConcourse, L.terraceConcourse, t400Top - 1.4 ], 9.5 );
 		this._columns( line( infieldPath, D.clubBack + 8 - 0.4 ), STREET, L.clubConcourse - 0.6, 9.5 );
 
 		// elevators: behind home plate and toward first and third, stopping at each level
@@ -417,14 +420,38 @@ export class Bowl {
 		trussMesh.receiveShadow = true;
 		this.group.add( trussMesh );
 
-		// light towers: at both ends of the roof and over first and third
-		const towers = [ B[ 0 ], B[ B.length - 1 ], B[ 3 ], B[ B.length - 4 ] ];
-		for ( const [ x, z ] of towers ) this._lightTower( x, z, y, LEVELS.lightTowers );
+		// light towers: masts at both ends of the roof, and a pair of broad frames rising from the street
+		// either side of the Third Base Gate and the First Base Gate, just behind the roof's back edge
+		for ( const [ x, z ] of [ B[ 0 ], B[ B.length - 1 ] ] ) this._lightTower( x, z, y, LEVELS.lightTowers );
+		this.gateTowers = [];
+		for ( const gate of GATES.slice( 0, 2 ) ) {
+
+			const s = nearestAlong( B, gate.at );
+			const pair = [ - 1, 1 ].map( ( side ) => {
+
+				const { p, dir } = alongPolyline( B, s + side * 12.5 );
+				// out from the roof's edge, away from the field
+				let nx = - dir[ 1 ], nz = dir[ 0 ];
+				if ( nx * p[ 0 ] + nz * ( p[ 1 ] + 40 ) < 0 ) {
+
+					nx = - nx; nz = - nz;
+
+				}
+
+				return [ p[ 0 ] + nx * 2.2, p[ 1 ] + nz * 2.2 ];
+
+			} );
+			for ( const [ x, z ] of pair ) this._lightTower( x, z, STREET, LEVELS.lightTowers, [ 6.5, 3.6 ] );
+			this.gateTowers.push( { gate: gate.name, pair, y: y } );
+
+		}
 
 	}
 
-	// a steel lattice mast from the roof (y0) up to y1 with a bank of lights facing the field
-	_lightTower( x, z, y0, y1 ) {
+	// A steel lattice tower from y0 up to y1, `size` [ wide, deep ], with a bank of lights facing the field.
+	// The roof's masts are slim; the pairs framing the Third and First Base Gates are broad frames from the
+	// street, braced on every face, with a cage round the lights on top. One mesh for the steel.
+	_lightTower( x, z, y0, y1, size = [ 2.4, 2.4 ] ) {
 
 		const steel = this._towerSteel || ( this._towerSteel = standard( { name: 'tower-steel', color: new Color( 0.12, 0.03, 0.03 ), roughness: 0.6, metalness: 0.4 } ) );
 		// the lamps glow after dusk (and light the field: see lightSources())
@@ -436,48 +463,82 @@ export class Bowl {
 		g.position.set( x, y0, z );
 		// face the field: toward second base
 		g.rotation.y = Math.atan2( - ( 0 - x ), - ( - 38 - z ) );
-		const h = y1 - y0;
-		const leg = new BoxGeometry( 0.35, h, 0.35 );
-		for ( const [ lx, lz ] of [ [ - 1.2, - 1.2 ], [ 1.2, - 1.2 ], [ - 1.2, 1.2 ], [ 1.2, 1.2 ] ] ) {
+		const h = y1 - y0, [ W, Dp ] = size, hw = W / 2, hd = Dp / 2;
+		const big = W > 3;
+		const q = new Quads();
+		for ( const [ lx, lz ] of [ [ - hw, - hd ], [ hw, - hd ], [ - hw, hd ], [ hw, hd ] ] ) beam( q, [ lx, 0, lz ], [ lx, h, lz ], big ? 0.55 : 0.35 );
+		// girts round the four faces, diagonals across them
+		const step = big ? 4.6 : 3;
+		let prev = 0, k = 0;
+		for ( let yy = step; yy < h - 1; yy += step, k ++ ) {
 
-			const m = new Mesh( leg, steel );
-			m.position.set( lx, h / 2, lz );
-			m.castShadow = true;
-			g.add( m );
+			const girt = big ? 0.24 : 0.15;
+			beam( q, [ - hw, yy, - hd ], [ hw, yy, - hd ], girt );
+			beam( q, [ - hw, yy, hd ], [ hw, yy, hd ], girt );
+			beam( q, [ - hw, yy, - hd ], [ - hw, yy, hd ], girt );
+			beam( q, [ hw, yy, - hd ], [ hw, yy, hd ], girt );
+			const s = k % 2 ? 1 : - 1;
+			for ( const zz of [ - hd, hd ] ) {
+
+				beam( q, [ - hw * s, prev, zz ], [ hw * s, yy, zz ], 0.12 );
+				if ( big ) beam( q, [ hw * s, prev, zz ], [ - hw * s, yy, zz ], 0.12 );
+
+			}
+
+			for ( const xx of [ - hw, hw ] ) beam( q, [ xx, prev, - hd * s ], [ xx, yy, hd * s ], 0.1 );
+			prev = yy;
 
 		}
 
-		// cross bracing every 3 m
-		for ( let yy = 2; yy < h - 4; yy += 3 ) {
+		// the cage round the lights on the big ones
+		if ( big ) {
 
-			for ( const [ w, d, px, pz ] of [ [ 2.6, 0.15, 0, - 1.2 ], [ 2.6, 0.15, 0, 1.2 ], [ 0.15, 2.6, - 1.2, 0 ], [ 0.15, 2.6, 1.2, 0 ] ] ) {
+			const cw = W / 2 + 1.6, cd = hd + 0.6, c0 = h - 1, c1 = h + 7;
+			for ( const [ lx, lz ] of [ [ - cw, - cd ], [ cw, - cd ], [ - cw, cd ], [ cw, cd ] ] ) beam( q, [ lx, c0, lz ], [ lx, c1, lz ], 0.3 );
+			for ( const yy of [ c0, ( c0 + c1 ) / 2, c1 ] ) {
 
-				const m = new Mesh( new BoxGeometry( w, 0.15, d ), steel );
-				m.position.set( px, yy, pz );
-				g.add( m );
+				beam( q, [ - cw, yy, - cd ], [ cw, yy, - cd ], 0.22 );
+				beam( q, [ - cw, yy, cd ], [ cw, yy, cd ], 0.22 );
+				beam( q, [ - cw, yy, - cd ], [ - cw, yy, cd ], 0.22 );
+				beam( q, [ cw, yy, - cd ], [ cw, yy, cd ], 0.22 );
 
 			}
 
 		}
 
+		const sm = new Mesh( q.geometry(), steel );
+		sm.name = 'light-tower';
+		sm.castShadow = true;
+		sm.receiveShadow = true;
+		g.add( sm );
+
 		// the light bank: a frame of lamps tilted down toward the field
 		const bank = new Group();
 		bank.position.set( 0, h + 2.5, - 0.8 );
 		bank.rotation.x = 0.35;
-		const frameM = new Mesh( new BoxGeometry( 9, 6, 0.4 ), steel );
+		const fq = new Quads(), lq = new Quads();
+		box( fq, [ 0, 0, 0 ], [ 9, 6, 0.4 ] );
+		for ( let i = 0; i < 8; i ++ ) for ( let j = 0; j < 5; j ++ ) box( lq, [ - 3.9 + i * 1.11, - 2.2 + j * 1.1, - 0.3 ], [ 0.9, 0.9, 0.25 ] );
+		const frameM = new Mesh( fq.geometry(), steel );
 		frameM.castShadow = true;
 		bank.add( frameM );
-		const lampGeo = new BoxGeometry( 0.9, 0.9, 0.25 );
-		for ( let i = 0; i < 8; i ++ ) for ( let j = 0; j < 5; j ++ ) {
+		bank.add( new Mesh( lq.geometry(), lamp ) );
+		g.add( bank );
+		this.group.add( g );
+		// the legs at the street stop you walking through them
+		if ( big ) {
 
-			const m = new Mesh( lampGeo, lamp );
-			m.position.set( - 3.9 + i * 1.11, - 2.2 + j * 1.1, - 0.3 );
-			bank.add( m );
+			g.updateMatrix();
+			for ( const [ lx, lz ] of [ [ - hw, - hd ], [ hw, - hd ], [ - hw, hd ], [ hw, hd ] ] ) {
+
+				const p = new Vector3( lx, 0, lz ).applyMatrix4( g.matrix );
+				const w = this.field.toWorld( p.x, p.z );
+				this.colliders.addCylinder( w.x, w.z, 0.4, this.field.y0 + y0, this.field.y0 + y0 + 6 );
+
+			}
 
 		}
 
-		g.add( bank );
-		this.group.add( g );
 		( this.towers || ( this.towers = [] ) ).push( { group: g, bank } );
 
 	}
@@ -508,6 +569,42 @@ export class Bowl {
 			}
 
 		}
+
+	}
+
+	// The steel frame on the outside of the stands, between the columns along P: a beam at each level and
+	// X bracing in every third bay between the lowest two, the way the frame shows from the street.
+	_frame( P, levels, spacing ) {
+
+		const q = new Quads();
+		let bay = 0;
+		for ( let i = 0; i < P.length - 1; i ++ ) {
+
+			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
+			const len = Math.hypot( bx - ax, bz - az );
+			const n = Math.max( 1, Math.round( len / spacing ) );
+			for ( let k = 0; k < n; k ++, bay ++ ) {
+
+				const x0 = ax + ( bx - ax ) * k / n, z0 = az + ( bz - az ) * k / n;
+				const x1 = ax + ( bx - ax ) * ( k + 1 ) / n, z1 = az + ( bz - az ) * ( k + 1 ) / n;
+				for ( const y of levels ) beam( q, [ x0, y, z0 ], [ x1, y, z1 ], 0.5 );
+				if ( bay % 3 === 1 ) {
+
+					const [ y0, y1 ] = [ levels[ 0 ], levels[ 1 ] ];
+					beam( q, [ x0, y0, z0 ], [ x1, y1, z1 ], 0.3 );
+					beam( q, [ x1, y0, z1 ], [ x0, y1, z0 ], 0.3 );
+
+				}
+
+			}
+
+		}
+
+		const m = new Mesh( q.geometry(), this._colSteel );
+		m.name = 'stands-frame';
+		m.castShadow = true;
+		m.receiveShadow = true;
+		this.group.add( m );
 
 	}
 

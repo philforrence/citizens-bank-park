@@ -31,6 +31,7 @@ import { Exterior, GATES } from './Exterior.js';
 import { Surroundings } from './Surroundings.js';
 import { Landmarks } from './Landmarks.js';
 import { Details2008 } from './Details2008.js';
+import { Fascia } from './Fascia.js';
 import { Players } from './game/Players.js';
 import * as Motions from './game/Motions.js';
 import { Ball } from './game/Ball.js';
@@ -76,6 +77,8 @@ export class BallparkApp {
 			renderScale: 1, // internal resolution (the temporal upscaler reconstructs the output)
 		};
 		this.qs = new URLSearchParams( location.search );
+		// ?hour=21 sets the time of day (the game started at 8:37 pm)
+		if ( this.qs.has( 'hour' ) ) this.settings.timeOfDay = Number( this.qs.get( 'hour' ) ) || this.settings.timeOfDay;
 		this.declination = solarDeclination();
 
 	}
@@ -141,10 +144,12 @@ export class BallparkApp {
 		this.bowl = new Bowl( { field: this.field, colliders: this.colliders } );
 		await progress( 0.17, 'Bricking the facade…' );
 		this.exterior = new Exterior( { field: this.field, colliders: this.colliders } );
+		this.exterior.buildGateSign( this.bowl );
 		await progress( 0.19, 'Raising the skyline…' );
 		this.surroundings = new Surroundings( { field: this.field } );
 		this.landmarks = new Landmarks( { field: this.field, bowl: this.bowl, colliders: this.colliders } );
 		this.details = new Details2008( { field: this.field } );
+		this.fascia = new Fascia( { field: this.field, bowl: this.bowl } );
 		this.players = new Players( { parent: this.field.group } );
 		if ( qs.has( 'poses' ) ) this._poseLineup();
 		else {
@@ -356,11 +361,12 @@ export class BallparkApp {
 
 		this._boardT = ( this._boardT || 0 ) + dt;
 		if ( this._boardT < 0.25 ) return;
+		this._boardT = 0;
 		const st = this.director.boardState();
+		this.fascia.update( st, this.director );
 		const key = JSON.stringify( [ st.score, st.count, st.outs, st.batter?.last, st.inning, st.half, st.video.kind, st.today.length, st.line, st.pitcher ] );
 		if ( key === this._boardKey ) return;
 		this._boardKey = key;
-		this._boardT = 0;
 		this.landmarks.updateScoreboard( st );
 		this.details.updateOutOfTown( st );
 
