@@ -982,11 +982,16 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	let mb = sign( sin( b * PI / cell ) );
 	let da = vec2f( ${ f( r2 ) }, ${ f( - r2 ) } );
 	let db = vec2f( ${ f( - r2 ) }, ${ f( - r2 ) } );
-	var mow = 1.0 + 0.2 * ma * dot( Vf, da ) + 0.2 * mb * dot( Vf, db );
-	// the infield grass: finer stripes along the line to second base
-	if ( square ) { mow = 1.0 + 0.16 * sign( sin( ( p.x ) * PI / ${ f( 5 * FT ) } ) ) * Vf.x; }
+	// the checkerboard shows from every side; looking along a pass makes it stronger
+	var mow = 1.0 + 0.1 * ma * mb + 0.14 * ma * dot( Vf, da ) + 0.14 * mb * dot( Vf, db );
+	// the infield grass: the same diagonal checkerboard, finer (6 ft squares)
+	if ( square ) {
+		let ia = sign( sin( a * PI / ${ f( 6 * FT ) } ) );
+		let ib = sign( sin( b * PI / ${ f( 6 * FT ) } ) );
+		mow = 1.0 + 0.1 * ia * ib + 0.1 * ia * dot( Vf, da ) + 0.1 * ib * dot( Vf, db );
+	}
 	// Kentucky bluegrass in October: a bright, yellowish green
-	var col = vec3f( 0.068, 0.19, 0.03 ) * mow * ( 0.88 + 0.16 * n1 ) * ( 0.92 + 0.1 * n2 ) * ( 0.94 + 0.08 * n3 );
+	var col = vec3f( 0.085, 0.24, 0.038 ) * mow * ( 0.9 + 0.14 * n1 ) * ( 0.93 + 0.09 * n2 ) * ( 0.95 + 0.07 * n3 );
 	var rough = 0.95;
 	if ( dirt ) {
 		// the infield clay: a warm orange-tan
