@@ -563,10 +563,23 @@ export class Director {
 
 				const info = P[ id ] || { side: 'home', num: '', throws: 'R' };
 				s = this.players.add( { team: info.side, number: info.num, gloveHand: info.throws === 'L' ? 'R' : 'L', skin: Math.floor( hash( id ) * 4 ), name: info.last } );
+				s.seed = hash( id * 1.3 + 7 );
 				this.slots.set( id, s );
 
 			}
 
+			// what he wears: the batter and the runners their helmets, the catcher his gear (not in the
+			// dogpile: the mask comes off)
+			const snap = this.now ? this.now.snap : null;
+			let role = 0;
+			if ( snap && this.now.seg.kind !== 'celebrate' ) {
+
+				if ( id === snap.batter || ( snap.bases || [] ).includes( id ) || a.pose?.bat ) role |= 1;
+				if ( snap.defense && id === snap.defense.C && a.pose && ! a.pose.bat ) role |= 3;
+
+			}
+
+			s.role = role;
 			s.visible = true;
 			s.x = a.x; s.z = a.z; s.yaw = a.yaw; s.y = a.y || 0; s.tilt = a.tilt || null;
 			s.pose = a.pose;

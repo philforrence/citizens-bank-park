@@ -111,7 +111,7 @@ export class Players {
 
 			}
 
-			this.info.set( [ p.team === 'home' ? 1 : 0, p.skin, 0, 0 ], i * 4 );
+			this.info.set( [ p.team === 'home' ? 1 : 0, p.skin, p.role || 0, p.seed || 0 ], i * 4 );
 
 		}
 
@@ -151,7 +151,15 @@ function playerMaterial( bones, info, atlas ) {
 	let b = u32( v.aBone + 0.5 );
 	let M = plBones[ slot * ${ NB }u + b ];
 	let Mp = plBones[ ( ${ MAX }u + slot ) * ${ NB }u + b ];
-	let lp = vec4f( v.position, 1.0 );
+	// what he's wearing (info.z): 1 the batting helmet (else the cap), 2 the catcher's gear and mask;
+	// the pieces he isn't wearing collapse to nothing
+	let role = u32( plInfo[ slot ].z + 0.5 );
+	let pt = i32( v.aPart + 0.5 );
+	var keep = true;
+	if ( pt == ${ P.helmet } && ( role & 1u ) == 0u ) { keep = false; }
+	if ( pt == ${ P.cap } && ( role & 1u ) != 0u ) { keep = false; }
+	if ( ( pt == ${ P.gear } || pt == ${ P.mask } ) && ( role & 2u ) == 0u ) { keep = false; }
+	let lp = select( vec4f( 0.0, 0.0, 0.0, 1.0 ), vec4f( v.position, 1.0 ), keep );
 	let lm = v.model * M;
 	v.useWorld = true;
 	v.worldPos = ( lm * lp ).xyz;
@@ -208,11 +216,36 @@ function playerMaterial( bones, info, atlas ) {
 	let inCell = lu > 0.02 && lu < 0.98 && lv > 0.02 && lv < 0.98;
 	let auv = ( cxy + clamp( vec2f( lu, lv ), vec2f( 0.02 ), vec2f( 0.98 ) ) ) / ${ COLS }.0;
 	let ink = textureSample( plAtlas, smpAnisoClamp, auv );
-	if ( part == ${ P.skin } ) { c = skinC; rough = 0.55; }
+	if ( part == ${ P.skin } ) {
+		c = skinC; rough = 0.55;
+		// the face: eyes, brows, the mouth (on the head's front)
+		if ( bone == ${ BONES.head } && L.z < - 0.055 ) {
+			let ex = abs( L.x ) - 0.034;
+			let eye = length( vec2f( ex / 1.5, L.y - 0.196 ) );
+			if ( eye < 0.0075 ) { c = vec3f( 0.03, 0.025, 0.02 ); rough = 0.2; }
+			else if ( eye < 0.011 ) { c = mix( skinC, vec3f( 0.8, 0.78, 0.75 ), 0.5 ); }
+			if ( abs( L.y - 0.215 ) < 0.004 && abs( L.x ) > 0.014 && abs( L.x ) < 0.056 ) { c = skinC * 0.35; }
+			if ( abs( L.y - 0.139 ) < 0.0035 && abs( L.x ) < 0.022 ) { c = skinC * 0.55 + vec3f( 0.05, 0.0, 0.0 ); }
+			// the shadow under the brow and the cap's bill
+			c = c * mix( 1.0, 0.8, smoothstep( 0.19, 0.21, L.y ) );
+		}
+	}
+	if ( part == ${ P.hair } ) { c = mix( vec3f( 0.03, 0.022, 0.015 ), vec3f( 0.12, 0.08, 0.05 ), fract( in.vs.vInfo.w * 7.0 ) ); rough = 0.6; }
+	if ( part == ${ P.helmet } ) { c = trim * 1.05; rough = 0.15; }
+	if ( part == ${ P.gear } ) { c = mix( vec3f( 0.02 ), trim, 0.6 ); rough = 0.4; }
+	if ( part == ${ P.mask } ) {
+		// the cage: dark bars over the face, see-through between
+		let bx = step( 0.8, fract( ( L.x + 0.1 ) / 0.028 ) ) + step( 0.78, fract( ( L.y - 0.05 ) / 0.035 ) );
+		c = select( skinC * 0.35, vec3f( 0.02 ), bx > 0.5 ); rough = 0.35;
+	}
 	if ( part == ${ P.socks } || part == ${ P.sleeve } ) { c = trim; }
 	if ( part == ${ P.cap } ) { c = trim * 1.05; rough = 0.6; }
 	if ( part == ${ P.belt } ) { c = select( trim, vec3f( 0.02 ), home ); }
-	if ( part == ${ P.shoes } ) { c = vec3f( 0.018 ); rough = 0.45; }
+	if ( part == ${ P.shoes } ) {
+		c = vec3f( 0.018 ); rough = 0.35;
+		// the stripe along the side: red for the Phillies, white for the Rays
+		if ( abs( L.x ) > 0.04 && abs( L.y + 0.028 ) < 0.009 ) { c = select( vec3f( 0.85 ), vec3f( 0.55, 0.02, 0.03 ), home ); }
+	}
 	if ( part == ${ P.glove } ) { c = vec3f( 0.2, 0.09, 0.035 ); rough = 0.5; }
 	if ( part == ${ P.bat } ) { c = vec3f( 0.5, 0.32, 0.16 ); rough = 0.35; }
 	// the lettering and logos over the cloth
