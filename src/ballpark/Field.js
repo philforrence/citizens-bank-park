@@ -1065,16 +1065,20 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	let moundC = vec2f( 0.0, ${ f( - MOUND_CENTER ) } );
 	let first = vec2f( ${ f( BASE * r2 ) }, ${ f( - BASE * r2 ) } );
 	let third = vec2f( ${ f( - BASE * r2 ) }, ${ f( - BASE * r2 ) } );
-	// infield skin: inside the arc on the fair side, less the grass square inside the diamond
-	var dirt = length( p - rubber ) < ${ f( ARC ) } && a > -0.35 && b > -0.35;
-	let square = a > ${ f( PATH ) } && b > ${ f( PATH ) } && a < ${ f( BASE - GRASS_INSET ) } && b < ${ f( BASE - GRASS_INSET ) };
+	// infield skin: inside the arc on the fair side, less the grass square inside the diamond (the edges
+	// a little ragged, as a groundskeeper's edging is)
+	let pe = p + vec2f( mx_noise_float2( p * 7.0 ), mx_noise_float2( p * 7.0 + 17.0 ) ) * 0.03;
+	let ae = dot( pe, vec2f( ${ f( r2 ) }, ${ f( - r2 ) } ) );
+	let be = dot( pe, vec2f( ${ f( - r2 ) }, ${ f( - r2 ) } ) );
+	var dirt = length( pe - rubber ) < ${ f( ARC ) } && ae > -0.35 && be > -0.35;
+	let square = ae > ${ f( PATH ) } && be > ${ f( PATH ) } && ae < ${ f( BASE - GRASS_INSET ) } && be < ${ f( BASE - GRASS_INSET ) };
 	if ( square ) { dirt = false; }
 	// the paths along the baselines, the circle round home plate, the mound, the cut-outs round first and third
-	if ( abs( b ) < ${ f( PATH ) } && a > 0.0 && a < BP_BASE ) { dirt = true; }
-	if ( abs( a ) < ${ f( PATH ) } && b > 0.0 && b < BP_BASE ) { dirt = true; }
-	if ( length( p - plate ) < ${ f( PLATE_CIRCLE ) } ) { dirt = true; }
-	if ( length( p - moundC ) < ${ f( MOUND_RADIUS ) } ) { dirt = true; }
-	if ( length( p - first ) < 3.2 || length( p - third ) < 3.2 ) { dirt = true; }
+	if ( abs( be ) < ${ f( PATH ) } && ae > 0.0 && ae < BP_BASE ) { dirt = true; }
+	if ( abs( ae ) < ${ f( PATH ) } && be > 0.0 && be < BP_BASE ) { dirt = true; }
+	if ( length( pe - plate ) < ${ f( PLATE_CIRCLE ) } ) { dirt = true; }
+	if ( length( pe - moundC ) < ${ f( MOUND_RADIUS ) } ) { dirt = true; }
+	if ( length( pe - first ) < 3.2 || length( pe - third ) < 3.2 ) { dirt = true; }
 	let track = sd > -${ f( TRACK ) };
 	let outside = sd > 0.0;
 
@@ -1082,21 +1086,43 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	// grass: two mowing passes along the foul lines make a checkerboard; each pass looks light seen
 	// along the direction it was mown and dark against it
 	let cell = ${ f( 15 * FT ) };
-	let ma = sign( sin( a * PI / cell ) );
-	let mb = sign( sin( b * PI / cell ) );
+	// (the stripes' edges soft over a hand's width: the mower's wheels don't track a ruler)
+	let ma = clamp( sin( a * PI / cell ) * 9.0, -1.0, 1.0 );
+	let mb = clamp( sin( b * PI / cell ) * 9.0, -1.0, 1.0 );
 	let da = vec2f( ${ f( r2 ) }, ${ f( - r2 ) } );
 	let db = vec2f( ${ f( - r2 ) }, ${ f( - r2 ) } );
-	// the checkerboard shows from every side; looking along a pass makes it stronger
-	var mow = 1.0 + 0.1 * ma * mb + 0.14 * ma * dot( Vf, da ) + 0.14 * mb * dot( Vf, db );
+	// the checkerboard shows from every side; looking along a pass makes it stronger; the blades lean
+	// the way they were mown, so the stripes show most from low down and soften seen from above
+	let graze = mix( 0.55, 1.25, 1.0 - abs( in.V.y ) );
+	var mow = 1.0 + ( 0.1 * ma * mb + 0.14 * ma * dot( Vf, da ) + 0.14 * mb * dot( Vf, db ) ) * graze;
 	// the infield grass: the same diagonal checkerboard, finer (6 ft squares)
 	if ( square ) {
-		let ia = sign( sin( a * PI / ${ f( 6 * FT ) } ) );
-		let ib = sign( sin( b * PI / ${ f( 6 * FT ) } ) );
-		mow = 1.0 + 0.1 * ia * ib + 0.1 * ia * dot( Vf, da ) + 0.1 * ib * dot( Vf, db );
+		let ia = clamp( sin( a * PI / ${ f( 6 * FT ) } ) * 5.0, -1.0, 1.0 );
+		let ib = clamp( sin( b * PI / ${ f( 6 * FT ) } ) * 5.0, -1.0, 1.0 );
+		mow = 1.0 + ( 0.1 * ia * ib + 0.1 * ia * dot( Vf, da ) + 0.1 * ib * dot( Vf, db ) ) * graze;
 	}
 	// Kentucky bluegrass in October: a bright, yellowish green
-	var col = vec3f( 0.14, 0.31, 0.05 ) * mow * ( 0.9 + 0.14 * n1 ) * ( 0.93 + 0.09 * n2 ) * ( 0.95 + 0.07 * n3 );
+	var col = vec3f( 0.14, 0.31, 0.05 ) * mow * ( 0.9 + 0.14 * n1 ) * ( 0.93 + 0.09 * n2 ) * ( 0.95 + 0.07 * n3 ) * ( 0.95 + 0.08 * mx_noise_float2( p * 6.0 ) );
 	var rough = 0.95;
+	// worn where the outfielders stand, and a few divots
+	let wear = max( max( 1.0 - smoothstep( 2.0, 7.0, length( p - vec2f( -46.0, -80.0 ) ) ), 1.0 - smoothstep( 2.0, 7.0, length( p - vec2f( 0.0, -97.0 ) ) ) ), 1.0 - smoothstep( 2.0, 7.0, length( p - vec2f( 46.0, -80.0 ) ) ) );
+	col = mix( col, col * vec3f( 1.25, 1.02, 0.6 ), wear * ( 0.35 + 0.3 * n2 ) );
+	let dc = floor( p / 1.7 );
+	let dh = fract( sin( dot( dc, vec2f( 17.3, 61.9 ) ) ) * 4375.85 );
+	let dvt = length( ( p - dc * 1.7 - vec2f( fract( dh * 11.0 ), fract( dh * 23.0 ) ) * 1.5 ) / vec2f( 0.05, 0.08 ) );
+	if ( dh > 0.93 ) { col = mix( col, vec3f( 0.2, 0.11, 0.05 ), 1.0 - smoothstep( 0.7, 1.0, dvt ) ); }
+	// up close the blades come through: fine streaks a few mm wide, clumped, their tips catching the
+	// light; they fade into the average colour with distance
+	let bladeK = 1.0 - smoothstep( 0.004, 0.022, fw );
+	if ( bladeK > 0.0 && ! dirt && ! track && ! outside ) {
+		let ang = mx_noise_float2( p * 1.3 ) * 3.0;
+		let q = vec2f( p.x * cos( ang ) - p.y * sin( ang ), p.x * sin( ang ) + p.y * cos( ang ) );
+		let bl = mx_noise_float2( q * vec2f( 260.0, 22.0 ) );
+		let clump = mx_noise_float2( p * 9.0 );
+		col = col * ( 1.0 + bladeK * ( 0.3 * bl + 0.14 * clump ) );
+		let gn = vec2f( mx_noise_float2( q * vec2f( 170.0, 28.0 ) ), mx_noise_float2( q * vec2f( 28.0, 170.0 ) + 7.0 ) );
+		s.normal = normalize( s.normal + vec3f( gn.x, 0.0, gn.y ) * 0.4 * bladeK );
+	}
 	if ( dirt ) {
 		// the infield clay: a warm orange-tan
 		col = vec3f( 0.56, 0.27, 0.11 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );
