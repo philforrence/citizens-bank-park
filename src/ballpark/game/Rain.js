@@ -72,7 +72,9 @@ export class Rain {
 	let toCam = normalize( cam - p );
 	let side = normalize( cross( dir, toCam ) );
 	// a shutter-length streak (about 1/60 s of fall), thinner far off
-	let len = 0.26;
+	// ---- L: a TV camera's long lens shoots at 1/100 s or faster: shorter streaks, the fine rain of the
+	// center field frames on the 27th (ref/night getty_83885893), not long white lines across the picture
+	let len = mix( 0.09, 0.26, smoothstep( 0.08, 0.3, tanHalf ) );
 	let wp = p + side * v.aCorner.x * 0.005 + dir * v.aCorner.y * len;
 	v.useWorld = true;
 	v.worldPos = wp;

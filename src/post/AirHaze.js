@@ -209,6 +209,9 @@ export class AirHaze {
 			HZ_CLOUDS: this.clouds && this.clouds.module ? 1 : 0,
 			HZ_TERRAIN: this.terrain && this.terrain.module ? 1 : 0,
 			HZ_MOON: this.sky && this.sky.module ? 1 : 0,
+			// ---- L (the ballpark's night): the light banks' in-scatter (ballpark/Night.js), when set
+			HZ_NIGHT: this.nightModule ? 1 : 0,
+			// ---- end L
 		};
 
 	}
@@ -330,7 +333,7 @@ fn hazeVisibility( P: vec3f ) -> f32 {
 		if ( this._compositeModule ) return this._compositeModule;
 		this._compositeModule = new ShaderModule( {
 			name: 'haze-composite',
-			deps: [ this.module ],
+			deps: [ this.module, this.nightModule ].filter( Boolean ), // ---- L: the night air (optional)
 			bindings: {
 				hazeLow: { texture: () => this.hist[ this._hc ].texture },
 				hazeSS: { texture: () => this.ssShafts.texture },
@@ -377,6 +380,11 @@ fn hazeApply( uv: vec2f, c: vec4f ) -> vec4f {
 				let T = exp( - tau );
 				out = out * T + fog * ( 1.0 - T ) * ( 1.0 - fSun * ( 1.0 - h ) );
 			}
+#if HZ_NIGHT
+			// ---- L (the ballpark's night): the air lit by the light banks, up to what's there
+			out += nightAirApply( underwaterParams.camPos, dir, dist );
+			// ---- end L
+#endif
 
 			// ---- sun shafts: depth-aware upsample of the half resolution march
 			if ( hazeParams.shafts > 0.0 ) {

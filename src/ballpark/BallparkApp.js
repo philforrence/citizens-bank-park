@@ -52,6 +52,7 @@ import { FOOTPRINT, LEVELS } from './layout.js';
 import { Walker } from './Walker.js';
 import { Scope } from './Scope.js';
 import { PLACES } from './places/index.js';
+import { Night, nightAirModule, BEAM } from './Night.js'; // ---- L: light and night
 
 const _up = new Vector3( 0, 1, 0 );
 
@@ -258,7 +259,8 @@ export class BallparkApp {
 
 			this.localLights.add( {
 				position, dir, color: new Color( 1.0, 0.97, 0.9 ), intensity: 2200, range: 380,
-				cosInner: Math.cos( MathUtils.degToRad( 34 ) ), cosOuter: Math.cos( MathUtils.degToRad( 78 ) ), kind: 'stadium', priority: 0,
+				// ---- L: aimed at the field (Night.js BEAM): the stands under a bank get its edge, not its core
+				cosInner: Math.cos( MathUtils.degToRad( BEAM.inner ) ), cosOuter: Math.cos( MathUtils.degToRad( BEAM.outer ) ), kind: 'stadium', priority: 0,
 			} );
 
 		}
@@ -295,6 +297,11 @@ export class BallparkApp {
 		} );
 		// a summer afternoon in the city, not a humid tropical island
 		if ( this.haze ) this.haze.density.value = 1.0;
+		// ---- L: the night (Night.js): the light banks' glow in the air (in the haze composite), cloth
+		// that soaks in the rain
+		if ( this.haze ) this.haze.nightModule = nightAirModule;
+		this.night = new Night( this );
+		// ---- end L
 		this.post = new PostFX( renderer, { sceneRenderer: this.sceneRenderer, camera, underwater: this.underwater, clouds: this.clouds, sunDir: this.atmosphere.sunDir, haze: this.haze } );
 		// ?profile: GPU timestamps for every pass (post passes, shadow cascades, the scene's passes), in
 		// this.profiler.result
@@ -583,7 +590,10 @@ export class BallparkApp {
 		// everything else open to the sky: soaked on the 27th, drying out on the 29th
 		G.wet.value = firstNight ? 0.45 + 0.55 * k : 0.12;
 		// the low cloud on the 27th glows with the park's and the city's light
-		this.skyGlow = firstNight ? 0.011 + 0.004 * k : 0.006;
+		// ---- L: dimmer than it was: from inside the lit bowl the sky over it read mid grey-brown, where every
+		// frame of both nights has it near black (navy on FOX's cameras); the banks' own glow is the night
+		// air's now (Night.js)
+		this.skyGlow = firstNight ? 0.0075 + 0.003 * k : 0.0045;
 		this.sound.setRain( rain );
 		// ponchos in the stands while it rains
 		this._crowdRain = firstNight ? Math.min( 1, rain * 3 ) : 0;
@@ -661,7 +671,8 @@ export class BallparkApp {
 
 			// the glow over the city, and the halos round the light banks (bigger in the rain)
 			const r = this.rain ? this.rain.amount : 0;
-			this.skyGlowLayer.set( { glow: night * this.skyGlow, halo: night * ( 0.2 + 0.45 * r ), haloSize: 18 + 12 * r, toward: this._north } );
+			// ---- L: no halo sprites: the banks' glow is the night air's now (Night.js)
+			this.skyGlowLayer.set( { glow: night * this.skyGlow, halo: this.night ? 0 : night * ( 0.2 + 0.45 * r ), haloSize: 18 + 12 * r, toward: this._north } );
 
 		}
 		const moon = new Vector3( - dir.x, Math.abs( dir.y ) * 0.8 + 0.25, - dir.z ).normalize();
@@ -839,6 +850,8 @@ export class BallparkApp {
 			this._scoreboard( dt );
 
 		}
+
+		this.night?.update( dt ); // ---- L
 
 		this.bowl.crowd.update( this.director, dt, this._crowdRain || 0 );
 		this.bowl.crowd.lod( this.camera );
