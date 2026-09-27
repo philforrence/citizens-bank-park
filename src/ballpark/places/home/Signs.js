@@ -12,39 +12,48 @@ import { canvasTexture } from '../../geo.js';
 //                                             facing along `up`'s side (toward center field)
 //   signs.hide( i ); signs.update()
 
-// the boards' words: [ lines, ink, board ] (ink and board colours; a few boards are Phillies red)
+// the boards' words: [ lines, ink, board ] (ink and board colours; a few boards are Phillies red). The
+// documented ones are as the photos read them (Getty's Oct 27 and 29 captions and frames of FOX's feed:
+// .claude/ref/home/); the rest are ours.
 export const SIGNS = [
 	// the 27th
 	[ [ 'RAIN?', "WE'RE FROM", 'PHILLY' ], '#0b1a55', '#f4f1ea' ],
+	[ [ 'PHILS', 'IN', 'PHIVE' ], '#b3121c', '#f4f1ea' ], // Oct 27
+	[ [ 'PHINALLY' ], '#ffffff', '#a50f1a' ], // Oct 27
 	[ [ 'WE', 'BELIEVE' ], '#b3121c', '#f4f1ea' ],
 	[ [ 'HI MOM', 'IN BOCA!' ], '#0b1a55', '#f7f0c0' ],
-	[ [ 'PHILLIES', 'PHAITHFUL' ], '#ffffff', '#a50f1a' ],
-	[ [ 'ONE', 'MORE', 'WIN' ], '#b3121c', '#f4f1ea' ],
-	[ [ 'RED', 'OCTOBER' ], '#ffffff', '#a50f1a' ],
+	[ [ 'RED', 'OCTOBER' ], '#ffffff', '#a50f1a' ], // Oct 29
 	// the 29th
 	[ [ 'SUSPENDED...', 'NOT', 'DEFEATED' ], '#0b1a55', '#f4f1ea' ],
-	[ [ 'FINISH', 'IT!' ], '#b3121c', '#f4f1ea' ],
-	[ [ '28 YEARS', 'IS LONG', 'ENOUGH' ], '#0b1a55', '#f4f1ea' ],
-	[ [ 'LIGHTS OUT', 'LIDGE' ], '#ffffff', '#a50f1a' ],
-	[ [ 'HARRY,', 'CALL IT!' ], '#b3121c', '#f4f1ea' ],
+	[ [ '28 YEARS...', "WHAT'S", 'ANOTHER DAY?' ], '#0b1a55', '#f4f1ea' ], // Oct 29
+	[ [ 'IT ENDS', 'TONIGHT' ], '#b3121c', '#f4f1ea' ], // Oct 29
+	[ [ 'PHABULOUS', 'PHILLIES', 'PHINALE' ], '#b3121c', '#f4f1ea' ], // Oct 29
+	[ [ 'FOX', '9 MORE', 'OUTS' ], '#0b1a55', '#f4f1ea' ], // Oct 29
+	[ [ 'RAYS RAYS', 'GO AWAY' ], '#0b1a55', '#f7f0c0' ], // Oct 29
+	[ [ 'DUE UP: 1 GAME 5 1/2', '2 WORLD CHAMPS!', '3 BROAD ST. PARADE' ], '#0b1a55', '#f4f1ea' ], // Oct 29, FOX
 	[ [ '3 MORE', 'OUTS' ], '#0b1a55', '#f4f1ea' ],
 	[ [ '2 MORE', 'OUTS' ], '#0b1a55', '#f4f1ea' ],
 	[ [ '1 MORE', 'OUT!!' ], '#b3121c', '#f4f1ea' ],
 	// the last out
+	[ [ 'PHINALLY!', '1980-2008' ], '#b3121c', '#f4f1ea' ], // Oct 29
+	[ [ 'YO ADRIAN', 'WE DID IT!!' ], '#0b1a55', '#f4f1ea' ], // Oct 29
+	[ [ 'WE ARE', 'WORLD', 'CHAMPIONS!' ], '#ffffff', '#a50f1a' ], // Oct 29
 	[ [ 'WORLD', 'CHAMPS!' ], '#b3121c', '#f4f1ea' ],
-	[ [ '1980', '2008' ], '#ffffff', '#a50f1a' ],
+	[ [ 'HARRY,', 'CALL IT!' ], '#b3121c', '#f4f1ea' ],
+	[ [ 'LIGHTS OUT', 'LIDGE' ], '#ffffff', '#a50f1a' ],
 ];
 export const SIGN = Object.fromEntries( SIGNS.map( ( s, i ) => [ s[ 0 ].join( ' ' ), i ] ) );
-const GRID = 4; // cells per side (each cell 256 x 256, the board drawn in its top 256 x 200)
+const GRID = 4; // cells across (each cell 256 x 256, the board drawn in its top 256 x 200), GRID_Y down
+const GRID_Y = 6;
 const ASPECT = 200 / 256;
 export const BOARD = { w: 0.71, h: 0.56 };
 
 function drawAtlas() {
 
-	return canvasTexture( 1024, 1024, ( ctx ) => {
+	return canvasTexture( 1024, 256 * GRID_Y, ( ctx ) => {
 
 		ctx.fillStyle = '#f0ede6';
-		ctx.fillRect( 0, 0, 1024, 1024 );
+		ctx.fillRect( 0, 0, 1024, 256 * GRID_Y );
 		SIGNS.forEach( ( [ lines, ink, board ], i ) => {
 
 			const x0 = ( i % GRID ) * 256, y0 = Math.floor( i / GRID ) * 256, W = 256, H = 200;
@@ -146,7 +155,7 @@ export class Signs {
 	let uv = in.vs.vUV;
 	let cell = floor( in.vs.vCell + 0.5 );
 	if ( uv.x >= 0.0 ) {
-		let cuv = ( vec2f( cell % ${ GRID }.0, floor( cell / ${ GRID }.0 ) ) + vec2f( uv.x, uv.y ) ) / ${ GRID }.0;
+		let cuv = ( vec2f( cell % ${ GRID }.0, floor( cell / ${ GRID }.0 ) ) + vec2f( uv.x, uv.y ) ) / vec2f( ${ GRID }.0, ${ GRID_Y }.0 );
 		s.albedo = textureSample( hsAtlas, smpAnisoClamp, cuv ).rgb;
 	} else {
 		// the back: the board's plain white, a strip of tape

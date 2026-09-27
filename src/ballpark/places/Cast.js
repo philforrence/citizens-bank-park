@@ -95,6 +95,10 @@ export const BACKS = [
 	[ 'BLANTON', '56' ], [ 'DOBBS', '19' ], [ 'STAIRS', '12' ], [ 'KALAS', '' ], [ 'WESTBROOK', '36' ], [ 'DAWKINS', '20' ],
 ];
 export const BACK = Object.fromEntries( BACKS.map( ( b, i ) => [ b ? b[ 0 ] : 'NONE', i ] ) );
+// ---- B (home): the vendors' numbers, big and red on the backs of their mustard-yellow shirts (the
+// 2008-09 photos), in atlas cells 56-59 (B's range)
+BACKS[ 56 ] = [ '', '47' ]; BACKS[ 57 ] = [ '', '112' ]; BACKS[ 58 ] = [ '', '23' ]; BACKS[ 59 ] = [ '', '88' ];
+// ---- end B
 const CHEST_CELL = 40; // the chest prints start at this atlas cell
 
 // ---------------------------------------------------------------- the figure's geometry

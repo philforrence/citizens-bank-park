@@ -73,10 +73,10 @@ export class Aisles {
 		} );
 		const V = [
 			// name, the look, its gear on each night, the aisle, which rows (low, high)
-			[ 'Jimmy Donnelly', L( { skin: 0, hair: 6, facial: 1, build: 3, sleeves: COLOR.navy, hat: HAT.capRed, seed: 2001 } ), { 27: GEAR.beer, 29: GEAR.beer }, 'ED', 0.95, 47 ],
-			[ 'Kyle Brandt', L( { skin: 0, hair: 3, age: 3, build: 0, sleeves: COLOR.grey, hat: HAT.capBack, seed: 2002 } ), { 27: GEAR.beer, 29: GEAR.beer }, 'DC', 1.1, 112 ],
-			[ 'Reggie Timmons', L( { skin: 5, hair: 0, facial: 2, build: 2, sleeves: COLOR.black, hat: HAT.knitBlack, seed: 2003 } ), { 27: GEAR.cocoa, 29: GEAR.hotdogs }, 'ED', 1.0, 0 ],
-			[ 'Tina Maldonado', L( { female: true, skin: 2, hair: 0, hairStyle: 2, build: 1, sleeves: COLOR.red, hat: HAT.capRed, seed: 2004 } ), { 27: GEAR.cotton, 29: GEAR.cotton }, 'DC', 0.9, 0 ],
+			[ 'Jimmy Donnelly', L( { skin: 0, hair: 6, facial: 1, build: 3, sleeves: COLOR.navy, hat: HAT.capRed, seed: 2001, back: 56 } ), { 27: GEAR.beer, 29: GEAR.beer }, 'ED', 0.95, 47 ],
+			[ 'Kyle Brandt', L( { skin: 0, hair: 3, age: 3, build: 0, sleeves: COLOR.grey, hat: HAT.capBack, seed: 2002, back: 57 } ), { 27: GEAR.beer, 29: GEAR.beer }, 'DC', 1.1, 112 ],
+			[ 'Reggie Timmons', L( { skin: 5, hair: 0, facial: 2, build: 2, sleeves: COLOR.black, hat: HAT.knitBlack, seed: 2003, back: 58 } ), { 27: GEAR.cocoa, 29: GEAR.hotdogs }, 'ED', 1.0, 0 ],
+			[ 'Tina Maldonado', L( { female: true, skin: 2, hair: 0, hairStyle: 2, build: 1, sleeves: COLOR.red, hat: HAT.capRed, seed: 2004, back: 59 } ), { 27: GEAR.cotton, 29: GEAR.cotton }, 'DC', 0.9, 0 ],
 			[ 'Luis Ortega', L( { skin: 3, hair: 0, age: 3, build: 0, sleeves: COLOR.grey, hat: HAT.capRed, seed: 2005 } ), { 27: GEAR.peanuts, 29: GEAR.peanuts }, 'ED', 1.15, 0 ],
 		];
 		this.vendors = V.map( ( [ name, look, gear, aisle, speed ], k ) => {

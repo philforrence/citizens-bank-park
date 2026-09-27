@@ -127,18 +127,20 @@ export function seatRegulars( place ) {
 		kit: { idle: { watch: 4, cup: 3, talk: 1 }, drink: PROP.beer, towel: true, camera: false },
 		traits: { stand: 0.25, cheer: 0.3 },
 	} );
-	if ( R.dom ) R.dom.script = ( f, N ) => {
+	if ( R.dom ) {
 
-		const cell = domSign( N );
-		// up between pitches while the Phillies are in the field (the camera's on the plate), up for the
-		// big moments, else resting on his knees
-		const up = cell !== null && ( N.celebrate || N.between || ( N.half === 'top' && N.pitching && N.lt < 2.6 ) || N.mood.stand > 0.5 );
+		signer( R.dom, domSign, place );
 		// held up high: now and then somebody behind has had enough
-		if ( up && ! f.sign?.up && hash( N.t * 0.7 ) < 0.3 ) place.sound?.at( 'down', { x: f.seat.x + f.seat.nx * 1.6, y: f.seat.y + 0.4, z: f.seat.z + f.seat.nz * 1.6 }, { vol: 0.7 } );
-		f.sign = cell === null ? null : { cell, up };
-		if ( cell !== null ) f.act( up ? 'sign' : 'signLow', 0.3, { key: 'sign', propL: 0, propR: 0 } );
+		const sig = R.dom.script;
+		R.dom.script = ( f, N, dt ) => {
 
-	};
+			const was = f.sign?.up;
+			sig( f, N, dt );
+			if ( f.sign?.up && ! was && hash( N.t * 0.7 ) < 0.3 ) place.sound?.at( 'down', { x: f.seat.x + f.seat.nx * 1.6, y: f.seat.y + 0.4, z: f.seat.z + f.seat.nz * 1.6 }, { vol: 0.7 } );
+
+		};
+
+	}
 
 	// ---- the Baptistes, row 8 first base side
 	R.andre = sit( seat( 7, 4.6 ), {
@@ -269,6 +271,21 @@ export function seatRegulars( place ) {
 		traits: { stand: 0.05 + 0.08 * k, cheer: 0.1 + 0.05 * k, towel: 0.05 },
 	} ) );
 
+	// ---- the others' signs (the documented words where the photos give them)
+	const V4 = R.villanova || [];
+	const sgn = ( f, pick ) => f && signer( f, pick, place );
+	sgn( V4[ 3 ], ( N ) => N.first ? SIGN[ 'PHILS IN PHIVE' ] : N.celebrate ? SIGN[ 'PHINALLY! 1980-2008' ] : N.inning >= 7 ? SIGN[ 'IT ENDS TONIGHT' ] : null );
+	sgn( V4[ 2 ], ( N ) => N.celebrate ? SIGN[ 'YO ADRIAN WE DID IT!!' ] : ! N.first && N.inning >= 8 ? SIGN[ 'RAYS RAYS GO AWAY' ] : null );
+	sgn( R.bobby, ( N ) => N.first ? null : N.celebrate ? SIGN[ 'WE ARE WORLD CHAMPIONS!' ] : SIGN[ "28 YEARS... WHAT'S ANOTHER DAY?" ] );
+	sgn( R.matty, ( N ) => ! N.first && N.inning >= 9 && ! N.celebrate ? SIGN[ 'DUE UP: 1 GAME 5 1/2 2 WORLD CHAMPS! 3 BROAD ST. PARADE' ] : null );
+	sgn( R.harold, ( N ) => N.celebrate && N.celT > 8 ? SIGN[ 'PHINALLY! 1980-2008' ] : null );
+	sgn( R.maureen, ( N ) => N.first && N.inning >= 3 && N.inning <= 4 ? SIGN[ 'HI MOM IN BOCA!' ] : null );
+	// and a few of the club's own: the FOX one for the camera, the Phinale, Red October
+	const club = place.fans.list.filter( ( f ) => ! f.name && f.seat.row >= 2 && f.seat.row <= 4 && Math.abs( f.seat.x ) < 4 );
+	const pickClub = ( k ) => club[ Math.floor( k * 7.3 ) % Math.max( 1, club.length ) ];
+	sgn( pickClub( 1 ), ( N ) => ! N.first && N.inning >= 7 && N.inning <= 9 ? SIGN[ 'FOX 9 MORE OUTS' ] : null );
+	sgn( pickClub( 2 ), ( N ) => ! N.first ? SIGN[ 'PHABULOUS PHILLIES PHINALE' ] : null );
+	sgn( pickClub( 3 ), ( N ) => N.first && N.inning >= 4 ? SIGN[ 'PHINALLY' ] : ! N.first ? SIGN[ 'RED OCTOBER' ] : null );
 	return R;
 
 }
@@ -280,15 +297,32 @@ function domSign( N ) {
 	if ( N.first ) {
 
 		if ( N.inning <= 2 ) return SIGN[ "RAIN? WE'RE FROM PHILLY" ];
-		if ( N.inning <= 4 ) return SIGN[ 'ONE MORE WIN' ];
+		if ( N.inning <= 4 ) return SIGN[ 'PHILS IN PHIVE' ];
 		return SIGN[ 'WE BELIEVE' ];
 
 	}
 
 	if ( N.inning <= 6 ) return SIGN[ 'SUSPENDED... NOT DEFEATED' ];
-	if ( N.inning <= 8 ) return SIGN[ 'FINISH IT!' ];
+	if ( N.inning <= 8 ) return SIGN[ 'LIGHTS OUT LIDGE' ];
 	const outs = N.snap?.outs || 0;
 	return [ SIGN[ '3 MORE OUTS' ], SIGN[ '2 MORE OUTS' ], SIGN[ '1 MORE OUT!!' ] ][ Math.min( 2, outs ) ];
+
+}
+
+// A sign held by f: pick( N ) -> a cell or null; up for the camera between pitches when the Phillies are
+// in the field, for the big moments and the last out, else resting on the knees
+export function signer( f, pick, place ) {
+
+	const prev = f.script;
+	f.script = ( q, N, dt ) => {
+
+		prev?.( q, N, dt );
+		const cell = pick( N );
+		const up = cell !== null && ( N.celebrate || N.between || ( N.half === 'top' && N.pitching && N.lt < 2.6 ) || N.mood.stand > 0.5 );
+		q.sign = cell === null ? null : { cell, up };
+		if ( cell !== null ) q.act( up ? 'sign' : 'signLow', 0.3, { key: 'sign', propL: 0, propR: 0 } );
+
+	};
 
 }
 
