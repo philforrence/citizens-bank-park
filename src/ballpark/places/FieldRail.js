@@ -8,6 +8,7 @@ import { OnDeck } from './rail/OnDeck.js';
 import { BallGirls } from './rail/BallGirls.js';
 import { buildTarpTube } from './rail/Tarp.js';
 import { Crew } from './rail/Crew.js';
+import { Police } from './rail/Police.js';
 
 // The rail: field level round home plate and the dugouts, the strip every TV shot sees. The backstop,
 // the camera wells, the front rows and the dugout surrounds, the on-deck circles and foul territory down
@@ -30,7 +31,7 @@ export default class FieldRail {
 		field.group.add( this.group );
 		this.M = railMaterials();
 		this.figs = new RailFigures( this.group );
-		const ctx = { group: this.group, figs: this.figs, field, bowl, M: this.M };
+		const ctx = { group: this.group, figs: this.figs, field, bowl, people, M: this.M };
 		// the backstop's teal cushions, one pad at a time
 		buildCushions( this.group );
 		// home plate, worn, and the dirt that builds on it through each half inning
@@ -45,6 +46,8 @@ export default class FieldRail {
 		buildTarpTube( app?.details?.tarpRoll || this.group, this.group, this.M );
 		// the grounds crew waiting by it in the rain
 		this.crew = new Crew( ctx );
+		// event staff on the track, and the police who line it in the 9th on the 29th
+		this.police = new Police( ctx );
 		this.figs.build();
 		this.state = {};
 
@@ -106,6 +109,7 @@ export default class FieldRail {
 		this.onDeck.update( S, dt, director );
 		this.ballGirls.update( S, dt, director );
 		this.crew.update( S, dt );
+		this.police.update( S, dt, director );
 		this.figs.update();
 
 	}
