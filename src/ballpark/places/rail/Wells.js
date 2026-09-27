@@ -221,9 +221,17 @@ export class Wells {
 		// batter between pitches, the replays after a play)
 		const cut = Math.floor( S.t / 9 );
 		const onAir = S.seg.kind === 'pitch' || S.seg.kind === 'inplay' ? - 1 : Math.floor( rnd( cut ) * ( this.cams.length + 2 ) );
+		// ---- A (Phanatic): when he's out on the field or the Phillies' roof between plays, near enough, the
+		// wells are on him (the photographers shot him all October: Getty's pictures of him are theirs)
+		const ph = S.phan && S.phan.visible && S.phan.onField && ! inPlay ? S.phan : null;
+		const near = ( x, z, r ) => ph && Math.hypot( ph.x - x, ph.z - z ) < r;
+		// ---- end A
 		this.cams.forEach( ( c, i ) => {
 
-			const tgt = inPlay ? ball : [ 0, 1.0, - 0.2 ];
+			let tgt = inPlay ? ball : [ 0, 1.0, - 0.2 ];
+			// ---- A (Phanatic)
+			if ( near( c.x, c.z, 40 ) && ! S.celebrate ) tgt = [ ph.x, ph.y + 1.3, ph.z ];
+			// ---- end A
 			const dx = tgt[ 0 ] - c.x, dz = tgt[ 2 ] - c.z;
 			const yaw = clampTurn( Math.atan2( - dx, - dz ), c.face, 1.3 );
 			c.yaw += wrap( yaw - c.yaw ) * k;
@@ -250,11 +258,15 @@ export class Wells {
 
 			const f = p.f;
 			// what he's on: the ball in play, the pile at the end, else his subject
-			const tgt = S.celebrate ? [ 0, - 18 ] : inPlay ? [ ball[ 0 ], ball[ 2 ] ] : p.subject;
+			let tgt = S.celebrate ? [ 0, - 18 ] : inPlay ? [ ball[ 0 ], ball[ 2 ] ] : p.subject;
+			// ---- A (Phanatic): most of them swing round onto him while he's out near them
+			const onHim = near( p.x, p.z, 45 ) && ! S.celebrate && ( p.phase % 1 ) < 0.75;
+			if ( onHim ) tgt = [ ph.x, ph.z ];
+			// ---- end A
 			const yaw = clampTurn( Math.atan2( - ( tgt[ 0 ] - p.x ), - ( tgt[ 1 ] - p.z ) ), p.face, 1.2 );
 			if ( ! p.changer ) f.yaw += wrap( yaw - f.yaw ) * ( 1 - Math.exp( - dt * 3.5 / p.lag ) );
 			// between batters he sits back and checks the back of the camera (each in his own time)
-			let rest = breakK && ( ( S.lt + p.phase ) % 23 ) < 15 ? 1 : 0;
+			let rest = breakK && ! onHim && ( ( S.lt + p.phase ) % 23 ) < 15 ? 1 : 0;
 			if ( S.celebrate ) rest = 0;
 			if ( p.changer ) {
 

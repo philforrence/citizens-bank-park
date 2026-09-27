@@ -32,6 +32,11 @@ export const ROLE = {
 	helmet: 1, gear: 2, mask: 4, ccap: 8, jacket: 16, bgloves: 32, mittC: 64, mitt1B: 128, flapL: 256, flapR: 512,
 	rake: 1024, hood: 2048, bag: 4096, nocap: 8192, elbowL: 16384, elbowR: 32768, pocket: 65536,
 };
+// ---- A (Phanatic): the Phanatic's knee-length red vinyl rain slicker (the 27th: Getty 83477166, AP "even
+// the Phillie Phanatic wore a rain slicker"); the ball girls' pinstriped shorts (they danced with him)
+ROLE.slicker = 131072;
+ROLE.shorts = 262144;
+// ---- end A
 // what he is (the first of the slot's numbers)
 export const KIND = { away: 0, home: 1, ump: 2, crew: 3, phanatic: 4 };
 // where the dirt is (p.dirt's whole part; the fraction is how much): the knees, the seat and the backs
@@ -281,6 +286,13 @@ function playerMaterial( bones, info, atlas ) {
 			lp3 += v.normal * 0.013;
 		}
 		if ( ( style & 1u ) == 0u && leg > 0.5 ) { lp3 += v.normal * 0.016 * smoothstep( 0.55, 0.84, leg ); }
+		// ---- A (Phanatic): the rain slicker stands off the fur, its skirt flaring out to the knees
+		if ( phan && ( role & ${ R.slicker }u ) != 0u ) {
+			if ( arm > -0.5 && arm < ${ f( U.wrist - 0.03 ) } ) { lp3 += v.normal * 0.028; }
+			if ( arm < -0.5 && leg < -0.5 && lp3.y < ${ f( U.collar ) } ) { lp3 += v.normal * 0.035; }
+			if ( leg > -0.5 && leg < 0.44 ) { lp3 += v.normal * ( 0.035 + 0.09 * smoothstep( 0.0, 0.44, leg ) ); }
+		}
+		// ---- end A
 		// the face: the jaw broader or narrower, a full beard's thickness
 		let eye = ${ v3( F.eyeR ) };
 		if ( arm < -0.5 && leg < -0.5 && lp3.y > ${ f( J.neck[ 1 ] ) } ) {
@@ -675,6 +687,40 @@ function playerMaterial( bones, info, atlas ) {
 	if ( pocketGloves ) { c = pal[ palm ]; rough = 0.55; }
 	// the lettering and logos over the cloth
 	if ( inCell ) { c = mix( c, ink.rgb, ink.a ); }
+	// ---- A (Phanatic): how he really looked in 2008 (the October photos): the fur to just under the
+	// knee, padded red leggings, a white sock bunched at the ankle, and the size-20 high-tops: green uppers
+	// with orange laces and stripes, a red "P" roundel at the ankle, big cream rubber toes and soles.
+	// In the rain on the 27th, the knee-length red vinyl slicker over it all. The ball girls who danced
+	// with him in their pinstriped shorts: bare legs to white ankle socks and white sneakers.
+	if ( phan && leg > 0.46 && part != ${ P.shoes } ) {
+		if ( leg < 0.8 ) { c = vec3f( 0.36, 0.015, 0.022 ) * ( 0.85 + 0.15 * fract( L.y * 70.0 ) ); rough = 0.85; }
+		else { c = vec3f( 0.78, 0.77, 0.74 ) * ( 0.8 + 0.2 * hash31( floor( L * 300.0 ) ) ); rough = 0.95; }
+		clothy = true;
+	}
+	if ( phan && part == ${ P.shoes } ) {
+		let ank = select( ${ v3( J.ankleL ) }, ${ v3( J.ankleR ) }, L.x > 0.0 );
+		let fz = L.z - ank.z;
+		c = vec3f( 0.035, 0.2, 0.04 ); rough = 0.6;
+		if ( L.y < 0.035 || fz < - 0.17 ) { c = vec3f( 0.7, 0.62, 0.46 ); rough = 0.7; }
+		else if ( Nb.y > 0.45 && abs( L.x - ank.x ) < 0.04 && fz < - 0.02 && fract( fz * 45.0 ) < 0.35 ) { c = vec3f( 0.8, 0.3, 0.02 ); }
+		else if ( abs( Nb.x ) > 0.6 && abs( L.y - 0.06 ) < 0.012 ) { c = vec3f( 0.8, 0.3, 0.02 ); }
+		else if ( abs( Nb.x ) > 0.7 && length( vec2f( fz - 0.01, L.y - 0.12 ) ) < 0.035 ) { c = select( vec3f( 0.42, 0.02, 0.03 ), vec3f( 0.8 ), length( vec2f( fz - 0.01, L.y - 0.12 ) ) < 0.018 ); }
+	}
+	if ( phan && ( role & ${ R.slicker }u ) != 0u ) {
+		let coat = ( part == ${ P.jersey } || part == ${ P.hair } || part == ${ P.skin } ) && ( ( arm > -0.5 && arm < ${ f( U.wrist - 0.03 ) } ) || ( arm < -0.5 && leg < -0.5 && L.y < ${ f( U.collar + 0.03 ) } ) || ( leg > -0.5 && leg < 0.44 ) );
+		if ( coat ) {
+			// shiny wet vinyl, the seams down it, the wide collar a shade darker
+			c = vec3f( 0.46, 0.02, 0.025 ); rough = 0.14; clothy = false;
+			if ( arm < -0.5 && leg < -0.5 && L.y > ${ f( U.collar - 0.09 ) } ) { c = c * 0.8; }
+			if ( abs( fract( L.x * 7.0 ) - 0.5 ) < 0.02 ) { c = c * 0.75; }
+		}
+	}
+	if ( ( role & ${ R.shorts }u ) != 0u && leg > 0.2 && part != ${ P.shoes } ) {
+		if ( leg < 0.8 ) { c = skinC; rough = mix( 0.55, 0.3, soak ); s.translucency = skinC * vec3f( 0.16, 0.07, 0.04 ); clothy = false; }
+		else { c = vec3f( 0.8, 0.79, 0.76 ); rough = 0.9; clothy = true; }
+	}
+	if ( ( role & ${ R.shorts }u ) != 0u && part == ${ P.shoes } ) { c = select( vec3f( 0.8, 0.79, 0.77 ), vec3f( 0.5, 0.49, 0.47 ), L.y < 0.014 ); rough = 0.6; }
+	// ---- end A
 
 	// the dirt: the infield's clay ground into the cloth where he's gone down on it, a little dust on
 	// every pant leg's bottom; darker mud once it's wet (the pattern lives on the body, so it moves with
@@ -745,7 +791,8 @@ function drawBack( ctx, i, kind, number, name, back ) {
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
 	ctx.lineJoin = 'round';
-	if ( kind === KIND.phanatic ) {
+	// ---- A (Phanatic): a little Phanatic (the kid in the costume on the 29th) wears a player's name and number
+	if ( kind === KIND.phanatic && back !== 'name' ) {
 
 		// PHANATIC over a star
 		ctx.font = '800 16px "Helvetica Neue", Helvetica, Arial, sans-serif';

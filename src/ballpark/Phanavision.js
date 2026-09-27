@@ -235,6 +235,9 @@ export class Phanavision {
 
 		}
 
+		// ---- A (Phanatic): what he's doing out there (places/Phanatic.js: the caption for the board, or null)
+		m.phan = d.phanatic?.board?.( d.t ) || null;
+		// ---- end A
 		m.show = this._pick( m );
 		return m;
 
@@ -249,6 +252,10 @@ export class Phanavision {
 		if ( k === 'celebrate' ) return { video: [ 'champs', 'pile', 'champs', 'thanks' ][ Math.floor( lt / 9 ) % 4 ], matrix: 'champs', frame: tick( 3 ) };
 		if ( k === 'intro' ) return { video: 'title', matrix: 'logo', frame: 0 };
 		if ( m.susp ) return { video: lt < m.dur * 0.55 ? 'rain' : 'resume', matrix: lt < m.dur * 0.55 ? 'stats' : 'logo', frame: tick( 1 ) % 2 };
+		// ---- A (Phanatic): while he's out on the field or a dugout roof in a break, the board's on him
+		// (after the line score's first six seconds), with what he's up to
+		if ( k === 'switch' && m.phan && lt > 6 && lt < m.dur - 2 ) return { video: 'phanatic', matrix: 'stats', frame: tick( 3 ), caption: m.phan };
+		// ---- end A
 		if ( k === 'switch' ) {
 
 			const c = Math.floor( lt / 6 );
@@ -290,7 +297,7 @@ export class Phanavision {
 		const m = this.moment( d );
 		if ( ! m ) return '';
 		const s = m.show;
-		return [ s.video, s.matrix, s.frame, m.thrown ? Math.round( m.speed || 0 ) : 0 ].join( '|' );
+		return [ s.video, s.matrix, s.frame, m.thrown ? Math.round( m.speed || 0 ) : 0, s.caption || '' ].join( '|' );
 
 	}
 
@@ -671,7 +678,7 @@ function drawVideo( ctx, w, h, S, m, show ) {
 	else if ( v === 'score' ) phillieScore( ctx, w, h, f, m );
 	else if ( v === 'strikeout' ) strikeout( ctx, w, h, f, pit );
 	else if ( v === 'linescore' ) bigLineScore( ctx, w, h, S, m );
-	else if ( v === 'phanatic' ) phanatic( ctx, w, h, f );
+	else if ( v === 'phanatic' ) phanatic( ctx, w, h, f, show.caption );
 	else if ( v === 'fancam' ) fanCam( ctx, w, h, f );
 	else if ( v === 'october' ) redOctober( ctx, w, h );
 	else if ( v === 'rain' ) rainDelay( ctx, w, h, f, S );
@@ -1334,7 +1341,7 @@ function bigLineScore( ctx, w, h, S, m ) {
 }
 
 // the Phanatic dancing on the dugout roof: green fur, the long snout and its curled tongue, the jersey
-function phanatic( ctx, w, h, f ) {
+function phanatic( ctx, w, h, f, caption = null ) {
 
 	const g = ctx.createLinearGradient( 0, 0, 0, h );
 	g.addColorStop( 0, '#1b3f8e' ); g.addColorStop( 1, '#081530' );
@@ -1402,7 +1409,8 @@ function phanatic( ctx, w, h, f ) {
 	ctx.restore();
 	ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 	outlined( ctx, 'PHANATIC', w * 0.74, h * 0.25, `italic 900 110px ${ HEAVY }`, '#7ee25a', '#0a1a06', 12, w * 0.46 );
-	outlined( ctx, k % 2 ? 'DANCE!' : 'GET UP!', w * 0.74, h * 0.46, `italic 900 90px ${ HEAVY }`, '#ffffff', '#101018', 10, w * 0.46 );
+	// ---- A (Phanatic): what he's doing out there right now, when he's out (places/Phanatic.js)
+	outlined( ctx, caption || ( k % 2 ? 'DANCE!' : 'GET UP!' ), w * 0.74, h * 0.46, `italic 900 90px ${ HEAVY }`, '#ffffff', '#101018', 10, w * 0.46 );
 
 }
 
