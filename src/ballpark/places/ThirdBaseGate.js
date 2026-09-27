@@ -8,6 +8,8 @@ import { Folk } from './gate3b/Folk.js';
 import { Arrivals } from './gate3b/Arrivals.js';
 import { buildOpenGate } from './gate3b/Gate.js';
 import { night } from './gate3b/Night.js';
+import { buildStore } from './gate3b/Store.js';
+import { Cast } from './gate3b/Cast.js';
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -38,7 +40,40 @@ export default class ThirdBaseGate {
 		this._trees( app );
 		// the spot where you start: the crowd goes round you, not through you
 		this.obstacles.push( [ - 112, 78, 1.8 ] );
+		// the Majestic Clubhouse Store's corner pavilion (gate3b/Store.js): its block, its bed
+		this.store = buildStore( this.group, colliders, field );
+		this.obstacles.push( [ - 98.1, 21.2, 5.6 ] );
+		const bed = this.store.bed;
+		for ( let t = - 0.5; t <= 0.5; t += 0.25 ) this.obstacles.push( [ bed.cen[ 0 ] + bed.d[ 0 ] * bed.L * t, bed.cen[ 1 ] + bed.d[ 1 ] * bed.L * t, 1.1 ] );
 		this._crowd( app, people );
+		this.cast = new Cast( this.folk, 41 );
+		this._storeCrowd();
+
+	}
+
+	// ---------------------------------------------------------------- the store's crowd
+
+	// "Fans stand outside the team store prior to Game Five" (Getty, 27 Oct 2008): a knot of friends by
+	// the doors, two at the windows picking out a jersey, one coming out with his bag, a wife on the phone
+	// to a husband who's parking the car, fans sitting on the bed's wall; fewer as the game goes on
+	_storeCrowd() {
+
+		const S = this.store, C = this.cast, n = S.nFront, d = S.along, dr = S.doors;
+		const at = ( a, o ) => [ dr[ 0 ] + d[ 0 ] * a + n[ 0 ] * o, dr[ 1 ] + d[ 1 ] * a + n[ 1 ] * o ];
+		const till = ( k ) => ( w ) => w.rate > k;
+		C.group( at( 1.2, 2.6 ), 3, 0.62, { when: till( 0.15 ) } );
+		C.add( { at: at( - 1.6, 0.85 ), face: at( - 1.6, - 1 ), act: 'window', when: till( 0.3 ) } );
+		C.add( { at: at( - 2.2, 0.95 ), face: at( - 2.4, - 1 ), act: 'window', who: { woman: true }, when: till( 0.3 ) } );
+		C.add( { at: at( 0.3, 1.5 ), face: at( 0.2, 6 ), act: 'bag', props: [ 'shopbag' ], when: till( 0.5 ) } );
+		C.add( { at: at( 3.4, 1.2 ), face: at( 5, 4 ), act: 'wait', who: { woman: true }, when: till( 0.08 ) } );
+		// sitting on the bed's wall, facing out to the plaza
+		const b = S.bed;
+		for ( const [ t, act ] of [ [ - 0.3, 'sit' ], [ - 0.18, 'sit' ], [ 0.25, 'sit' ] ] ) {
+
+			const p = [ b.cen[ 0 ] + b.d[ 0 ] * b.L * t + n[ 0 ] * ( b.dep / 2 + 0.05 ), b.cen[ 1 ] + b.d[ 1 ] * b.L * t + n[ 1 ] * ( b.dep / 2 + 0.05 ) ];
+			C.add( { at: p, face: [ p[ 0 ] + n[ 0 ] * 5, p[ 1 ] + n[ 1 ] * 5 ], act, noRainGear: true, when: till( 0.05 ) } );
+
+		}
 
 	}
 
@@ -133,6 +168,7 @@ export default class ThirdBaseGate {
 
 		}
 
+		this.cast?.update( Math.min( dt, 0.1 ), w );
 		this.openGate?.poseTripods();
 		this.folk?.update();
 

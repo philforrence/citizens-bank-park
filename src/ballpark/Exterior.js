@@ -48,11 +48,15 @@ const PLAZA_3B = [
 // The named frontages in the facade's ground storey (Frontages.js): a point on the footprint's edge and
 // the length of the front there
 const FRONTAGES = [
-	// the Majestic Clubhouse Store, two storeys of glass on the plaza's east side ("adjacent to the Third
-	// Base Gate", the 2007 guide; the June 2008 photo from the corner shows its glass)
-	{ at: [ - 71.75, 75 ], len: 23, kind: FRONT.store },
-	// McFadden's Restaurant & Saloon, open onto the plaza on its north side
-	{ at: [ - 119.4, 11.61 ], len: 11.5, kind: FRONT.saloon },
+	// ---- W1 (Third Base Gate): the Majestic Clubhouse Store is the glass corner pavilion just left of the
+	// gate as you face it from the plaza, the gate's fence running on from it; McFadden's is the building
+	// on the right, its name lit yellow (Getty, 25 and 27 Oct 2008: "fans stand outside the team store";
+	// "fans stand outside of Citizens Bank Park in the rain"). Round 1 had them the other way round. The
+	// store's canopy, banners and its curved sign are the gate3b place's.
+	{ at: [ - 95.65, 23.4 ], len: 7.6, kind: FRONT.store },
+	{ at: [ - 101.07, 24.14 ], len: 6.0, kind: FRONT.store },
+	{ at: [ - 71.75, 75 ], len: 23, kind: FRONT.saloon },
+	// ---- end W1
 	// ticket windows (the Commons photo of 29 Mar 2008): on Pattison Avenue between the plaza and home
 	// plate, and by the First Base Gate
 	{ at: [ - 36, 91.54 ], len: 14, kind: FRONT.tickets, first: 1 },
@@ -1015,7 +1019,7 @@ export class Exterior {
 			const Q = ( s, o, y ) => P( s + mid, o, y );
 			if ( f.kind === FRONT.store ) {
 
-				this._channelLetters( Q, 'MAJESTIC CLUBHOUSE STORE', 0.1, STREET + 5.42, [ nx, nz ], tu, { faceC: [ 0.5, 0.02, 0.03 ], glowC: [ 1.0, 0.08, 0.06 ], h: 0.66 } );
+				// (W1: the store's sign is the curved navy band round its corner, the gate3b place's)
 
 			} else if ( f.kind === FRONT.tickets ) {
 
@@ -1026,7 +1030,11 @@ export class Exterior {
 
 			} else if ( f.kind === FRONT.saloon ) {
 
-				this._saloonSign( Q, STREET + 4.5, [ nx, nz ], tu );
+				// ---- W1 (Third Base Gate): McFADDEN'S in channel letters lit yellow over the glass (Getty, 25
+				// Oct 2008), in place of the green crest
+				this._channelLetters( Q, 'McFADDEN’S', 0.1, STREET + 5.45, [ nx, nz ], tu, { faceC: [ 0.62, 0.45, 0.08 ], retC: [ 0.03, 0.025, 0.02 ], glowC: [ 1.0, 0.72, 0.16 ], h: 0.9 } );
+				if ( this.reflect ) this.reflect.push( [ ...Q( 0, 0.3, STREET + 5.9 ), 1.0, 0.75, 0.2, 1.4 ] );
+				// ---- end W1
 
 			}
 
