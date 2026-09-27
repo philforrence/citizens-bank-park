@@ -1019,7 +1019,7 @@ export class ConcoursePeople {
 	_standPoseFor( f ) {
 
 		const r = this.r;
-		const kind = f.p.looks.dry.age === 2 ? 'pockets' : pick( r, { fold: 3, pockets: 3, drink: f.carry !== 'none' && f.carry !== 'tray' ? 4 : 0, cocoa: 2 } );
+		const kind = f.p.looks.dry.age === 2 ? 'pockets' : pick( r, { fold: 3, pockets: 3, drink: f.carry !== 'none' && f.carry !== 'tray' ? 4 : 0, cocoa: 2, phone: 1, talk: 2 } );
 		if ( kind === 'cocoa' ) f.carry = 'cocoa';
 		return { kind: kind === 'cocoa' ? 'drink' : kind, lean: 0, arms: [ GESTURE.warm[ 0 ], GESTURE.carry[ 1 ] ], weight: r() < 0.5 ? 'L' : 'R', stand: true };
 
@@ -1068,6 +1068,21 @@ export class ConcoursePeople {
 			// a sip now and then
 			const sip = Math.max( 0, Math.sin( t * 0.3 + f.order * 40 ) - 0.9 ) / 0.1;
 			if ( sip > 0 ) a.armR = lerpArm( a.armR, GESTURE.sip[ 1 ], sip );
+
+		} else if ( R.kind === 'phone' ) {
+
+			// texting someone who isn't here about it
+			a.armR = GESTURE.text[ 1 ].slice(); a.propR = PROP.phone;
+			a.armL = GESTURE.pockets[ 0 ].slice(); a.propL = PROP.pocket;
+			a.headPitch = 0.4;
+
+		} else if ( R.kind === 'talk' ) {
+
+			// turned to the one beside, talking with the hands
+			a.armL = GESTURE.pockets[ 0 ].slice(); a.propL = PROP.pocket;
+			a.armR = [ 0.5 + 0.2 * Math.sin( t * 2.3 + f.order * 9 ), 0.25, 0.3, 1.2 + 0.3 * Math.sin( t * 3.1 ) ];
+			a.twist = 0.35 * ( f.order < 0.5 ? 1 : - 1 );
+			a.mouth = Math.max( 0, 0.35 * Math.sin( t * 7 + f.order * 9 ) );
 
 		} else if ( R.kind === 'fold' ) {
 
