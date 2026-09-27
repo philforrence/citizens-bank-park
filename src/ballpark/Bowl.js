@@ -140,6 +140,15 @@ export class Bowl {
 			skipRows: ( k ) => dugoutSegs.includes( k ) ? 4 : 0,
 			portals: { every: 3, row: 16, rows: 5, width: 3 },
 		};
+		// ---- B (home): behind home plate, between the dugouts' home ends, the Diamond Club's first four
+		// rows sit low behind the backstop's wall: the front row's seated fans have the padded top of the
+		// wall at their chests, their cups on the ledge behind it (heston's 2008 World Series photo,
+		// flickr 2986440011); the rows climb steeply to meet the fifth, where the rows behind the dugouts
+		// start, at its usual height
+		const [ dugA, dugB ] = dugoutSegs.slice().sort( ( a, b ) => a - b );
+		const CLUB = [ 0.5, 0.78, 1.06, 1.34 ];
+		infield.rowY = ( S, r, y ) => S.k > dugA && S.k < dugB && r < CLUB.length ? CLUB[ r ] : y;
+		// ---- end B
 
 		// behind the left field wall: a flower bed, then the 140s up to the concourse
 		const lf = this._fenceLine( 0, 3 );

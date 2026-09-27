@@ -121,6 +121,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	const group = new Group();
 	group.name = tier.name;
 	const ys = rowHeights( tier );
+	// ---- B (home): a tier may set some sections' rows at their own heights (tier.rowY( S, r, y ))
+	const rowY = ( S, r ) => tier.rowY ? tier.rowY( S, r, ys[ r ] ) : ys[ r ];
+	// ---- end B
 	const secs = tierSections( tier );
 	const D = tier.depth, A = tier.aisle ?? 1.2, W = tier.seat ?? SEAT_W;
 	const S0 = tier.start || 0; // the first row's front edge, this far behind the front line
@@ -163,7 +166,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		for ( let r = first; r < tier.rows; r ++ ) {
 
 			const d0 = S0 + r * D, d1 = S0 + ( r + 1 ) * D;
-			const y = ys[ r ], yPrev = r > first ? ys[ r - 1 ] : ( first ? base : ( tier.frontY ?? base ) );
+			const y = rowY( S, r ), yPrev = r > first ? rowY( S, r - 1 ) : ( first ? base : ( tier.frontY ?? base ) );
 			const [ f0, f1 ] = ends( d0 ), [ b0, b1 ] = ends( d1 );
 			if ( f1 - f0 < 0.05 && b1 - b0 < 0.05 ) continue;
 			// tread
@@ -296,7 +299,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const mid = ( r ) => {
 
 			const d = S0 + ( r + 0.5 ) * D, s = S.len - S.m1 * d;
-			return [ S.a[ 0 ] + S.ux * s + S.nx * d, ys[ r ] + RH, S.a[ 1 ] + S.uz * s + S.nz * d ];
+			return [ S.a[ 0 ] + S.ux * s + S.nx * d, rowY( S, r ) + RH, S.a[ 1 ] + S.uz * s + S.nz * d ];
 
 		};
 		for ( let r0 = first + 1; r0 < tier.rows - 1; r0 += 4 ) {
@@ -306,7 +309,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			for ( const r of [ r0, r1 ] ) {
 
 				const p = mid( r );
-				beam( rq, [ p[ 0 ], ys[ r ], p[ 2 ] ], p, 0.04 );
+				beam( rq, [ p[ 0 ], rowY( S, r ), p[ 2 ] ], p, 0.04 );
 
 			}
 

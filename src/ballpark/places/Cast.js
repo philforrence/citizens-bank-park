@@ -744,6 +744,23 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		if ( top == ${ TOP.security }u || top == ${ TOP.staff }u ) { printC = vec3f( 0.75 ); }
 		if ( top == ${ TOP.champsTee }u ) { printC = select( vec3f( 0.3, 0.02, 0.03 ), vec3f( 0.7 ), dot( topC, vec3f( 0.33 ) ) < 0.2 ); }
 		c = mix( c, printC, printA );
+		// ---- B (home): a ticket lanyard (the Diamond Club's, heston 2986440011): a white strap from the
+		// sides of the neck down to a clear pouch on the chest with the ticket in it (look.z bit 18)
+		if ( ( ( lk.z >> 18u ) & 1u ) == 1u && part == ${ PART.torso }u && L.z < - 0.02 ) {
+			let lx = abs( L.x );
+			let sy = clamp( ( L.y - 1.2 ) / 0.23, 0.0, 1.0 );
+			let strap = abs( lx - mix( 0.014, 0.068, sy ) ) < 0.007 && L.y > 1.19 && L.y < 1.44;
+			let pouch = lx < 0.043 && L.y > 1.06 && L.y < 1.2;
+			if ( strap ) { c = vec3f( 0.7, 0.69, 0.66 ); rough = 0.8; }
+			if ( pouch ) {
+				// the ticket through the plastic: white stock, a red band, a dark barcode
+				c = vec3f( 0.68, 0.67, 0.64 );
+				if ( L.y > 1.165 ) { c = vec3f( 0.42, 0.03, 0.04 ); }
+				if ( L.y < 1.085 && abs( fract( L.x * 160.0 ) - 0.5 ) < 0.2 ) { c = vec3f( 0.05 ); }
+				rough = 0.15;
+			}
+		}
+		// ---- end B
 		// a scarf round the neck
 		if ( scarf > 0u && part == ${ PART.torso }u && L.y > 1.38 ) {
 			c = select( select( vec3f( 0.012 ), vec3f( 0.25 ), scarf == 2u ), select( vec3f( 0.32, 0.02, 0.03 ), vec3f( 0.7 ), fract( ( L.x + L.y ) / 0.05 ) < 0.5 ), scarf == 1u );
@@ -1073,7 +1090,8 @@ export function packLook( o ) {
 	const x = ( o.skin & 7 ) | ( ( o.hair & 7 ) << 3 ) | ( ( o.hairStyle & 3 ) << 6 ) | ( ( o.facial & 7 ) << 8 ) | ( ( o.glasses ? 1 : 0 ) << 11 )
 		| ( ( o.female ? 1 : 0 ) << 12 ) | ( ( o.age & 3 ) << 13 ) | ( ( o.build & 3 ) << 15 );
 	const y = ( o.top & 31 ) | ( ( o.color & 31 ) << 5 ) | ( ( o.sleeves & 31 ) << 10 ) | ( ( o.back & 63 ) << 15 ) | ( ( o.chest & 7 ) << 21 );
-	const z = ( o.pants & 7 ) | ( ( o.shoes & 7 ) << 3 ) | ( ( o.hat & 15 ) << 6 ) | ( ( o.poncho & 7 ) << 10 ) | ( ( o.scarf & 3 ) << 13 ) | ( ( o.gloves ? 1 : 0 ) << 15 );
+	const z = ( o.pants & 7 ) | ( ( o.shoes & 7 ) << 3 ) | ( ( o.hat & 15 ) << 6 ) | ( ( o.poncho & 7 ) << 10 ) | ( ( o.scarf & 3 ) << 13 ) | ( ( o.gloves ? 1 : 0 ) << 15 )
+		| ( ( o.lanyard ? 1 : 0 ) << 18 ); // ---- B (home): the ticket lanyard
 	return [ x, y, z, ( o.seed ?? Math.floor( Math.random() * 65536 ) ) & 65535 ];
 
 }
