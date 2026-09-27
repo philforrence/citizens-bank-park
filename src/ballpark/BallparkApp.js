@@ -400,7 +400,8 @@ export class BallparkApp {
 
 		} else if ( this.camMode === 'high' ) {
 
-			eye = at( 0, 30, 44 );
+			// the high home camera on the press box's roof (Bowl._tvCameras)
+			eye = this.bowl.cameraSpots ? at( ...this.bowl.cameraSpots[ 2 ] ) : at( 0, 30, 44 );
 			target = at( 0, 0, - 38 );
 			fov = 48;
 
@@ -775,6 +776,9 @@ export class BallparkApp {
 		this.bowl.crowd.update( this.director, dt, this._crowdRain || 0 );
 		this.bowl.crowd.lod( this.camera );
 		this.people.update( dt, this.director );
+		// FOX's cameras pan with the play (the one you're looking through isn't drawn)
+		const cf = this.field.toField( this.camera.position.x, this.camera.position.z );
+		this.bowl.updateCameras( this.director ? this.director.ballAt : null, dt, [ cf[ 0 ], this.camera.position.y - this.field.y0, cf[ 1 ] ] );
 
 		this.players.update();
 		if ( this.gameHUD ) this.gameHUD.refresh();
