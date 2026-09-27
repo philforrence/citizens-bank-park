@@ -469,6 +469,10 @@ export class Landmarks {
 	let mortar = clamp( mix( step( 0.88, fract( in.P.y / 0.075 ) ), 0.12, fr ) + mix( step( 0.93, fract( bu ) ), 0.07, max( fb, fr ) ), 0.0, 1.0 );
 	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, max( fr, fb ) );
 	s.albedo = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
+	// after dark the light banks' spill on the fronts that face the field (CR06: the center field backdrop
+	// went black), a little on the rest
+	let toField = max( dot( normalize( in.N ), vec3f( ${ Math.sin( this.field.group.rotation.y ).toFixed( 4 ) }, 0.0, ${ Math.cos( this.field.group.rotation.y ).toFixed( 4 ) } ) ), 0.0 );
+	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * ( 0.05 + 0.3 * toField );
 `,
 		} );
 		const trim = standard( { name: 'alley-trim', color: new Color( 0.55, 0.5, 0.42 ), roughness: 0.7 } );
