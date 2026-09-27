@@ -18,6 +18,7 @@ import { buildTV } from './gate3b/TV.js';
 import { Cars } from './gate3b/Cars.js';
 import { buildTailgates } from './gate3b/Tailgate.js';
 import { buildFurniture } from './gate3b/Furniture.js';
+import { buildDrips } from './gate3b/Drips.js';
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -73,6 +74,13 @@ export default class ThirdBaseGate {
 		// the banners, the marquee, the balloons, the bins, the store's board (gate3b/Furniture.js)
 		this.furniture = buildFurniture( { group: this.group, exterior: app.exterior, colliders, field } );
 		this.obstacles.push( ...this.furniture.obstacles );
+		// the rain off the gate canopy's front edge and the store's (gate3b/Drips.js)
+		const E = this.gate.edge, base = LEVELS.mainConcourse + LIFT;
+		const gp = ( sAlong, o ) => [ E.a[ 0 ] + E.ux * ( E.t + sAlong ) + E.nx * o, E.a[ 1 ] + E.uz * ( E.t + sAlong ) + E.nz * o ];
+		buildDrips( this.group, [
+			[ gp( - 25, 5.02 ), gp( 25, 5.02 ), base + 5.55, base + 0.02 ],
+			...this.store.edges.map( ( [ A, B, yy ] ) => [ A, B, yy, base + 0.02 ] ),
+		] );
 		this.clock = 0;
 
 	}

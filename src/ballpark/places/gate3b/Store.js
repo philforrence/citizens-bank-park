@@ -356,6 +356,8 @@ export function buildStore( group, colliders, field ) {
 	const d = unit( sub( C, B ) );
 	return {
 		doors: add( add( B, mul( d, 3.0 ) ), mul( nBC, 0.8 ) ), nFront: nBC, along: d, bed,
+		// the canopy's front edges, where the rain comes off
+		edges: [ [ Ae, Be, STREET + edgeY - 0.05 ], [ Be, Ce, STREET + edgeY - 0.05 ] ],
 		lights: [ [ ...y3( add( B, mul( add( nAB, nBC ), 1.2 ) ), 5.4 ) ] ],
 	};
 

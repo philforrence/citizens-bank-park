@@ -307,6 +307,30 @@ export class Cars {
 
 		}
 
+		// the lights on the wet road: a streak of each moving car's headlights ahead of it, of its
+		// taillights behind (in the rain and after dark)
+		const gm = new Mesher();
+		gm.face( [ - 0.85, 0.02, - 2.6 ], [ 0.85, 0.02, - 2.6 ], [ 0.6, 0.02, - 12 ], [ - 0.6, 0.02, - 12 ], [ 0, 1, 0 ], [ [ 0, 0 ], [ 1, 0 ], [ 1, 1 ], [ 0, 1 ] ] );
+		gm.face( [ - 0.85, 0.02, 2.6 ], [ 0.85, 0.02, 2.6 ], [ 0.6, 0.02, 8 ], [ - 0.6, 0.02, 8 ], [ 0, 1, 0 ], [ [ 2, 0 ], [ 3, 0 ], [ 3, 1 ], [ 2, 1 ] ] );
+		const glareMat = standard( { name: 'w1-car-glare', transparent: true, depthWrite: false, blending: 'additive', lit: false, side: 'double',
+			surface: /* wgsl */`
+	let rear = in.uv.x > 1.5;
+	let u = fract( in.uv.x );
+	let beams = exp( - pow( ( u - 0.2 ) / 0.1, 2.0 ) ) + exp( - pow( ( u - 0.8 ) / 0.1, 2.0 ) );
+	let along = pow( 1.0 - in.uv.y, 1.6 );
+	let col = select( vec3f( 1.0, 0.9, 0.72 ), vec3f( 1.0, 0.06, 0.03 ), rear );
+	s.albedo = vec3f( 0.0 );
+	s.emissive = col * select( 2.5, 1.2, rear );
+	s.alpha = beams * along * smoothstep( 0.2, 0.7, frame.wet ) * smoothstep( 0.1, 0.7, frame.night ) * 0.5;
+` } );
+		glareMat.underwaterLighting = 'none';
+		this.glare = new InstancedMesh( gm.geometry(), glareMat, fleet.length );
+		this.glare.name = 'w1-car-glare';
+		this.glare.frustumCulled = false;
+		this.glare.userData.dynamic = true;
+		this.glare.layers.set( 2 );
+		this.glare.boundingSphere = new Sphere( new Vector3( - 110, STREET, 90 ), 260 );
+		group.add( this.glare );
 		this.t = 0;
 		this.carry = 0;
 		this.reset( 0.6 );
@@ -462,9 +486,11 @@ export class Cars {
 		for ( const c of this.fleet ) {
 
 			const M = c.mesh;
+			const gi = this.fleet.indexOf( c );
 			if ( ! c.on ) {
 
 				M.mesh.setMatrixAt( c.slot, hide );
+				this.glare.setMatrixAt( gi, hide );
 				continue;
 
 			}
@@ -474,6 +500,7 @@ export class Cars {
 			q.setFromAxisAngle( up, yaw );
 			m.compose( new Vector3( x, STREET + 0.006, z ), q, one );
 			M.mesh.setMatrixAt( c.slot, m );
+			this.glare.setMatrixAt( gi, m );
 			M.info.data.set( [ night, c.braking ? 1 : 0, 0, c.type === 'police' ? 2 : c.type === 'bus' ? 3 : 0 ], c.slot * 4 );
 
 		}
@@ -485,6 +512,8 @@ export class Cars {
 			M.info.buf.write( M.info.data );
 
 		}
+
+		this.glare.instanceMatrix.needsUpdate = true;
 
 	}
 

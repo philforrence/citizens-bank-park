@@ -362,6 +362,29 @@ export class Exterior {
 	let puddle = smoothstep( 0.2, 0.32, pn - ( 1.0 - wet ) * 0.8 ) * wet;
 	c = c * mix( 1.0, 0.6, wet * select( 1.0, 0.6, band ) ) * mix( 1.0, 0.55, puddle );
 	rough = mix( mix( rough, 0.2, wet ), 0.03, puddle );
+	// ---- W1 (Third Base Gate): the rain on the water: rings spreading from each drop on the puddles, a
+	// pinprick splash where one lands (while it's raining, the 27th; on the 29th it's only drying)
+	let raining = smoothstep( 0.35, 0.6, wet ) * ( 1.0 - far );
+	var rip = 0.0; var splash = 0.0;
+	if ( raining > 0.0 ) {
+		for ( var k = 0; k < 2; k ++ ) {
+			let sc = select( 0.37, 0.23, k == 1 );
+			let q = p / sc + vec2f( f32( k ) * 17.3 );
+			let id = floor( q );
+			let hh = fract( sin( vec3f( dot( id, vec2f( 12.9898, 78.233 ) ), dot( id, vec2f( 39.35, 11.13 ) ), dot( id, vec2f( 73.1, 52.7 ) ) ) ) * 43758.5453 );
+			let ctr = hh.xy * 0.5 + 0.25;
+			let ph = fract( frame.time * ( 0.8 + 0.7 * hh.z ) + hh.x * 7.0 );
+			let d = length( fract( q ) - ctr ) * sc;
+			let r = ph * 0.085;
+			rip += sin( ( d - r ) * 170.0 ) * exp( - abs( d - r ) * 70.0 ) * ( 1.0 - ph );
+			splash += ( 1.0 - smoothstep( 0.003, 0.01, d ) ) * step( ph, 0.07 );
+		}
+	}
+	rip *= raining;
+	splash *= raining;
+	c = c + vec3f( 0.05 ) * max( rip, 0.0 ) * puddle + vec3f( 0.2 ) * splash;
+	rough = rough + abs( rip ) * 0.1 * puddle;
+	// ---- end W1
 	var refl = vec3f( 0.0 );
 	let V = normalize( in.P - frame.cameraPos );
 	let R = vec3f( V.x, - V.y, V.z );
@@ -383,7 +406,7 @@ export class Exterior {
 	}
 	s.albedo = c;
 	s.roughness = rough;
-	s.emissive = refl * wet * mix( 0.3, 1.0, puddle ) * smoothstep( 0.1, 0.7, frame.night );
+	s.emissive = refl * wet * mix( 0.3, 1.0, puddle ) * ( 1.0 + 0.9 * rip * puddle ) * smoothstep( 0.1, 0.7, frame.night ); // (W1: the rings break the streaks up)
 `,
 		} );
 		this.pavers.setDefine( 'DRY', 1 ); // its own wetness (above)
