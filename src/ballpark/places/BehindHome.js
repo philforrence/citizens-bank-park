@@ -13,6 +13,9 @@ import { Aisles } from './home/Aisles.js';
 import { HomeSound } from './home/Sound.js';
 import { Fouls } from './home/Fouls.js';
 import { Blankets } from './home/Blankets.js';
+import { Moments } from './home/Moments.js';
+import { Steam } from './Concourse3BSteam.js';
+import { G } from '../../core/Globals.js';
 
 // Behind home plate: the TV's backdrop. The center field camera looks straight at it on every pitch
 // (press C), so this is the most-watched patch of the park: the Diamond Club's front rows and the field
@@ -72,6 +75,10 @@ export default class BehindHome {
 		this.fouls = new Fouls( this );
 		// the blankets on the laps on the 29th
 		this.blankets = new Blankets( this.group, this.fans.list );
+		// the moments the rows share: on TV, the Phanatic, the cameras in the 9th
+		this.moments = new Moments( this );
+		// breath in the cold, a wisp off every hot chocolate (W2's steam, near the camera only)
+		this.steam = new Steam( { parent: this.group, bounds: this.cast.mesh.boundingSphere } );
 		this.state = {};
 		this._mood = { stand: 0.03, cheer: 0, clap: 0.05, jump: 0, towel: 0.03 };
 
@@ -215,6 +222,7 @@ export default class BehindHome {
 		this.material.uniforms.night.value = N.first ? 27 : 29;
 		this.aisles.update( dt, N );
 		this.fouls.update( dt, N, director, camera );
+		this.moments.update( N );
 		this.fans.update( dt, N );
 		holdSigns( this );
 		this.blankets.update( N );
@@ -228,6 +236,7 @@ export default class BehindHome {
 		this.cast.near = 9 / zoom;
 		this.cast.far = 32 / zoom;
 		const cf = camera ? this.field.toField( camera.position.x, camera.position.z ) : null;
+		this.steam.update( dt, G.time.value, { cast: this.cast, cam: cf && zoom > 0.5 ? [ cf[ 0 ], 0, cf[ 1 ] ] : null, cold: N.first ? 0.6 : 1.0, wind: N.first ? [ 0.12, - 0.06 ] : [ 0.22, 0.1 ] } );
 		this.cast.update( cf ? [ cf[ 0 ], 0, cf[ 1 ] ] : null );
 
 	}

@@ -103,6 +103,12 @@ export class Aisles {
 			return w;
 
 		} );
+		// the club's server, Megan Sweeney: a black polo and apron, taking orders at the row ends and
+		// bringing them down on a tray at her shoulder
+		const megan = U( { female: true, skin: 0, hair: 3, hairStyle: 2, glasses: false, build: 0, age: 0, top: TOP.staff, color: COLOR.black, sleeves: COLOR.black, chest: CHEST.staff, hat: HAT.none, pants: 3, shoes: 1, seed: 2103 } );
+		this.server = this.walker( 'Megan Sweeney', { wet: { ...megan, poncho: 1 }, dry: megan }, { aisle: 'A', speed: 1.1 } );
+		this.server.routine = server;
+		this.server.lane = - 0.15;
 
 	}
 
@@ -771,5 +777,94 @@ function* lateRoutine( run, i ) {
 	f.up = 1;
 	if ( i === run.walkers.length - 1 ) run.done = true;
 	else while ( ! run.done ) yield;
+
+}
+
+// the club's server: down to a club row, crouched by the aisle seat taking the order on her pad, up to
+// the club's kitchen, and back down with it on her tray; the aisle seat takes it
+function* server( w ) {
+
+	const A = w.A;
+	const top = A.seats.rowD( 35 ) + 0.6;
+	w.shown = false;
+	yield* wait( w, 10 + 30 * w.seed );
+	for ( let n = 0; ; n ++ ) {
+
+		const N = w.N;
+		if ( N.celebrate || ( ! N.first && N.inning >= 9 ) ) {
+
+			w.shown = false;
+			yield* wait( w, 5 );
+			continue;
+
+		}
+
+		w.aisle = n % 2 ? 'B' : 'A';
+		const r = Math.floor( hash( N.t * 0.13 + n ) * 5 );
+		const chain = A.chain( w.aisle, r );
+		const guest = chain[ 0 ];
+		if ( ! guest || guest.driven ) {
+
+			yield* wait( w, 5 );
+			continue;
+
+		}
+
+		// down with her pad
+		w.gearType = 0;
+		w.shown = true;
+		w.d = top;
+		w.place( top );
+		w.props = [ PROP.scorebook, 0 ];
+		w.g = [ armIK( - 1, [ - 0.1, 1.15, - 0.25 ] ), null ];
+		yield* walkTo( w, A.seats.rowD( r ) + 0.15 );
+		// the order: crouched by him, writing
+		w.face = intoRow( w );
+		w.look = [ guest.p.x, guest.p.y + 1.0, guest.p.z ];
+		w.lean = 0.35;
+		for ( let i = 0; i < 18; i ++ ) {
+
+			w.props = [ PROP.scorebook, PROP.pencil ];
+			w.g = [ armIK( - 1, [ - 0.08, 1.12, - 0.3 ], { lean: 0.35 } ), armIK( 1, [ 0.02 + 0.02 * Math.sin( i * 2.3 ), 1.14, - 0.32 ], { lean: 0.35 } ) ];
+			w.mouth = i % 4 < 2 ? 0.25 : 0;
+			guest.act( undefined, 0.35, { key: 'order', head: [ SIDE[ w.aisle ] * 0.9, 0.1 ], mouth: i % 4 < 2 ? 0 : 0.3 } );
+			yield* wait( w, 0.3 );
+
+		}
+
+		w.lean = 0;
+		w.look = null;
+		w.mouth = 0;
+		w.props = [ 0, 0 ];
+		w.g = null;
+		yield* walkTo( w, top );
+		w.shown = false;
+		yield* wait( w, 40 + 40 * hash( N.t + n ) );
+		// back down with it on the tray at her shoulder
+		w.shown = true;
+		w.d = top;
+		w.place( top );
+		w.gearType = GEAR.serverTray;
+		w.g = [ null, [ 2.3, 0.35, 0.3, 2.2 ] ];
+		yield* walkTo( w, A.seats.rowD( r ) + 0.15 );
+		w.face = intoRow( w );
+		w.lean = 0.25;
+		yield* wait( w, 0.6 );
+		// the beers off the tray to him
+		w.g = [ null, armIK( 1, [ 0.15, 1.15, - 0.55 ], { lean: 0.25 } ) ];
+		w.props = [ 0, PROP.beer ];
+		w.gearType = 0;
+		guest.act( SIDE[ w.aisle ] > 0 ? 'takeR' : 'takeL', 0.8, { key: 'order', head: [ SIDE[ w.aisle ] * 0.8, 0.1 ] } );
+		yield* wait( w, 0.8 );
+		w.props = [ 0, 0 ];
+		guest.bought = { prop: PROP.beer, from: w.N.t, until: w.N.t + 280 };
+		w.g = null;
+		w.lean = 0;
+		yield* wait( w, 0.5 );
+		yield* walkTo( w, top );
+		w.shown = false;
+		yield* wait( w, 20 + 30 * hash( N.t * 3.3 ) );
+
+	}
 
 }
