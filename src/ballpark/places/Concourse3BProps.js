@@ -161,11 +161,13 @@ function drawAtlas() {
 		cartSign( 'nachos', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd23f' ], 'NACHOS', 'NACHOS $4.75  ·  WITH JALAPEÑOS  ·  BOTTLED WATER', sans );
 		cartSign( 'programs', [ '#0b2a5b', '#071a3a' ], [ '#ffffff', '#e8b04a' ], 'PROGRAMS', 'OFFICIAL 2008 WORLD SERIES PROGRAM   $15', sans );
 		cartSign( 'beerCart', [ '#1f3d2a', '#122518' ], [ '#efe2bf', '#c9a45a' ], 'COLD BEER', 'YUENGLING  ·  BUD LIGHT  ·  MILLER LITE   $7.00', serif );
-		// the World Series program's cover: navy, the Fall Classic's gold, the two clubs
+		// the 2008 World Series program's cover (the photos from Game 4 and Game 5): black, Utley (26) on the
+		// left and Longoria on the right, the Fall Classic logo, PHILADELPHIA PHILLIES VS. TAMPA BAY
+		// RAYS, $15 printed on it
 		{
 
 			const [ x, y, w, h ] = rect( 'program' );
-			ctx.fillStyle = '#0b1f45';
+			ctx.fillStyle = '#0b0b0c';
 			ctx.fillRect( x, y, w, h );
 			ctx.fillStyle = '#c9a45a';
 			ctx.fillRect( x + 6, y + 6, w - 12, 3 );
@@ -174,13 +176,20 @@ function drawAtlas() {
 			ctx.font = `800 21px ${ serif }`;
 			ctx.fillText( 'WORLD', x + w / 2, y + 52 );
 			ctx.fillText( 'SERIES', x + w / 2, y + 74 );
-			ctx.fillStyle = '#b3121b';
-			ctx.beginPath(); ctx.arc( x + w * 0.32, y + 118, 18, 0, Math.PI * 2 ); ctx.fill();
-			ctx.fillStyle = '#6fa8dc';
-			ctx.beginPath(); ctx.arc( x + w * 0.68, y + 118, 18, 0, Math.PI * 2 ); ctx.fill();
+			// the two players, in their clubs' whites and navy, the numbers
+			ctx.fillStyle = '#ecebe7';
+			ctx.fillRect( x + w * 0.12, y + 96, w * 0.32, 44 );
+			ctx.fillStyle = '#c8102e'; ctx.font = `800 16px ${ serif }`;
+			ctx.fillText( '26', x + w * 0.28, y + 120 );
+			ctx.fillStyle = '#e7e8ea';
+			ctx.fillRect( x + w * 0.56, y + 96, w * 0.32, 44 );
+			ctx.fillStyle = '#0b2a5b';
+			ctx.fillText( '3', x + w * 0.72, y + 120 );
 			ctx.fillStyle = '#ffffff';
-			ctx.font = `800 11px ${ sans }`;
-			ctx.fillText( 'OFFICIAL PROGRAM  $15', x + w / 2, y + 156, w - 12 );
+			ctx.font = `700 7px ${ sans }`;
+			ctx.fillText( 'PHILLIES VS. RAYS', x + w / 2, y + 148, w - 12 );
+			ctx.font = `800 10px ${ sans }`;
+			ctx.fillText( '$15', x + w - 16, y + 160 );
 
 		}
 
@@ -358,21 +367,28 @@ export class Kit {
 
 // ---------------------------------------------------------------- the things
 
-// A Phillies trash can: a red tapered drum with the script round it, a black domed lid with its swing
-// flap, the liner's edge showing under the lid; a cup left on top now and then
+// A Phillies trash can as the 2008 photos show them (ZoeR, April 2008; the 2009 ones beside the red
+// stanchions): a red square can about 60 cm across and a metre tall, the script on its faces, under a
+// hooded top that's open at the sides for the trash (the liner dark inside); a cup left on top now and
+// then
 export function trashCan( K, P, x, z, r ) {
 
-	K.use( 'canRed' ).cyl( P, x, z, 0.0, 0.86, 0.26, 0.29, 16, { wrap: 'canRed', top: false } );
-	K.use( 'rubber' ).cyl( P, x, z, 0.0, 0.05, 0.265, 0.265, 16, { top: false } );
-	K.use( 'bag' ).cyl( P, x, z, 0.84, 0.9, 0.295, 0.3, 16, { top: false } );
-	K.use( 'lid' ).cyl( P, x, z, 0.89, 1.02, 0.31, 0.22, 16, { topPrint: 'canLid' } );
-	// the swing flap's dark mouth on the side of the dome, toward the walkway
-	K.use( 'bag' ).box( P, x, 0.96, z + 0.24, 0.26, 0.07, 0.04 );
+	const w = 0.58, h = 0.78;
+	// the body, printed on the front and the back, a black kick at the foot
+	K.box( P, x, h / 2, z, w, h, w, 'canRed' );
+	K.use( 'canRed' ).quad( P( x + w / 2, 0, z - w / 2 ), P( x - w / 2, 0, z - w / 2 ), P( x - w / 2, h, z - w / 2 ), P( x + w / 2, h, z - w / 2 ), P.dir( 0, 0, - 1 ) );
+	K.use( 'rubber' ).box( P, x, 0.03, z, w + 0.01, 0.06, w + 0.01 );
+	// the hood: four posts at the corners, a domed cap over the openings, the liner showing
+	K.use( 'canRed' ).box( P, x, h + 0.01, z, w + 0.02, 0.02, w + 0.02 );
+	K.use( 'bag' ).box( P, x, h + 0.1, z, w - 0.08, 0.18, w - 0.08 );
+	for ( const [ cx, cz ] of [ [ - 1, - 1 ], [ 1, - 1 ], [ 1, 1 ], [ - 1, 1 ] ] ) K.use( 'canRed' ).box( P, x + cx * ( w / 2 - 0.035 ), h + 0.11, z + cz * ( w / 2 - 0.035 ), 0.07, 0.2, 0.07 );
+	K.use( 'canRed' ).box( P, x, h + 0.225, z, w + 0.03, 0.03, w + 0.03 );
+	K.use( 'canRed' ).cyl( P, x, z, h + 0.24, h + 0.33, w * 0.62, w * 0.3, 4, { top: true } );
 	if ( r() < 0.45 ) {
 
-		// a cup (or two) left on the lid
-		K.use( 'cup' ).cyl( P, x + 0.06, z - 0.05, 1.02, 1.16, 0.034, 0.045, 8 );
-		if ( r() < 0.4 ) K.use( 'redPlastic' ).cyl( P, x - 0.08, z + 0.03, 1.02, 1.12, 0.03, 0.04, 8 );
+		// a cup (or two) left on the top
+		K.use( 'cup' ).cyl( P, x + 0.06, z - 0.05, h + 0.26, h + 0.4, 0.034, 0.045, 8 );
+		if ( r() < 0.4 ) K.use( 'redPlastic' ).cyl( P, x - 0.1, z + 0.05, h + 0.25, h + 0.35, 0.03, 0.04, 8 );
 
 	}
 

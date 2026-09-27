@@ -68,7 +68,7 @@ export const POSE = 8;
 //      atlas cell, 0 none) | the print on the chest <<21 (CHEST)
 //   z: pants <<0 (0 jeans, 1 dark jeans, 2 khakis, 3 black, 4 grey sweats, 5 navy) | shoes <<3 (0 white
 //      sneakers, 1 black, 2 tan boots, 3 brown, 4 grey) | hat <<6 (HAT) | poncho <<10 (0 none, 1 clear,
-//      2 red, 3 white, 4 yellow) | scarf <<13 (0 none, 1 red and white, 2 grey, 3 black) | gloves <<15
+//      2 red, 3 white, 4 yellow, 5 orange, 6 a grey trash bag) | scarf <<13 (0 none, 1 red and white, 2 grey, 3 black) | gloves <<15
 //      | hat colour <<16
 //   w: a seed (0..65535) for the small things
 export const TOP = {
@@ -838,10 +838,13 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 	if ( part == ${ PART.poncho }u ) {
 		// the poncho: clear plastic over the jacket (glossy, the jacket dulled through it), or red, white
 		// or yellow; wet on the 27th, and creased
-		var pc = select( select( select( mix( topC, vec3f( 0.5 ), 0.35 ), vec3f( 0.36, 0.02, 0.03 ), poncho == 2u ), vec3f( 0.62 ), poncho == 3u ), vec3f( 0.65, 0.5, 0.03 ), poncho == 4u );
-		let crease = 0.9 + 0.1 * sin( atan2( L.x, L.z ) * 11.0 + L.y * 7.0 );
+		var pc = select( select( select( mix( topC, vec3f( 0.45 ), 0.22 ), vec3f( 0.36, 0.02, 0.03 ), poncho == 2u ), vec3f( 0.62 ), poncho == 3u ), vec3f( 0.65, 0.5, 0.03 ), poncho == 4u );
+		if ( poncho == 5u ) { pc = vec3f( 0.62, 0.2, 0.02 ); }
+		if ( poncho == 6u ) { pc = vec3f( 0.06, 0.065, 0.07 ); }
+		let crease = 0.9 + 0.1 * sin( atan2( L.x, L.z ) * 11.0 + L.y * 7.0 ) + select( 0.0, 0.12 * sin( L.y * 31.0 + L.x * 17.0 ), poncho == 6u );
 		c = pc * crease;
-		rough = 0.18;
+		// the clear ones catch the light like wet film: glossier where they face it
+		rough = select( 0.18, 0.1, poncho == 1u );
 	}
 	// what's in their hands
 	if ( part >= 32u ) {

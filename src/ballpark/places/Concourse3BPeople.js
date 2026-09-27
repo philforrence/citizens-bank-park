@@ -175,7 +175,7 @@ export class ConcoursePeople {
 		const seed = Math.floor( r() * 1e9 );
 		const rr = rng( seed );
 		const dry = look || dress( rr, o );
-		const wet = { ...dry, poncho: o.poncho ?? ( look ? 0 : r() < 0.22 ? Number( pick( r, { 1: 60, 2: 25, 3: 10, 4: 5 } ) ) : 0 ) };
+		const wet = { ...dry, poncho: o.poncho ?? ( look ? 0 : r() < 0.26 ? Number( pick( r, { 1: 48, 4: 16, 5: 9, 2: 8, 6: 12, 3: 7 } ) ) : 0 ) };
 		if ( wet.poncho && wet.hat === HAT.none && r() < 0.5 ) wet.hat = HAT.hood; // the poncho's hood up
 		const p = this.cast.add( wet );
 		if ( ! p ) return null;
@@ -392,7 +392,8 @@ export class ConcoursePeople {
 		}
 
 		// what they've already got in hand (the ones coming from a stand elsewhere, the team store)
-		f.carry = stand ? 'none' : pick( r, { none: 6, beer: 3, cocoa: 2, soda: 1, sandwich: 1, program: 1, bag: 0.4 } );
+		// what they've already got in hand; on the 27th Aramark sold 15,000 cups of hot chocolate
+		f.carry = stand ? 'none' : pick( r, { none: 6, beer: 3, cocoa: ns.first ? 4 : 2, soda: 1, sandwich: 1, program: 1, bag: 0.4 } );
 		if ( f.p.looks.dry.age === 2 && r() < 0.3 ) f.carry = 'cottonCandy';
 		f.stand = stand;
 		f.spot = null;
