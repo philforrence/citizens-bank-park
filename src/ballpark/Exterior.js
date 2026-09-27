@@ -1,4 +1,4 @@
-import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, LatheGeometry, Vector2, Vector3, Color } from '../engine/index.js';
+import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, LatheGeometry, Vector2, Vector3, Vector4, Color } from '../engine/index.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { StorageBuffer } from '../engine/gpu/Texture.js';
 import { standard } from '../materials/Materials.js';
@@ -7,6 +7,7 @@ import { flatPolygon, offsetLoop, canvasTexture, segLen, lerp2, beam, box } from
 import { FOOTPRINT, LEVELS } from './layout.js';
 import { STATUES } from './data/surroundings.js';
 import { bakePose, neutralPose, PART } from './game/Rig.js';
+import { frontagesModule, FRONT } from './Frontages.js';
 import * as M from './game/Motions.js';
 
 // Outside the ballpark at street level: the brick facade round the footprint with the gates in it, the
@@ -25,7 +26,7 @@ export const GATES = [
 	{ name: 'FIRST BASE GATE', at: [ 73.5, 25.48 ], width: 30, open: 56, frame: true },
 	{ name: 'LEFT FIELD GATE', at: [ - 103.86, - 135.3 ], width: 28 },
 	// behind home plate, the private entrance to the suites and the clubs (there was no Home Plate Gate)
-	{ name: 'SUITE & CLUB ENTRANCE', at: [ 0, 91.53 ], width: 12, suite: true },
+	{ name: 'SUITE & CLUB ENTRANCE', at: [ 0, 91.53 ], width: 12, suite: true, lintel: 6.2 },
 	{ name: 'RIGHT FIELD GATE', at: [ 112, - 153.03 ], width: 24 },
 ];
 
@@ -44,6 +45,20 @@ const PLAZA_3B = [
 	[ - 133, 11.8 ], [ - 133, 98 ], [ - 71.6, 98 ],
 ];
 
+// The named frontages in the facade's ground storey (Frontages.js): a point on the footprint's edge and
+// the length of the front there
+const FRONTAGES = [
+	// the Majestic Clubhouse Store, two storeys of glass on the plaza's east side ("adjacent to the Third
+	// Base Gate", the 2007 guide; the June 2008 photo from the corner shows its glass)
+	{ at: [ - 71.75, 75 ], len: 23, kind: FRONT.store },
+	// McFadden's Restaurant & Saloon, open onto the plaza on its north side
+	{ at: [ - 119.4, 11.61 ], len: 11.5, kind: FRONT.saloon },
+	// ticket windows (the Commons photo of 29 Mar 2008): on Pattison Avenue between the plaza and home
+	// plate, and by the First Base Gate
+	{ at: [ - 36, 91.54 ], len: 14, kind: FRONT.tickets, first: 1 },
+	{ at: [ 56.8, 42.62 ], len: 11, kind: FRONT.tickets, first: 20 },
+];
+
 export class Exterior {
 
 	constructor( { field, colliders } ) {
@@ -58,6 +73,7 @@ export class Exterior {
 		this._materials();
 		this._buildSidewalks();
 		this._buildFacade();
+		this._frontSigns();
 		for ( const g of [ ...GATES, ...SUITE_ENTRANCES ] ) if ( g.suite ) this._suiteEntrance( g );
 		else this._buildGate( g );
 		this._buildPlaza();
@@ -84,8 +100,11 @@ export class Exterior {
 
 	_materials() {
 
+		this.frontBuffer = new StorageBuffer( { label: 'facadeFronts', count: 16, type: 'vec4f' } );
 		this.brick = standard( {
-			name: 'facade-brick', color: new Color( 0.24, 0.065, 0.038 ), roughness: 0.85, modules: [ commonModule ],
+			name: 'facade-brick', color: new Color( 0.24, 0.065, 0.038 ), roughness: 0.85, modules: [ commonModule, frontagesModule ],
+			uniforms: { frontN: [ 'f32', 0 ] },
+			storage: { facFronts: this.frontBuffer },
 			surface: /* wgsl */`
 	// uv: x along the wall (m), y height above the street (m). The ground storey in rose granite with
 	// store fronts and ticket windows in some of its 7.5 m bays; brick above a precast band.
@@ -118,35 +137,37 @@ export class Exterior {
 		if ( v < 1.3 ) { c = vec3f( 0.025 ); rough = 0.3; }
 		if ( v < 1.1 ) { c = vec3f( 0.21, 0.1, 0.085 ) * ( 0.9 + 0.15 * mx_noise_float2( vec2f( u, v ) * 9.0 ) ); rough = 0.25; }
 	}
-	// what fills each bay: mostly plain granite (now and then a steel service door), dark glass store
-	// fronts on bronze mullions, or ticket windows
-	let kind = fract( sin( bayId * 12.9898 ) * 43758.5453 );
-	let opening = bay > 1.3 && bay < 7.2 && v > 0.9 && v < 4.7 && kind > 0.4;
-	let pier = false;
-	if ( kind < 0.14 && abs( bay - 4.25 ) < 0.9 && v < 2.5 ) {
-		c = vec3f( 0.1, 0.03, 0.03 ) * ( 0.9 + 0.1 * step( 0.5, fract( v / 0.5 ) ) ); rough = 0.5;
-		if ( abs( bay - 4.25 ) > 0.84 || v > 2.44 ) { c = vec3f( 0.05, 0.02, 0.02 ); }
+	// the named frontages (Frontages.js): the ticket windows, the Majestic Clubhouse Store, McFadden's
+	var fk = 0.0; var fx = 0.0; var flen = 0.0; var ffirst = 0.0;
+	for ( var i = 0u; i < u32( mat.frontN ); i ++ ) {
+		let f = facFronts[ i ];
+		if ( u >= f.x && u <= f.y ) { fk = f.z; fx = f.y - u; flen = f.y - f.x; ffirst = f.w; }
 	}
-	if ( opening ) {
-		let ou = bay - 1.3;
-		if ( kind < 0.78 ) {
-			// dark glass on bronze-maroon mullions, 1.5 m grid, lit inside after dark
+	let rd = fzRay( in.P, normalize( in.N ) );
+	// elsewhere, what fills each bay: mostly plain granite, now and then a steel service door or a dark
+	// glass bay onto the back of house
+	let kind = fract( sin( bayId * 12.9898 ) * 43758.5453 );
+	if ( fk > 0.5 ) {
+		var fz = FzOut( c, e, rough, 0.0 );
+		if ( fk < 1.5 ) { fz = fzStore( fx, v, flen, rd, night, false, fz ); }
+		else if ( fk < 2.5 ) { fz = fzSaloon( fx, v, flen, rd, night, fz ); }
+		else { fz = fzTickets( fx, v, flen, ffirst, rd, night, fz ); }
+		c = fz.c; e = fz.e; rough = fz.r;
+	} else {
+		if ( kind < 0.14 && abs( bay - 4.25 ) < 0.9 && v < 2.5 ) {
+			c = vec3f( 0.1, 0.03, 0.03 ) * ( 0.9 + 0.1 * step( 0.5, fract( v / 0.5 ) ) ); rough = 0.5;
+			if ( abs( bay - 4.25 ) > 0.84 || v > 2.44 ) { c = vec3f( 0.05, 0.02, 0.02 ); }
+		}
+		if ( bay > 1.3 && bay < 7.2 && v > 0.9 && v < 4.7 && kind > 0.62 ) {
+			// dark glass on bronze-maroon mullions, 1.5 m grid; a few lights on inside after dark
+			let ou = bay - 1.3;
 			let mu = step( abs( fract( ou / 1.475 ) - 0.5 ), 0.035 ) + step( abs( fract( ( v - 0.9 ) / 1.27 ) - 0.5 ), 0.035 );
 			c = mix( vec3f( 0.035, 0.045, 0.055 ), vec3f( 0.042, 0.016, 0.018 ), clamp( mu, 0.0, 1.0 ) );
 			rough = mix( 0.05, 0.4, clamp( mu, 0.0, 1.0 ) );
-			e = vec3f( 1.0, 0.86, 0.64 ) * ( 1.0 - clamp( mu, 0.0, 1.0 ) ) * night * 0.3;
-		} else {
-			// ticket windows: glazed bays 1.3 m wide over a counter, a white home-plate number over each,
-			// TICKETS across the top
-			let wb = fract( ou / 1.475 ) * 1.475;
-			let glass = wb > 0.12 && wb < 1.35 && v > 1.15 && v < 2.7;
-			c = vec3f( 0.34, 0.33, 0.31 );
-			rough = 0.7;
-			if ( glass ) { c = vec3f( 0.05, 0.07, 0.08 ); rough = 0.08; e = vec3f( 1.0, 0.9, 0.7 ) * night * 0.45; }
-			let pc = vec2f( wb - 0.74, v - 3.05 );
-			let plate = abs( pc.x ) < 0.2 && pc.y < 0.18 && pc.y > - 0.18 + abs( pc.x ) * 0.6;
-			if ( plate ) { c = vec3f( 0.85 ); e = vec3f( 0.6 ) * night * 0.4; }
-			if ( v > 3.6 && v < 4.4 ) { c = vec3f( 0.05, 0.1, 0.25 ); let t = step( 0.5, fract( ou / 0.32 ) ) * step( 3.8, v ) * step( v, 4.2 ); c = mix( c, vec3f( 0.9 ), t * 0.8 ); e = vec3f( 0.9 ) * t * night * 0.6; }
+			let back = fzRoom( vec3f( - ou, v, 0.0 ), rd, - 6.4, 0.5, 0.0, 4.2, 3.0 );
+			let lamp = select( 0.0, 1.0, back.w == 2.0 && abs( fract( back.x / 2.4 ) - 0.5 ) < 0.2 && abs( back.z - 1.5 ) < 0.08 );
+			let room = select( vec3f( 0.25, 0.24, 0.22 ), vec3f( 0.12 ), back.w == 1.0 ) * ( 1.0 - 0.5 * back.z / 3.0 );
+			e = ( room + vec3f( 3.0 ) * lamp ) * vec3f( 1.0, 0.95, 0.85 ) * ( 1.0 - clamp( mu, 0.0, 1.0 ) ) * mix( 0.01, 0.12, night ) * step( 0.8, kind );
 		}
 	}
 	// a precast band over the granite, and the cap
@@ -174,8 +195,25 @@ export class Exterior {
 		} );
 		// the storeys over the base: plain red brick in big planes, tall dark-glass slots every 7.5 m (the
 		// offices behind them lit after dark), a soldier course at each floor
+		// PHILADELPHIA in buff brick across the second storey behind home plate (baseballparks.com, 2004:
+		// "the word PHILADELPHIA is spelled out in contrasting colored bricks across the second story"),
+		// a mask the brick bond samples brick by brick
+		const philaTex = canvasTexture( 2048, 256, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#000';
+			ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#fff';
+			ctx.font = '700 230px "Arial Narrow", "Helvetica Neue", Helvetica, Arial, sans-serif';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillText( 'PHILADELPHIA', w / 2, h / 2 + 10, w - 40 );
+
+		}, 'philadelphia' );
 		this.brickUpper = standard( {
-			name: 'facade-upper', color: new Color( 0.24, 0.065, 0.038 ), roughness: 0.85, modules: [ commonModule ],
+			name: 'facade-upper', color: new Color( 0.24, 0.065, 0.038 ), roughness: 0.85, modules: [ commonModule, frontagesModule ],
+			uniforms: { frontN: [ 'f32', 0 ], phila: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] },
+			storage: { facFronts: this.frontBuffer },
+			textures: { philaTex },
 			surface: /* wgsl */`
 	let u = in.uv.x; let v = in.uv.y - ${ ( STREET + FACADE ).toFixed( 4 ) };
 	let row = floor( v / 0.075 );
@@ -184,13 +222,21 @@ export class Exterior {
 	let fb = clamp( fwidth( bu ) * 1.5 - 0.25, 0.0, 1.0 );
 	let mortar = clamp( mix( step( 0.88, fract( v / 0.075 ) ), 0.12, fr ) + mix( step( 0.93, fract( bu ) ), 0.07, max( fb, fr ) ), 0.0, 1.0 );
 	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, max( fr, fb ) );
-	var c = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
+	// the lettering: each brick takes the mask at its own middle, so the letters' edges follow the bond
+	let ph = mat.phila;
+	let bc = vec2f( ( floor( bu ) + 0.5 - 0.5 * ( row % 2.0 ) ) * 0.2, ( row + 0.5 ) * 0.075 );
+	let pt = vec2f( ( ph.x - bc.x ) / ( ph.x - ph.y + 1e-4 ), 1.0 - ( bc.y - ph.z ) / ( ph.w - ph.z + 1e-4 ) );
+	let inPh = pt.x > 0.0 && pt.x < 1.0 && pt.y > 0.0 && pt.y < 1.0;
+	let letter = textureSampleLevel( philaTex, smpLinearClamp, clamp( pt, vec2f( 0.0 ), vec2f( 1.0 ) ), 0.0 ).r * select( 0.0, 1.0, inPh );
+	let brickC = mix( mat.color, vec3f( 0.46, 0.33, 0.19 ), step( 0.5, letter ) * ( 1.0 - max( fr, fb ) * 0.5 ) );
+	var c = mix( brickC * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
 	var rough = 0.85;
 	let fl = fract( v / 3.6 ) * 3.6;
 	// big blank planes of brick: windows only in tall dark-glass slots, one every 7.5 m, a soldier course
-	// at each floor
+	// at each floor (none through the lettering)
 	let bay = fract( u / 7.5 ) * 7.5 - 3.75;
-	let win = abs( bay ) < 0.45 && v > 0.9;
+	let phBand = u < max( ph.x, ph.y ) + 1.0 && u > min( ph.x, ph.y ) - 1.0 && v < ph.w + 0.6;
+	let win = abs( bay ) < 0.45 && v > 0.9 && ! phBand;
 	let sill = false;
 	if ( fl < 0.12 && ! win ) { c = c * 0.82; }
 	var e = vec3f( 0.0 );
@@ -226,6 +272,16 @@ export class Exterior {
 		// by day the rooms show faintly through the glass; after dark the lit ones glow
 		c = c + inside * ( 1.0 - mull ) * 0.08 * ( 1.0 - night );
 		e = inside * ( 1.0 - mull ) * night * mix( 0.015, 0.45, lit );
+	}
+	// the Majestic Clubhouse Store's upper storey, the Phanatic Attic
+	var fk = 0.0; var fx = 0.0; var flen = 0.0;
+	for ( var i = 0u; i < u32( mat.frontN ); i ++ ) {
+		let f = facFronts[ i ];
+		if ( u >= f.x && u <= f.y ) { fk = f.z; fx = f.y - u; flen = f.y - f.x; }
+	}
+	if ( fk > 0.5 && fk < 1.5 ) {
+		let fz = fzStore( fx, v, flen, fzRay( in.P, normalize( in.N ) ), smoothstep( 0.1, 0.7, frame.night ), true, FzOut( c, e, rough, 0.0 ) );
+		c = fz.c; e = fz.e; rough = fz.r;
 	}
 	s.albedo = c;
 	s.roughness = rough;
@@ -566,6 +622,7 @@ export class Exterior {
 		const T = 0.8;
 		let u = 0;
 		this.gateEdges = [];
+		this.fronts = [];
 		// how tall the brick is: the plain brick masses flanking the Third and First Base Gates' frames,
 		// four storeys by the Home Plate entrance, three round the rest of the infield, the one-storey base
 		// in the outfield
@@ -595,6 +652,21 @@ export class Exterior {
 					const hw = ( g.open || g.width ) / 2;
 					cuts.push( [ Math.max( 0, t - hw ), Math.min( len, t + hw ) ] );
 					g.edge = { a, ux, uz, nx, nz, t, H: heightOf( g.at, g.at ), u: u + t };
+
+				}
+
+			}
+
+			// the named frontages along this edge
+			for ( const f of FRONTAGES ) {
+
+				const tf = ( f.at[ 0 ] - a[ 0 ] ) * ux + ( f.at[ 1 ] - a[ 1 ] ) * uz;
+				const off = Math.abs( ( f.at[ 0 ] - a[ 0 ] ) * nx + ( f.at[ 1 ] - a[ 1 ] ) * nz );
+				if ( tf > 0 && tf < len && off < 1.0 ) {
+
+					const t0 = Math.max( 0, tf - f.len / 2 ), t1 = Math.min( len, tf + f.len / 2 );
+					this.fronts.push( [ u + t0, u + t1, f.kind, f.first || 0 ] );
+					f.edge = { a, ux, uz, nx, nz, t: tf, t0, t1 };
 
 				}
 
@@ -644,6 +716,14 @@ export class Exterior {
 
 		}
 
+		// the frontages into the shaders; PHILADELPHIA 19 m wide over the Suite & Club Entrance (u runs to
+		// the right as you face the wall: its left end is the larger u)
+		const fb = new Float32Array( 16 * 4 );
+		this.fronts.slice( 0, 16 ).forEach( ( r, i ) => fb.set( r, i * 4 ) );
+		this.frontBuffer.write( fb );
+		for ( const m of [ this.brick, this.brickUpper ] ) m.uniforms.frontN.value = Math.min( 16, this.fronts.length );
+		const hp = GATES[ 3 ].edge;
+		if ( hp ) this.brickUpper.uniforms.phila.value.set( hp.u + 9.5, hp.u - 9.5, 0.75, 2.95 );
 		for ( const [ geo, mat, name ] of [ [ q, this.brick, 'facade' ], [ up, this.brickUpper, 'facade-upper' ], [ cap, this.stone, 'facade-coping' ], [ trim, this.coping, 'facade-trim' ] ] ) {
 
 			const m = new Mesh( geo.geometry(), mat );
@@ -918,6 +998,143 @@ export class Exterior {
 
 	}
 
+	// The frontages' signs: MAJESTIC CLUBHOUSE STORE in red channel letters over the store, McFadden's green
+	// crest over the saloon, TICKETS in red channel letters (navy returns, as in the Commons photo) over the
+	// ticket windows with the cream "Phillies TICKET SALES" blade sign at their end
+	_frontSigns() {
+
+		for ( const f of FRONTAGES ) {
+
+			if ( ! f.edge ) continue;
+			const { a, ux, uz, nx, nz, t, t0, t1 } = f.edge;
+			const P = ( s, o, y ) => [ a[ 0 ] + ux * ( t + s ) + nx * o, y, a[ 1 ] + uz * ( t + s ) + nz * o ];
+			const tu = nz * ux - nx * uz;
+			const mid = ( t0 + t1 ) / 2 - t;
+			const Q = ( s, o, y ) => P( s + mid, o, y );
+			if ( f.kind === FRONT.store ) {
+
+				this._channelLetters( Q, 'MAJESTIC CLUBHOUSE STORE', 0.1, STREET + 5.42, [ nx, nz ], tu, { faceC: [ 0.5, 0.02, 0.03 ], glowC: [ 1.0, 0.08, 0.06 ], h: 0.66 } );
+
+			} else if ( f.kind === FRONT.tickets ) {
+
+				this._channelLetters( Q, 'TICKETS', 0.1, STREET + 3.55, [ nx, nz ], tu, { faceC: [ 0.55, 0.02, 0.03 ], glowC: [ 1.0, 0.1, 0.08 ], h: 0.72 } );
+				// the blade sign at the left end (as you face the windows)
+				const sb = ( tu > 0 ? t0 : t1 ) - t + ( tu > 0 ? 0.35 : - 0.35 );
+				this._bladeSign( P, sb, STREET + 4.3, [ nx, nz ] );
+
+			} else if ( f.kind === FRONT.saloon ) {
+
+				this._saloonSign( Q, STREET + 4.5, [ nx, nz ], tu );
+
+			}
+
+		}
+
+	}
+
+	// "Phillies TICKET SALES": cream, a red border, on a steel bracket out from the wall
+	_bladeSign( P, s, y, n ) {
+
+		const tex = canvasTexture( 256, 320, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#efe6d0';
+			ctx.fillRect( 0, 0, w, h );
+			ctx.strokeStyle = '#b3151f';
+			ctx.lineWidth = 12;
+			ctx.strokeRect( 10, 10, w - 20, h - 20 );
+			ctx.lineWidth = 3;
+			ctx.strokeRect( 24, 24, w - 48, h - 48 );
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillStyle = '#b3151f';
+			ctx.font = 'italic 700 68px Georgia, "Times New Roman", serif';
+			ctx.fillText( 'Phillies', w / 2, 100, w - 50 );
+			ctx.fillStyle = '#1c2a4f';
+			ctx.font = '700 44px "Arial Narrow", Helvetica, Arial, sans-serif';
+			ctx.fillText( 'TICKET', w / 2, 190 );
+			ctx.fillText( 'SALES', w / 2, 240 );
+
+		}, 'bladeSign' );
+		const m = standard( { name: 'blade-sign', roughness: 0.5, side: 'double', textures: { bsTex: tex },
+			surface: 'let t = textureSample( bsTex, smpAnisoClamp, in.uv ).rgb; s.albedo = t; s.emissive = t * smoothstep( 0.1, 0.7, frame.night ) * 0.35;' } );
+		m.underwaterLighting = 'none';
+		const q = new Quads(), W = 0.95, H = 1.2, o0 = 0.35;
+		q.tri( P( s, o0, y ), P( s, o0 + W, y ), P( s, o0 + W, y + H ), [ 1, 0, 0 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+		q.tri( P( s, o0, y ), P( s, o0 + W, y + H ), P( s, o0, y + H ), [ 1, 0, 0 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+		this.group.add( new Mesh( q.geometry(), m ) );
+		const b = new Quads();
+		beam( b, P( s, 0, y + H + 0.08 ), P( s, o0 + W + 0.05, y + H + 0.08 ), 0.06 );
+		beam( b, P( s, 0, y + 0.1 ), P( s, o0, y + 0.1 ), 0.05 );
+		const bm = new Mesh( b.geometry(), this.gateSteel || ( this.gateSteel = standard( { name: 'gate-steel', color: new Color( 0.13, 0.035, 0.03 ), roughness: 0.55, metalness: 0.4 } ) ) );
+		bm.castShadow = true;
+		this.group.add( bm );
+
+	}
+
+	// McFadden's: a dark green crest with a cream rule, the name in cream serif capitals over
+	// "Restaurant & Saloon" in script, lit by two gooseneck lamps
+	_saloonSign( P, y, n, tu ) {
+
+		const tex = canvasTexture( 1024, 600, ( ctx, w, h ) => {
+
+			ctx.clearRect( 0, 0, w, h );
+			const shield = ( inset ) => {
+
+				ctx.beginPath();
+				ctx.moveTo( 40 + inset, 30 + inset );
+				ctx.lineTo( w - 40 - inset, 30 + inset );
+				ctx.lineTo( w - 40 - inset, h * 0.62 );
+				ctx.quadraticCurveTo( w - 60 - inset, h * 0.86, w / 2, h - 20 - inset );
+				ctx.quadraticCurveTo( 60 + inset, h * 0.86, 40 + inset, h * 0.62 );
+				ctx.closePath();
+
+			};
+
+			shield( 0 );
+			ctx.fillStyle = '#0d3b24';
+			ctx.fill();
+			ctx.lineWidth = 10;
+			ctx.strokeStyle = '#e8dcb8';
+			shield( 22 );
+			ctx.stroke();
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillStyle = '#efe3bf';
+			ctx.font = '700 150px Georgia, "Times New Roman", serif';
+			ctx.fillText( 'McFADDEN\u2019S', w / 2, 200, w - 140 );
+			ctx.font = 'italic 400 92px "Snell Roundhand", "Apple Chancery", Georgia, serif';
+			ctx.fillText( 'Restaurant & Saloon', w / 2, 350, w - 180 );
+			ctx.fillRect( w * 0.3, 272, w * 0.4, 5 );
+
+		}, 'saloonSign' );
+		const m = standard( { name: 'saloon-sign', roughness: 0.45, alphaTest: 0.5, textures: { ssTex: tex },
+			surface: 'let t = textureSample( ssTex, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb; s.emissive = t.rgb * step( 0.6, t.r ) * smoothstep( 0.1, 0.7, frame.night ) * 0.9;' } );
+		m.underwaterLighting = 'none';
+		const W = 3.4, H = W * 600 / 1024, o = 0.12;
+		const [ sL, sR ] = tu > 0 ? [ - W / 2, W / 2 ] : [ W / 2, - W / 2 ];
+		const q = new Quads();
+		q.tri( P( sL, o, y ), P( sR, o, y ), P( sR, o, y + H ), [ n[ 0 ], 0, n[ 1 ] ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+		q.tri( P( sL, o, y ), P( sR, o, y + H ), P( sL, o, y + H ), [ n[ 0 ], 0, n[ 1 ] ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+		const sm = new Mesh( q.geometry(), m );
+		sm.name = 'mcfaddens-sign';
+		this.group.add( sm );
+		// the goosenecks
+		const b = new Quads();
+		for ( const e of [ - 1, 1 ] ) {
+
+			beam( b, P( e * 1.1, 0, y + H + 0.3 ), P( e * 1.1, 0.7, y + H + 0.45 ), 0.05 );
+			beam( b, P( e * 1.1, 0.7, y + H + 0.45 ), P( e * 1.1, 0.85, y + H + 0.25 ), 0.05 );
+			box( b, P( e * 1.1, 0.88, y + H + 0.2 ), [ 0.28, 0.14, 0.28 ] );
+			if ( this.reflect ) this.reflect.push( [ ...P( e * 1.1, 0.88, y + H + 0.12 ), 1.0, 0.8, 0.5, 1.2 ] );
+
+		}
+
+		const bm = new Mesh( b.geometry(), standard( { name: 'gooseneck', color: new Color( 0.01, 0.04, 0.02 ), roughness: 0.4, metalness: 0.6 } ) );
+		bm.material.underwaterLighting = 'none';
+		this.group.add( bm );
+
+	}
+
 	// A Suite & Club Entrance as in the Commons photo of 29 Mar 2008 (the West one): a glass wall in the
 	// brick, glass doors between rose granite piers, a lit lobby behind (terrazzo, wood panelling, the
 	// elevators), and over the doors a glass canopy on cream steel outriggers carrying the name in channel
@@ -925,8 +1142,10 @@ export class Exterior {
 	_suiteEntrance( g ) {
 
 		if ( ! g.edge ) return;
-		const { a, ux, uz, nx, nz, t, H } = g.edge;
+		const { a, ux, uz, nx, nz, t, H: HB } = g.edge;
 		const W = g.width, y0 = STREET, half = W / 2;
+		// behind home plate the glass is the lobby's height only, the brick (and its lettering) over it
+		const H = g.lintel || HB;
 		// s along the wall, o out from it; u runs along the wall's own tangent (for the lobby's parallax)
 		const P = ( s, o, y ) => [ a[ 0 ] + ux * ( t + s ) + nx * o, y, a[ 1 ] + uz * ( t + s ) + nz * o ];
 		const tu = nz * ux - nx * uz; // +1 if s runs along the tangent cross( up, n ), -1 if against it
@@ -999,6 +1218,28 @@ export class Exterior {
 		const o0 = - 0.35;
 		gq.tri( P( - half, o0, y0 ), P( half, o0, y0 ), P( half, o0, y0 + H ), [ nx, 0, nz ], [ - half * tu, 0 ], [ half * tu, 0 ], [ half * tu, H ] );
 		gq.tri( P( - half, o0, y0 ), P( half, o0, y0 + H ), P( - half, o0, y0 + H ), [ nx, 0, nz ], [ - half * tu, 0 ], [ half * tu, H ], [ - half * tu, H ] );
+		if ( g.lintel ) {
+
+			// the brick over the glass, both faces, continuing the wall's u; its cap
+			const bq = new Quads(), uq = new Quads(), cq = new Quads();
+			const e0 = g.edge.u - half, e1 = g.edge.u + half, T = 0.8;
+			bq.add( P( - half, 0, y0 + H ), P( half, 0, y0 + H ), P( half, 0, y0 + FACADE ), P( - half, 0, y0 + FACADE ), [ nx, 0, nz ], e0, e1 );
+			bq.add( P( half, - T, y0 + H ), P( - half, - T, y0 + H ), P( - half, - T, y0 + FACADE ), P( half, - T, y0 + FACADE ), [ - nx, 0, - nz ], e1, e0 );
+			bq.add( P( - half, 0, y0 + H ), P( half, 0, y0 + H ), P( half, - T, y0 + H ), P( - half, - T, y0 + H ), [ 0, - 1, 0 ] );
+			uq.add( P( - half, 0, y0 + FACADE ), P( half, 0, y0 + FACADE ), P( half, 0, y0 + HB ), P( - half, 0, y0 + HB ), [ nx, 0, nz ], e0, e1 );
+			uq.add( P( half, - T, y0 + FACADE ), P( - half, - T, y0 + FACADE ), P( - half, - T, y0 + HB ), P( half, - T, y0 + HB ), [ - nx, 0, - nz ], e1, e0 );
+			cq.add( P( - half, 0.15, y0 + HB ), P( half, 0.15, y0 + HB ), P( half, - T - 0.15, y0 + HB ), P( - half, - T - 0.15, y0 + HB ), [ 0, 1, 0 ] );
+			for ( const [ qq, mat ] of [ [ bq, this.brick ], [ uq, this.brickUpper ], [ cq, this.stone ] ] ) {
+
+				const m = new Mesh( qq.geometry(), mat );
+				m.castShadow = true;
+				m.receiveShadow = true;
+				this.group.add( m );
+
+			}
+
+		}
+
 		const gm = new Mesh( gq.geometry(), glass );
 		gm.name = 'suite-glass';
 		gm.receiveShadow = true;
@@ -1103,7 +1344,7 @@ export class Exterior {
 	// Channel letters: cream-pink faces (lit after dark) over navy returns, built as the face and a stack
 	// of copies behind it, so seen at an angle the letters have depth. P( s, o, y ) the wall's frame,
 	// centred at s = 0, standing at y, o out from the wall.
-	_channelLetters( P, text, o, y, n, tu ) {
+	_channelLetters( P, text, o, y, n, tu, { faceC = [ 0.86, 0.5, 0.47 ], retC = [ 0.02, 0.035, 0.1 ], glowC = [ 1.0, 0.72, 0.68 ], h = 0.62 } = {} ) {
 
 		const H = 128;
 		const font = '700 104px "Arial Narrow", "Helvetica Neue", Helvetica, Arial, sans-serif';
@@ -1122,12 +1363,13 @@ export class Exterior {
 			ctx.restore();
 
 		}, 'channelLetters' );
+		const v3 = ( c ) => c.map( ( x ) => x.toFixed( 3 ) ).join( ', ' );
 		const face = standard( { name: 'letters-face', roughness: 0.4, alphaTest: 0.5, side: 'double', textures: { chTex: tex },
-			surface: 'let t = textureSample( chTex, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = vec3f( 0.86, 0.5, 0.47 ); s.emissive = vec3f( 1.0, 0.72, 0.68 ) * smoothstep( 0.1, 0.7, frame.night ) * 1.2;' } );
-		const ret = standard( { name: 'letters-return', roughness: 0.5, alphaTest: 0.5, side: 'double', textures: { chTex: tex },
-			surface: 'let t = textureSample( chTex, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = vec3f( 0.02, 0.035, 0.1 );' } );
-		for ( const m of [ face, ret ] ) m.underwaterLighting = 'none';
-		const lh = 0.62, lw = lh * tex.width / H;
+			surface: `let t = textureSample( chTex, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = vec3f( ${ v3( faceC ) } ); s.emissive = vec3f( ${ v3( glowC ) } ) * smoothstep( 0.1, 0.7, frame.night ) * 1.2;` } );
+		const back = standard( { name: 'letters-return', roughness: 0.5, alphaTest: 0.5, side: 'double', textures: { chTex: tex },
+			surface: `let t = textureSample( chTex, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = vec3f( ${ v3( retC ) } );` } );
+		for ( const m of [ face, back ] ) m.underwaterLighting = 'none';
+		const lh = h, lw = lh * tex.width / H;
 		const [ sL, sR ] = tu > 0 ? [ - lw / 2, lw / 2 ] : [ lw / 2, - lw / 2 ];
 		const fq = new Quads(), rq = new Quads();
 		const card = ( q, d ) => {
@@ -1139,7 +1381,7 @@ export class Exterior {
 
 		card( fq, 0 );
 		for ( let d = 0.02; d <= 0.13; d += 0.022 ) card( rq, - d );
-		const fm = new Mesh( fq.geometry(), face ), rm = new Mesh( rq.geometry(), ret );
+		const fm = new Mesh( fq.geometry(), face ), rm = new Mesh( rq.geometry(), back );
 		fm.name = 'channel-letters';
 		rm.castShadow = true;
 		this.group.add( fm, rm );
