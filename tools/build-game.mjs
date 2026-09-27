@@ -18,6 +18,9 @@ const BASE = { '1B': 1, '2B': 2, '3B': 3, score: 4 };
 const r3 = ( x ) => x == null ? null : Math.round( x * 1000 ) / 1000;
 
 // ---- players
+// the feed gives a few players a later season's number: what they wore that year (Baseball-Reference's
+// uniform numbers, Baseball Almanac)
+const NUMBER = { 243847: { 471107: '43' } }[ pk ] || {}; // Elliot Johnson wore 43 for the 2008 Rays (9 later)
 const players = {};
 for ( const side of [ 'away', 'home' ] ) {
 
@@ -27,7 +30,7 @@ for ( const side of [ 'away', 'home' ] ) {
 		const b = t.players[ k ], p = gd.players[ k ] || {};
 		players[ b.person.id ] = {
 			name: b.person.fullName, last: p.lastName || b.person.fullName.split( ' ' ).pop(),
-			num: b.jerseyNumber || p.primaryNumber || '', side,
+			num: NUMBER[ b.person.id ] || b.jerseyNumber || p.primaryNumber || '', side,
 			bats: p.batSide?.code || 'R', throws: p.pitchHand?.code || 'R', pos: p.primaryPosition?.abbreviation || '',
 		};
 

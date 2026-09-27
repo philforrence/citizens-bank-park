@@ -148,19 +148,22 @@ class Lamps {
 
 // ---------------------------------------------------------------- the players
 
-// 2008 regular seasons (AVG, HR, RBI; pitchers W-L, ERA) for the at-bat panel and the cards
+// 2008 regular seasons (AVG, HR, RBI; pitchers W-L, ERA) for the at-bat panel and the cards; for the
+// players traded that summer (Gross, Eyre, Blanton, Bradford) the whole season, both teams (Baseball-
+// Reference, checked against StatMuse)
 const SEASON = {
 	Rollins: [ '.277', 11, 59 ], Werth: [ '.273', 24, 67 ], Utley: [ '.292', 33, 104 ], Howard: [ '.251', 48, 146 ],
 	Burrell: [ '.250', 33, 86 ], Victorino: [ '.293', 14, 58 ], Feliz: [ '.249', 14, 58 ], Ruiz: [ '.219', 4, 31 ],
 	Jenkins: [ '.246', 9, 29 ], Dobbs: [ '.301', 9, 40 ], Stairs: [ '.250', 13, 49 ], Bruntlett: [ '.217', 2, 15 ], Coste: [ '.263', 9, 36 ],
 	Iwamura: [ '.274', 6, 48 ], Upton: [ '.273', 9, 67 ], Pena: [ '.247', 31, 102 ], Longoria: [ '.272', 27, 85 ], Crawford: [ '.273', 8, 57 ],
 	Navarro: [ '.295', 7, 54 ], Baldelli: [ '.263', 4, 13 ], Bartlett: [ '.286', 1, 37 ], Aybar: [ '.253', 10, 33 ], Hinske: [ '.247', 20, 60 ],
-	Zobrist: [ '.253', 12, 30 ],
+	Zobrist: [ '.253', 12, 30 ], Gross: [ '.238', 13, 40 ], Perez: [ '.250', 3, 8 ], Johnson: [ '.158', 0, 0 ],
 };
 const PITCHING = {
 	Hamels: [ '14-10', '3.09' ], Madson: [ '4-2', '3.05' ], Romero: [ '4-4', '2.75' ], Lidge: [ '2-0', '1.95', 41 ], Durbin: [ '5-4', '2.87' ],
 	Myers: [ '10-13', '4.55' ], Moyer: [ '16-7', '3.71' ], Kazmir: [ '12-8', '3.49' ], Balfour: [ '6-2', '1.54' ], Howell: [ '6-1', '2.22' ],
 	Wheeler: [ '5-6', '3.12', 13 ], Price: [ '1-0', '1.93' ], Garza: [ '11-9', '3.70' ], Shields: [ '14-8', '3.56' ], Sonnanstine: [ '13-9', '4.38' ],
+	Eyre: [ '5-0', '4.21' ], Condrey: [ '3-4', '3.26', 1 ], Blanton: [ '9-12', '4.69' ], Bradford: [ '4-3', '2.12' ],
 };
 // what the portraits need: skin (0 fair .. 3 dark) and the face's hair
 const LOOKS = {
