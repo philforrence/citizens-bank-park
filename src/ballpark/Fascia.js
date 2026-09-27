@@ -200,26 +200,49 @@ export class Fascia {
 		if ( ! t ) return;
 		const segs = facing( t.front, t.outward );
 		const total = segs.reduce( ( a, S ) => a + S.len, 0 );
+		// plain grey precast (a joint every 3 m) carrying two separate backlit boxes: GEICO in three cells
+		// (white | blue | white), and the blue Jefferson box toward center field; the alpha marks the boxes
 		const tex = canvasTexture( 2048, 128, ( ctx, w, h ) => {
 
-			ctx.fillStyle = '#f2f1ec'; ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#c4c2bb'; ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = 'rgba( 0, 0, 0, 0.12 )';
+			for ( let x = 0; x < w; x += w / ( ( total || 60 ) / 3 ) ) ctx.fillRect( x, 0, 2, h );
 			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			const g0 = w * 0.3, g1 = w * 0.48, cw = ( g1 - g0 ) / 3;
+			ctx.fillStyle = '#10254f'; ctx.fillRect( g0 - 6, 14, g1 - g0 + 12, h - 28 );
 			for ( let k = 0; k < 3; k ++ ) {
 
-				ctx.fillStyle = '#1a3e8c';
-				ctx.font = '900 88px "Helvetica Neue", Arial, sans-serif';
-				ctx.fillText( 'GEICO', w * ( 0.1 + k * 0.17 ), h / 2 + 4 );
+				ctx.fillStyle = k === 1 ? '#1f4fa0' : '#ffffff';
+				ctx.fillRect( g0 + k * cw + 2, 20, cw - 4, h - 40 );
+				ctx.fillStyle = k === 1 ? '#ffffff' : '#1f4fa0';
+				ctx.save(); ctx.translate( g0 + ( k + 0.5 ) * cw, h / 2 + 3 ); ctx.scale( 1.25, 1 );
+				ctx.font = '900 56px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+				ctx.fillText( 'GEICO', 0, 0, cw / 1.3 );
+				ctx.restore();
 
 			}
 
-			ctx.fillStyle = '#0d3b6e'; ctx.fillRect( w * 0.62, 10, w * 0.37, h - 20 );
+			ctx.fillStyle = '#2a55c0'; ctx.fillRect( w * 0.64, 8, w * 0.34, h - 16 );
 			ctx.fillStyle = '#ffffff';
-			ctx.font = '700 44px Georgia, serif';
-			ctx.fillText( 'Jefferson University Hospitals', w * 0.805, h / 2 + 3, w * 0.35 );
+			ctx.textAlign = 'right';
+			ctx.font = '700 60px "Helvetica Neue", Helvetica, Arial, sans-serif';
+			ctx.fillText( 'Jefferson', w * 0.79, h / 2 + 4 );
+			ctx.textAlign = 'left';
+			ctx.font = '400 44px "Helvetica Neue", Helvetica, Arial, sans-serif';
+			ctx.fillText( 'University Hospitals', w * 0.8, h / 2 + 6, w * 0.17 );
+			// the mask: opaque inside the boxes, faint on the concrete
+			const img = ctx.getImageData( 0, 0, w, h ), d = img.data;
+			for ( let y = 0; y < h; y ++ ) for ( let x = 0; x < w; x ++ ) {
 
+				const inBox = ( x >= g0 - 6 && x <= g1 + 6 && y >= 14 && y < h - 14 ) || ( x >= w * 0.64 && x <= w * 0.98 && y >= 8 && y < h - 8 );
+				d[ ( y * w + x ) * 4 + 3 ] = inBox ? 255 : 0;
+
+			}
+
+			ctx.putImageData( img, 0, 0 );
 		}, 'lfDeckAds' );
 		const mat = standard( { name: 'lf-deck-ads', roughness: 0.5, textures: { bpLf: tex },
-			surface: 'let t = textureSample( bpLf, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.6; s.emissive = t * mix( 0.1, 0.4, frame.night );' } );
+			surface: 'let t = textureSample( bpLf, smpAnisoClamp, in.uv ); let c = select( vec3f( 0.55, 0.54, 0.5 ), t.rgb, t.a > 0.5 ); s.albedo = c * 0.8; s.emissive = t.rgb * t.a * mix( 0.1, 1.2, frame.night );' } );
 		mat.underwaterLighting = 'none';
 		const q = new Quads();
 		const y0 = t.base + 0.25;

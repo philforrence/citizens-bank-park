@@ -1,4 +1,4 @@
-import { Group, Mesh, CylinderGeometry, BoxGeometry, BufferGeometry, Float32BufferAttribute, Color } from '../engine/index.js';
+import { Group, Mesh, InstancedMesh, CylinderGeometry, BoxGeometry, SphereGeometry, BufferGeometry, Float32BufferAttribute, Color, Matrix4, Quaternion, Vector3 } from '../engine/index.js';
 import { moundHeight } from './Field.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
@@ -356,8 +356,23 @@ export class Details2008 {
 
 		};
 
+		// 7.3 m panels printed on the pads with pad showing between them (hesb/2986448333.jpg): W.B. Mason,
+		// the World Series on FOX, Bud Light's DRINKABILITY, the Winter Classic, the 374 marker, Southwest
 		const ads = [
-			[ 0.05, 0.27, panel( ( ctx, w, h ) => {
+			[ 0.07, 0.203, panel( ( ctx, w, h ) => {
+
+				ctx.fillStyle = '#f4de3a'; ctx.fillRect( 0, 0, w, h );
+				ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+				ctx.fillStyle = '#d8262e'; ctx.font = '800 44px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'WHO BUT', w * 0.07, h * 0.2 );
+				ctx.textAlign = 'center';
+				ctx.lineJoin = 'round'; ctx.lineWidth = 10; ctx.strokeStyle = '#ffffff';
+				ctx.font = '900 150px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+				ctx.strokeText( 'W.B.MASON', w / 2, h * 0.52, w - 60 );
+				ctx.fillStyle = '#d8262e'; ctx.fillText( 'W.B.MASON', w / 2, h * 0.52, w - 60 );
+				ctx.fillStyle = '#111111'; ctx.textAlign = 'right'; ctx.font = 'italic 600 52px Georgia, serif'; ctx.fillText( 'Office Products', w * 0.93, h * 0.84 );
+
+			}, 'adMason' ) ],
+			[ 0.265, 0.398, panel( ( ctx, w, h ) => {
 
 				ctx.fillStyle = '#1b2a5c'; ctx.fillRect( 0, 0, w, h );
 				ctx.save(); ctx.translate( w * 0.06, h * 0.08 ); drawWorldSeriesLogo( ctx, w * 0.55, h * 0.84 ); ctx.restore();
@@ -366,21 +381,24 @@ export class Details2008 {
 				ctx.font = 'italic 900 150px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'FOX', w * 0.86, h * 0.52 );
 
 			}, 'adWS' ) ],
-			[ 0.31, 0.53, panel( ( ctx, w, h ) => {
+			[ 0.46, 0.593, panel( ( ctx, w, h ) => {
 
-				const g = ctx.createLinearGradient( 0, 0, w, 0 );
-				g.addColorStop( 0, '#1f5faf' ); g.addColorStop( 1, '#0b3a80' );
+				const g = ctx.createLinearGradient( 0, 0, 0, h );
+				g.addColorStop( 0, '#6fa8dc' ); g.addColorStop( 1, '#1f5faf' );
 				ctx.fillStyle = g; ctx.fillRect( 0, 0, w, h );
-				// the photo inset: a cold can on ice
-				ctx.fillStyle = '#9fc4e8'; ctx.fillRect( w * 0.72, h * 0.08, w * 0.24, h * 0.84 );
-				ctx.fillStyle = '#e8eef5'; ctx.fillRect( w * 0.79, h * 0.2, w * 0.1, h * 0.62 );
-				ctx.fillStyle = '#1f5faf'; ctx.fillRect( w * 0.79, h * 0.42, w * 0.1, h * 0.12 );
-				ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-				ctx.font = 'italic 800 130px Georgia, serif'; ctx.fillText( 'Bud Light', w * 0.36, h * 0.4, w * 0.62 );
-				ctx.font = '800 44px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'DRINKABILITY', w * 0.36, h * 0.78 );
+				ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+				ctx.lineJoin = 'round'; ctx.lineWidth = 12; ctx.strokeStyle = '#0b2f6b';
+				ctx.font = '900 128px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+				ctx.strokeText( 'DRINKAB LITY', w * 0.5, h * 0.48, w - 60 );
+				ctx.fillStyle = '#ffffff'; ctx.fillText( 'DRINKAB LITY', w * 0.5, h * 0.48, w - 60 );
+				// a Bud Light can stands in for the I
+				const cx = w * 0.655, cw = 46;
+				ctx.fillStyle = '#e8eef5'; ctx.fillRect( cx - cw / 2, h * 0.24, cw, h * 0.5 );
+				ctx.fillStyle = '#1f5faf'; ctx.fillRect( cx - cw / 2, h * 0.42, cw, h * 0.12 );
+				ctx.fillStyle = '#ffffff'; ctx.font = 'italic 800 46px Georgia, serif'; ctx.fillText( 'Bud Light', w * 0.5, h * 0.86 );
 
 			}, 'adBud' ) ],
-			[ 0.57, 0.79, panel( ( ctx, w, h ) => {
+			[ 0.655, 0.788, panel( ( ctx, w, h ) => {
 
 				const g = ctx.createLinearGradient( 0, 0, 0, h );
 				g.addColorStop( 0, '#3a2e6e' ); g.addColorStop( 1, '#1b1846' );
@@ -396,18 +414,20 @@ export class Details2008 {
 				ctx.fillText( '2009', w * 0.64, h * 0.72 );
 
 			}, 'adWinter' ) ],
-			[ 0.885, 0.985, panel( ( ctx, w, h ) => {
+			[ 0.866, 0.99, panel( ( ctx, w, h ) => {
 
+				// the white box framed by the livery's stripes: red left and bottom, gold top, blue right
 				ctx.fillStyle = '#ffffff'; ctx.fillRect( 0, 0, w, h );
-				ctx.fillStyle = '#304cb2'; ctx.fillRect( 0, h * 0.84, w, h * 0.16 );
-				ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-				ctx.fillStyle = '#c8102e'; ctx.font = 'italic 900 150px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'SOUTHWEST', w / 2, h * 0.36, w - 40 );
-				ctx.fillStyle = '#304cb2'; ctx.font = '800 90px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'AIRLINES', w / 2, h * 0.66 );
+				ctx.fillStyle = '#f9b612'; ctx.fillRect( 0, 0, w, h * 0.09 );
+				ctx.fillStyle = '#d5152e'; ctx.fillRect( 0, 0, w * 0.05, h ); ctx.fillRect( 0, h * 0.91, w, h * 0.09 );
+				ctx.fillStyle = '#304cb2'; ctx.fillRect( w * 0.95, 0, w * 0.05, h );
+				ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#111b4a';
+				ctx.font = '900 132px "Arial Narrow", "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'SOUTHWEST', w / 2, h * 0.38, w - 110 );
+				ctx.font = '900 96px "Arial Narrow", "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'AIRLINES', w / 2, h * 0.7, w - 200 );
 
 			}, 'adSouthwest' ) ],
 		];
-		const H = 10.5 * FT - 0.3;
-		for ( const [ t0, t1, mat ] of ads ) this._fencePanel( along( t0 ), along( t1 ), 0.35, H, mat );
+		for ( const [ t0, t1, mat ] of ads ) this._fencePanel( along( t0 ), along( t1 ), 0.12, 3.0, mat );
 
 		// Toyota down both lines on the padded wall in foul territory, beyond the dugouts
 		const toyota = adMaterial( 'TOYOTA', 'Moving Forward', '#d4141f', '#ffffff' );
@@ -485,9 +505,9 @@ export class Details2008 {
 
 	}
 
-	// flower boxes along the top of the left field wall (gold mums in October)
-	// Over the left field wall, in front of the first row of seats: a galvanized guard rail, square
-	// posts every 2 m, a top pipe and a mid rail, chain-link in the panels (2008; no flower boxes here)
+	// Over the left field wall: a planted trough right behind the cap (October's mums, pansies and a few
+	// clumps of ornamental grass), then on the seat side a galvanized guard rail, square posts every 2 m,
+	// a top pipe and a mid rail, see-through mesh in the panels
 	_planters() {
 
 		const steel = standard( { name: 'lf-guard-rail', color: new Color( 0.52, 0.54, 0.55 ), roughness: 0.45, metalness: 0.8 } );
@@ -498,12 +518,15 @@ export class Details2008 {
 	let g = abs( fract( p ) - 0.5 );
 	let fw = fwidth( p.x );
 	let wire = step( 0.42 - fw, max( g.x, g.y ) );
-	s.alpha = max( wire * step( fw, 0.9 ), clamp( fw * 0.35, 0.0, 0.3 ) );
+	s.alpha = max( wire * step( fw, 0.9 ), clamp( fw * 0.35, 0.0, 0.15 ) );
 ` } );
-		for ( const m of [ steel, mesh ] ) m.underwaterLighting = 'none';
+		const soil = standard( { name: 'lf-trough-soil', color: new Color( 0.07, 0.045, 0.03 ), roughness: 0.95 } );
+		const curb = standard( { name: 'lf-trough-curb', color: new Color( 0.3, 0.29, 0.27 ), roughness: 0.8 } );
+		for ( const m of [ steel, mesh, soil, curb ] ) m.underwaterLighting = 'none';
+		const flowers = [];
 		const at = ( i ) => fencePoint( OUTFIELD[ i ][ 0 ], OUTFIELD[ i ][ 1 ] );
 		const pts = [ at( 0 ), at( 1 ), at( 3 ) ];
-		const q = new Quads(), c = new Quads();
+		const q = new Quads(), c = new Quads(), tq = new Quads(), cq = new Quads();
 		const y0 = 10.5 * FT, H = 1.05;
 		let u = 0;
 		for ( let i = 0; i < pts.length - 1; i ++ ) {
@@ -518,8 +541,14 @@ export class Details2008 {
 
 			}
 
-			// just behind the wall's cap
-			const o = 0.55;
+			// the trough: soil a hand below the cap from 0.3 to 1.6 m back, a curb on its seat side
+			const T = ( t, oo, y ) => [ a[ 0 ] + ux * t + nx * oo, y, a[ 1 ] + uz * t + nz * oo ];
+			tq.add( T( 0, 0.3, y0 - 0.2 ), T( len, 0.3, y0 - 0.2 ), T( len, 1.6, y0 - 0.2 ), T( 0, 1.6, y0 - 0.2 ), [ 0, 1, 0 ] );
+			cq.add( T( 0, 1.6, y0 - 0.6 ), T( len, 1.6, y0 - 0.6 ), T( len, 1.6, y0 ), T( 0, 1.6, y0 ), [ nx, 0, nz ] );
+			cq.add( T( 0, 1.6, y0 ), T( len, 1.6, y0 ), T( len, 1.72, y0 ), T( 0, 1.72, y0 ), [ 0, 1, 0 ] );
+			for ( let t = 0.15; t < len; t += 0.36 ) for ( let r = 0; r < 3; r ++ ) flowers.push( T( t + ( ( r * 7 + t * 13 ) % 1 ) * 0.2, 0.5 + r * 0.38, y0 - 0.2 ) );
+			// the rail on the seat side of it
+			const o = 1.75;
 			const P = ( t, y ) => [ a[ 0 ] + ux * t + nx * o, y, a[ 1 ] + uz * t + nz * o ];
 			beam( q, P( 0, y0 + H ), P( len, y0 + H ), 0.05 );
 			beam( q, P( 0, y0 + H * 0.5 ), P( len, y0 + H * 0.5 ), 0.035 );
@@ -531,7 +560,26 @@ export class Details2008 {
 
 		}
 
-		for ( const [ g, m, name ] of [ [ q, steel, 'lf-guard-rail' ], [ c, mesh, 'lf-chain-link' ] ] ) {
+		// the flowers: low mounds in purple, white, burgundy and gold, a few grass clumps taller
+		const bloom = standard( { name: 'lf-flowers', roughness: 0.8, modules: [ commonModule ],
+			surface: /* wgsl */`
+	let h = fract( sin( dot( floor( in.P.xz * 2.7 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	var c = vec3f( 0.1, 0.03, 0.16 );
+	if ( h > 0.3 ) { c = vec3f( 0.8, 0.78, 0.82 ); }
+	if ( h > 0.5 ) { c = vec3f( 0.28, 0.02, 0.06 ); }
+	if ( h > 0.7 ) { c = vec3f( 0.78, 0.5, 0.03 ); }
+	if ( h > 0.88 ) { c = vec3f( 0.12, 0.2, 0.06 ); }
+	let petal = 0.8 + 0.3 * mx_noise_float3( in.P * 40.0 );
+	s.albedo = mix( vec3f( 0.03, 0.08, 0.02 ), c * petal, smoothstep( 0.02, 0.08, in.P.y - ${ ( 10.5 * FT - 0.2 ).toFixed( 3 ) } ) );
+` } );
+		bloom.underwaterLighting = 'none';
+		const fm = new InstancedMesh( new SphereGeometry( 0.2, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2 ), bloom, flowers.length );
+		const mtx = new Matrix4();
+		flowers.forEach( ( [ x, y, z ], i ) => fm.setMatrixAt( i, mtx.compose( new Vector3( x, y, z ), new Quaternion(), new Vector3( 1, 0.7 + 0.5 * ( ( i * 0.618 ) % 1 ), 1 ) ) ) );
+		fm.name = 'lf-flowers';
+		fm.receiveShadow = true;
+		this.group.add( fm );
+		for ( const [ g, m, name ] of [ [ q, steel, 'lf-guard-rail' ], [ c, mesh, 'lf-chain-link' ], [ tq, soil, 'lf-trough' ], [ cq, curb, 'lf-trough-curb' ] ] ) {
 
 			const mm = new Mesh( g.geometry(), m );
 			mm.name = name;

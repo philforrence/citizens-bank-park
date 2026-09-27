@@ -101,7 +101,7 @@ export class Bowl {
 			name: 'left-field-seats',
 			front: lf,
 			outward: [ 0, 0 ],
-			start: 1.5,
+			start: 2.0,
 			frontY: 0,
 			y0: 10.5 * FT + 0.4,
 			rows: ROWS.left,
