@@ -1,9 +1,9 @@
-// The Phanatic's sounds, made in code (GameSound.sample( name, ( ctx ) => buffer ) builds them when the
-// audio starts): his four-wheeler's engine, the launcher's thump, and the organ's cues for him from the
-// booth: the seventh-inning stretch's "Take Me Out to the Ball Game" (Norworth and Von Tilzer, 1908:
-// public domain), a bouncy riff for his dance on the dugout roof, the spooky chord under his hex and the
-// run up the keys for the belly shake. The recordings in public/audio/places/phanatic/ (CC0, see its
-// CREDITS.md) take the engine's and the thump's place where they're there.
+// The Phanatic's sounds. Made in code (GameSound.sample( name, ( ctx ) => buffer ) builds them when the
+// audio starts): the organ's cues for him from the booth (the seventh-inning stretch's "Take Me Out to
+// the Ball Game", Norworth and Von Tilzer, 1908: public domain; a bouncy riff of the organist's own for his
+// dance on the dugout roof; the spooky chord under his hex; the run up the keys for the belly shake) and
+// the whump under the launcher's blast. Recorded (public/audio/places/phanatic/, CC0, see its
+// CREDITS.md): the four-wheeler's engine, the air blast, the fans close by, a ballpark organ's riff.
 //
 // The organ is a tonewheel organ's sound: each note a sum of drawbar harmonics (a wavetable, so building
 // half a minute of it is quick), a little vibrato, the Leslie's tremolo, a key click at the front.
@@ -198,50 +198,19 @@ export function registerSounds( sound ) {
 		return buffer( ctx, out, 0.7 );
 
 	} );
-	sound.sample( 'phan-atv', ( ctx ) => buffer( ctx, engine(), 0.7 ) );
+	// the whump under the recorded air blast
 	sound.sample( 'phan-thump', ( ctx ) => buffer( ctx, thump(), 0.9 ) );
+	// the recordings (CC0, public/audio/places/phanatic/CREDITS.md): a four-wheeler idling (played faster
+	// as he opens it up), a compressed-air blast, a small crowd close by cheering and clapping, and a real
+	// ballpark organ's riff (Wrigley's) for when he first comes out
+	sound.sample( 'phan-atv', 'audio/places/phanatic/atv-idle.mp3' );
+	sound.sample( 'phan-launch', 'audio/places/phanatic/launch.mp3' );
+	sound.sample( 'phan-crowd', 'audio/places/phanatic/crowd-near-cheer.mp3' );
+	sound.sample( 'phan-organ-riff', 'audio/places/phanatic/organ-wrigley-riff.mp3' );
 
 }
 
 // ---------------------------------------------------------------- the machines
-
-// A single-cylinder four-stroke at a fast idle, one second, looping cleanly: each firing a knock through
-// the exhaust's resonances (the burble), a breath of noise, the valve train's tick; played faster as he
-// opens the throttle (the spot's rate)
-function engine() {
-
-	const n = SR, out = new Float32Array( n );
-	const F = 26; // firings a second (a whole number: the loop closes)
-	let seed = 7;
-	const rnd = () => ( ( seed = ( seed * 1664525 + 1013904223 ) >>> 0 ) / 4294967296 );
-	for ( let p = 0; p < F; p ++ ) {
-
-		const i0 = Math.round( p * n / F ), a = 0.75 + 0.5 * rnd();
-		const f1 = 72 + 8 * rnd(), f2 = 190 + 25 * rnd(), f3 = 430 + 60 * rnd();
-		for ( let i = 0; i < n * 0.09; i ++ ) {
-
-			const t = i / SR;
-			const v = a * ( Math.exp( - t * 38 ) * Math.sin( 2 * Math.PI * f1 * t ) + 0.55 * Math.exp( - t * 60 ) * Math.sin( 2 * Math.PI * f2 * t ) + 0.25 * Math.exp( - t * 90 ) * Math.sin( 2 * Math.PI * f3 * t ) )
-				+ 0.25 * Math.exp( - t * 120 ) * ( rnd() * 2 - 1 );
-			out[ ( i0 + i ) % n ] += v;
-
-		}
-
-	}
-
-	// the tick of the valves and a little whine, and a lowpass over the lot (it's heard through the air)
-	let lp = 0;
-	for ( let i = 0; i < n; i ++ ) {
-
-		out[ i ] += 0.04 * Math.sin( 2 * Math.PI * 104 * i / SR * 13 ) * Math.exp( - ( ( i * F * 2 / SR ) % 1 ) * 30 );
-		lp += ( out[ i ] - lp ) * 0.35;
-		out[ i ] = lp;
-
-	}
-
-	return out;
-
-}
 
 // The launcher firing: the valve's clack, the whump of the air (a low sweep), the hiss after it
 function thump() {

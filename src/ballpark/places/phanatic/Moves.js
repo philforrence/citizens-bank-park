@@ -367,6 +367,35 @@ export function smooch( t ) {
 
 }
 
+// Squeezing along a row with a box of popcorn held up in his left hand and tipping it over the people as
+// he goes (October 25, 2008: Getty 83434489), the right hand out for balance
+export function popcorn( t ) {
+
+	const s = Math.sin( t * 2.2 );
+	return P( {
+		pelvisX: 0.06 * s, pelvisY: DIM.hip - 0.06, pelvis: [ 0.05, 0.3, 0.05 * s ], torso: [ 0.1, - 0.2, - 0.06 * s ], head: [ 0.1, - 0.3 + 0.2 * s ],
+		footL: [ - 0.28 + 0.08 * s, 0.08, 0.0 ], footR: [ 0.28 + 0.08 * s, 0.08, 0.0 ], footYawL: 0.9, footYawR: 0.4,
+		handL: [ - 0.3, 1.95 + 0.05 * Math.sin( t * 5 ), - 0.15 ], handR: [ 0.6, 1.25, 0.0 ], glove: false,
+	} );
+
+}
+
+// running with the big 2008 banner: the pole up in the right fist, the left hand on it lower down, the
+// run bouncing it
+export function bannerRun( phase, t = 0 ) {
+
+	const p = M.run( phase, 0.55 );
+	p.footYawL = 0.35; p.footYawR = - 0.35;
+	p.handR = [ 0.2, 1.62, - 0.18 ];
+	p.handL = [ 0.12, 1.12, - 0.28 ];
+	p.elbowL = p.elbowR = undefined;
+	p.torso = [ p.torso[ 0 ] + 0.08, p.torso[ 1 ] * 0.4, p.torso[ 2 ] ];
+	p.head = [ p.head[ 0 ] - 0.05, 0.15 * Math.sin( t * 1.3 ) ];
+	p.glove = false;
+	return p;
+
+}
+
 // Messing up a fan's hair (or rubbing his head for luck): bent over him, the right hand going round and
 // round on his head
 export function ruffle( t ) {

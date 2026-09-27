@@ -116,8 +116,8 @@ export class Plan {
 		return {
 			visible: s.visible ?? true, x: s.x ?? 0, y: s.y ?? 0, z: s.z ?? 0, yaw: s.yaw ?? 0, pose: s.pose || null,
 			zone: s.zone || a.zone, act: s.act || a.name, excite: s.excite ?? a.excite ?? 0.5,
-			atv: s.atv || null, launcher: s.launcher || null, towel: s.towel ?? a.towel ?? false, board: s.board ?? a.board ?? null,
-			dance: s.dance || null, tau: t - a.t0, a,
+			atv: s.atv || null, gator: s.gator || null, towel: s.towel ?? a.towel ?? false, board: s.board ?? a.board ?? null,
+			props: s.props ?? a.props ?? null, role: s.role ?? a.role ?? null, tau: t - a.t0, a,
 		};
 
 	}
