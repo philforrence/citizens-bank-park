@@ -4,7 +4,7 @@
 // The rest pose: standing, facing -z, arms hanging, origin on the ground between the feet, ~1.75 m.
 // Angles (radians): arm flex raises the arm forward, abduct out to the side, elbow bends the forearm
 // forward and up; hip flex swings the thigh forward, knee bends the shin back; torso lean forward,
-// twist left; head yaw left, pitch up.
+// twist left; head yaw left, pitch up; spread takes the thighs apart (astride a horse).
 
 export const BONE = { pelvis: 0, torso: 1, head: 2, upperL: 3, foreL: 4, upperR: 5, foreR: 6, thighL: 7, shinL: 8, thighR: 9, shinR: 10 };
 
@@ -27,7 +27,7 @@ export function pose( o = {} ) {
 	return {
 		flexL: 0, abductL: 0.06, elbowL: 0.12, flexR: 0, abductR: 0.06, elbowR: 0.12,
 		lean: 0, twist: 0, yaw: 0, pitch: 0,
-		hipL: 0, kneeL: 0, hipR: 0, kneeR: 0, bob: 0, ...o,
+		hipL: 0, kneeL: 0, hipR: 0, kneeR: 0, bob: 0, spread: 0, ...o,
 	};
 
 }
@@ -82,7 +82,7 @@ export function boneXf( b, q ) {
 
 		const s = b <= BONE.shinL ? - 1 : 1;
 		const hip = s < 0 ? q.hipL : q.hipR, knee = s < 0 ? q.kneeL : q.kneeR;
-		const thigh = compose( pelvis, about( rx( hip ), side( s, J.hip ) ) );
+		const thigh = compose( pelvis, about( mm( rz( s * ( q.spread || 0 ) ), rx( hip ) ), side( s, J.hip ) ) );
 		if ( b === BONE.thighL || b === BONE.thighR ) return thigh;
 		return compose( thigh, about( rx( - knee ), side( s, J.knee ) ) );
 
@@ -130,7 +130,7 @@ export const FOLK_FK = /* wgsl */`
 struct FolkXf { m: mat3x3f, t: vec3f };
 struct FolkPose {
 	flexL: f32, abductL: f32, elbowL: f32, flexR: f32, abductR: f32, elbowR: f32,
-	lean: f32, twist: f32, yaw: f32, pitch: f32, hipL: f32, kneeL: f32, hipR: f32, kneeR: f32, bob: f32, sh: f32,
+	lean: f32, twist: f32, yaw: f32, pitch: f32, hipL: f32, kneeL: f32, hipR: f32, kneeR: f32, bob: f32, sh: f32, spread: f32,
 };
 fn folkRx( a: f32 ) -> mat3x3f { let c = cos( a ); let s = sin( a ); return mat3x3f( 1.0, 0.0, 0.0, 0.0, c, s, 0.0, - s, c ); }
 fn folkRy( a: f32 ) -> mat3x3f { let c = cos( a ); let s = sin( a ); return mat3x3f( c, 0.0, - s, 0.0, 1.0, 0.0, s, 0.0, c ); }
@@ -145,7 +145,7 @@ fn folkBone( b: u32, q: FolkPose ) -> FolkXf {
 		let s = select( 1.0, -1.0, b <= 8u );
 		let hip = select( q.hipR, q.hipL, b <= 8u );
 		let knee = select( q.kneeR, q.kneeL, b <= 8u );
-		let thigh = folkMul( pelvis, folkAbout( folkRx( hip ), vec3f( s * ${ J.hip[ 0 ] }, ${ J.hip[ 1 ] }, 0.0 ) ) );
+		let thigh = folkMul( pelvis, folkAbout( folkRz( s * q.spread ) * folkRx( hip ), vec3f( s * ${ J.hip[ 0 ] }, ${ J.hip[ 1 ] }, 0.0 ) ) );
 		if ( b == 7u || b == 9u ) { return thigh; }
 		return folkMul( thigh, folkAbout( folkRx( - knee ), vec3f( s * ${ J.knee[ 0 ] }, ${ J.knee[ 1 ] }, 0.0 ) ) );
 	}

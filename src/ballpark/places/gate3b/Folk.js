@@ -31,7 +31,7 @@ export const PROP = {
 const PART = {
 	top: 0, pants: 1, skin: 2, head: 3, shoe: 4, neck: 5, brim: 6, pom: 7, hood: 8, poncho: 9, bag: 10, strap: 11,
 	canopy: 12, shaft: 13, cup: 14, phone: 15, ticket: 16, program: 17, towel: 18, scanner: 19, wand: 20, flash: 21,
-	sign: 22, tray: 23, mic: 24, glove: 25, hair: 26, shopbag: 27, fan: 28, radio: 29, badge: 30, sleeve: 31,
+	sign: 22, tray: 23, mic: 24, glove: 25, hair: 26, shopbag: 27, fan: 28, radio: 29, badge: 30, sleeve: 31, hat: 32,
 };
 
 // The look: 24 bits. top (5) | cell (5): the jersey's name and number, or the colour | pants (3) |
@@ -236,6 +236,30 @@ function props( m, rig ) {
 
 	} );
 	held( B.head, rest, T.pom, P.pom, ( s ) => s.tube( [ [ 0, 1.735, 0.005 ], [ 0, 1.77, 0.005 ], [ 0, 1.8, 0.005 ] ], [ 0.012, 0.034, 0.005 ], 6, { capA: true, capB: true } ) );
+	// a State Trooper's campaign hat (the pom's bit: a trooper wears no beanie; the shader shows one or
+	// the other by the top he has on): the wide flat brim, the crown with the four pinches of its peak
+	held( B.head, rest, T.hat, P.pom, ( s ) => {
+
+		const y0 = 1.705, c = [ 0, y0, 0.0 ];
+		const ring = ( r, y, n = 16, pinch = 0 ) => Array.from( { length: n + 1 }, ( _, i ) => {
+
+			const q = i / n * Math.PI * 2, k = 1 - pinch * Math.pow( Math.abs( Math.cos( q * 2 ) ), 6 );
+			return s.v( [ c[ 0 ] + Math.cos( q ) * r * k, y, c[ 2 ] + Math.sin( q ) * r * k ], [ Math.cos( q ), 0.4, Math.sin( q ) ], [ i / n, y ] );
+
+		} );
+		const outer = ring( 0.205, y0 - 0.005 ), inner = ring( 0.105, y0 ), mid = ring( 0.1, y0 + 0.09, 16, 0.12 ), top = ring( 0.04, y0 + 0.155, 16, 0.3 );
+		for ( let i = 0; i < 16; i ++ ) {
+
+			s.quad( outer[ i ], outer[ i + 1 ], inner[ i + 1 ], inner[ i ] );
+			s.quad( inner[ i ], inner[ i + 1 ], mid[ i + 1 ], mid[ i ] );
+			s.quad( mid[ i ], mid[ i + 1 ], top[ i + 1 ], top[ i ] );
+
+		}
+
+		const apex = s.v( [ 0, y0 + 0.17, 0 ], [ 0, 1, 0 ] );
+		for ( let i = 0; i < 16; i ++ ) s.tri( apex, top[ i + 1 ], top[ i ] );
+
+	} );
 	// the hood up: a shell round the top, sides and back of the head, open at the face
 	held( B.head, rest, T.hood, P.hood, ( s ) => {
 
@@ -528,7 +552,11 @@ function folkMaterial( info, moved, backs ) {
 	var p = v.position;
 	var n = v.normal;
 	// a prop he isn't carrying folds away to nothing
-	let shown = bit < 0 || ( ( props >> u32( max( bit, 0 ) ) ) & 1u ) == 1u;
+	var shown = bit < 0 || ( ( props >> u32( max( bit, 0 ) ) ) & 1u ) == 1u;
+	// the campaign hat for a trooper (top 23), the pom for anyone else
+	let trooper = ( look & 31u ) == 23u;
+	if ( part > 31.5 && part < 32.5 && ! trooper ) { shown = false; }
+	if ( part > 6.5 && part < 7.5 && trooper ) { shown = false; }
 	// his build: broader in a big coat, a woman narrower at the shoulders; a kid's head bigger
 	let hs = fract( seed * 7.13 );
 	let woman = ( ( look >> 23u ) & 1u ) == 1u;
@@ -552,13 +580,16 @@ function folkMaterial( info, moved, backs ) {
 	q.abductR = i2.x; q.elbowR = i2.y + wk * 0.22 * swR;
 	q.lean = i2.z + wk * 0.05; q.twist = i2.w + wk * 0.06 * sin( ph );
 	q.yaw = i3.x; q.pitch = i3.y;
-	let sit = i3.z;
-	q.hipL = wk * 0.42 * sin( ph ) + sit * 1.45;
-	q.hipR = - wk * 0.42 * sin( ph ) + sit * 1.45;
-	q.kneeL = wk * ( 0.08 + 0.62 * max( 0.0, cos( ph ) ) ) + sit * 1.5;
-	q.kneeR = wk * ( 0.08 + 0.62 * max( 0.0, - cos( ph ) ) ) + sit * 1.5;
+	// sat down (0..1), or astride a horse (2 + ...): the thighs forward and apart, the knees bent round its barrel
+	let ride = step( 1.5, i3.z );
+	let sit = i3.z - ride * 2.0;
+	q.hipL = wk * 0.42 * sin( ph ) + sit * 1.45 + ride * 0.95;
+	q.hipR = - wk * 0.42 * sin( ph ) + sit * 1.45 + ride * 0.95;
+	q.kneeL = wk * ( 0.08 + 0.62 * max( 0.0, cos( ph ) ) ) + sit * 1.5 + ride * 1.25;
+	q.kneeR = wk * ( 0.08 + 0.62 * max( 0.0, - cos( ph ) ) ) + sit * 1.5 + ride * 1.25;
 	q.bob = wk * 0.028 * ( abs( cos( ph ) ) - 0.5 ) - sit * 0.46;
 	q.sh = sh;
+	q.spread = ride * 0.42;
 	let xa = folkBone( bA, q );
 	var pp = xa.m * p + xa.t;
 	var nn = xa.m * n;
@@ -618,7 +649,7 @@ function folkMaterial( info, moved, backs ) {
 		case 19u: { topC = vec3f( 0.02 ); backCell = 99u; rough = 0.45; }
 		case 20u: { topC = vec3f( 0.012, 0.018, 0.06 ); trim = red; jersey = 2u; backCell = 99u; numFill = vec3f( 0.8 ); }
 		case 21u: { topC = red; trim = vec3f( 0.02 ); jersey = 3u; backCell = ${ CELL.staff }u; numFill = vec3f( 0.8 ); rough = 0.6; }
-		case 22u: { topC = vec3f( 0.012, 0.016, 0.045 ); jersey = 3u; backCell = ${ CELL.police }u; numFill = vec3f( 0.8 ); }
+		case 22u: { topC = vec3f( 0.011, 0.01, 0.011 ); backCell = 99u; rough = 0.32; }
 		case 23u: { topC = vec3f( 0.22, 0.22, 0.23 ); trim = vec3f( 0.01 ); backCell = 99u; }
 		case 24u: { topC = vec3f( 0.03, 0.04, 0.09 ); backCell = 99u; }
 		case 25u: { topC = vec3f( 0.05, 0.05, 0.06 ); backCell = 99u; rough = 0.5; }
@@ -627,7 +658,7 @@ function folkMaterial( info, moved, backs ) {
 		case 28u: { topC = red; backCell = 99u; }
 		case 29u: { topC = red; jersey = 2u; numFill = vec3f( 0.8, 0.79, 0.76 ); numLine = vec3f( 0.02, 0.03, 0.12 ); }
 		case 30u: { topC = vec3f( 0.3, 0.2, 0.12 ); backCell = 99u; }
-		default: { topC = vec3f( 0.55, 0.45, 0.02 ); backCell = 99u; rough = 0.3; }
+		default: { topC = vec3f( 0.6, 0.48, 0.02 ); jersey = 3u; backCell = ${ CELL.police }u; numFill = vec3f( 0.02 ); rough = 0.3; }
 	}
 	var pantsC = vec3f( 0.035, 0.05, 0.11 ) * mix( 0.8, 1.2, h.z );
 	switch pantsK {
@@ -721,7 +752,9 @@ function folkMaterial( info, moved, backs ) {
 				}
 				e += c * 0.06;
 			}
-			if ( top == 22u && ( abs( L.y - 1.05 ) < 0.02 || ( onArm && abs( L.y - 1.0 ) < 0.02 ) ) ) { c = vec3f( 0.7, 0.7, 0.3 ); e = vec3f( 0.3, 0.3, 0.12 ) * night; }
+			// the police: a black leather jacket, its badge; on the 27th the yellow raincoat, POLICE across the back
+			if ( top == 22u && L.z < - 0.1 && abs( L.x + 0.08 ) < 0.025 && abs( L.y - 1.33 ) < 0.03 ) { c = vec3f( 0.6, 0.5, 0.25 ); rough = 0.2; }
+			if ( top == 31u && ( abs( L.y - 1.05 ) < 0.02 || ( onArm && abs( L.y - 1.0 ) < 0.02 ) ) ) { c = vec3f( 0.75, 0.75, 0.7 ); e = vec3f( 0.3, 0.3, 0.25 ) * night; }
 			if ( top == 23u && ( abs( L.x ) < 0.004 + fw || ( onArm && abs( fract( atan2( L.z, L.x - sign( L.x ) * 0.2 ) / 6.2832 * 2.0 ) - 0.5 ) < 0.03 ) ) ) { c = vec3f( 0.01 ); }
 			if ( top == 20u && L.y > 1.44 ) { c = trim; }
 			if ( top == 24u && L.z < 0.0 && L.y < 1.2 && L.y > 0.86 && abs( L.x ) < 0.14 ) { c = vec3f( 0.3, 0.26, 0.2 ); }
@@ -840,6 +873,7 @@ function folkMaterial( info, moved, backs ) {
 		case 28: { c = vec3f( 0.8, 0.78, 0.72 ); if ( in.uv.y > 0.75 ) { c = vec3f( 0.45, 0.03, 0.05 ); } }
 		case 29: { c = vec3f( 0.02 ); }
 		case 30: { c = vec3f( 0.8 ); }
+		case 32: { c = vec3f( 0.035, 0.034, 0.033 ) * ( 0.85 + 0.2 * mx_noise_float3( L * 40.0 ) ); rough = 0.9; } // felt
 		default: {}
 	}
 	// the rain: cloth soaks dark where it faces the sky; plastic, leather and umbrellas bead and shine
@@ -945,7 +979,7 @@ export class Folk {
 			I[ o ] = f.phase; I[ o + 1 ] = Math.min( 1, f.walk ); I[ o + 2 ] = f.seed; I[ o + 3 ] = f.look;
 			I[ o + 4 ] = p.flexL; I[ o + 5 ] = p.abductL; I[ o + 6 ] = p.elbowL; I[ o + 7 ] = p.flexR;
 			I[ o + 8 ] = p.abductR; I[ o + 9 ] = p.elbowR; I[ o + 10 ] = p.lean; I[ o + 11 ] = p.twist;
-			I[ o + 12 ] = p.yaw; I[ o + 13 ] = p.pitch; I[ o + 14 ] = f.sit; I[ o + 15 ] = f.props;
+			I[ o + 12 ] = p.yaw; I[ o + 13 ] = p.pitch; I[ o + 14 ] = f.sit + ( f.ride ? 2 : 0 ); I[ o + 15 ] = f.props;
 			n ++;
 
 		}

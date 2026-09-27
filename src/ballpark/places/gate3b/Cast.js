@@ -93,7 +93,7 @@ export class Cast {
 			p.flexL = 0; p.abductL = 0.07; p.elbowL = 0.15; p.flexR = 0; p.abductR = 0.07; p.elbowR = 0.15;
 			p.lean = 0; p.twist = 0; p.pitch = 0;
 			p.yaw = 0.35 * Math.sin( t * 0.23 + f.seed * 9 ) * Math.sin( t * 0.11 );
-			f.walk = 0; f.sit = 0; f.y = STREET + c.y0;
+			f.walk = 0; f.sit = 0; f.ride = false; f.y = STREET + c.y0;
 			let props = c.base;
 			// the rain gear: umbrellas up on the 27th out in the open, down on the 29th
 			if ( c.umbrella && ! w.first ) props &= ~ ( 1 << PROP.umbrella );
@@ -316,6 +316,34 @@ export class Cast {
 
 				}
 
+				case 'ride':
+					// up on a horse: the reins in both hands low in front, the head going over the crowd
+					f.ride = true;
+					p.flexL = 0.55; p.abductL = 0.05; p.elbowL = 1.25; p.flexR = 0.55; p.abductR = 0.05; p.elbowR = 1.25;
+					p.yaw = 0.6 * Math.sin( t * 0.19 ); p.pitch = - 0.12;
+					break;
+				case 'pet': {
+
+					// a kid reaching up to pat the horse's nose, drawing back, again
+					const k = Math.max( 0, Math.sin( t * 0.7 ) );
+					p.flexR = 1.1 + 0.5 * k; p.abductR = 0.1; p.elbowR = 0.3 + 0.2 * Math.sin( t * 4 ) * k; p.pitch = 0.45; p.lean = 0.1 * k;
+					break;
+
+				}
+
+				case 'direct':
+					// a cop waving them over the crosswalk: the arm sweeping across, then held up to stop them
+					if ( Math.sin( t * 0.2 ) > 0 ) {
+
+						p.flexR = 1.3; p.abductR = 0.3 + 0.8 * ( 0.5 + 0.5 * Math.sin( t * 2.2 ) ); p.elbowR = 0.4; p.yaw = - 0.5;
+
+					} else {
+
+						p.flexL = 1.45; p.abductL = 0.1; p.elbowL = 0.25; p.yaw = 0.4;
+
+					}
+
+					break;
 				case 'sign':
 					// a cardboard sign held at the chest, turned to the crowd
 					props |= 1 << PROP.sign;

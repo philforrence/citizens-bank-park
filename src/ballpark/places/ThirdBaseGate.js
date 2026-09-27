@@ -13,6 +13,7 @@ import { buildStore } from './gate3b/Store.js';
 import { Cast } from './gate3b/Cast.js';
 import { buildStreet, LIFT, pattisonZ, eleventhX } from './gate3b/Street.js';
 import { buildVendors } from './gate3b/Vendors.js';
+import { Horses, manure } from './gate3b/Horses.js';
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -58,6 +59,58 @@ export default class ThirdBaseGate {
 		// the street's economy: peanut carts, the shirt man, the scalpers, the poncho man (gate3b/Vendors.js)
 		this.vendors = buildVendors( { group: this.group, cast: this.cast, colliders, field } );
 		for ( const [ x, z ] of this.vendors.carts ) this.obstacles.push( [ x, z, 1.4 ] );
+		this._police();
+
+	}
+
+	// ---------------------------------------------------------------- the police
+
+	// The Pennsylvania State Police's mounted patrol (the Inquirer, 30 Oct 2008; Philadelphia's own
+	// mounted unit was disbanded 2004-2011): two horses standing their ground on the sidewalk at the edge
+	// of Pattison, a trooper up on each in his grey and his campaign hat, a kid reaching up to pat the
+	// black one's nose, his father behind him; what they've left on the pavement. Philadelphia police at
+	// the mid-block crossing: black leather jackets and peaked caps (Getty, Oct 2008), on the 27th a
+	// yellow raincoat; one waving the crowd over, one watching
+	_police() {
+
+		const y = LEVELS.mainConcourse + LIFT;
+		this.horses = new Horses( { group: this.group, y, spots: [ { at: [ - 88.2, 102.6 ], yaw: Math.PI / 2 + 0.08, coat: 0 }, { at: [ - 86.6, 104.9 ], yaw: Math.PI / 2 - 0.1, coat: 2 } ] } );
+		this.riders = this.horses.list.map( ( h ) => {
+
+			const c = this.cast.add( { at: [ h.x, h.z ], act: 'ride', who: 'trooper', noRainGear: true } );
+			c.horse = h;
+			return c;
+
+		} );
+		for ( const h of this.horses.list ) this.obstacles.push( [ h.x, h.z, 1.6 ], [ h.x - Math.sin( h.yaw ) * 1.4, h.z - Math.cos( h.yaw ) * 1.4, 1.0 ] );
+		// the black horse's nose, the kid and his father
+		const hb = this.horses.list[ 1 ], fx = - Math.sin( hb.yaw ), fz = - Math.cos( hb.yaw );
+		const nose = [ hb.x + fx * 2.35, hb.z + fz * 2.35 ];
+		this.cast.add( { at: nose, face: [ hb.x, hb.z ], act: 'pet', who: { kid: true }, noRainGear: true, when: ( w ) => w.rate > 0.04 } );
+		this.cast.add( { at: [ nose[ 0 ] + fx * 0.9 + fz * 0.4, nose[ 1 ] + fz * 0.9 - fx * 0.4 ], face: [ hb.x, hb.z ], act: 'listen', when: ( w ) => w.rate > 0.04 } );
+		// behind them, on the pavement
+		manure( this.group, y, this.horses.list.map( ( h ) => [ h.x + Math.sin( h.yaw ) * 1.9 + 0.3, h.z + Math.cos( h.yaw ) * 1.9 ] ) );
+		// Philadelphia police at the mid-block crossing
+		const xm = - 104, zn = pattisonZ( xm ) - 9;
+		this.cast.add( { at: [ xm + 2.6, zn - 0.9 ], face: [ xm, zn + 6 ], act: 'direct', who: 'policeRain', when: ( w ) => w.first } );
+		this.cast.add( { at: [ xm + 2.6, zn - 0.9 ], face: [ xm, zn + 6 ], act: 'direct', who: 'police', when: ( w ) => ! w.first } );
+		this.cast.add( { at: [ xm + 4.2, zn - 1.8 ], face: [ xm - 6, zn - 8 ], act: 'listen', who: 'policeRain', when: ( w ) => w.first } );
+		this.cast.add( { at: [ xm + 4.2, zn - 1.8 ], face: [ xm - 6, zn - 8 ], act: 'listen', who: 'police', when: ( w ) => ! w.first } );
+
+	}
+
+	_updatePolice( dt ) {
+
+		if ( ! this.horses ) return;
+		this.horses.update( dt );
+		for ( const c of this.riders ) {
+
+			// up in the saddle: the pelvis in the seat, facing the way the horse does
+			const s = this.horses.seat( c.horse ), f = c.f;
+			f.x = s[ 0 ]; f.z = s[ 2 ]; f.y = s[ 1 ] - 0.9;
+			f.yaw = c.horse.yaw;
+
+		}
 
 	}
 
@@ -317,6 +370,7 @@ export default class ThirdBaseGate {
 		}
 
 		this.cast?.update( Math.min( dt, 0.1 ), w );
+		this._updatePolice( Math.min( dt, 0.1 ) );
 		this._updateFlash( Math.min( dt, 0.1 ) );
 		this.openGate?.poseTripods();
 		this.folk?.update();
