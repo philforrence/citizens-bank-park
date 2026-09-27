@@ -1031,6 +1031,9 @@ export class RailFigures {
 			mesh.instanceMatrix.needsUpdate = true;
 			mesh.geometry.getAttribute( 'aWho' ).needsUpdate = true;
 			mesh.geometry.getAttribute( 'aLook' ).needsUpdate = true;
+			// a kind nobody is doing right now (the police line before the 9th, the bat boy's bend)
+			// isn't drawn at all
+			mesh.visible = list.some( ( f ) => f.shown );
 
 		}
 
