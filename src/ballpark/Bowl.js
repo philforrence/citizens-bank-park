@@ -1,6 +1,7 @@
-import { Group, Mesh, BoxGeometry, BufferGeometry, Float32BufferAttribute, Vector2, Vector3, Color } from '../engine/index.js';
+import { Group, Mesh, InstancedMesh, BoxGeometry, BufferGeometry, Float32BufferAttribute, Vector2, Vector3, Matrix4, Quaternion, Euler, Color } from '../engine/index.js';
 import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
+import { ShaderModule } from '../engine/gpu/Shader.js';
 import { standard } from '../materials/Materials.js';
 import { beam, box, alongPolyline, nearestAlong } from './geo.js';
 import { GATES } from './Exterior.js';
@@ -20,6 +21,48 @@ import { FT, FOOTPRINT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, BULLPENS, LEVELS, fen
 // above the field: street level is LEVELS.mainConcourse.
 
 const STREET = LEVELS.mainConcourse;
+
+// Rooms behind glass (the suites, the press box's booths): the view ray traced into a box behind the
+// window, and people in it drawn square-on in planes a set depth in (interior mapping: parallax without
+// geometry). figure(): a person, `p` in metres across the plane and up from the floor, the top of the
+// head at h; returns the colour and whether the ray hit them.
+const interiorModule = new ShaderModule( {
+	name: 'interiors',
+	deps: [ commonModule ],
+	code: /* wgsl */`
+fn ihash( x: f32 ) -> f32 { return fract( sin( x * 12.9898 + 4.1 ) * 43758.5453 ); }
+
+fn figure( p: vec2f, h: f32, coat: vec3f, hair: vec3f, skin: vec3f, headset: f32 ) -> vec4f {
+	// the head: hair over the crown, the face below it (lit by the room and the monitors)
+	let hd = ( p - vec2f( 0.0, h - 0.115 ) ) / vec2f( 0.085, 0.118 );
+	if ( dot( hd, hd ) < 1.0 ) {
+		var c = skin;
+		if ( ( p.y > h - 0.075 ) || ( abs( p.x ) > 0.07 && p.y > h - 0.14 ) ) { c = hair; }
+		if ( headset > 0.5 && p.y > h - 0.03 ) { c = vec3f( 0.015 ); }
+		return vec4f( c, 1.0 );
+	}
+	// a headset's ear cups and the microphone's boom
+	if ( headset > 0.5 ) {
+		if ( length( vec2f( abs( p.x ) - 0.088, p.y - ( h - 0.125 ) ) ) < 0.036 ) { return vec4f( vec3f( 0.015 ), 1.0 ); }
+		if ( p.x > 0.0 && p.x < 0.1 && abs( p.y - ( h - 0.2 - p.x * 0.4 ) ) < 0.009 ) { return vec4f( vec3f( 0.02 ), 1.0 ); }
+	}
+	// the neck, the shoulders (rounded) and the body
+	if ( abs( p.x ) < 0.05 && p.y > h - 0.29 && p.y <= h - 0.2 ) { return vec4f( skin * 0.75, 1.0 ); }
+	let sy = h - 0.28;
+	let w = 0.21 - 0.12 * smoothstep( sy - 0.03, sy + 0.06, p.y );
+	if ( abs( p.x ) < w && p.y < sy + 0.06 && p.y > 0.0 ) {
+		// a collar and a zip / buttons down the front
+		var c = coat;
+		if ( abs( p.x ) < 0.012 && p.y < sy ) { c = coat * 0.6; }
+		// standing: dark trousers below the coat, a gap between the legs
+		if ( p.y < h * 0.45 && abs( p.x ) < 0.025 ) { return vec4f( 0.0 ); }
+		if ( p.y < h * 0.52 ) { c = vec3f( 0.04, 0.04, 0.05 ); }
+		return vec4f( c, 1.0 );
+	}
+	return vec4f( 0.0 );
+}
+`,
+} );
 const ROW = 0.84; // row depth in the upper decks (33 in)
 const FROW = 0.8; // and at field level (31.5 in)
 // rows by level, from the seating chart (2008): field level 37 in the infield, 16 in right, 21 in left;
@@ -245,7 +288,22 @@ export class Bowl {
 		const F = FOUL_TERRITORY;
 		const path = [ F[ 0 ], F[ 2 ], F[ 3 ], F[ 4 ], F[ 5 ], F[ 6 ], F[ 7 ], F[ 8 ], F[ 9 ], F[ 10 ], F[ 11 ], F[ 13 ] ];
 		const infieldPath = path.slice( 2, 10 ); // round the infield: first base dugout's far end to third's
+		// the infield's decks (the Terrace 300s and 400s under the big roof) run from The Break, 150 ft down
+		// the first base line, round to the left field pole; past The Break the upper deck in right is its
+		// own deck, 20 ft lower (there's no club level under it)
+		const main = path.slice( 2 );
 		const line = ( P, d ) => offsetPolyline( P, d, [ 0, - 40 ] );
+		// path points i0..i1 moved back d, mitred like the whole line's, with a short lead past each end
+		// that meets a neighbour, so the rows of neighbouring tiers end on the same bisector
+		const span = ( i0, i1, d ) => {
+
+			const O = line( path, d ), out = O.slice( i0, i1 + 1 );
+			const lead = ( p, q ) => [ p[ 0 ] + ( q[ 0 ] - p[ 0 ] ) * 0.3 / Math.hypot( q[ 0 ] - p[ 0 ], q[ 1 ] - p[ 1 ] ), p[ 1 ] + ( q[ 1 ] - p[ 1 ] ) * 0.3 / Math.hypot( q[ 0 ] - p[ 0 ], q[ 1 ] - p[ 1 ] ) ];
+			if ( i0 > 0 ) out.unshift( lead( O[ i0 ], O[ i0 - 1 ] ) );
+			if ( i1 < O.length - 1 ) out.push( lead( O[ i1 ], O[ i1 + 1 ] ) );
+			return out;
+
+		};
 		const L = LEVELS;
 
 		// front edges back from the top of the field level seats (negative: overhanging them)
@@ -263,14 +321,17 @@ export class Bowl {
 		const t300Y = L.terraceConcourse - ( ROWS.t300 - 1 ) * 0.52 - 0.3;
 		const tiers = [
 			// suite level: two rows in front of the suites
-			{ name: 'suite-seats', front: line( infieldPath, D.suites ), outward: [ 0, - 40 ], y0: L.suites - 0.6, rows: 2, depth: 0.95, rise: 0.35, section: 12, aisle: 1.4, soffit: 0.9, frontWall: { top: L.suites + 0.2 }, base: L.suites - 1.5 },
+			{ name: 'suite-seats', front: span( 2, 9, D.suites ), outward: [ 0, - 40 ], y0: L.suites - 0.6, rows: 2, depth: 0.95, rise: 0.35, section: 12, aisle: 1.4, soffit: 0.9, frontWall: { top: L.suites + 0.2 }, base: L.suites - 1.5 },
 			// Hall of Fame Club (212-232): 8 rows up to the club concourse
-			{ name: 'club-level', front: line( infieldPath, D.club ), outward: [ 0, - 40 ], y0: clubY, rows: ROWS.club, depth: ROW, rise: 0.46, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: clubY + 1.0 }, base: clubY - 1.2 },
+			{ name: 'club-level', front: span( 2, 9, D.club ), outward: [ 0, - 40 ], y0: clubY, rows: ROWS.club, depth: ROW, rise: 0.46, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: clubY + 1.0 }, base: clubY - 1.2 },
 			// Terrace: the 300s over the club seats, up to the terrace walkway
 			// (behind home plate the press box takes its place: no seats there)
-			{ name: 'terrace-300', front: line( path, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1, skip: [ [ 4, 6 ] ] },
+			{ name: 'terrace-300', front: line( main, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1, skip: [ [ 2, 4 ] ] },
 			// ... and the 400s behind the walkway
-			{ name: 'terrace-400', front: line( path, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, portals: { every: 2, row: 5, rows: 4, width: 3 }, back: { height: 1.1 }, base: L.terraceConcourse - 0.7 },
+			{ name: 'terrace-400', front: line( main, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, portals: { every: 2, row: 5, rows: 4, width: 3 }, back: { height: 1.1 }, base: L.terraceConcourse - 0.7 },
+			// the Arcade (233-237): down the left field line from the end of the club, ten rows on the suite
+			// level's fascia (the ribbon board runs on along it) right under the 300s
+			{ name: 'arcade', front: span( 9, 11, D.suites ), outward: [ 0, - 40 ], y0: L.suites + 0.4, rows: 10, depth: ROW, rise: 0.5, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.suites + 1.4 }, back: { height: 1.1 }, base: L.suites - 1.5 },
 		];
 
 		// the left field upper deck (the 200s in left), over the back rows of the left field seats and the
@@ -280,16 +341,30 @@ export class Bowl {
 		const lfY = STREET + 4.6;
 		tiers.push( { name: 'lf-deck', front: offsetPolyline( lfT.front, lfTop - 2.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: lfY, rows: 8, depth: ROW, rise: 0.48, section: 13, aisle: 1.2, soffit: 1.0, frontWall: { top: lfY + 1.0 }, back: { height: 1.2 }, base: lfY - 1.3 } );
 
-		// the Pavilion (201-211) and the Pavilion Deck (301-310) over the right field seats, from the 369 mark
-		// toward the pole (right-center is Ashburn Alley's: the rooftop seats and the Liberty Bell)
+		// The Pavilion (201-211) over the right field seats from the 369 mark, and on round the foul pole and
+		// down the first base line to The Break at the same height (the ribbon board runs along its front
+		// there); above it the upper deck in right (301-310), one deck of 21 rows from The Break round the
+		// pole to the 369 mark under its own roof, 20 ft lower than the infield's. Right-center is Ashburn
+		// Alley's (the rooftop seats and the Liberty Bell).
 		const rf = this.tiers[ 2 ];
 		const rfTop = rf.start + rf.rows * rf.depth;
 		const [ , c369, pole ] = rf.front;
-		// the whole stretch of the right field wall, from the 369 mark to the foul pole
-		const pavFront = [ c369, [ c369[ 0 ] + ( pole[ 0 ] - c369[ 0 ] ) * 0.97, c369[ 1 ] + ( pole[ 1 ] - c369[ 1 ] ) * 0.97 ] ];
-		tiers.push( { name: 'pavilion', front: offsetPolyline( pavFront, rfTop + 1.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: L.suites + 0.4, rows: ROWS.pavilion, depth: ROW, rise: 0.5, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.suites + 1.4 }, back: { height: 2.5 }, base: L.suites - 0.7 } );
+		// the right field stretch, from the 369 mark toward the pole, and the first base line's, from the
+		// pole to The Break, joined by a curve round the pole (the Pavilion's rows open out over the corner
+		// seats there, as they fan round it at field level)
+		const rfLine = offsetPolyline( [ c369, [ c369[ 0 ] + ( pole[ 0 ] - c369[ 0 ] ) * 0.97, c369[ 1 ] + ( pole[ 1 ] - c369[ 1 ] ) * 0.97 ] ], rfTop + 1.0, [ 0, 0 ] );
+		const fbLine = span( 0, 2, D.suites );
+		const corner = roundCorner( rfLine[ 0 ], rfLine[ 1 ], fbLine[ 0 ], fbLine[ 1 ], 20, 5 );
+		const pavFront = [ rfLine[ 0 ], ...corner, ...fbLine.slice( 1 ) ];
+		const pavPart = { rf: [ rfLine[ 0 ], corner[ 0 ] ], line: [ ...corner, ...fbLine.slice( 1 ) ] };
+		tiers.push( { name: 'pavilion', front: pavFront, parts: pavPart, outward: [ 0, - 40 ], y0: L.suites + 0.4, rows: ROWS.pavilion, depth: ROW, rise: 0.5, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.suites + 1.4 }, back: { height: 1.1 }, base: L.suites - 1.5 } );
+		// the deck 3 m further back, ending short of The Break (the gap between it and the 312/412 decks
+		// where the sky shows through)
 		const pdY = L.suites + 0.4 + ( ROWS.pavilion - 1 ) * 0.5 + 4.2;
-		tiers.push( { name: 'pavilion-deck', front: offsetPolyline( pavFront, rfTop + 4.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: pdY, rows: ROWS.pavilionDeck, depth: ROW, rise: 0.55, section: 14, aisle: 1.2, soffit: 1.2, frontWall: { top: pdY + 1.0 }, back: { height: 2.5 }, base: pdY - 1.1 } );
+		const dkAll = offsetPolyline( pavFront, 3.0, [ 0, - 40 ] ), iF2 = pavFront.length - 3;
+		const dk = dkAll.slice( 0, iF2 + 1 );
+		dk.push( [ dkAll[ iF2 ][ 0 ] + ( dkAll[ iF2 + 1 ][ 0 ] - dkAll[ iF2 ][ 0 ] ) * 0.55, dkAll[ iF2 ][ 1 ] + ( dkAll[ iF2 + 1 ][ 1 ] - dkAll[ iF2 ][ 1 ] ) * 0.55 ] );
+		tiers.push( { name: 'pavilion-deck', front: dk, parts: { rf: dk.slice( 0, 2 ), line: dk.slice( 1 ) }, outward: [ 0, - 40 ], y0: pdY, rows: ROWS.pavilionDeck, depth: ROW, rise: 0.55, section: 14, aisle: 1.2, soffit: 1.2, frontWall: { top: pdY + 1.0 }, base: pdY - 1.1 } );
 
 		this.upper = tiers;
 		for ( const t of tiers ) this.group.add( buildTier( t, this.ctx ) );
@@ -299,38 +374,76 @@ export class Bowl {
 		const lfd = tiers.find( ( t ) => t.name === 'lf-deck' );
 		this._columns( offsetPolyline( lfd.front, 2.5, [ 0, 0 ] ), STREET, lfd.base, 9 );
 		this._columns( offsetPolyline( lfd.front, lfd.rows * lfd.depth - 0.6, [ 0, 0 ] ), STREET, lfd.y0 + ( lfd.rows - 1 ) * lfd.rise - 1.0, 9 );
-		// the Pavilion stands on columns from the right field concourse, front and back
-		const pav = tiers[ tiers.length - 2 ], deck = tiers[ tiers.length - 1 ];
-		this._columns( offsetPolyline( pav.front, 0.6, [ 0, 0 ] ), STREET, pav.base, 9 );
-		this._columns( offsetPolyline( deck.front, deck.rows * deck.depth - 0.6, [ 0, 0 ] ), STREET, deck.y0 + ( deck.rows - 1 ) * deck.rise - 1.0, 9 );
-		// its own roof over the Pavilion Deck's upper rows, on trusses, posts from the back row up to it
+		// the Pavilion and the Arcade stand on columns from the concourse behind the field level seats; the
+		// concourse behind their top rows (under the deck above) lit
+		const pav = tiers.find( ( t ) => t.name === 'pavilion' ), deck = tiers.find( ( t ) => t.name === 'pavilion-deck' ), arc = tiers.find( ( t ) => t.name === 'arcade' );
+		const t400 = tiers[ 3 ];
+		// the underside of an upper tier `d` back from its front
+		const under = ( t, d ) => t.y0 - t.soffit + Math.max( 0, d ) * ( ( t.rows - 1 ) * t.rise ) / ( t.rows * t.depth );
+		for ( const [ t, over, dOver ] of [ [ pav, deck, 3.0 ], [ arc, t400, D.t400 - D.suites ] ] ) {
+
+			this._columns( offsetPolyline( t.front, 5.0, [ 0, - 40 ] ), STREET, t.base, 9 );
+			// behind the top row a concourse 4 m deep, its back wall glazed at the bottom (the stands and the
+			// people inside lit), precast above it up to the deck overhead
+			const yTop = t.y0 + ( t.rows - 1 ) * t.rise, dBack = t.rows * t.depth + 4;
+			this._strip( offsetPolyline( t.front, t.rows * t.depth, [ 0, - 40 ] ), 4, yTop + 0.25, t.name + '-concourse', false );
+			const G = offsetPolyline( t.front, dBack, [ 0, - 40 ] ), yG = yTop + 4.6;
+			this._clubGlass( G, yTop + 0.25, yG, { open: true } );
+			const wq = new Quads(), yU = under( over, dBack - dOver ) + 0.3;
+			for ( let i = 0; i < G.length - 1; i ++ ) {
+
+				const [ ax, az ] = G[ i ], [ bx, bz ] = G[ i + 1 ];
+				let nx = - ( bz - az ), nz = bx - ax;
+				if ( nx * ( ax + bx ) / 2 + nz * ( ( az + bz ) / 2 + 40 ) > 0 ) {
+
+					nx = - nx; nz = - nz;
+
+				}
+
+				wq.add( [ ax, yG, az ], [ bx, yG, bz ], [ bx, yU, bz ], [ ax, yU, az ], [ nx, 0, nz ] );
+
+			}
+			const wm = new Mesh( wq.geometry(), this.materials.concrete );
+			wm.name = t.name + '-back-wall';
+			wm.castShadow = true;
+			wm.receiveShadow = true;
+			this.group.add( wm );
+
+		}
+
+		// the upper deck in right: a walkway behind its top row, columns under its back, its own roof on
+		// trusses (its light tower stands behind it in right: Landmarks), open steel behind
 		const deckBack = deck.rows * deck.depth, deckTop = deck.y0 + ( deck.rows - 1 ) * deck.rise;
 		const pavRoofY = deckTop + 4.2;
-		this._roof( offsetPolyline( deck.front, deckBack * 0.3, [ 0, 0 ] ), deckBack * 0.78, pavRoofY, { towers: false } );
-		this._rearWall( offsetPolyline( deck.front, deckBack - 0.4, [ 0, 0 ] ), deckTop - 1.2, pavRoofY - 1.0 );
+		const dkRear = offsetPolyline( deck.front, deckBack + 3.6, [ 0, - 40 ] );
+		this._strip( offsetPolyline( deck.front, deckBack, [ 0, - 40 ] ), 4, deckTop, 'pavilion-deck-walkway' );
+		this._columns( dkRear, STREET, deckTop - 0.6, 9.5 );
+		this._roof( offsetPolyline( deck.front, deckBack * 0.3, [ 0, - 40 ] ), deckBack * 0.7 + 3.6, pavRoofY, { towers: false } );
+		this._rearWall( dkRear, deckTop, pavRoofY - 1.0 );
 
 		this._pressBox( line( path, D.t300 ).slice( 4, 8 ), t300Y - 1.1, L.terraceConcourse - 0.15, ROWS.t300 * ROW );
 
 		// the walkway between the 300s and 400s, and the club concourse behind the club seats
-		const t300 = tiers[ 2 ], t400 = tiers[ 3 ], club = tiers[ 1 ];
-		this._strip( line( path, D.t300Back ), 2.4, L.terraceConcourse, 'terrace-walkway', false ); // the 400s start behind it
+		const t300 = tiers[ 2 ], club = tiers[ 1 ];
+		this._strip( line( main, D.t300Back ), 2.4, L.terraceConcourse, 'terrace-walkway', false ); // the 400s start behind it
 		this._strip( line( infieldPath, D.clubBack ), 8, L.clubConcourse, 'club-concourse' );
 		// suites: a glass front and a roof slab over them, behind the suite seats
 		this._suites( line( infieldPath, D.suites + 2 * 0.95 ), 7, L.suites, clubY - 1.2 );
 		// the roof over the 400s, and the light towers standing on it
 		const back400 = t400.rows * ROW;
-		this._roof( line( path, D.t400 + back400 * 0.35 ), back400 * 0.75, L.roof );
+		this._roof( line( main, D.t400 + back400 * 0.35 ), back400 * 0.75, L.roof );
 		// behind the top row: a parapet up to the roof; under it all, the columns carrying the decks over
 		// the open main concourse
 		const t400Top = t400.y0 + ( t400.rows - 1 ) * t400.rise;
-		this._columns( line( path, D.t400Back - 0.4 ), STREET, t400Top - 1.2, 9.5 );
-		this._rearWall( line( path, D.t400Back - 0.4 ), t400Top - 1.2, L.roof - 1.0 );
-		this._frame( line( path, D.t400Back - 0.4 ), [ L.suites, L.clubConcourse, L.terraceConcourse, t400Top - 1.4 ], 9.5 );
-		this._outerRing( line( path, D.t400Back - 0.4 ), [ L.clubConcourse, L.terraceConcourse ] );
+		this._columns( line( main, D.t400Back - 0.4 ), STREET, t400Top - 1.2, 9.5 );
+		this._rearWall( line( main, D.t400Back - 0.4 ), t400Top - 1.2, L.roof - 1.0 );
+		this._frame( line( main, D.t400Back - 0.4 ), [ L.suites, L.clubConcourse, L.terraceConcourse, t400Top - 1.4 ], 9.5 );
+		this._outerRing( line( main, D.t400Back - 0.4 ), [ L.clubConcourse, L.terraceConcourse ] );
 		this._columns( line( infieldPath, D.clubBack + 8 - 0.4 ), STREET, L.clubConcourse - 0.6, 9.5 );
 
 		// elevators: behind home plate and toward first and third, stopping at each level
 		this._elevators( path, top );
+		this._tvCameras( path, clubY, L.terraceConcourse - 0.15 );
 		void club; void t300;
 
 	}
@@ -342,17 +455,140 @@ export class Bowl {
 
 		const maroon = standard( { name: 'press-maroon', color: new Color( 0.15, 0.03, 0.03 ), roughness: 0.6 } );
 		const trim = standard( { name: 'press-trim', color: new Color( 0.75, 0.74, 0.7 ), roughness: 0.5 } );
-		const glass = standard( { name: 'press-glass', color: new Color( 0.03, 0.045, 0.055 ), roughness: 0.06, metalness: 0.6, modules: [ commonModule ],
+		const yS = y0 + 1.4, yG = yS + 2.7, tilt = 0.45, yF = yS - 0.9;
+		let total = 0;
+		for ( let i = 0; i < P.length - 1; i ++ ) total += Math.hypot( P[ i + 1 ][ 0 ] - P[ i ][ 0 ], P[ i + 1 ][ 1 ] - P[ i ][ 1 ] );
+		const nB = Math.round( total / 4.5 ), bw = total / nB, mid = Math.floor( nB / 2 );
+		// The booths, 4.5 m each, traced in behind the glass (interior mapped): a desk along the window
+		// with monitors and papers, partitions, racks and the station's banner on the back wall, strip
+		// lights; and the people in them, from first base's side to third's (booth 0 is behind the plate):
+		//   -2 ESPN Radio: Jon Miller and Joe Morgan
+		//   -1 the Phillies on WPHT 1210: Larry Andersen, Harry Kalas (white hair, his camel jacket; he calls
+		//      the middle innings, and he's there for the last out on the 29th) and Scott Franzke
+		//    0 FOX: Joe Buck and Tim McCarver, the booth lit for the camera
+		//    1 the Rays on WHNZ: Andy Freed and Dave Wills
+		//    2 Spanish radio, two men in headsets
+		//   the rest: the writers' rows, heads over laptops, a few standing at the back
+		const glass = standard( { name: 'press-glass', color: new Color( 0.03, 0.045, 0.055 ), roughness: 0.06, metalness: 0.6, modules: [ interiorModule ],
 			surface: /* wgsl */`
-	// mullions every 1.5 m; inside, the booths' lights and people-height shapes glow warm after dark
-	let mull = step( abs( fract( in.uv.x / 1.5 ) - 0.5 ), 0.025 );
-	let booth = 0.6 + 0.4 * step( 0.5, fract( in.uv.x / 4.5 + 0.3 ) );
-	s.albedo = mix( mat.color, vec3f( 0.7 ), mull );
-	s.emissive = vec3f( 1.0, 0.86, 0.64 ) * ( 1.0 - mull ) * booth * mix( 0.05, 0.5, smoothstep( 0.1, 0.7, frame.night ) );
+	let bw = ${ bw.toFixed( 4 ) };
+	let RH = 2.7;
+	let Nh = normalize( vec3f( in.N.x, 0.0, in.N.z ) );
+	let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), Nh ) );
+	let Vd = normalize( in.P - frame.cameraPos );
+	let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - Nh ), 0.05 ) );
+	let id = floor( in.uv.x / bw ) - ${ mid }.0;
+	let lean = clamp( ( in.uv.y - ${ yS.toFixed( 3 ) } ) / ${ ( yG - yS ).toFixed( 3 ) }, 0.0, 1.0 ) * ${ tilt };
+	let ro = vec3f( fract( in.uv.x / bw ) * bw - bw * 0.5, in.uv.y - ${ yF.toFixed( 3 ) }, - lean );
+	let tx = ( select( - bw * 0.5, bw * 0.5, rd.x > 0.0 ) - ro.x ) / rd.x;
+	let ty = ( select( 0.0, RH, rd.y > 0.0 ) - ro.y ) / rd.y;
+	let tz = ( 3.6 - ro.z ) / rd.z;
+	var t = min( tx, min( ty, tz ) );
+	var hit = ro + rd * t;
+	let media = abs( id ) < 2.5;
+	var room = vec3f( 0.45, 0.43, 0.4 );
+	if ( t == ty && rd.y > 0.0 ) {
+		let g = abs( fract( hit.xz / vec2f( 1.2, 1.5 ) ) - 0.5 );
+		room = mix( vec3f( 0.5, 0.5, 0.48 ), vec3f( 0.95, 0.97, 1.0 ) * 2.5, step( g.x, 0.25 ) * step( g.y, 0.1 ) );
+	} else if ( t == ty ) {
+		room = vec3f( 0.1, 0.1, 0.11 );
+	} else if ( t == tx ) {
+		room = vec3f( 0.36, 0.34, 0.31 );
+	} else {
+		// the back wall: equipment racks in the media booths (dark, pin lights), the station's banner
+		room = vec3f( 0.4, 0.38, 0.35 );
+		if ( media && abs( hit.x ) > 1.2 && hit.y < 2.0 ) {
+			room = vec3f( 0.03 );
+			if ( fract( hit.y * 6.0 ) < 0.08 && fract( hit.x * 9.0 ) < 0.2 ) { room = vec3f( 2.0, 0.4, 0.2 ) * step( 0.5, ihash( floor( hit.y * 6.0 ) + floor( hit.x * 9.0 ) * 7.0 ) ); }
+		}
+		if ( abs( hit.x ) < 1.1 && abs( hit.y - 1.9 ) < 0.32 ) {
+			if ( id == - 1.0 ) { room = vec3f( 0.7, 0.03, 0.04 ); }
+			if ( id == 0.0 ) { room = vec3f( 0.03, 0.08, 0.3 ); }
+			if ( id == 1.0 ) { room = vec3f( 0.03, 0.1, 0.35 ); }
+			if ( id == - 2.0 ) { room = vec3f( 0.6, 0.05, 0.05 ); }
+		}
+	}
+	// the desk along the window, 0.9 m up and 0.8 m deep: papers, the scorebook, monitors' backs, the
+	// writers' laptops lit
+	let td = ( 0.9 - ro.y ) / rd.y;
+	if ( rd.y < 0.0 && td > 0.0 && td < t ) {
+		let dp = ro + rd * td;
+		if ( dp.z < 0.8 ) {
+			t = td;
+			room = vec3f( 0.22, 0.2, 0.18 );
+			if ( fract( dp.x * 1.3 + 0.2 ) < 0.28 && dp.z > 0.25 && dp.z < 0.55 ) { room = vec3f( 0.75, 0.74, 0.7 ); }
+		}
+	}
+	// monitors on the desk, their backs to the glass, and the writers' laptop lids
+	let tm = ( 0.55 - ro.z ) / rd.z;
+	if ( tm < t && tm > 0.0 ) {
+		let mp = ro + rd * tm;
+		let mx = fract( mp.x / 1.5 + 0.5 ) * 1.5 - 0.75;
+		let tall = select( 0.22, 0.4, media );
+		if ( abs( mx ) < select( 0.16, 0.25, media ) && mp.y > 0.9 && mp.y < 0.9 + tall ) { room = vec3f( 0.025 ); t = tm; }
+	}
+	// the people, seated at the desk 1.05 m in, and one or two standing at the back
+	var px = array<f32, 3>( - 1.4, 0.0, 1.4 );
+	var coat = array<vec3f, 3>( vec3f( 0.08, 0.08, 0.09 ), vec3f( 0.25, 0.23, 0.2 ), vec3f( 0.03, 0.04, 0.08 ) );
+	var hair = array<vec3f, 3>( vec3f( 0.06, 0.04, 0.03 ), vec3f( 0.45, 0.45, 0.43 ), vec3f( 0.2, 0.12, 0.06 ) );
+	var skin = array<vec3f, 3>( vec3f( 0.55, 0.38, 0.3 ), vec3f( 0.55, 0.38, 0.3 ), vec3f( 0.5, 0.35, 0.27 ) );
+	var hs = 0.0;
+	if ( id == 0.0 ) {
+		px = array<f32, 3>( - 0.6, 0.6, 99.0 );
+		coat = array<vec3f, 3>( vec3f( 0.025, 0.025, 0.035 ), vec3f( 0.1, 0.1, 0.11 ), vec3f( 0.0 ) );
+		hair = array<vec3f, 3>( vec3f( 0.17, 0.1, 0.05 ), vec3f( 0.62, 0.62, 0.6 ), vec3f( 0.0 ) );
+		hs = 1.0;
+	} else if ( id == - 1.0 ) {
+		px = array<f32, 3>( - 0.95, 0.0, 0.95 );
+		coat = array<vec3f, 3>( vec3f( 0.4, 0.03, 0.04 ), vec3f( 0.42, 0.31, 0.18 ), vec3f( 0.03, 0.04, 0.1 ) );
+		hair = array<vec3f, 3>( vec3f( 0.14, 0.11, 0.09 ), vec3f( 0.86, 0.86, 0.83 ), vec3f( 0.12, 0.07, 0.04 ) );
+		hs = 1.0;
+	} else if ( id == 1.0 ) {
+		px = array<f32, 3>( - 0.6, 0.6, 99.0 );
+		coat = array<vec3f, 3>( vec3f( 0.03, 0.06, 0.16 ), vec3f( 0.03, 0.06, 0.16 ), vec3f( 0.0 ) );
+		hair = array<vec3f, 3>( vec3f( 0.05, 0.035, 0.03 ), vec3f( 0.3, 0.2, 0.1 ), vec3f( 0.0 ) );
+		hs = 1.0;
+	} else if ( id == - 2.0 ) {
+		px = array<f32, 3>( - 0.6, 0.6, 99.0 );
+		coat = array<vec3f, 3>( vec3f( 0.05, 0.05, 0.06 ), vec3f( 0.2, 0.17, 0.14 ), vec3f( 0.0 ) );
+		hair = array<vec3f, 3>( vec3f( 0.55, 0.55, 0.53 ), vec3f( 0.02 ), vec3f( 0.0 ) );
+		skin = array<vec3f, 3>( vec3f( 0.55, 0.38, 0.3 ), vec3f( 0.22, 0.13, 0.09 ), vec3f( 0.0 ) );
+		hs = 1.0;
+	} else if ( id == 2.0 ) {
+		px = array<f32, 3>( - 0.6, 0.6, 99.0 );
+		skin = array<vec3f, 3>( vec3f( 0.45, 0.3, 0.2 ), vec3f( 0.48, 0.32, 0.22 ), vec3f( 0.0 ) );
+		hs = 1.0;
+	} else {
+		// writers: their own coats, some seats empty (downstairs for quotes)
+		for ( var k = 0; k < 3; k ++ ) {
+			let r = ihash( id * 5.0 + f32( k ) );
+			coat[ k ] = mix( vec3f( 0.04 ), vec3f( 0.3, 0.26, 0.2 ), r );
+			if ( r > 0.8 ) { px[ k ] = 99.0; }
+		}
+	}
+	let tS = ( 2.7 - ro.z ) / rd.z;
+	if ( tS < t && tS > 0.0 && ihash( id + 9.0 ) > 0.4 ) {
+		let sp = ro + rd * tS;
+		let f = figure( vec2f( sp.x - 1.2 + 2.0 * ihash( id + 3.0 ), sp.y ), 1.78, vec3f( 0.05, 0.05, 0.06 ), vec3f( 0.1, 0.07, 0.05 ), vec3f( 0.5, 0.35, 0.27 ), 0.0 );
+		if ( f.w > 0.5 ) { room = f.xyz * 0.6; }
+	}
+	let tP = ( 1.05 - ro.z ) / rd.z;
+	if ( tP < t && tP > 0.0 ) {
+		let pp = ro + rd * tP;
+		for ( var k = 0; k < 3; k ++ ) {
+			let f = figure( vec2f( pp.x - px[ k ], pp.y ), 1.33 + 0.05 * ihash( id + f32( k ) ), coat[ k ], hair[ k ], skin[ k ], hs );
+			if ( f.w > 0.5 ) { room = f.xyz * 0.8; }
+		}
+		// the writers' screens light their faces from below
+		if ( ! media && fract( pp.x / 1.4 + 0.5 ) < 0.12 && pp.y > 0.9 && pp.y < 1.1 ) { room = vec3f( 0.6, 0.75, 1.0 ) * 1.5; }
+	}
+	let fox = select( 1.0, 1.7, id == 0.0 );
+	let fres = pow( 1.0 - max( dot( - Vd, Nh ), 0.0 ), 3.0 );
+	s.emissive = room * fox * mix( 0.14, 0.4, smoothstep( 0.1, 0.7, frame.night ) ) * ( 1.0 - fres * 0.8 );
 ` } );
 		for ( const m of [ maroon, trim, glass ] ) m.underwaterLighting = 'none';
+		glass.setDefine( 'DRY', 1 );
 		const qm = new Quads(), qt = new Quads(), qg = new Quads();
-		const yS = y0 + 1.4, yG = yS + 2.7, tilt = 0.45;
 		const back = offsetPolyline( P, depth, [ 0, - 40 ] );
 		let u = 0;
 		for ( let i = 0; i < P.length - 1; i ++ ) {
@@ -453,13 +689,86 @@ export class Bowl {
 
 	// the suites: a glass wall behind the suite seats, their floor and a ceiling slab (the club deck above
 	// sits on it)
+	// Behind the glass each suite is a room two panes wide (interior mapped): the walls in its own colours,
+	// can lights, carpet, framed photographs, the buffet counter along the back with the game on a TV over
+	// it, a pennant in some; a World Series crowd in every one, watching at the glass and at the counter.
 	_suites( P, depth, y, ceiling ) {
 
-		const glass = standard( { name: 'suite-glass', color: new Color( 0.02, 0.03, 0.035 ), roughness: 0.08, metalness: 0.6 } );
+		const glass = standard( { name: 'suite-glass', color: new Color( 0.02, 0.03, 0.035 ), roughness: 0.08, metalness: 0.6, modules: [ interiorModule ],
+			surface: /* wgsl */`
+	let RH = ${ ( ceiling - y ).toFixed( 3 ) };
+	let N = normalize( vec3f( in.N.x, 0.0, in.N.z ) );
+	let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), N ) );
+	let Vd = normalize( in.P - frame.cameraPos );
+	let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - N ), 0.05 ) );
+	let id = floor( in.uv.x / 6.4 );
+	let ro = vec3f( fract( in.uv.x / 6.4 ) * 6.4 - 3.2, in.uv.y - ${ y.toFixed( 3 ) }, 0.0 );
+	let tx = ( select( - 3.2, 3.2, rd.x > 0.0 ) - ro.x ) / rd.x;
+	let ty = ( select( 0.0, RH, rd.y > 0.0 ) - ro.y ) / rd.y;
+	let tz = 6.5 / rd.z;
+	let t = min( tx, min( ty, tz ) );
+	let hit = ro + rd * t;
+	let h1 = ihash( id ); let h2 = ihash( id + 17.0 ); let h3 = ihash( id + 31.0 );
+	// the suite's own walls (cream, taupe, a wood panel) and lamps (warmer or cooler)
+	let wall = mix( vec3f( 0.62, 0.55, 0.45 ), vec3f( 0.4, 0.3, 0.22 ), h1 );
+	let lampC = mix( vec3f( 1.0, 0.8, 0.58 ), vec3f( 1.0, 0.92, 0.8 ), h2 );
+	var room = wall;
+	if ( t == ty && rd.y > 0.0 ) {
+		let g = fract( hit.xz / 1.6 ) - 0.5;
+		room = mix( vec3f( 0.7, 0.68, 0.64 ), lampC * 5.0, step( length( g ), 0.11 ) );
+	} else if ( t == ty ) {
+		room = mix( vec3f( 0.12, 0.07, 0.06 ), vec3f( 0.07, 0.08, 0.12 ), h3 );
+	} else if ( t == tx ) {
+		room = wall * 0.8;
+		let f = abs( fract( hit.z / 2.0 ) - 0.5 );
+		if ( f < 0.25 && hit.y > 1.3 && hit.y < 1.95 ) {
+			room = vec3f( 0.05, 0.04, 0.04 );
+			if ( f < 0.21 && hit.y > 1.36 && hit.y < 1.89 ) { room = mix( vec3f( 0.5, 0.46, 0.4 ), vec3f( 0.55, 0.12, 0.1 ), ihash( floor( hit.z / 2.0 ) + id * 3.0 ) ); }
+		}
+	} else {
+		// the buffet counter, and the TV over it showing FOX's picture of the field
+		if ( hit.y < 0.95 ) { room = vec3f( 0.14, 0.09, 0.06 ); }
+		else if ( hit.y < 1.0 ) { room = vec3f( 0.4, 0.38, 0.35 ); }
+		let tvx = hit.x - ( h2 - 0.5 ) * 2.4;
+		if ( abs( tvx ) < 0.62 && hit.y > 1.45 && hit.y < 2.17 ) {
+			room = vec3f( 0.02 );
+			if ( abs( tvx ) < 0.58 && hit.y > 1.49 && hit.y < 2.13 ) { room = mix( vec3f( 0.12, 0.45, 0.14 ), vec3f( 0.12, 0.22, 0.5 ), step( 1.86, hit.y ) ) * 3.5; }
+		}
+		let pn = hit.x + 2.0 - h1;
+		if ( h3 > 0.55 && pn > 0.0 && pn < 1.0 && abs( hit.y - 1.95 ) < 0.2 * ( 1.0 - pn ) ) { room = vec3f( 0.6, 0.03, 0.04 ); }
+	}
+	room = room * mix( 0.14, 0.42, smoothstep( 0.1, 0.7, frame.night ) ) * ( 0.75 + 0.5 * h2 );
+	// the people: at the counter (4.4 m in), then along the glass (1.1 m in), nearer drawn over further
+	for ( var k = 0; k < 2; k ++ ) {
+		let zP = select( 1.1, 4.4, k == 0 );
+		let tP = zP / rd.z;
+		if ( tP < t && tP > 0.0 ) {
+			let pp = ro + rd * tP;
+			let cell = floor( pp.x / 0.75 ) + id * 16.0 + f32( k ) * 7.0;
+			let a = ihash( cell ); let b = ihash( cell + 3.3 ); let c = ihash( cell + 5.7 );
+			let cx = ( floor( pp.x / 0.75 ) + 0.3 + 0.4 * b ) * 0.75;
+			if ( a < select( 0.55, 0.4, k == 0 ) && abs( cx ) < 2.9 ) {
+				var coat = vec3f( 0.36, 0.025, 0.03 );
+				if ( c > 0.45 ) { coat = vec3f( 0.03, 0.035, 0.08 ); }
+				if ( c > 0.65 ) { coat = vec3f( 0.03 ); }
+				if ( c > 0.8 ) { coat = vec3f( 0.22, 0.2, 0.18 ); }
+				if ( c > 0.92 ) { coat = vec3f( 0.6, 0.58, 0.55 ); }
+				let hair = mix( vec3f( 0.05, 0.035, 0.02 ), vec3f( 0.35, 0.25, 0.12 ), step( 0.7, b ) ) + vec3f( 0.3 ) * step( 0.9, a * 1.8 );
+				let skin = mix( vec3f( 0.55, 0.38, 0.3 ), vec3f( 0.3, 0.19, 0.13 ), step( 0.85, c ) );
+				let f = figure( vec2f( pp.x - cx, pp.y ), 1.62 + 0.24 * b, coat, hair, skin, 0.0 );
+				if ( f.w > 0.5 ) { room = f.xyz * mix( 0.1, 0.3, smoothstep( 0.1, 0.7, frame.night ) ) * ( 0.8 + 0.4 * h2 ) * select( 1.0, 0.7, k == 0 ); }
+			}
+		}
+	}
+	let fres = pow( 1.0 - max( dot( - Vd, N ), 0.0 ), 3.0 );
+	s.emissive = room * ( 1.0 - fres );
+` } );
 		const frame = standard( { name: 'suite-frame', color: new Color( 0.35, 0.34, 0.32 ), roughness: 0.7 } );
 		for ( const m of [ glass, frame ] ) m.underwaterLighting = 'none';
+		glass.setDefine( 'DRY', 1 );
 		const g = new Quads(), f = new Quads();
 		const B = offsetPolyline( P, depth, [ 0, - 40 ] );
+		let u = 0;
 		for ( let i = 0; i < P.length - 1; i ++ ) {
 
 			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
@@ -477,7 +786,8 @@ export class Bowl {
 
 				const t0 = k / n, t1 = ( k + 1 ) / n;
 				const p0 = [ ax + ( bx - ax ) * t0, az + ( bz - az ) * t0 ], p1 = [ ax + ( bx - ax ) * t1, az + ( bz - az ) * t1 ];
-				g.add( [ p0[ 0 ], y + 0.1, p0[ 1 ] ], [ p1[ 0 ], y + 0.1, p1[ 1 ] ], [ p1[ 0 ], ceiling - 0.3, p1[ 1 ] ], [ p0[ 0 ], ceiling - 0.3, p0[ 1 ] ], [ nx, 0, nz ] );
+				g.add( [ p0[ 0 ], y + 0.1, p0[ 1 ] ], [ p1[ 0 ], y + 0.1, p1[ 1 ] ], [ p1[ 0 ], ceiling - 0.3, p1[ 1 ] ], [ p0[ 0 ], ceiling - 0.3, p0[ 1 ] ], [ nx, 0, nz ], u, u + len / n );
+				u += len / n;
 				const mx = p1[ 0 ] - ( bx - ax ) / len * 0.06, mz = p1[ 1 ] - ( bz - az ) / len * 0.06;
 				f.add( [ mx, y, mz ], [ p1[ 0 ] + ( bx - ax ) / len * 0.06, y, p1[ 1 ] + ( bz - az ) / len * 0.06 ], [ p1[ 0 ] + ( bx - ax ) / len * 0.06, ceiling, p1[ 1 ] + ( bz - az ) / len * 0.06 ], [ mx, ceiling, mz ], [ nx, 0, nz ] );
 
@@ -886,7 +1196,8 @@ export class Bowl {
 	// A glass curtain wall along P from the floor y0 up to y1: dark bronze mullions every 1.5 m and a
 	// transom, and behind the glass a room 6 m deep (interior mapping: the view ray traced into it), its
 	// ceiling panels lit warm, dark carpet, framed pictures on the back wall.
-	_clubGlass( P, y0, y1 ) {
+	// { open }: no glass, the opening onto a concourse (its ceiling lights, the stands lit along the back)
+	_clubGlass( P, y0, y1, { open = false } = {} ) {
 
 		const q = new Quads(), mq = new Quads();
 		let u = 0;
@@ -903,6 +1214,8 @@ export class Bowl {
 			}
 
 			q.add( [ ax, y0, az ], [ bx, y0, bz ], [ bx, y1, bz ], [ ax, y1, az ], [ nx, 0, nz ], u, u + len );
+			u += len;
+			if ( open ) continue;
 			const n = Math.max( 1, Math.round( len / 1.5 ) );
 			for ( let k = 0; k <= n; k ++ ) {
 
@@ -912,48 +1225,78 @@ export class Bowl {
 			}
 
 			for ( const yy of [ y0 + 0.05, y0 + 2.7, y1 - 0.05 ] ) beam( mq, [ ax + nx * 0.04, yy, az + nz * 0.04 ], [ bx + nx * 0.04, yy, bz + nz * 0.04 ], 0.07 );
-			u += len;
 
 		}
 
-		const glass = standard( { name: 'club-glass', color: new Color( 0.03, 0.035, 0.04 ), roughness: 0.06, metalness: 0.5, modules: [ commonModule ],
+		const glass = standard( { name: open ? 'concourse-opening' : 'club-glass', color: new Color( 0.03, 0.035, 0.04 ), roughness: open ? 1 : 0.06, metalness: open ? 0 : 0.5, modules: [ commonModule ],
 			surface: /* wgsl */`
-	// the room behind: view ray into a box 6 m deep, as tall as the glass
+	// the room behind: the view ray traced into a box ${ open ? 5 : 6 } m deep, as tall as the opening
 	let H = ${ ( y1 - y0 ).toFixed( 3 ) };
+	let DEP = ${ open ? '5.0' : '6.0' };
 	let N = normalize( in.N );
 	let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), N ) );
 	let Vd = normalize( in.P - frame.cameraPos );
 	let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - N ), 0.05 ) );
-	let ro = vec3f( fract( in.uv.x / 6.0 ) * 6.0 - 3.0, in.uv.y - ${ y0.toFixed( 3 ) }, 0.0 );
-	let tx = ( select( -3.0, 3.0, rd.x > 0.0 ) - ro.x ) / rd.x;
+	let ro = vec3f( in.uv.x, in.uv.y - ${ y0.toFixed( 3 ) }, 0.0 );
 	let ty = ( select( 0.0, H, rd.y > 0.0 ) - ro.y ) / rd.y;
-	let tz = 6.0 / rd.z;
-	let t = min( tx, min( ty, tz ) );
+	let tz = DEP / rd.z;
+	let t = min( ty, tz );
 	let hit = ro + rd * t;
+	let nkI = smoothstep( 0.1, 0.7, frame.night );
 	var room = vec3f( 0.3, 0.25, 0.2 );
-	var lit = 0.0;
 	if ( t == ty && rd.y > 0.0 ) {
-		// the ceiling: 2 m light panels
+${ open ? `		// the concourse's ceiling: dark steel deck, strip lights every 3 m
+		let g = abs( fract( hit.x / 3.0 ) - 0.5 );
+		room = mix( vec3f( 0.12, 0.11, 0.1 ), vec3f( 1.0, 0.95, 0.85 ) * 3.0, step( g, 0.04 ) * step( abs( hit.z - DEP * 0.5 ), 1.6 ) );` : `		// the ceiling: 2 m light panels
 		let g = abs( fract( hit.xz / 2.0 ) - 0.5 );
-		lit = step( max( g.x, g.y ), 0.3 );
-		room = mix( vec3f( 0.6, 0.58, 0.54 ), vec3f( 1.0, 0.85, 0.62 ) * 3.0, lit );
+		room = mix( vec3f( 0.6, 0.58, 0.54 ), vec3f( 1.0, 0.85, 0.62 ) * 3.0, step( max( g.x, g.y ), 0.3 ) );` }
 	}
-	if ( t == ty && rd.y <= 0.0 ) { room = vec3f( 0.08, 0.05, 0.05 ); }
+	if ( t == ty && rd.y <= 0.0 ) { room = ${ open ? 'vec3f( 0.16, 0.155, 0.15 )' : 'vec3f( 0.08, 0.05, 0.05 )' }; }
 	if ( t == tz ) {
-		room = vec3f( 0.42, 0.34, 0.26 );
+${ open ? `		// the back: concession stands 7.5 m wide, their counters and menu boards lit, dark gaps between
+		let c = fract( hit.x / 8.7 ) * 8.7;
+		let id = floor( hit.x / 8.7 );
+		let hue = fract( sin( id * 17.13 ) * 4375.5 );
+		room = vec3f( 0.12, 0.11, 0.1 );
+		if ( c < 7.5 && hit.y > 0.95 && hit.y < 2.6 ) { room = vec3f( 1.0, 0.8, 0.55 ) * 1.2; }
+		if ( c < 7.5 && hit.y >= 2.6 && hit.y < 3.3 ) { room = mix( vec3f( 0.8, 0.12, 0.08 ), vec3f( 0.12, 0.3, 0.7 ), step( 0.5, hue ) ) * 1.5; }
+		if ( c < 7.5 && hit.y <= 0.95 ) { room = vec3f( 0.25, 0.22, 0.2 ); }` : `		room = vec3f( 0.42, 0.34, 0.26 );
 		let f = abs( fract( ( hit.x + 1.5 ) / 3.0 ) - 0.5 ) * 3.0;
-		if ( f < 0.55 && hit.y > 1.2 && hit.y < 2.3 ) { room = vec3f( 0.05, 0.04, 0.035 ); }
+		if ( f < 0.55 && hit.y > 1.2 && hit.y < 2.3 ) { room = vec3f( 0.05, 0.04, 0.035 ); }` }
 	}
-	let fres = pow( 1.0 - max( dot( - Vd, N ), 0.0 ), 3.0 );
+	// people inside, on a plane a couple of metres in: standing, walking, at the bar (silhouettes lit by
+	// the room), in their red and their dark coats
+	let zP = ${ open ? '2.4' : '2.0' };
+	let tP = zP / rd.z;
+	if ( tP < t && tP > 0.0 ) {
+		let pp = ro + rd * tP;
+		let cell = floor( pp.x / 0.95 );
+		let h1 = fract( sin( cell * 12.9898 ) * 43758.5453 );
+		let h2 = fract( sin( cell * 78.233 ) * 43758.5453 );
+		let cx = ( cell + 0.3 + 0.4 * h2 ) * 0.95;
+		let px = pp.x - cx;
+		let hh = 1.56 + 0.22 * h2;
+		let head = length( vec2f( px, pp.y - hh ) ) < 0.115;
+		let body = abs( px ) < 0.22 - 0.06 * smoothstep( hh - 0.3, hh - 0.15, pp.y ) && pp.y < hh - 0.13 && pp.y > 0.0;
+		if ( h1 < ${ open ? '0.5' : '0.42' } && ( head || body ) ) {
+			var coat = vec3f( 0.3, 0.025, 0.03 );
+			if ( h2 > 0.55 ) { coat = vec3f( 0.035, 0.035, 0.04 ); }
+			if ( h2 > 0.85 ) { coat = vec3f( 0.18, 0.18, 0.2 ); }
+			room = select( coat, vec3f( 0.45, 0.3, 0.22 ), head ) * 0.9;
+		}
+	}
+${ open ? `	s.albedo = vec3f( 0.01 );
+	s.emissive = room * mix( 0.1, 0.3, nkI );` : `	let fres = pow( 1.0 - max( dot( - Vd, N ), 0.0 ), 3.0 );
 	s.albedo = mat.color;
-	s.emissive = room * mix( 0.12, 0.35, smoothstep( 0.1, 0.7, frame.night ) ) * ( 1.0 - fres );
+	s.emissive = room * mix( 0.12, 0.35, nkI ) * ( 1.0 - fres );` }
 ` } );
 		const mull = standard( { name: 'club-mullions', color: new Color( 0.025, 0.02, 0.017 ), roughness: 0.5, metalness: 0.5 } );
 		for ( const m of [ glass, mull ] ) m.underwaterLighting = 'none';
 		glass.setDefine( 'DRY', 1 );
 		const gm = new Mesh( q.geometry(), glass );
-		gm.name = 'club-glass';
+		gm.name = glass.name;
 		this.group.add( gm );
+		if ( ! mq.count ) return;
 		const mm = new Mesh( mq.geometry(), mull );
 		mm.name = 'club-mullions';
 		this.group.add( mm );
@@ -1112,6 +1455,233 @@ ${ SOFFIT_WGSL }
 			}
 
 			this.elevators.push( bank );
+
+		}
+
+	}
+
+	// FOX's cameras for the World Series and the crews on them: two in center field on a black platform
+	// hung off the batter's eye (the pitch-by-pitch shot, over the pitcher's shoulder, one for lefties,
+	// one for righties), high home on the press box's roof, high first and high third on platforms hung
+	// off the Hall of Fame Club's front. Each is a pedestal with a big lens under a black rain cover and
+	// an operator behind it in a dark FOX jacket and a watch cap, headset on; they pan with the play
+	// (update()). Two instanced meshes: the pedestal and the operator turn, the head also tilts.
+	_tvCameras( path, clubY, pressRoof ) {
+
+		const at = ( P, d, x, z ) => {
+
+			// the point on the line d back from the path nearest ( x, z )
+			const line = offsetPolyline( P, d, [ 0, - 40 ] );
+			let best = null, bd = Infinity;
+			for ( let i = 0; i < line.length - 1; i ++ ) {
+
+				const [ ax, az ] = line[ i ], [ bx, bz ] = line[ i + 1 ];
+				const dx = bx - ax, dz = bz - az;
+				const t = Math.max( 0, Math.min( 1, ( ( x - ax ) * dx + ( z - az ) * dz ) / ( dx * dx + dz * dz || 1 ) ) );
+				const px = ax + dx * t, pz = az + dz * t, dd = Math.hypot( px - x, pz - z );
+				if ( dd < bd ) {
+
+					bd = dd;
+					best = { p: [ px, pz ], u: [ dx, dz ].map( ( v ) => v / Math.hypot( dx, dz ) ) };
+
+				}
+
+			}
+
+			return best;
+
+		};
+
+		// [ x, floor y, z, lens length, aims at the ball ]
+		const cams = [];
+		for ( const x of [ - 1.8, 1.8 ] ) cams.push( [ x, 7.95, - 128, 1.1, false ] );
+		const hh = at( path, this.D.t300 + 0.5, 0, 60 );
+		cams.push( [ hh.p[ 0 ], pressRoof, hh.p[ 1 ], 0.8, true ] );
+		for ( const sx of [ - 30, 30 ] ) {
+
+			const c = at( path, this.D.club - 1.2, sx, - 2 );
+			cams.push( [ c.p[ 0 ], clubY + 0.62, c.p[ 1 ], 0.7, true ] );
+
+		}
+
+		this.cameraSpots = cams.map( ( [ x, y, z ] ) => [ x, y + 1.55, z ] );
+
+		// the platforms: black steel grating, a rail round the open sides, brackets back to the structure
+		const pq = new Quads();
+		const platform = ( cx, y, cz, w, dpt, ux, uz, back ) => {
+
+			// u along the structure, n out from it toward the field
+			const nx = - back[ 0 ], nz = - back[ 1 ];
+			const P = ( s, o, yy ) => [ cx + ux * s + nx * o, yy, cz + uz * s + nz * o ];
+			const o0 = - dpt / 2, o1 = dpt / 2;
+			pq.add( P( - w / 2, o0, y ), P( w / 2, o0, y ), P( w / 2, o1, y ), P( - w / 2, o1, y ), [ 0, 1, 0 ] );
+			pq.add( P( - w / 2, o0, y - 0.12 ), P( w / 2, o0, y - 0.12 ), P( w / 2, o1, y - 0.12 ), P( - w / 2, o1, y - 0.12 ), [ 0, - 1, 0 ] );
+			pq.add( P( - w / 2, o1, y - 0.12 ), P( w / 2, o1, y - 0.12 ), P( w / 2, o1, y ), P( - w / 2, o1, y ), [ nx, 0, nz ] );
+			for ( const yy of [ y + 0.5, y + 1.05 ] ) {
+
+				beam( pq, P( - w / 2, o1, yy ), P( w / 2, o1, yy ), 0.05 );
+				beam( pq, P( - w / 2, o0, yy ), P( - w / 2, o1, yy ), 0.05 );
+				beam( pq, P( w / 2, o0, yy ), P( w / 2, o1, yy ), 0.05 );
+
+			}
+
+			for ( const s of [ - w / 2, 0, w / 2 ] ) beam( pq, P( s, o1, y ), P( s, o1, y + 1.05 ), 0.05 );
+			// knee braces under it, back to the face it hangs from
+			for ( const s of [ - w / 2 + 0.2, w / 2 - 0.2 ] ) beam( pq, P( s, o1 - 0.1, y - 0.1 ), P( s, o0, y - 1.3 ), 0.1 );
+
+		};
+
+		// center field: against the batter's eye wall, facing home
+		platform( 0, 7.95, - 128.1, 6.0, 2.2, 1, 0, [ 0, - 1 ] );
+		for ( const sx of [ - 30, 30 ] ) {
+
+			const c = at( path, this.D.club - 1.2, sx, - 2 );
+			platform( c.p[ 0 ], clubY + 0.62, c.p[ 1 ], 2.4, 2.4, c.u[ 0 ], c.u[ 1 ], [ c.u[ 1 ], - c.u[ 0 ] ].map( ( v, i, a ) => ( a[ 0 ] * c.p[ 0 ] + a[ 1 ] * ( c.p[ 1 ] + 40 ) > 0 ? v : - v ) ) );
+
+		}
+
+		const pm = new Mesh( pq.geometry(), this._camSteel || ( this._camSteel = standard( { name: 'camera-platforms', color: new Color( 0.02, 0.02, 0.022 ), roughness: 0.6, metalness: 0.4 } ) ) );
+		pm.name = 'camera-platforms';
+		pm.castShadow = true;
+		this.group.add( pm );
+
+		// the camera and its operator, facing -z; origin on the floor under the pedestal
+		const build = ( head, lens ) => {
+
+			const q = new Quads(), col = [];
+			const add = ( c, f ) => {
+
+				const n0 = q.count;
+				f();
+				for ( let i = n0; i < q.count; i ++ ) col.push( ...c, ...c, ...c );
+
+			};
+
+			const BLACK = [ 0.012, 0.012, 0.014 ], GREY = [ 0.12, 0.125, 0.13 ], LENS = [ 0.55, 0.55, 0.53 ], JACKET = [ 0.02, 0.022, 0.03 ], PANTS = [ 0.03, 0.03, 0.035 ], SKIN = [ 0.5, 0.34, 0.26 ], CAP = [ 0.05, 0.05, 0.06 ], LOGO = [ 0.6, 0.6, 0.6 ];
+			if ( head ) {
+
+				// the head: body, viewfinder hood, the lens (the long ones pale grey) with its hood, a black
+				// rain cover over the body, the tally light
+				add( GREY, () => box( q, [ 0, 1.42, 0.05 ], [ 0.3, 0.34, 0.5 ] ) );
+				add( BLACK, () => {
+
+					box( q, [ 0, 1.62, 0.0 ], [ 0.36, 0.06, 0.62 ] );
+					box( q, [ 0.19, 1.47, 0.28 ], [ 0.14, 0.14, 0.2 ] );
+					box( q, [ 0, 1.42, - 0.27 - lens - 0.08 ], [ 0.3, 0.3, 0.16 ] );
+					beam( q, [ 0.12, 1.3, 0.3 ], [ 0.34, 1.16, 0.72 ], 0.035 );
+					beam( q, [ - 0.12, 1.3, 0.3 ], [ - 0.34, 1.16, 0.72 ], 0.035 );
+
+				} );
+				add( lens > 0.9 ? LENS : BLACK, () => box( q, [ 0, 1.42, - 0.27 - lens / 2 ], [ 0.24, 0.26, lens ] ) );
+				add( [ 3, 0.1, 0.05 ], () => box( q, [ 0.1, 1.6, - 0.2 ], [ 0.04, 0.03, 0.04 ] ) );
+
+			} else {
+
+				// the pedestal, its column and three feet; the operator behind the camera, hands on the pan
+				// bars: legs, jacket (FOX in white on the back), arms, head in a watch cap, headset
+				add( BLACK, () => {
+
+					box( q, [ 0, 0.65, 0 ], [ 0.12, 1.3, 0.12 ] );
+					for ( let k = 0; k < 3; k ++ ) {
+
+						const a = k * Math.PI * 2 / 3;
+						beam( q, [ 0, 0.1, 0 ], [ Math.cos( a ) * 0.5, 0.03, Math.sin( a ) * 0.5 ], 0.06 );
+
+					}
+
+					box( q, [ 0, 1.25, 0 ], [ 0.3, 0.06, 0.3 ] );
+
+				} );
+				add( PANTS, () => {
+
+					box( q, [ - 0.11, 0.44, 0.95 ], [ 0.15, 0.88, 0.17 ] );
+					box( q, [ 0.11, 0.44, 0.95 ], [ 0.15, 0.88, 0.17 ] );
+
+				} );
+				add( JACKET, () => {
+
+					box( q, [ 0, 1.2, 0.95 ], [ 0.46, 0.66, 0.28 ] );
+					beam( q, [ - 0.22, 1.45, 0.9 ], [ - 0.34, 1.2, 0.74 ], 0.1 );
+					beam( q, [ 0.22, 1.45, 0.9 ], [ 0.34, 1.2, 0.74 ], 0.1 );
+
+				} );
+				add( LOGO, () => box( q, [ 0, 1.36, 1.095 ], [ 0.2, 0.07, 0.01 ] ) );
+				add( SKIN, () => box( q, [ 0, 1.68, 0.93 ], [ 0.19, 0.23, 0.21 ] ) );
+				add( CAP, () => box( q, [ 0, 1.82, 0.94 ], [ 0.21, 0.1, 0.23 ] ) );
+				add( BLACK, () => {
+
+					box( q, [ 0, 1.78, 0.93 ], [ 0.23, 0.03, 0.05 ] );
+					box( q, [ - 0.11, 1.68, 0.93 ], [ 0.04, 0.09, 0.09 ] );
+					box( q, [ 0.11, 1.68, 0.93 ], [ 0.04, 0.09, 0.09 ] );
+
+				} );
+
+			}
+
+			const g = q.geometry();
+			g.setAttribute( 'color', new Float32BufferAttribute( col, 3 ) );
+			return g;
+
+		};
+
+		const mat = standard( { name: 'tv-cameras', color: new Color( 1, 1, 1 ), roughness: 0.55, vertexColors: true,
+			surface: 's.emissive = s.albedo * step( 1.5, s.albedo.r ) * 2.0;' } );
+		mat.underwaterLighting = 'none';
+		this.tvCams = { list: cams.map( ( [ x, y, z, lens, follow ] ) => ( { x, y, z, lens, follow, yaw: Math.atan2( x - 0, z - 0 ), pitch: 0 } ) ) };
+		// one head per lens length (the long ones in center field)
+		this.tvCams.base = new InstancedMesh( build( false ), mat, cams.length );
+		this.tvCams.heads = [ 1.1, 0.8, 0.7 ].map( ( lens ) => {
+
+			const list = this.tvCams.list.filter( ( c ) => c.lens === lens );
+			const m = new InstancedMesh( build( true, lens ), mat, list.length );
+			return { m, list };
+
+		} );
+		for ( const m of [ this.tvCams.base, ...this.tvCams.heads.map( ( h ) => h.m ) ] ) {
+
+			m.name = 'tv-cameras';
+			m.frustumCulled = false;
+			m.castShadow = true;
+			this.group.add( m );
+
+		}
+
+		this.updateCameras( null, 1 );
+
+	}
+
+	// the cameras follow the play: the ball (field frame [ x, y, z ]) when there is one, else the plate;
+	// the one you're looking through (its lens within 1.5 m of `eye`, field frame) isn't drawn
+	updateCameras( ball, dt, eye = null ) {
+
+		const T = this.tvCams;
+		if ( ! T ) return;
+		const zero = new Vector3( 0, 0, 0 );
+		const m = this._cm || ( this._cm = new Matrix4() ), q = new Quaternion(), e = new Euler( 0, 0, 0, 'YXZ' ), p = new Vector3(), one = new Vector3( 1, 1, 1 );
+		const k = 1 - Math.exp( - dt * 3 );
+		T.list.forEach( ( c, i ) => {
+
+			const tx = c.follow && ball ? ball[ 0 ] : 0, ty = c.follow && ball ? ball[ 1 ] : 1, tz = c.follow && ball ? ball[ 2 ] : ( c.follow ? - 20 : 0.2 );
+			const dx = tx - c.x, dy = ty - ( c.y + 1.42 ), dz = tz - c.z;
+			const yaw = Math.atan2( - dx, - dz ), pitch = Math.atan2( dy, Math.hypot( dx, dz ) );
+			let dyaw = yaw - c.yaw;
+			while ( dyaw > Math.PI ) dyaw -= 2 * Math.PI;
+			while ( dyaw < - Math.PI ) dyaw += 2 * Math.PI;
+			c.yaw += dyaw * k;
+			c.pitch += ( pitch - c.pitch ) * k;
+			const s = eye && Math.hypot( eye[ 0 ] - c.x, eye[ 1 ] - c.y - 1.42, eye[ 2 ] - c.z ) < 1.5 ? zero : one;
+			T.base.setMatrixAt( i, m.compose( p.set( c.x, c.y, c.z ), q.setFromEuler( e.set( 0, c.yaw, 0 ) ), s ) );
+			// the head tilts about its mount, 1.42 m up
+			m.compose( p.set( c.x, c.y + 1.42, c.z ), q.setFromEuler( e.set( c.pitch, c.yaw, 0 ) ), s );
+			m.multiply( this._down || ( this._down = new Matrix4().makeTranslation( 0, - 1.42, 0 ) ) );
+			c.head = m.clone();
+
+		} );
+		T.base.instanceMatrix.needsUpdate = true;
+		for ( const h of T.heads ) {
+
+			h.list.forEach( ( c, i ) => h.m.setMatrixAt( i, c.head ) );
+			h.m.instanceMatrix.needsUpdate = true;
 
 		}
 
@@ -1429,6 +1999,28 @@ export function offsetPolyline( P, d, outward ) {
 
 	}
 
+	return out;
+
+}
+
+// The corner between a front line arriving along A0 -> A1 and one leaving along B0 -> B1, rounded: the
+// arc of radius R tangent to both, as n segments (n + 1 points, from the first line's tangent point to
+// the second's).
+export function roundCorner( A0, A1, B0, B1, R, n = 4 ) {
+
+	const la = Math.hypot( A1[ 0 ] - A0[ 0 ], A1[ 1 ] - A0[ 1 ] ), lb = Math.hypot( B1[ 0 ] - B0[ 0 ], B1[ 1 ] - B0[ 1 ] );
+	const a = [ ( A1[ 0 ] - A0[ 0 ] ) / la, ( A1[ 1 ] - A0[ 1 ] ) / la ], b = [ ( B1[ 0 ] - B0[ 0 ] ) / lb, ( B1[ 1 ] - B0[ 1 ] ) / lb ];
+	const cr = a[ 0 ] * b[ 1 ] - a[ 1 ] * b[ 0 ];
+	const s = ( ( B0[ 0 ] - A0[ 0 ] ) * b[ 1 ] - ( B0[ 1 ] - A0[ 1 ] ) * b[ 0 ] ) / cr;
+	const X = [ A0[ 0 ] + a[ 0 ] * s, A0[ 1 ] + a[ 1 ] * s ];
+	const turn = Math.acos( Math.max( - 1, Math.min( 1, a[ 0 ] * b[ 0 ] + a[ 1 ] * b[ 1 ] ) ) ), t = R * Math.tan( turn / 2 );
+	const TA = [ X[ 0 ] - a[ 0 ] * t, X[ 1 ] - a[ 1 ] * t ];
+	// the arc's centre is inside the turn
+	const na = cr > 0 ? [ - a[ 1 ], a[ 0 ] ] : [ a[ 1 ], - a[ 0 ] ];
+	const C = [ TA[ 0 ] + na[ 0 ] * R, TA[ 1 ] + na[ 1 ] * R ];
+	const a0 = Math.atan2( TA[ 1 ] - C[ 1 ], TA[ 0 ] - C[ 0 ] ), da = ( cr > 0 ? 1 : - 1 ) * turn;
+	const out = [];
+	for ( let i = 0; i <= n; i ++ ) out.push( [ C[ 0 ] + Math.cos( a0 + da * i / n ) * R, C[ 1 ] + Math.sin( a0 + da * i / n ) * R ] );
 	return out;
 
 }

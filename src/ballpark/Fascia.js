@@ -1,4 +1,4 @@
-import { Group, Mesh } from '../engine/index.js';
+import { Group, Mesh, Color } from '../engine/index.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
 import { canvasTexture, refreshCanvasTexture } from './geo.js';
@@ -26,6 +26,7 @@ const ADS = {
 	sherwin: { w: 4.0, draw: drawSherwin },
 	aig: { w: 4.0, draw: drawAIG },
 	mcdonalds: { w: 6.0, draw: drawMcDonalds },
+	mcd: { w: 9.0, draw: drawMcDonaldsWord },
 	canon: { w: 5.0, draw: ( c, w, h ) => wordmark( c, w, h, '#ffffff', '#cc0000', 'Canon', 'italic 800 96px Georgia, serif' ) },
 	herrs: { w: 5.0, draw: drawHerrs },
 	lg: { w: 5.0, draw: drawLG },
@@ -51,11 +52,15 @@ export class Fascia {
 		field.group.add( this.group );
 		const tier = ( name ) => bowl.upper.find( ( t ) => t.name === name );
 		this._atlas();
-		this._ribbon( tier( 'suite-seats' ) );
+		// the ribbon runs on the suite level round the infield, and on down both lines: on the Arcade's
+		// front in left and the Pavilion's toward the pole in right
+		const pav = tier( 'pavilion' ), deck = tier( 'pavilion-deck' );
+		this._ribbon( [ tier( 'suite-seats' ), tier( 'arcade' ), pav && { ...pav, front: pav.parts.line } ].filter( Boolean ) );
 		this._terrace( tier( 'terrace-300' ) );
-		this._pavilion( tier( 'pavilion' ) );
+		this._pavilion( pav && { ...pav, front: pav.parts.rf } );
+		this._pavilionDeck( deck );
 		this._lfDeck( tier( 'lf-deck' ) );
-		this._bunting( [ tier( 'club-level' ), tier( 'pavilion' ) ] );
+		this._bunting( [ tier( 'club-level' ), pav, tier( 'arcade' ) ].filter( Boolean ) );
 		this._key = '';
 		this._pitchKey = '';
 
@@ -113,16 +118,21 @@ export class Fascia {
 
 	}
 
-	// the suite level's ribbon, all the way round the infield
-	_ribbon( t ) {
+	// the suite level's ribbon, all the way round the infield (and on down the lines)
+	_ribbon( tiers ) {
 
 		this.ribbonCanvas = new OffscreenCanvas( RIB_W, RIB_H );
 		this.ribbonTex = canvasTexture( RIB_W, RIB_H, ( ctx, w, h ) => drawRibbon( ctx, w, h, 'ws', null ), 'ribbon' );
 		this.ribbonMat = this._led( this.ribbonTex, RIB_W, RIB_H, 'ribbon' );
-		const segs = facing( t.front, t.outward );
 		const q = new Quads();
-		const y0 = t.base + 0.2;
-		for ( const S of segs ) panel( q, S, 0, S.len, y0, y0 + RIB_M, 0.05, S.s0 / RIB_TILE, ( S.s0 + S.len ) / RIB_TILE, 0, 1 );
+		for ( const t of tiers ) {
+
+			const segs = facing( t.front, t.outward );
+			const y0 = t.base + 0.2;
+			for ( const S of segs ) panel( q, S, 0, S.len, y0, y0 + RIB_M, 0.05, S.s0 / RIB_TILE, ( S.s0 + S.len ) / RIB_TILE, 0, 1 );
+
+		}
+
 		this._mesh( q, this.ribbonMat, 'ribbon-board' );
 
 	}
@@ -134,9 +144,12 @@ export class Fascia {
 		const total = segs.reduce( ( a, S ) => a + S.len, 0 );
 		const ads = new Quads(), led = new Quads();
 		const y0 = t.y0 - 0.95, y1 = y0 + PANEL_M, gap = 0.25;
+		// mirrored about the point behind home plate (the deck no longer runs pole to pole: it ends at The
+		// Break in right)
+		const mid = alongTo( segs, [ 0, 30 ] );
 		for ( const dir of [ 1, - 1 ] ) {
 
-			let s = total / 2 + dir * 0.6;
+			let s = mid + dir * 0.6;
 			for ( const item of TERRACE ) {
 
 				const [ name, arg ] = item.split( ':' );
@@ -162,25 +175,58 @@ export class Fascia {
 
 	}
 
-	// the Pavilion in right: Toyota and the pitch speed, the Budweiser boards
+	// the Pavilion's front in right (as in the photos of the 31st): the big boards hung under it, Chrysler
+	// and Jeep's GREAT RUN HOME, an LED box (with the ribbon's show), Bud Light's DRINKABILITY; toward the
+	// pole Toyota and the pitch speed, and Budweiser
 	_pavilion( t ) {
 
+		if ( ! t ) return;
 		const segs = facing( t.front, t.outward );
 		const total = segs.reduce( ( a, S ) => a + S.len, 0 );
-		const y0 = t.base - 0.55, y1 = y0 + PANEL_M;
+		const y0 = t.base - 0.55, y1 = y0 + PANEL_M, top = t.frontWall.top - 0.1;
 		this.speedCanvas = new OffscreenCanvas( 512, 96 );
 		this.speedTex = canvasTexture( 512, 96, ( ctx, w, h ) => drawSpeed( ctx, w, h, null ), 'pitchSpeed' );
 		const speedMat = this._led( this.speedTex, 512, 96, 'pitch-speed' );
-		const ads = new Quads(), sp = new Quads();
-		const items = [ [ 'toyota', 4.5 ], [ 'SPEED', 5.1 ], [ '-', 3 ], [ 'budweiser', 6 ], [ '-', 3 ], [ 'budlight', 4.5 ] ];
+		// the big boards: one canvas, a board per third
+		const big = canvasTexture( 1024, 1024, ( ctx ) => {
+
+			for ( const [ i, draw ] of [ [ 0, drawGreatRun ], [ 1, drawDrinkability ] ] ) {
+
+				ctx.save();
+				ctx.translate( 0, i * 341 );
+				ctx.beginPath(); ctx.rect( 0, 0, 1024, 341 ); ctx.clip();
+				draw( ctx, 1024, 341 );
+				ctx.restore();
+
+			}
+
+		}, 'pavilionBoards' );
+		const bigMat = standard( { name: 'pavilion-boards', roughness: 0.5, textures: { bpBig: big },
+			surface: 'let t = textureSample( bpBig, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.6; s.emissive = t * mix( 0.06, 0.45, frame.night );' } );
+		bigMat.underwaterLighting = 'none';
+		const ads = new Quads(), sp = new Quads(), bq = new Quads(), led = new Quads(), frame = new Quads();
+		// [ name, width, height ] left to right from the field; boards hang from the fascia's top
+		const items = [ [ 'greatrun', 11, 3.4 ], [ '-', 1.6 ], [ 'LED', 5.5, 1.9 ], [ '-', 1.6 ], [ 'drink', 10, 3.1 ], [ '-', 2.2 ], [ 'toyota', 4.5 ], [ 'SPEED', 5.1 ], [ '-', 2.2 ], [ 'budweiser', 6 ] ];
 		const width = items.reduce( ( a, [ , w ] ) => a + w + 0.25, 0 );
 		let s = Math.max( 1, ( total - width ) / 2 );
-		for ( const [ name, w ] of items ) {
+		for ( const [ name, w, h ] of items ) {
 
-			if ( name === 'SPEED' ) along( sp, segs, s, s + w, y0, y1, 0.05, ( ss ) => ( ss - s ) / w * 0.999, 0, 1 );
-			else if ( name !== '-' ) {
+			const a = s;
+			if ( name === 'SPEED' ) along( sp, segs, s, s + w, y0, y1, 0.05, ( ss ) => ( ss - a ) / w * 0.999, 0, 1 );
+			else if ( name === 'greatrun' || name === 'drink' ) {
 
-				const r = this.atlasRows[ name ], a = s;
+				const v0 = name === 'drink' ? 341 / 1024 : 0;
+				along( bq, segs, s, s + w, top - h, top, 0.14, ( ss ) => ( ss - a ) / w, v0, v0 + 340 / 1024 );
+				along( frame, segs, s - 0.12, s + w + 0.12, top - h - 0.12, top + 0.06, 0.1, ( ss ) => 0, 0, 1 );
+
+			} else if ( name === 'LED' ) {
+
+				along( led, segs, s, s + w, top - h, top, 0.14, ( ss ) => 0.43 + ( ss - a ) / ( RIB_TILE * h / RIB_M ), 0, 1 );
+				along( frame, segs, s - 0.15, s + w + 0.15, top - h - 0.15, top + 0.06, 0.1, ( ss ) => 0, 0, 1 );
+
+			} else if ( name !== '-' ) {
+
+				const r = this.atlasRows[ name ];
 				along( ads, segs, s, s + w, y0, y1, 0.05, ( ss ) => ( ss - a ) / w * r.u1, r.v0, r.v1 );
 
 			}
@@ -191,6 +237,47 @@ export class Fascia {
 
 		this._mesh( ads, this.adMaterial, 'pavilion-ads' );
 		this._mesh( sp, speedMat, 'pitch-speed' );
+		this._mesh( bq, bigMat, 'pavilion-boards' );
+		this._mesh( led, this.ribbonMat, 'pavilion-led' );
+		const fm = standard( { name: 'board-frames', color: new Color( 0.03, 0.03, 0.035 ), roughness: 0.5, metalness: 0.4 } );
+		fm.underwaterLighting = 'none';
+		this._mesh( frame, fm, 'pavilion-board-frames', true );
+
+	}
+
+	// the upper deck in right: McDonald's on the straight over the Pavilion, AutoTrader toward the pole;
+	// down the first base line an LED segment and AIG twice by The Break
+	_pavilionDeck( t ) {
+
+		if ( ! t ) return;
+		const ads = new Quads(), led = new Quads();
+		const put = ( front, items, from ) => {
+
+			const segs = facing( front, t.outward );
+			const total = segs.reduce( ( a, S ) => a + S.len, 0 );
+			const y0 = t.frontWall.top - 0.98, y1 = y0 + PANEL_M;
+			let s = from === 'end' ? total - items.reduce( ( a, [ , w ] ) => a + w + 0.25, 0 ) - 2 : from;
+			for ( const [ name, w ] of items ) {
+
+				const a = s;
+				if ( name === 'LED' ) along( led, segs, s, s + w, y0, y1, 0.05, ( ss ) => ss / RIB_TILE, 0, 1 );
+				else if ( name !== '-' ) {
+
+					const r = this.atlasRows[ name ];
+					along( ads, segs, s, s + w, y0, y1, 0.05, ( ss ) => ( ss - a ) / w * r.u1, r.v0, r.v1 );
+
+				}
+
+				s += w + 0.25;
+
+			}
+
+		};
+
+		put( t.parts.rf, [ [ '-', 14 ], [ 'mcd', 9 ], [ '-', 6 ], [ 'autotrader', 7 ] ], 2 );
+		put( t.parts.line, [ [ 'citizens', 6 ], [ '-', 4 ], [ 'LED', 9 ], [ 'aig', 4 ], [ 'aig', 4 ] ], 'end' );
+		this._mesh( ads, this.adMaterial, 'pavilion-deck-ads' );
+		this._mesh( led, this.ribbonMat, 'pavilion-deck-led' );
 
 	}
 
@@ -397,6 +484,26 @@ function along( q, segs, a, b, y0, y1, off, u, v0, v1 ) {
 		panel( q, S, s0 - S.s0, s1 - S.s0, y0, y1, off, u( s0 ), u( s1 ), v0, v1 );
 
 	}
+
+}
+
+// the distance along the pieces to their closest point to p
+function alongTo( segs, p ) {
+
+	let best = Infinity, at = 0;
+	for ( const S of segs ) {
+
+		const s = Math.max( 0, Math.min( S.len, ( p[ 0 ] - S.a[ 0 ] ) * S.ux + ( p[ 1 ] - S.a[ 1 ] ) * S.uz ) );
+		const d = Math.hypot( S.a[ 0 ] + S.ux * s - p[ 0 ], S.a[ 1 ] + S.uz * s - p[ 1 ] );
+		if ( d < best ) {
+
+			best = d; at = S.s0 + s;
+
+		}
+
+	}
+
+	return at;
 
 }
 
@@ -784,6 +891,140 @@ function drawMcDonalds( ctx, w, h ) {
 	ctx.bezierCurveTo( x + 8, 10, x + 58, 10, x + 60, y );
 	ctx.stroke();
 	text( ctx, "i'm lovin' it", 200, h * 0.55, 'italic 700 58px ' + SANS, '#ffffff', 'left', w - 220 );
+
+}
+
+// the McDonald's box on the upper deck in right: the name in white between two golden arches
+function drawMcDonaldsWord( ctx, w, h ) {
+
+	ctx.fillStyle = '#c8102e';
+	ctx.fillRect( 0, 0, w, h );
+	ctx.fillStyle = 'rgba( 0, 0, 0, 0.25 )';
+	ctx.fillRect( 0, h - 8, w, 8 );
+	const arches = ( x ) => {
+
+		ctx.strokeStyle = '#ffc72c';
+		ctx.lineWidth = 13;
+		const y = h - 20;
+		ctx.beginPath();
+		ctx.moveTo( x - 42, y );
+		ctx.bezierCurveTo( x - 40, 18, x - 6, 18, x, y - 26 );
+		ctx.bezierCurveTo( x + 6, 18, x + 40, 18, x + 42, y );
+		ctx.stroke();
+
+	};
+
+	arches( 90 );
+	arches( w - 90 );
+	text( ctx, "McDonald's", w / 2, h * 0.54, '800 78px ' + SANS, '#ffffff', 'center', w - 260 );
+
+}
+
+// Chrysler and Jeep's board on the Pavilion: pale sky, the red convertible and the green Wrangler,
+// GREAT RUN HOME in grey capitals, the two badges at the top corners, a baseball
+function drawGreatRun( ctx, w, h ) {
+
+	const g = ctx.createLinearGradient( 0, 0, 0, h );
+	g.addColorStop( 0, '#9fc3e6' ); g.addColorStop( 0.6, '#e9eef2' ); g.addColorStop( 1, '#cfd3d6' );
+	ctx.fillStyle = g;
+	ctx.fillRect( 0, 0, w, h );
+	// the road
+	ctx.fillStyle = '#8d8f91';
+	ctx.fillRect( 0, h * 0.84, w, h * 0.16 );
+	// the convertible: a low red wedge on dark wheels
+	const car = ( x, y, s, body, top ) => {
+
+		ctx.fillStyle = body;
+		ctx.beginPath();
+		ctx.moveTo( x, y ); ctx.lineTo( x + 20 * s, y - 26 * s ); ctx.lineTo( x + 70 * s, y - 34 * s ); ctx.lineTo( x + 95 * s, y - 52 * s * top );
+		ctx.lineTo( x + 150 * s, y - 52 * s * top ); ctx.lineTo( x + 175 * s, y - 34 * s ); ctx.lineTo( x + 230 * s, y - 28 * s ); ctx.lineTo( x + 236 * s, y );
+		ctx.closePath(); ctx.fill();
+		ctx.fillStyle = '#18191b';
+		for ( const wx of [ 45, 190 ] ) {
+
+			ctx.beginPath(); ctx.arc( x + wx * s, y, 20 * s, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#b8bcc0';
+			ctx.beginPath(); ctx.arc( x + wx * s, y, 9 * s, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#18191b';
+
+		}
+
+	};
+
+	car( 30, h * 0.86, 1.25, '#b3141c', 0.72 );
+	// the Wrangler: boxy, green, a spare wheel on the back
+	ctx.fillStyle = '#3f5a2a';
+	ctx.fillRect( w * 0.66, h * 0.52, 250, 88 );
+	ctx.fillRect( w * 0.66 + 40, h * 0.37, 150, 60 );
+	ctx.fillStyle = '#9ec1dc';
+	ctx.fillRect( w * 0.66 + 52, h * 0.4, 58, 36 ); ctx.fillRect( w * 0.66 + 120, h * 0.4, 58, 36 );
+	ctx.fillStyle = '#18191b';
+	for ( const wx of [ 50, 205 ] ) {
+
+		ctx.beginPath(); ctx.arc( w * 0.66 + wx, h * 0.84, 30, 0, Math.PI * 2 ); ctx.fill();
+
+	}
+
+	ctx.beginPath(); ctx.arc( w * 0.66 + 262, h * 0.64, 26, 0, Math.PI * 2 ); ctx.fill();
+	// the words and the badges
+	for ( const [ word, y ] of [ [ 'GREAT', 0.3 ], [ 'RUN', 0.52 ], [ 'HOME', 0.74 ] ] ) {
+
+		text( ctx, word, w * 0.47, h * y, '900 62px ' + SANS, '#ffffff', 'center' );
+		ctx.globalAlpha = 0.35;
+		text( ctx, word, w * 0.47 + 3, h * y + 3, '900 62px ' + SANS, '#5a6068', 'center' );
+		ctx.globalAlpha = 1;
+
+	}
+
+	ctx.fillStyle = '#ffffff';
+	ctx.beginPath(); ctx.arc( w * 0.6, h * 0.24, 26, 0, Math.PI * 2 ); ctx.fill();
+	ctx.strokeStyle = '#c8102e'; ctx.lineWidth = 3;
+	ctx.beginPath(); ctx.arc( w * 0.6 - 30, h * 0.24, 22, - 0.9, 0.9 ); ctx.stroke();
+	ctx.beginPath(); ctx.arc( w * 0.6 + 30, h * 0.24, 22, Math.PI - 0.9, Math.PI + 0.9 ); ctx.stroke();
+	text( ctx, 'CHRYSLER', 120, 34, '700 30px Georgia, serif', '#26313d' );
+	text( ctx, 'Jeep', w - 90, 38, '800 44px ' + SANS, '#26313d' );
+	ctx.strokeStyle = '#2b2d30'; ctx.lineWidth = 10;
+	ctx.strokeRect( 5, 5, w - 10, h - 10 );
+
+}
+
+// Bud Light's board: DRINKABILITY in yellow on deep blue, the can's label for the I, ice at the foot
+function drawDrinkability( ctx, w, h ) {
+
+	const g = ctx.createLinearGradient( 0, 0, 0, h );
+	g.addColorStop( 0, '#0b2c6b' ); g.addColorStop( 1, '#123f8c' );
+	ctx.fillStyle = g;
+	ctx.fillRect( 0, 0, w, h );
+	// the ice
+	for ( let i = 0; i < 70; i ++ ) {
+
+		const x = ( i * 157 ) % w, y = h * 0.8 + ( ( i * 37 ) % 60 );
+		ctx.fillStyle = `rgba( 220, 235, 255, ${ 0.25 + ( i % 5 ) * 0.1 } )`;
+		ctx.beginPath(); ctx.ellipse( x, y, 26 + ( i % 7 ) * 6, 10 + ( i % 3 ) * 5, ( i % 4 ) * 0.4, 0, Math.PI * 2 ); ctx.fill();
+
+	}
+
+	ctx.font = '900 118px "Arial Black", ' + SANS;
+	ctx.textBaseline = 'middle';
+	ctx.textAlign = 'left';
+	const a = 'DRINKAB', b = 'LITY';
+	const wa = ctx.measureText( a ).width, wb = ctx.measureText( b ).width, gap = 120;
+	const x0 = ( w - wa - wb - gap ) / 2;
+	ctx.fillStyle = '#f5c518';
+	ctx.save(); ctx.scale( 1, 1.25 );
+	ctx.fillText( a, x0, h * 0.44 / 1.25, w * 0.55 );
+	ctx.fillText( b, x0 + wa + gap, h * 0.44 / 1.25 );
+	ctx.restore();
+	// the Bud Light label: a white oval with the blue band
+	const cx = x0 + wa + gap / 2, cy = h * 0.44;
+	ctx.fillStyle = '#e8eef6';
+	ctx.beginPath(); ctx.ellipse( cx, cy, 52, 78, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#1a4ea3';
+	ctx.fillRect( cx - 52, cy - 16, 104, 32 );
+	text( ctx, 'BUD', cx, cy - 36, '900 26px ' + SANS, '#1a4ea3' );
+	text( ctx, 'LIGHT', cx, cy + 1, '900 24px ' + SANS, '#ffffff' );
+	ctx.strokeStyle = '#d0d6de'; ctx.lineWidth = 10;
+	ctx.strokeRect( 5, 5, w - 10, h - 10 );
 
 }
 
