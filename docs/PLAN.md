@@ -306,6 +306,16 @@ Round 3: a full critic pass against the 2008 photos and broadcast, then fixes.
 
 ## 7. Questions the agents left, and decisions for you
 
+**Decided 2026-09-27:**
+1. Yes: the lock, still mode and the render desk, and message the other sessions about the lock. Also scoped builds, so an agent renders only the part it's working on. The mechanism is my choice.
+2. 4 agents at a time.
+3. Yes: fix the speed regression before any new work.
+4. My choice: sound, your seat among people, rituals and the timeline, and light and shadow go first.
+5. I'll look up the seven season lines.
+6. Hosting: still open.
+
+The original questions:
+
 1. **GPU plan:** build the lock and still mode first thing, and the render desk before round 2? (Recommended.) And may I message the other sessions on this machine about the lock?
 2. **How many agents at once:** 4 (recommended), or 8 on the render desk?
 3. **Speed:** fix the ~2.4× regression before any new work? (Recommended.)
