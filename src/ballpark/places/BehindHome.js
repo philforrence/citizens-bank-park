@@ -9,12 +9,13 @@ import { buildClub } from './home/Club.js';
 import { Signs } from './home/Signs.js';
 import { seatRegulars, holdSigns } from './home/Regulars.js';
 import { Gear, GEAR } from './home/Gear.js';
-import { Aisles } from './home/Aisles.js';
+import { Aisles, VENDOR_ROWS, CLUB_ROWS } from './home/Aisles.js';
 import { HomeSound } from './home/Sound.js';
 import { Fouls } from './home/Fouls.js';
 import { Blankets } from './home/Blankets.js';
 import { Moments } from './home/Moments.js';
 import { Steam } from './Concourse3BSteam.js';
+import { buildBackstop, updateBackstop } from './home/Backstop.js';
 import { G } from '../../core/Globals.js';
 
 // Behind home plate: the TV's backdrop. The center field camera looks straight at it on every pitch
@@ -31,9 +32,8 @@ import { G } from '../../core/Globals.js';
 // Field frame: x, z metres from the back tip of home plate, -z toward center field, +x toward first; the
 // backstop's section runs x -6.9 .. 6.9 at z 15.1, its rows climbing back to the main concourse at z ~45.
 
-// the Diamond Club's front rows: in the backstop's section all of them, in the angled ones either side
-// the seats nearest the backstop's aisles
-export const CLUB_ROWS = 5;
+// the Diamond Club's front rows the place fills (the TV's picture), all of them in C, D and E
+export const FRONT_ROWS = 5;
 
 export default class BehindHome {
 
@@ -52,6 +52,10 @@ export default class BehindHome {
 		this.fans.rows = ( sec, row ) => seats.bySec[ sec ]?.[ row ] || [];
 		// the signs held up for the camera
 		this.signs = new Signs( this.group );
+		// the palette's material (the ledge, the camera), then the backstop's front: the green panel, the
+		// steel rail, the front row's camera (its seats given over to it before anyone's seated)
+		this.material = paletteMaterial( 'home-things' );
+		this.backstop = buildBackstop( this );
 		this._seatPeople();
 		// the crowd's fans leave the seats the place has taken
 		bowl.crowd?.vacate?.( seats.vacateTest( field ) );
@@ -59,7 +63,6 @@ export default class BehindHome {
 		// place's own now (they'd walk the old steps: the club's front rows sit lower)
 		this._quiet( people );
 		// the things: the club's ledge and what's on it (one draw; each night's things fold away on the other)
-		this.material = paletteMaterial( 'home-things' );
 		this.things = buildClub( seats ).mesh( this.material, 'home-things' );
 		this.group.add( this.things );
 		// the vendors' gear (and anything else in the air: a bag of peanuts, the ball)
@@ -112,25 +115,20 @@ export default class BehindHome {
 		this.sit = sit;
 		// the people with names first (their seats are theirs)
 		seatRegulars( this );
-		// the Diamond Club's front rows
-		for ( let row = 0; row < CLUB_ROWS; row ++ ) {
+		// the Diamond Club's front rows in the TV's picture: C, D and E whole, the angled B and F's first
+		// rows
+		for ( let row = 0; row < FRONT_ROWS; row ++ ) {
 
-			for ( const seat of S.bySec[ 9 ][ row ] || [] ) sit( seat, { club: true } );
-			const R8 = S.bySec[ 8 ][ row ] || [], R10 = S.bySec[ 10 ][ row ] || [];
-			if ( row < 3 ) {
-
-				for ( const seat of R8.slice( - 6 ) ) sit( seat, { club: true } );
-				for ( const seat of R10.slice( 0, 6 ) ) sit( seat, { club: true } );
-
-			}
+			for ( const L of [ 'C', 'D', 'E' ] ) for ( const seat of S.bySec[ L ][ row ] || [] ) sit( seat, { club: true } );
+			if ( row < 2 ) for ( const L of [ 'B', 'F' ] ) for ( const seat of S.bySec[ L ][ row ] || [] ) sit( seat, { club: true } );
 
 		}
 
-		// along the aisles behind the club, where the vendors hand things along the rows
-		for ( const row of [ 7, 10, 13, 16, 19, 22, 25, 28 ] ) {
+		// along D's two aisles, where the server and the vendors hand things along the rows (the club's
+		// rows, then the ones behind it)
+		for ( const row of [ 6, 9, 12, 15, ...VENDOR_ROWS ] ) for ( const key of [ 'ED', 'DC' ] ) for ( const side of [ 1, - 1 ] ) {
 
-			const R = S.bySec[ 9 ][ row ] || [];
-			for ( const seat of [ ...R.slice( 0, 4 ), ...R.slice( - 4 ) ] ) sit( seat );
+			for ( const seat of S.fromAisle( key, row, side ).slice( 0, 3 ) ) sit( seat, { club: row < CLUB_ROWS } );
 
 		}
 
@@ -139,7 +137,7 @@ export default class BehindHome {
 	_quiet( people ) {
 
 		if ( ! people?.list ) return;
-		const feet = [ 'A', 'B' ].map( ( k ) => this.seats.aisle( k, 0.3 ) );
+		const feet = Object.keys( this.seats.aisleSides ).map( ( k ) => this.seats.aisle( k, 0.3 ) );
 		for ( const p of people.list ) {
 
 			const onAisle = p.aisle && p.aisle.S.k >= 5 && p.aisle.S.k <= 7;
@@ -231,6 +229,7 @@ export default class BehindHome {
 		dt = Math.min( dt, 0.25 );
 		const N = this._night( director, dt );
 		this.material.uniforms.night.value = N.first ? 27 : 29;
+		updateBackstop( this.backstop, this, N );
 		this.aisles.update( dt, N );
 		this.fouls.update( dt, N, director, camera );
 		this.moments.update( N );

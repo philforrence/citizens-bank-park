@@ -32,24 +32,10 @@ const look = ( o ) => ( {
 } );
 const both = ( base, wet = {}, dry = {} ) => ( { 27: look( { ...base, ...wet } ), 29: look( { ...base, ...dry } ), base: look( base ) } );
 
-// the seat in `row` of the backstop's section (or `sec`) nearest x
-function seatAt( seats, row, x, sec = 9 ) {
+// the seat in `row` nearest x (whichever of the club's sections)
+function seatAt( seats, row, x ) {
 
-	const R = seats.bySec[ sec ][ row ] || [];
-	let best = null, bd = Infinity;
-	for ( const s of R ) {
-
-		const d = Math.abs( s.x - x );
-		if ( d < bd && ! s.taken && s.occupied ) {
-
-			bd = d;
-			best = s;
-
-		}
-
-	}
-
-	return best;
+	return seats.nearest( row, x );
 
 }
 
@@ -57,7 +43,7 @@ export function seatRegulars( place ) {
 
 	const S = place.seats, sit = place.sit;
 	const R = place.regulars = {};
-	const seat = ( row, x, sec ) => seatAt( S, row, x, sec );
+	const seat = ( row, x ) => seatAt( S, row, x );
 
 	// ---- Enza, front row, just first base side of the plate
 	R.enza = sit( seat( 0, 2.3 ), {
@@ -248,15 +234,16 @@ export function seatRegulars( place ) {
 
 	};
 
-	// ---- the Pisanos, row 11 by aisle A, late on the 27th (Aisles: down the aisle in the 2nd)
-	const row10 = S.bySec[ 9 ][ 10 ] || [];
-	R.gary = sit( row10[ 2 ], {
+	// ---- the Pisanos, row 13 in D by its first base side aisle, late on the 27th (Aisles: down the
+	// aisle in the 2nd)
+	const row12 = S.fromAisle( 'ED', 12, 1 );
+	R.gary = sit( row12[ 2 ], {
 		name: 'Gary Pisano',
 		looks: both( { age: 0, skin: 0, hair: 6, facial: 4, build: 3, top: TOP.eagles, color: COLOR.green, chest: CHEST.eagles, pants: 0, shoes: 3, hat: HAT.capRed, seed: 1117 },
 			{}, { top: TOP.jacket, color: COLOR.red, chest: 0, hat: HAT.knitRed, gloves: true } ),
 		kit: { idle: { watch: 4, cup: 3, talk: 2, fold: 1 }, drink: PROP.beer, towel: true, camera: false },
 	} );
-	R.lorraine = sit( row10[ 1 ], {
+	R.lorraine = sit( row12[ 1 ], {
 		name: 'Lorraine Pisano',
 		looks: both( { female: true, age: 0, skin: 0, hair: 4, hairStyle: 1, build: 1, top: TOP.jacket, color: COLOR.red, pants: 3, shoes: 1, hat: HAT.hood, seed: 1118 },
 			{}, { hat: HAT.knitRed, scarf: 1 } ),

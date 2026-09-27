@@ -1,5 +1,6 @@
 import { Builder } from './Build.js';
 import { hash } from './Fans.js';
+import { CLUB, CLUB_ROWS } from './Seats.js';
 
 // The Diamond Club's front: behind the backstop's padded wall the front row sits low, and between the
 // pads' back and the row is a ledge at the height of the pads' top, where the front row puts down what
@@ -11,15 +12,14 @@ import { hash } from './Fans.js';
 // Field frame; the three faces of the backstop (the front line of the sections behind home plate).
 
 // the ledge: from the pads' back (0.37 m behind the wall's face) to over the front row's toes
-export const LEDGE = { d0: 0.36, d1: 0.62, y: 1.28 };
+export const LEDGE = { d0: 0.37, d1: 0.56, y: 1.46 };
 
 export function buildClub( seats, b = new Builder() ) {
 
-	const secs = seats.secs;
 	// the ledge along each face: an apron down to the front row's tread, the slab on top
-	for ( const k of [ 8, 9, 10 ] ) {
+	for ( const L of CLUB ) {
 
-		const S = secs[ k ];
+		const S = seats.sec[ L ];
 		const o = [ S.a[ 0 ], 0, S.a[ 1 ] ];
 		const P = Builder.frame( o, [ S.ux, S.uz ], [ S.nx, S.nz ] );
 		// the faces' ends meet on the corners' bisectors: extend each a little along the mitres
@@ -33,11 +33,11 @@ export function buildClub( seats, b = new Builder() ) {
 
 	}
 
-	// the club's seats padded: a navy vinyl cushion on the pan and one on the back, piped (the first
-	// four rows, the low ones), beaded with the rain on the 27th (the palette's wet)
+	// the club's seats padded: a navy vinyl cushion on the pan and one on the back, piped ("1,258
+	// extra-wide, padded seats", the 2008 guide), beaded with the rain on the 27th (the palette's wet)
 	for ( const seat of seats.list ) {
 
-		if ( seat.row > 3 || ! seat.occupied ) continue;
+		if ( seat.row >= CLUB_ROWS ) continue;
 		const P = Builder.frame( [ seat.x, seat.y, seat.z ], [ seat.rx, seat.rz ], [ seat.nx, seat.nz ] );
 		b.use( 'pad' ).box( P, 0, 0.465, - 0.08, 0.44, 0.05, 0.4 );
 		b.use( 'padSeam' ).box( P, 0, 0.466, - 0.285, 0.44, 0.052, 0.012 );
@@ -50,7 +50,7 @@ export function buildClub( seats, b = new Builder() ) {
 	for ( const seat of seats.list ) {
 
 		if ( seat.row !== 0 || ! seat.taken ) continue;
-		const S = secs[ seat.sec ];
+		const S = seats.sec[ seat.sec ];
 		const d = LEDGE.d0 + 0.13;
 		const o = [ seat.x - S.nx * ( 0.84 - d ), LEDGE.y, seat.z - S.nz * ( 0.84 - d ) ];
 		const P = Builder.frame( o, [ S.ux, S.uz ], [ - S.nx, - S.nz ] );

@@ -202,13 +202,16 @@ export class Bowl {
 			skipRows: ( k ) => dugoutSegs.includes( k ) ? 4 : 0,
 			portals: { every: 3, row: 16, rows: 5, width: 3 },
 		};
-		// ---- B (home): behind home plate, between the dugouts' home ends, the Diamond Club's first four
-		// rows sit low behind the backstop's wall: the front row's seated fans have the padded top of the
-		// wall at their chests, their cups on the ledge behind it (heston's 2008 World Series photo,
-		// flickr 2986440011); the rows climb steeply to meet the fifth, where the rows behind the dugouts
-		// start, at its usual height
+		// ---- B (home): behind home plate, between the dugouts' home ends, the Diamond Club: seven
+		// sections, A by the visitors' dugout round to G by the Phillies' (the phillies.com seating chart,
+		// 2008/09), two on each angled face and C, D and E on the backstop's, D dead centre, an aisle
+		// either side of it. Its first four rows sit low behind the backstop's wall: from center field the
+		// front row's heads are level with the top of the steel rail over the pads (Getty 83485455,
+		// 83485581, Oct 29; heston 2986440011, Game 3); they climb to meet the fifth, where the rows behind
+		// the dugouts start, at its usual height
 		const [ dugA, dugB ] = dugoutSegs.slice().sort( ( a, b ) => a - b );
-		const CLUB = [ 0.5, 0.78, 1.06, 1.34 ];
+		infield.splits = { [ dugA + 1 ]: 2, [ dugA + 2 ]: 3, [ dugA + 3 ]: 2 };
+		const CLUB = [ 0.72, 0.95, 1.18, 1.41 ];
 		infield.rowY = ( S, r, y ) => S.k > dugA && S.k < dugB && r < CLUB.length ? CLUB[ r ] : y;
 		// ---- end B
 

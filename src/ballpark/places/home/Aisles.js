@@ -2,13 +2,16 @@ import { TOP, COLOR, HAT, CHEST, PROP, restPose } from '../Cast.js';
 import { Walkway, armIK, GESTURE } from '../Concourse3BKit.js';
 import { SEATED, easeArms, seatSpot } from './Poses.js';
 import { GEAR } from './Gear.js';
+import { CLUB_ROWS } from './Seats.js';
 import { hash, fract, wrap } from './Fans.js';
 
-// The aisles behind home plate, and who works them. The two aisles either side of the backstop's section
-// ('A' on the first base side, 'B' on the third) climb from the Diamond Club's front row to the main
-// concourse; the vendors come down them from the concourse, calling, stop where a hand goes up, and the
-// beer goes along the row hand to hand, the money coming back the same way. The Diamond Club's rows have
-// their own: an usher on each aisle and a server taking orders.
+// The aisles behind home plate, and who works them. The two aisles either side of the Diamond Club's
+// section D, right behind the plate ('ED' on the first base side, 'DC' on the third: Seats.js), climb
+// from the club's front row to the main concourse, in the TV's picture all the way up. The vendors come
+// down them from the concourse, calling, as far as the club's back row (the club has its own staff), stop
+// where a hand goes up, and the beer goes along the row hand to hand, the money coming back the same way.
+// In the club: an usher at the top of each of its aisles and a server taking orders ("to place order,
+// signal your attendant": the club's 2006 in-seat menu).
 //
 // Every walker runs a little script (a generator: each `yield` is a frame), so a sequence reads as it
 // happens: walk down to row 16, turn to the row, pour, hand it over, wait for the money, pocket it,
@@ -17,12 +20,13 @@ import { hash, fract, wrap } from './Fans.js';
 // Invented (CAST.md): Jimmy Donnelly (beer, badge 47, his 29th season: his first October was the 1980
 // Series), Kyle Brandt (beer, his first season), Reggie Timmons (hot dogs; hot chocolate on the 27th),
 // Tina Maldonado (cotton candy), Luis Ortega (peanuts, which he throws); Earl Whitaker and Carmen
-// Ortiz (the club's ushers); Megan Sweeney (a club server). The beer stops after the 7th.
+// Ortiz (the club's ushers); Megan Sweeney (a club server). Evidence: the vendors' mustard-yellow shirts
+// with their numbers (2008-09 photos); the beer sold until the 9th on the 29th (the Inquirer, Oct 29).
 
 const TAU = Math.PI * 2;
-// the aisles' sides: from aisle A the backstop's rows run on toward third (their seats' i from 0), from B
-// toward first (from the row's end)
-const SIDE = { A: 1, B: - 1 };
+// the rows the vendors work (behind the club's 18 rows), and the club's own
+export const VENDOR_ROWS = [ 31, 28, 25, 22, 19 ];
+export { CLUB_ROWS };
 
 export class Aisles {
 
@@ -69,11 +73,11 @@ export class Aisles {
 		} );
 		const V = [
 			// name, the look, its gear on each night, the aisle, which rows (low, high)
-			[ 'Jimmy Donnelly', L( { skin: 0, hair: 6, facial: 1, build: 3, sleeves: COLOR.navy, hat: HAT.capRed, seed: 2001 } ), { 27: GEAR.beer, 29: GEAR.beer }, 'A', 0.95, 47 ],
-			[ 'Kyle Brandt', L( { skin: 0, hair: 3, age: 3, build: 0, sleeves: COLOR.grey, hat: HAT.capBack, seed: 2002 } ), { 27: GEAR.beer, 29: GEAR.beer }, 'B', 1.1, 112 ],
-			[ 'Reggie Timmons', L( { skin: 5, hair: 0, facial: 2, build: 2, sleeves: COLOR.black, hat: HAT.knitBlack, seed: 2003 } ), { 27: GEAR.cocoa, 29: GEAR.hotdogs }, 'A', 1.0, 0 ],
-			[ 'Tina Maldonado', L( { female: true, skin: 2, hair: 0, hairStyle: 2, build: 1, sleeves: COLOR.red, hat: HAT.capRed, seed: 2004 } ), { 27: GEAR.cotton, 29: GEAR.cotton }, 'B', 0.9, 0 ],
-			[ 'Luis Ortega', L( { skin: 3, hair: 0, age: 3, build: 0, sleeves: COLOR.grey, hat: HAT.capRed, seed: 2005 } ), { 27: GEAR.peanuts, 29: GEAR.peanuts }, 'B', 1.15, 0 ],
+			[ 'Jimmy Donnelly', L( { skin: 0, hair: 6, facial: 1, build: 3, sleeves: COLOR.navy, hat: HAT.capRed, seed: 2001 } ), { 27: GEAR.beer, 29: GEAR.beer }, 'ED', 0.95, 47 ],
+			[ 'Kyle Brandt', L( { skin: 0, hair: 3, age: 3, build: 0, sleeves: COLOR.grey, hat: HAT.capBack, seed: 2002 } ), { 27: GEAR.beer, 29: GEAR.beer }, 'DC', 1.1, 112 ],
+			[ 'Reggie Timmons', L( { skin: 5, hair: 0, facial: 2, build: 2, sleeves: COLOR.black, hat: HAT.knitBlack, seed: 2003 } ), { 27: GEAR.cocoa, 29: GEAR.hotdogs }, 'ED', 1.0, 0 ],
+			[ 'Tina Maldonado', L( { female: true, skin: 2, hair: 0, hairStyle: 2, build: 1, sleeves: COLOR.red, hat: HAT.capRed, seed: 2004 } ), { 27: GEAR.cotton, 29: GEAR.cotton }, 'DC', 0.9, 0 ],
+			[ 'Luis Ortega', L( { skin: 3, hair: 0, age: 3, build: 0, sleeves: COLOR.grey, hat: HAT.capRed, seed: 2005 } ), { 27: GEAR.peanuts, 29: GEAR.peanuts }, 'ED', 1.15, 0 ],
 		];
 		this.vendors = V.map( ( [ name, look, gear, aisle, speed ], k ) => {
 
@@ -96,7 +100,7 @@ export class Aisles {
 		} );
 		const earl = U( { skin: 5, hair: 7, facial: 1, seed: 2101 } );
 		const carmen = U( { female: true, skin: 2, hair: 1, hairStyle: 2, glasses: false, build: 1, age: 0, seed: 2102 } );
-		this.ushers = [ [ 'Earl Whitaker', earl, 'A' ], [ 'Carmen Ortiz', carmen, 'B' ] ].map( ( [ name, look, aisle ] ) => {
+		this.ushers = [ [ 'Earl Whitaker', earl, 'ED' ], [ 'Carmen Ortiz', carmen, 'DC' ] ].map( ( [ name, look, aisle ] ) => {
 
 			const w = this.walker( name, { wet: { ...look, poncho: 1 }, dry: { ...look, gloves: true } }, { aisle, speed: 0.8 } );
 			w.routine = usher;
@@ -106,7 +110,7 @@ export class Aisles {
 		// the club's server, Megan Sweeney: a black polo and apron, taking orders at the row ends and
 		// bringing them down on a tray at her shoulder
 		const megan = U( { female: true, skin: 0, hair: 3, hairStyle: 2, glasses: false, build: 0, age: 0, top: TOP.staff, color: COLOR.black, sleeves: COLOR.black, chest: CHEST.staff, hat: HAT.none, pants: 3, shoes: 1, seed: 2103 } );
-		this.server = this.walker( 'Megan Sweeney', { wet: { ...megan, poncho: 1 }, dry: megan }, { aisle: 'A', speed: 1.1 } );
+		this.server = this.walker( 'Megan Sweeney', { wet: { ...megan, poncho: 1 }, dry: megan }, { aisle: 'ED', speed: 1.1 } );
 		this.server.routine = server;
 		this.server.lane = - 0.15;
 
@@ -114,10 +118,9 @@ export class Aisles {
 
 	// the fans of the place in row r near aisle `key`, from the aisle in: [ fan, ... ] (stops at a seat the
 	// place hasn't got)
-	chain( key, r ) {
+	chain( key, r, side ) {
 
-		const row = this.seats.bySec[ 9 ][ r ] || [];
-		const seq = SIDE[ key ] > 0 ? row : row.slice().reverse();
+		const seq = this.seats.fromAisle( key, r, side );
 		const out = [];
 		for ( const s of seq ) {
 
@@ -160,50 +163,54 @@ export class Aisles {
 	_runs( N ) {
 
 		const P = this.pisanos;
-		for ( const key of [ 'A', 'B' ] ) {
+		for ( const key of [ 'ED', 'DC' ] ) {
 
 			if ( this.runs[ key ] ) continue;
 			// the Pisanos' late arrival is aisle A's run in the 2nd on the 27th
-			if ( key === 'A' && P && N.first && N.inning === 2 && N.half === 'top' && ! P[ 0 ].arrived ) {
+			if ( key === 'ED' && P && N.first && N.inning === 2 && N.half === 'top' && ! P[ 0 ].arrived ) {
 
-				this._startRun( key, P, 'late' );
+				this._startRun( key, P, 'late', null, 0, 1 );
 				continue;
 
 			}
 
+			// (the aisle's kept clear for them until they're in)
+			if ( key === 'ED' && P && N.first && N.inning <= 2 && ! P[ 0 ].arrived ) continue;
 			if ( N.t < this.nextRun[ key ] ) continue;
-			this.nextRun[ key ] = N.t + 70 + 120 * hash( N.t * 0.37 + ( key === 'A' ? 1 : 2 ) );
+			this.nextRun[ key ] = N.t + 70 + 120 * hash( N.t * 0.37 + ( key === 'ED' ? 1 : 2 ) );
 			if ( N.celebrate || N.tense > 0.3 || N.suspended || ( ! N.first && N.inning >= 9 ) ) continue;
 			if ( N.half === 'bottom' && ! N.between && hash( N.t ) < 0.6 ) continue;
 			// who: someone a seat or three in from the aisle, in one of the rows the place has along it
-			const rows = [ 7, 10, 13, 16, 19, 22, 25, 28 ];
+			const rows = [ 6, 9, 12, 15, ...VENDOR_ROWS ];
 			const r = rows[ Math.floor( hash( N.t * 1.3 + key.length ) * rows.length ) ];
-			const chain = this.chain( key, r );
+			const side = hash( N.t * 0.71 ) < 0.5 ? 1 : - 1;
+			const chain = this.chain( key, r, side );
 			if ( chain.length < 3 ) continue;
 			const j = 1 + Math.floor( hash( N.t * 2.1 ) * ( chain.length - 1 ) );
 			const f = chain[ j ];
 			if ( f.p.scale < 0.8 || f.driven || f.away || f.busy() || ( this.pisanos || [] ).includes( f ) ) continue;
-			this._startRun( key, [ f ], 'beer', chain, j );
+			this._startRun( key, [ f ], 'beer', chain, j, side );
 
 		}
 
 	}
 
-	_startRun( key, fans, kind, chain = null, j = 0 ) {
+	_startRun( key, fans, kind, chain = null, j = 0, side = 1 ) {
 
 		const f0 = fans[ 0 ];
-		chain = chain || this.chain( key, f0.seat.row );
+		chain = chain || this.chain( key, f0.seat.row, side );
 		const walkers = fans.map( ( f ) => {
 
 			const w = new Walker( this, f.p, f.name || 'fan', { wet: f.looks[ 27 ], dry: f.looks[ 29 ] }, { aisle: key, speed: 0.9 } );
 			w.fan = f;
+			w.side = side;
 			w.lane = - 0.2;
 			f.driven = true;
 			w.night = f.night;
 			return w;
 
 		} );
-		const run = this.runs[ key ] = { key, kind, fans, walkers, chain, j: j || Math.max( ...fans.map( ( f ) => chain.indexOf( f ) ) ) };
+		const run = this.runs[ key ] = { key, side, kind, fans, walkers, chain, j: j || Math.max( ...fans.map( ( f ) => chain.indexOf( f ) ) ) };
 		walkers.forEach( ( w, i ) => {
 
 			w.routine = () => kind === 'late' ? lateRoutine( run, i ) : beerRun( run, i );
@@ -382,9 +389,8 @@ const rowD = ( w, r ) => w.A.seats.rowD( r );
 // the row's direction from the aisle into the section (the way the chain goes)
 function intoRow( w ) {
 
-	const S = w.A.seats.secs[ 9 ];
-	const s = SIDE[ w.aisle ];
-	return Walkway.yaw( S.ux * s, S.uz * s );
+	const [ dx, dz ] = w.A.seats.intoRow( w.aisle, w.side || 1 );
+	return Walkway.yaw( dx, dz );
 
 }
 
@@ -392,7 +398,7 @@ function* vendor( w, N0 ) {
 
 	const A = w.A;
 	// the rows he works (behind the club: the club's own staff serve its rows)
-	const ROWS = [ 28, 25, 22, 19, 16, 13, 10, 7 ];
+	const ROWS = VENDOR_ROWS;
 	const top = rowD( w, 35 ) + 0.6;
 	// a stagger so they don't all come down at once
 	w.shown = false;
@@ -402,9 +408,8 @@ function* vendor( w, N0 ) {
 		const N = w.N;
 		const night = N.first ? 27 : 29;
 		const kind = w.o.gear[ night ];
-		// the beer's done after the 7th; in the 9th on the 29th nobody's selling, and the rain delay's quiet
-		const beerOver = kind === GEAR.beer && ! N.first && ( N.inning > 7 || ( N.inning === 7 && N.half === 'bottom' && N.kind === 'switch' ) );
-		if ( beerOver || N.celebrate || ( ! N.first && N.inning >= 9 ) ) {
+		// the beer's sold to the start of the 9th (the Inquirer, Oct 29), and in the 9th nobody's selling
+		if ( N.celebrate || ( ! N.first && N.inning >= 9 ) ) {
 
 			w.shown = false;
 			yield* wait( w, 5 );
@@ -437,8 +442,10 @@ function* vendor( w, N0 ) {
 				if ( called < 5 ) w.mouth = 0;
 
 			} );
-			// a hand up in this row? (the chain of the place's fans from the aisle in)
-			const chain = A.chain( w.aisle, r );
+			// a hand up in this row, one side of the aisle or the other? (the chain of the place's fans
+			// from the aisle in)
+			w.side = hash( r * 3.1 + w.N.t * 0.05 ) < 0.5 ? 1 : - 1;
+			const chain = A.chain( w.aisle, r, w.side );
 			const buyer = pickBuyer( chain, kind, w.N );
 			if ( buyer >= 0 ) yield* serve( w, chain, buyer, kind );
 
@@ -491,7 +498,7 @@ function* serve( w, chain, k, kind ) {
 	const buyer = chain[ k ];
 	const item = ITEM[ kind ];
 	// the hand up (two fingers: two)
-	buyer.act( 'hail', 2.2, { key: 'hail', mouth: 0.5, head: [ SIDE[ w.aisle ] * 0.8, - 0.1 ] } );
+	buyer.act( 'hail', 2.2, { key: 'hail', mouth: 0.5, head: [ w.side * 0.8, - 0.1 ] } );
 	A.place.sound?.hail( buyer, kind );
 	w.face = intoRow( w );
 	w.look = [ buyer.p.x, buyer.p.y + 1.1, buyer.p.z ];
@@ -501,7 +508,7 @@ function* serve( w, chain, k, kind ) {
 	w.props = [ 0, item === PROP.peanuts ? 0 : item ];
 	yield* wait( w, kind === GEAR.beer ? 2.2 : 1.2 );
 	// the peanuts: thrown to him (the bag's arc drawn by the place)
-	const s = SIDE[ w.aisle ];
+	const s = w.side;
 	// the fans' sides: receiving from the aisle's side, passing on away from it
 	const take = s > 0 ? 'takeR' : 'takeL', pass = s > 0 ? 'passL' : 'passR';
 	const back = s > 0 ? 'passR' : 'passL', takeBack = s > 0 ? 'takeL' : 'takeR';
@@ -589,10 +596,13 @@ function* serve( w, chain, k, kind ) {
 // rows when anyone comes down, and on the 27th wipe the seats dry with a towel for whoever's coming back
 function* usher( w ) {
 
-	const d = rowD( w, 5 ) + 0.1;
+	// at the top of the club's aisle, its back row
+	const d = rowD( w, CLUB_ROWS - 1 ) + 0.1;
 	w.shown = true;
 	w.d = d;
-	w.place( d, - 0.35 * SIDE[ w.aisle ] );
+	w.side = w.aisle === 'ED' ? - 1 : 1;
+	w.lane = 0.35 * w.side;
+	w.place( d );
 	for ( ;; ) {
 
 		const N = w.N;
@@ -606,7 +616,9 @@ function* usher( w ) {
 
 			const E = w.errand;
 			w.errand = null;
+			const side0 = w.side;
 			yield* walkTo( w, rowD( w, E.row ) );
+			w.side = E.side ?? w.side;
 			w.face = intoRow( w );
 			w.lean = 0.55;
 			w.props = [ 0, PROP.towel ];
@@ -623,6 +635,7 @@ function* usher( w ) {
 			w.look = null;
 			w.g = [ null, SEATED.point[ 1 ] ];
 			yield* wait( w, 1.2 );
+			w.side = side0;
 			yield* walkTo( w, d );
 
 		}
@@ -630,7 +643,7 @@ function* usher( w ) {
 		// on the 27th, every so often, down a couple of rows to wipe a seat with the towel
 		if ( N.first && ! N.celebrate && fract( N.t / 170 + w.seed ) < 0.02 ) {
 
-			const r = 2 + Math.floor( 3 * hash( N.t + w.seed ) );
+			const r = 5 + Math.floor( 11 * hash( N.t + w.seed ) );
 			yield* walkTo( w, rowD( w, r ) );
 			w.face = intoRow( w );
 			w.lean = 0.55;
@@ -772,7 +785,7 @@ function* lateRoutine( run, i ) {
 	// waiting on the steps while Earl wipes, the ticket out
 	if ( i === 0 && earl ) {
 
-		earl.errand = { row: s.row, seats: run.fans.map( ( q ) => q.seat ) };
+		earl.errand = { row: s.row, side: run.side, seats: run.fans.map( ( q ) => q.seat ) };
 		A.place.sound?.at( 'usher', earl.p, { h: 1.55, vol: 0.7 } );
 
 	}
@@ -810,9 +823,10 @@ function* server( w ) {
 
 		}
 
-		w.aisle = n % 2 ? 'B' : 'A';
-		const r = Math.floor( hash( N.t * 0.13 + n ) * 5 );
-		const chain = A.chain( w.aisle, r );
+		w.aisle = n % 2 ? 'DC' : 'ED';
+		w.side = hash( N.t * 0.7 + n ) < 0.5 ? 1 : - 1;
+		const r = [ 0, 1, 2, 3, 4, 6, 9, 12, 15 ][ Math.floor( hash( N.t * 0.13 + n ) * 9 ) ];
+		const chain = A.chain( w.aisle, r, w.side );
 		const guest = chain[ 0 ];
 		if ( ! guest || guest.driven ) {
 
@@ -838,7 +852,7 @@ function* server( w ) {
 			w.props = [ PROP.scorebook, PROP.pencil ];
 			w.g = [ armIK( - 1, [ - 0.08, 1.12, - 0.3 ], { lean: 0.35 } ), armIK( 1, [ 0.02 + 0.02 * Math.sin( i * 2.3 ), 1.14, - 0.32 ], { lean: 0.35 } ) ];
 			w.mouth = i % 4 < 2 ? 0.25 : 0;
-			guest.act( undefined, 0.35, { key: 'order', head: [ SIDE[ w.aisle ] * 0.9, 0.1 ], mouth: i % 4 < 2 ? 0 : 0.3 } );
+			guest.act( undefined, 0.35, { key: 'order', head: [ w.side * 0.9, 0.1 ], mouth: i % 4 < 2 ? 0 : 0.3 } );
 			yield* wait( w, 0.3 );
 
 		}
@@ -861,14 +875,15 @@ function* server( w ) {
 		w.face = intoRow( w );
 		w.lean = 0.25;
 		yield* wait( w, 0.6 );
-		// the beers off the tray to him
+		// the beers off the tray to him (the club's alcohol through the 7th; then a hot chocolate)
+		w.served = w.N.first || w.N.inning <= 7 ? PROP.beer : PROP.cocoa;
 		w.g = [ null, armIK( 1, [ 0.15, 1.15, - 0.55 ], { lean: 0.25 } ) ];
-		w.props = [ 0, PROP.beer ];
+		w.props = [ 0, w.served ];
 		w.gearType = 0;
-		guest.act( SIDE[ w.aisle ] > 0 ? 'takeR' : 'takeL', 0.8, { key: 'order', head: [ SIDE[ w.aisle ] * 0.8, 0.1 ] } );
+		guest.act( w.side > 0 ? 'takeR' : 'takeL', 0.8, { key: 'order', head: [ w.side * 0.8, 0.1 ] } );
 		yield* wait( w, 0.8 );
 		w.props = [ 0, 0 ];
-		guest.bought = { prop: PROP.beer, from: w.N.t, until: w.N.t + 280 };
+		guest.bought = { prop: w.served, from: w.N.t, until: w.N.t + 280 };
 		w.g = null;
 		w.lean = 0;
 		yield* wait( w, 0.5 );

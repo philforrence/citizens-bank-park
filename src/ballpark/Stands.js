@@ -58,6 +58,10 @@ export function tierSections( tier ) {
 	const P = tier.front;
 	const [ ox, oz ] = tier.outward;
 	const out = [];
+	// ---- B (home): pk, a section's place in the default split (the portals and anything else that
+	// counts sections round the bowl keep their places when a tier splits a segment its own way)
+	let pk = 0;
+	// ---- end B
 	for ( let k = 0; k < P.length - 1; k ++ ) {
 
 		const [ ax, az ] = P[ k ], [ bx, bz ] = P[ k + 1 ];
@@ -72,7 +76,10 @@ export function tierSections( tier ) {
 		}
 
 		// split long segments into sections
-		const n = Math.max( 1, Math.ceil( len / ( tier.section || 1e9 ) ) );
+		const nDef = Math.max( 1, Math.ceil( len / ( tier.section || 1e9 ) ) );
+		// ---- B (home): or into the tier's own count for this segment (tier.splits[ k ])
+		const n = tier.splits?.[ k ] ?? nDef;
+		// ---- end B
 		const skip = ( tier.skip || [] ).some( ( [ i0, i1 ] ) => k >= i0 && k <= i1 );
 		const skipRows = tier.skipRows ? tier.skipRows( k ) : 0;
 		for ( let s = 0; s < n; s ++ ) {
@@ -84,9 +91,12 @@ export function tierSections( tier ) {
 				m0: s === 0 ? mitre( P, k, ux, uz, nx, nz, true ) : 0,
 				m1: s === n - 1 ? mitre( P, k + 1, ux, uz, nx, nz, false ) : 0,
 				seats: ! skip, skipRows,
+				pk: pk + Math.min( s, nDef - 1 ), // ---- B (home)
 			} );
 
 		}
+
+		pk += nDef; // ---- B (home)
 
 	}
 
@@ -138,7 +148,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	const PO = tier.portals;
 	secs.forEach( ( S, k ) => {
 
-		if ( ! PO || ! S.seats || S.len < PO.width + 3 || k % PO.every !== Math.floor( PO.every / 2 ) ) return;
+		if ( ! PO || ! S.seats || S.len < PO.width + 3 || ( S.pk ?? k ) % PO.every !== Math.floor( PO.every / 2 ) ) return; // ---- B (home): pk
 		portals.push( { S, s: S.len / 2, r0: PO.row, r1: PO.row + PO.rows } );
 
 	} );
