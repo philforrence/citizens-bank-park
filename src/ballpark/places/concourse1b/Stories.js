@@ -64,6 +64,7 @@ export class Stories1B {
 		this._caricature();
 		this._nguyens();
 		this._walkers();
+		this._phunZone();
 
 	}
 
@@ -235,6 +236,20 @@ export class Stories1B {
 
 	}
 
+	// ---- the Phanatic Phun Zone: three little ones on its decks and down the slide (eight and under, the
+	// guide says), a father on the phone and a mother watching outside it
+	_phunZone() {
+
+		const Z = this.spots.phun;
+		if ( ! Z?.Q ) return;
+		this.phunQ = Z.Q;
+		const kid = ( i, look ) => this._add( { age: 2, skin: [ 1, 5, 0 ][ i ], hair: [ 3, 0, 4 ][ i ], hairStyle: i === 2 ? 2 : 0, female: i === 2, top: TOP.hoodie, color: [ COLOR.red, COLOR.navy, COLOR.pink ][ i ], sleeves: [ COLOR.red, COLOR.navy, COLOR.pink ][ i ], chest: i === 1 ? 0 : CHEST.block, hat: i === 0 ? HAT.capRed : HAT.none, pants: 1, shoes: 0, ...look }, { scale: [ 0.6, 0.55, 0.52 ][ i ] } );
+		this.phunKids = [ kid( 0, {} ), kid( 1, {} ), kid( 2, {} ) ].filter( Boolean );
+		this.phunDad = this._add( { age: 0, skin: 1, hair: 3, facial: 4, build: 2, top: TOP.fleece, color: COLOR.grey, sleeves: COLOR.grey, hat: HAT.capRed, pants: 0, shoes: 0 } );
+		this.phunMom = this._add( { female: true, age: 0, skin: 1, hair: 4, hairStyle: 2, build: 0, top: TOP.puffer, color: COLOR.red, sleeves: COLOR.red, hat: HAT.knitRed, pants: 1, shoes: 2 } );
+
+	}
+
 	// ---- the walkers with jobs or stories: Brandon the Rays fan, a beer man
 	_walkers() {
 
@@ -273,6 +288,7 @@ export class Stories1B {
 		this._updateLeo( dt, ns );
 		this._updateCaricature( dt, ns );
 		this._updateNguyens( dt, ns, R );
+		this._updatePhun( dt, ns );
 		// Brandon gets looked over as he goes by; his head down at a Phillies run; at the last out he claps
 		// for them
 		const b = this.brandon;
@@ -445,6 +461,96 @@ export class Stories1B {
 			a.kneeL = 0.12; a.kneeR = 0;
 			a.blink = ( t * 0.33 ) % 1 < 0.04 ? 1 : 0;
 			this._put( Li, ...Li.at.xz, Li.at.yaw, dt );
+
+		}
+
+	}
+
+	_updatePhun( dt, ns ) {
+
+		const Q = this.phunQ;
+		if ( ! Q ) return;
+		const t = this.time;
+		const put = ( a, x, y, z, yaw, walk = 0 ) => {
+
+			const p = Q( x, y, z );
+			a.p.x = p[ 0 ]; a.p.y = p[ 1 ]; a.p.z = p[ 2 ];
+			a.p.yaw = yaw;
+			const P = a.p.pose;
+			P.walk = walk; P.phase = ( P.phase + dt * walk * 7 ) % ( Math.PI * 2 );
+			P.lean = 0; P.twist = 0; P.drop = 0; P.hipL = P.hipR = P.kneeL = P.kneeR = 0; P.propL = P.propR = 0; P.mouth = 0;
+			P.armL = [ Math.sin( P.phase ) * 0.3 * walk, 0.1, 0, 0.3 ]; P.armR = [ - Math.sin( P.phase ) * 0.3 * walk, 0.1, 0, 0.3 ];
+			P.blink = ( t * 0.4 + x ) % 1 < 0.05 ? 1 : 0;
+			return P;
+
+		};
+
+		// the frame's yaw: its +z (the arch's side) as a direction
+		const f = Q.dir( 0, 0, 1 ), r = Q.dir( 1, 0, 0 );
+		const yawOf = ( d ) => Math.atan2( - d[ 0 ], - d[ 2 ] );
+		const [ a, b, c ] = this.phunKids;
+		// the first back and forth along the lower deck
+		if ( a ) {
+
+			const u = ( t * 0.12 ) % 2, x = u < 1 ? - 3 + 6 * u : 3 - 6 * ( u - 1 );
+			const P = put( a, x, 1.4, - 0.6, yawOf( u < 1 ? r : r.map( ( v ) => - v ) ), 0.8 );
+			P.mouth = Math.max( 0, 0.4 * Math.sin( t * 5 ) );
+
+		}
+
+		// the second at the top, waving down through the net to his mother
+		if ( b ) {
+
+			const P = put( b, 0.6, 2.9, 1.9, yawOf( f ), 0 );
+			const wave = Math.sin( t * 0.5 ) > 0.3;
+			P.armR = wave ? [ 2.6, 0.4, 0, 0.3 + 0.4 * Math.sin( t * 9 ) ] : [ 1.2, 0.3, 0.2, 1.0 ];
+			P.mouth = wave ? 0.6 : 0;
+
+		}
+
+		// the third down the slide, over and over
+		if ( c ) {
+
+			const u = ( t * 0.18 ) % 1;
+			if ( u < 0.35 ) {
+
+				const k = u / 0.35;
+				const P = put( c, 3.9 + k * 2.2, 2.9 * ( 1 - k ) + 0.05, 0, yawOf( r ), 0 );
+				seated( P, c.p.scale, 0.25 );
+				P.drop = 0.35;
+				P.armL = [ 1.5, 0.6, 0, 0.3 ]; P.armR = [ 1.5, 0.6, 0, 0.3 ];
+				P.mouth = 0.7;
+
+			} else {
+
+				// off the end and round, then back up inside (out of sight)
+				const k = ( u - 0.35 ) / 0.65;
+				put( c, 6.2 - k * 2.4, 0, 0.5 + Math.sin( k * 3 ) * 0.8, yawOf( r.map( ( v ) => - v ) ), 1 );
+				if ( k > 0.85 ) c.p.y = - 50;
+
+			}
+
+		}
+
+		// the father outside it, on the phone; the mother waving up
+		if ( this.phunDad ) {
+
+			const P = put( this.phunDad, - 1.2, 0, 4.6, yawOf( f.map( ( v ) => - v ) ), 0 );
+			P.armR = GESTURE.phone[ 1 ].slice(); P.propR = PROP.phone;
+			P.armL = GESTURE.pockets[ 0 ].slice(); P.propL = PROP.pocket;
+			P.mouth = Math.max( 0, 0.3 * Math.sin( t * 6 ) * Math.sin( t * 0.9 ) );
+			P.headYaw = Math.sin( t * 0.2 ) * 0.5;
+
+		}
+
+		if ( this.phunMom ) {
+
+			const P = put( this.phunMom, 1.3, 0, 4.3, yawOf( f.map( ( v ) => - v ) ) + 0.2, 0 );
+			const wave = Math.sin( t * 0.5 ) > 0.3;
+			P.armR = wave ? [ 2.4, 0.4, 0, 0.3 + 0.3 * Math.sin( t * 8 ) ] : GESTURE.fold[ 1 ].slice();
+			P.armL = wave ? GESTURE.pockets[ 0 ].slice() : GESTURE.fold[ 0 ].slice();
+			P.propL = wave ? PROP.pocket : 0;
+			P.headPitch = - 0.25;
 
 		}
 

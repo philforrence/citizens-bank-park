@@ -2,7 +2,7 @@ import { Group, Mesh, BufferGeometry, Float32BufferAttribute, Vector3, Sphere } 
 import { standard } from '../../materials/Materials.js';
 import { LEVELS } from '../layout.js';
 import { G } from '../../core/Globals.js';
-import { Cast } from './Cast.js';
+import { Cast, PROP } from './Cast.js';
 import { rng } from './Concourse3BKit.js';
 import { nightState, RAIL_D, FRONT_D } from './Concourse3BPeople.js';
 import { LiveTV } from './Concourse3BTV.js';
@@ -79,7 +79,7 @@ export default class Concourse1B {
 		const mid = this.W.at( S_END / 2, 40 );
 		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.55 + 60 );
 		this.people = new People1B( { cast: this.cast, walkway: this.W, concourse, bowl, obstacles: this.obstacles, carts: this.carts, seed: 1029 } );
-		this.stories = new Stories1B( this.people, { caricature: this.caricature } );
+		this.stories = new Stories1B( this.people, { caricature: this.caricature, phun: this.phun } );
 		// the fans coming in through the gate
 		if ( this.gate ) {
 
@@ -408,6 +408,7 @@ export default class Concourse1B {
 		const w = this.W.at( 104, 60 );
 		this.phun = { s: 104, d: 60, x: w.x, z: w.z, fwd: [ - w.ux, - w.uz ] };
 		const Q = this._facing( [ w.x, w.z ], this.phun.fwd );
+		this.phun.Q = Q;
 		buildPhunZone( this.prints, Q );
 		// the lamps light the plaza and the court after dark: the app makes point lights of the exterior's
 		// lamps (lampSources) once the places are built
@@ -541,6 +542,44 @@ export default class Concourse1B {
 
 	}
 
+	// The Phanatic passing through (A's place: app.phanatic.now, in the field frame): everyone within 14 m
+	// turns to look; the kids jump, and a few get a camera or a phone up for a picture
+	_phanatic() {
+
+		const ph = this.app?.phanatic?.now;
+		if ( ! ph?.visible || ph.onField || Math.abs( ( ph.y ?? STREET ) - STREET ) > 3 ) return;
+		const t = this.time = ( this.time || 0 ) + 1 / 60, ex = ph.excite ?? 0.6;
+		for ( const p of this.cast.list ) {
+
+			if ( ! p.visible ) continue;
+			const dx = ph.x - p.x, dz = ph.z - p.z, d2 = dx * dx + dz * dz;
+			if ( d2 > 196 || d2 < 0.5 ) continue;
+			let y = Math.atan2( - dx, - dz ) - p.yaw;
+			y = ( ( y + Math.PI ) % ( Math.PI * 2 ) + Math.PI * 2 ) % ( Math.PI * 2 ) - Math.PI;
+			const P = p.pose, k = Math.min( 1, ( 196 - d2 ) / 60 );
+			P.headYaw = Math.max( - 1.3, Math.min( 1.3, y ) ) * k + P.headYaw * ( 1 - k );
+			P.headPitch = 0;
+			const h = ( ( p.slot * 0.618 ) % 1 );
+			if ( Math.abs( y ) > 1.4 ) continue;
+			if ( p.look?.age === 2 ) {
+
+				// the kids: jumping, arms up
+				P.drop = - Math.max( 0, Math.sin( t * 9 + p.slot ) ) * 0.08 * ex;
+				P.armL = [ 2.6, 0.3, 0, 0.4 ]; P.armR = [ 2.6, 0.3, 0, 0.4 ];
+				P.propL = 0; P.propR = 0; P.mouth = 0.8;
+
+			} else if ( h < 0.3 * ex ) {
+
+				// a picture of him: the camera (or the flip phone) up to the eyes
+				P.armR = [ 1.6, 0.25, 0.15, 1.9 ]; P.propR = h < 0.15 ? PROP.camera : PROP.phone;
+				P.armL = [ 1.5, 0.3, 0.3, 1.9 ]; P.propL = 0;
+
+			} else if ( h < 0.5 ) P.mouth = 0.4 * ex;
+
+		}
+
+	}
+
 	// what's going on (for the tests in Node)
 	report() {
 
@@ -577,6 +616,7 @@ export default class Concourse1B {
 		this.scenes?.update( dt, ns, t );
 		this.arrivals?.update( dt, ns, t );
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
+		this._phanatic();
 		this.cast.update( cam );
 		this.sounds.update( dt, ns, camF );
 		if ( this.ownTV ) this.tv.update( dt, director, ns );
