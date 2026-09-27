@@ -5,6 +5,7 @@ import { look as lookFor } from './Looks.js';
 import { ROLE, DIRT } from './Players.js';
 // ---- R (rituals)
 import { showSuspension } from './Suspension.js';
+import { showCelebration } from './Celebration.js';
 // ---- end R
 
 // The replay. The whole game is laid out in advance as a timeline of segments (teams taking the field,
@@ -656,6 +657,9 @@ export class Director {
 
 		const s = seg.snap || {};
 		if ( seg.kind === 'switch' && s.inning === 6 && s.half === 'bottom' ) return;
+		// ---- R (rituals): at the last out they walk off (game/Celebration.js)
+		if ( seg.kind === 'celebrate' && ! this.oldCelebration ) return;
+		// ---- end R
 		const pitching = seg.kind === 'pitch' && lt - PACE.set > - 0.6;
 		const runners = ( s.bases || [] ).some( Boolean );
 		const r2 = Math.SQRT1_2;
@@ -1282,6 +1286,10 @@ export class Director {
 	// piles on, then everyone.
 	show_celebrate( seg, lt ) {
 
+		// ---- R (rituals): the celebration rebuilt (game/Celebration.js): the pile built up properly, the
+		// dugout, the coaches and the pen emptying onto the field, the hugs, the men going to the stands
+		if ( ! this.oldCelebration ) return showCelebration( this, seg, lt );
+		// ---- end R
 		const s = seg.snap, P = this.game.players;
 		const def = s.defense;
 		const center = [ MOUND[ 0 ], MOUND[ 1 ] + 0.5 ];
