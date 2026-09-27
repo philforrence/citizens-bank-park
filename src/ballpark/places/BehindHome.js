@@ -6,6 +6,11 @@ import { Fans, hash } from './home/Fans.js';
 import { dressBoth } from './home/Dress.js';
 import { paletteMaterial } from './home/Build.js';
 import { buildClub } from './home/Club.js';
+import { Signs } from './home/Signs.js';
+import { seatRegulars, holdSigns } from './home/Regulars.js';
+import { Gear, GEAR } from './home/Gear.js';
+import { Aisles } from './home/Aisles.js';
+import { HomeSound } from './home/Sound.js';
 
 // Behind home plate: the TV's backdrop. The center field camera looks straight at it on every pitch
 // (press C), so this is the most-watched patch of the park: the Diamond Club's front rows and the field
@@ -40,6 +45,8 @@ export default class BehindHome {
 		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( 0, 4, 30 ), 34 );
 		this.fans = new Fans( this.cast );
 		this.fans.rows = ( sec, row ) => seats.bySec[ sec ]?.[ row ] || [];
+		// the signs held up for the camera
+		this.signs = new Signs( this.group );
 		this._seatPeople();
 		// the crowd's fans leave the seats the place has taken
 		bowl.crowd?.vacate?.( seats.vacateTest( field ) );
@@ -50,6 +57,13 @@ export default class BehindHome {
 		this.material = paletteMaterial( 'home-things' );
 		this.things = buildClub( seats ).mesh( this.material, 'home-things' );
 		this.group.add( this.things );
+		// the vendors' gear (and anything else in the air: a bag of peanuts, the ball)
+		this.gear = new Gear( this.group );
+		// what's heard here
+		this.sound = new HomeSound( app, field );
+		// the aisles: vendors, the club's ushers
+		this.aisles = new Aisles( this );
+		this.flying = [];
 		this.state = {};
 		this._mood = { stand: 0.03, cheer: 0, clap: 0.05, jump: 0, towel: 0.03 };
 
@@ -70,6 +84,8 @@ export default class BehindHome {
 		};
 
 		this.sit = sit;
+		// the people with names first (their seats are theirs)
+		seatRegulars( this );
 		// the Diamond Club's front rows
 		for ( let row = 0; row < CLUB_ROWS; row ++ ) {
 
@@ -110,6 +126,30 @@ export default class BehindHome {
 			}
 
 		}
+
+	}
+
+	// a bag of peanuts thrown from the vendor's hand to the buyer's: an arc over the row
+	throwBag( w, buyer ) {
+
+		const from = [ w.p.x, w.p.y + 1.6, w.p.z ];
+		this.flying.push( { from, to: buyer, t: 0, dur: 1.0, type: GEAR.bag } );
+
+	}
+
+	_fly( dt ) {
+
+		this.flying = this.flying.filter( ( f ) => {
+
+			f.t += dt;
+			const k = Math.min( 1, f.t / f.dur );
+			const to = [ f.to.p.x, f.to.p.y + 1.55 * f.to.p.scale + 0.25, f.to.p.z ];
+			const x = f.from[ 0 ] + ( to[ 0 ] - f.from[ 0 ] ) * k, z = f.from[ 2 ] + ( to[ 2 ] - f.from[ 2 ] ) * k;
+			const y = f.from[ 1 ] + ( to[ 1 ] - f.from[ 1 ] ) * k + 1.1 * 4 * k * ( 1 - k );
+			this.gear.put( f.type, x, y, z, f.t * 7, 1, f.t * 11 );
+			return k < 1;
+
+		} );
 
 	}
 
@@ -165,7 +205,11 @@ export default class BehindHome {
 		dt = Math.min( dt, 0.25 );
 		const N = this._night( director, dt );
 		this.material.uniforms.night.value = N.first ? 27 : 29;
+		this.aisles.update( dt, N );
 		this.fans.update( dt, N );
+		holdSigns( this );
+		this._fly( dt );
+		this.gear.update();
 		// the cast's detail by how big they are on screen: the distance against the lens (the center
 		// field camera's long lens sees the rows behind home plate from 150 m as if from 12)
 		const fov = camera?.fov || 60;

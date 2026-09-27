@@ -65,12 +65,12 @@ const f3 = ( v ) => `vec3f( ${ v.map( ( x ) => x.toFixed( 4 ) ).join( ', ' ) } )
 // The palette material. `atlas`: a texture whose printed faces are read (r: ink mask, g: second ink,
 // b: the board's own tone); the inks' colours are the palette entries given in the face's uv (see
 // Builder.print). `extra`: more WGSL after the colour (e.g. the wet), `vertex` for instanced moves.
-export function paletteMaterial( name, { atlas = null, vertex = '', storage = {}, varyings = {}, side = 'double', extraSurface = '' } = {} ) {
+export function paletteMaterial( name, { atlas = null, vertex = '', storage = {}, varyings = {}, attributes = {}, side = 'double', extraSurface = '' } = {} ) {
 
 	const cols = PAL_KEYS.map( ( k ) => f3( PAL[ k ][ 0 ] ) ).join( ', ' );
 	const prm = PAL_KEYS.map( ( k ) => `vec4f( ${ PAL[ k ][ 1 ].toFixed( 3 ) }, ${ PAL[ k ][ 2 ].toFixed( 3 ) }, ${ PAL[ k ][ 3 ].toFixed( 3 ) }, ${ PAL[ k ][ 4 ].toFixed( 1 ) } )` ).join( ', ' );
 	const mat = standard( {
-		name, roughness: 0.6, side, storage, varyings: { vUV: 'vec2f', ...varyings },
+		name, roughness: 0.6, side, storage, attributes, varyings: { vUV: 'vec2f', ...varyings },
 		uniforms: { night: [ 'f32', 27 ] },
 		textures: atlas ? { hmAtlas: atlas } : {},
 		// what's there on one night only (uv.y 3: the 27th, 4: the 29th) folds away on the other
@@ -121,6 +121,21 @@ export class Builder {
 
 	}
 
+	// every vertex from here on carries a tag (the attribute aTag): which of several things it's part of
+	tagWith( t ) {
+
+		if ( ! this.tagged ) {
+
+			this.tagged = true;
+			this.tags = new Array( this.pos.length / 3 ).fill( 0 );
+
+		}
+
+		this.tag = t;
+		return this;
+
+	}
+
 	// what's built next is there on one night only (27, 29), or both (0)
 	night( n ) {
 
@@ -157,6 +172,7 @@ export class Builder {
 		}
 
 		const pal = [ this.k + 0.5, this.code ];
+		if ( this.tagged ) this.tags.push( this.tag, this.tag, this.tag );
 		this.pos.push( ...a, ...b, ...c );
 		for ( const nn of [ na, nb, nc ] ) {
 
@@ -255,6 +271,7 @@ export class Builder {
 		g.setAttribute( 'position', new Float32BufferAttribute( this.pos, 3 ) );
 		g.setAttribute( 'normal', new Float32BufferAttribute( this.nrm, 3 ) );
 		g.setAttribute( 'uv', new Float32BufferAttribute( this.uv, 2 ) );
+		if ( this.tagged ) g.setAttribute( 'aTag', new Float32BufferAttribute( this.tags, 1 ) );
 		g.computeBoundingBox();
 		g.computeBoundingSphere();
 		return g;

@@ -67,6 +67,7 @@ export const SEATED = {};
 	SEATED.reachUpBoth = [ [ 2.85, 0.25, 0.0, 0.2 ], [ 2.9, 0.2, 0.0, 0.15 ] ];
 	// a hug (the arms round the neighbour on the right)
 	SEATED.hugR = both( [ 0.18, 1.4, - 0.2 ], [ 0.45, 1.42, - 0.08 ] );
+	SEATED.hugL = both( [ - 0.45, 1.42, - 0.08 ], [ - 0.18, 1.4, - 0.2 ] );
 	// hands over the face (the last pitch)
 	SEATED.pray = both( [ - 0.02, 1.52, - 0.14 ], [ 0.02, 1.52, - 0.14 ] );
 	// the ticket held out to the usher, the other at rest

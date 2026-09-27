@@ -101,8 +101,9 @@ export class SeatMap {
 	// eased over its last few centimetres so a foot doesn't jump)
 	treadAt( d ) {
 
-		const r = Math.max( 0, Math.min( this.rows - 1, Math.floor( ( d - this.S0 ) / this.D ) ) );
-		const f = ( d - this.S0 ) / this.D - r;
+		// d from the first row's front (the aisle's own measure: aisle( key, d ))
+		const r = Math.max( 0, Math.min( this.rows - 1, Math.floor( d / this.D ) ) );
+		const f = d / this.D - r;
 		const y = this.ys[ r ], yn = this.ys[ Math.min( this.rows - 1, r + 1 ) ];
 		return y + ( yn - y ) * smooth( ( f - 0.9 ) / 0.1 );
 

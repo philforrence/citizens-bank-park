@@ -142,6 +142,8 @@ export class Fan {
 		}
 
 		if ( this.script ) this.script( this, N, dt );
+		// out of his seat: someone else (the aisles) moves him
+		if ( this.driven ) return;
 		if ( this.away ) {
 
 			p.visible = false;
@@ -181,6 +183,17 @@ export class Fan {
 		L = I.L === 'drink' ? drink : I.L || 0;
 		R = I.R === 'drink' ? drink : I.R || 0;
 		talk = !! I.talk;
+		// what he's just bought from the vendor: held a while, a sip or a bite now and then
+		if ( this.bought && t < this.bought.until && t > this.bought.from ) {
+
+			const b = this.bought.prop;
+			g = fract( t / 9 + sd ) < 0.14 ? SEATED.sip : SEATED.cup;
+			if ( b === PROP.hotdog ) g = fract( t / 5 + sd ) < 0.4 ? SEATED.eat : SEATED.cup;
+			if ( b === PROP.cottonCandy ) g = fract( t / 6 + sd ) < 0.3 ? SEATED.eat : SEATED.cup;
+			R = b; L = 0;
+
+		}
+
 		// a kid's glove on all night (on his left hand, in case)
 		if ( this.kit.glove && ! L ) L = PROP.glove;
 		// a sip now and then
