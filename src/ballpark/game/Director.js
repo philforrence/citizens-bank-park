@@ -2,7 +2,7 @@ import { Quaternion, Euler } from '../../engine/index.js';
 import * as M from './Motions.js';
 import { POSITIONS, BASES, MOUND, DUGOUT, BULLPEN, ON_DECK, boxFor, sprayToField, pitchPath, fallbackPfx, battedBall, throwPath, basePath, dist, lerp2, yawTo } from './Plays.js';
 import { look as lookFor } from './Looks.js';
-import { ROLE } from './Players.js';
+import { ROLE, DIRT } from './Players.js';
 
 // The replay. The whole game is laid out in advance as a timeline of segments (teams taking the field,
 // walk-ups, pitches, balls in play, pitching changes, the celebration), each with the state of the game at
@@ -237,6 +237,41 @@ export class Director {
 			plan: this._planCelebration( lastPlay ),
 			cues: [ [ 0.3, { say: `Swing and a miss! The Philadelphia Phillies are World Series champions!`, champions: true } ] ],
 		} );
+
+		// the slides (for the dirt on the seat of their pants): the base stealers, and the runners who
+		// took two bases or more on a hit
+		this.slides = new Map();
+		const slid = ( id, t ) => ( this.slides.get( id ) || this.slides.set( id, [] ).get( id ) ).push( t );
+		for ( const sg of segs ) {
+
+			for ( const a of sg.acts || [] ) for ( const mv of a.moves ) if ( /stolen|caught/.test( a.e.kind || '' ) ) slid( mv.id, sg.t0 + 2 );
+			if ( sg.kind === 'inplay' ) for ( const r of sg.plan.runners ) if ( ( r.to - r.from >= 2 && r.to < 4 ) || r.out ) slid( r.id, sg.t0 + r.tArrive );
+
+		}
+
+	}
+
+	// How dirty a player's uniform has got (Players.js: DIRT bits + the amount): it builds through the
+	// night (the first night's rain-soaked clay faster), where it shows by what he plays (the catcher all
+	// over, the infielders' knees and fronts, a pitcher's drag knee) and by his slides. The 29th starts
+	// with clean uniforms.
+	_dirt( id, seg ) {
+
+		const s = seg.snap, info = this.game.players[ id ];
+		if ( ! s || ! info ) return 0;
+		const night2 = s.inning > 6 || ( s.inning === 6 && s.half === 'bottom' );
+		const halves = night2 ? ( s.inning - 6 ) * 2 + ( s.half === 'bottom' ? 0 : - 1 ) : ( s.inning - 1 ) * 2 + ( s.half === 'bottom' ? 1 : 0 );
+		const pos = Object.keys( s.defense || {} ).find( ( k ) => s.defense[ k ] === id ) || info.pos;
+		let bits = 0, k = 0.5;
+		if ( pos === 'C' ) { bits = DIRT.knees | DIRT.seat; k = 1.3; }
+		else if ( pos === 'P' ) { bits = info.throws === 'L' ? DIRT.dragL : DIRT.dragR; k = 0.9; }
+		else if ( pos === 'SS' || pos === '2B' || pos === '3B' ) { bits = DIRT.knees | DIRT.front; k = 0.9; }
+		else if ( pos === '1B' ) { bits = DIRT.knees; k = 0.7; }
+		else bits = DIRT.knees;
+		let amount = ( 0.1 + Math.max( 0, halves ) * ( night2 ? 0.07 : 0.09 ) ) * k;
+		const t0 = night2 ? ( this._night2 ??= this.segments.find( ( q ) => q.snap && q.snap.inning === 6 && q.snap.half === 'bottom' ).t0 ) : 0;
+		for ( const t of this.slides.get( id ) || [] ) if ( t <= this.t && t >= t0 ) { bits |= DIRT.seat; amount += 0.3; }
+		return bits + Math.min( 0.95, amount );
 
 	}
 
@@ -644,6 +679,7 @@ export class Director {
 			s.x = a.x; s.z = a.z; s.yaw = a.yaw; s.y = a.y || 0; s.tilt = a.tilt || null;
 			s.pose = a.pose;
 			if ( a.dirt != null ) s.dirt = a.dirt;
+			else if ( typeof id === 'number' && id > 0 && this.now ) s.dirt = this._dirt( id, this.now.seg );
 
 		}
 
