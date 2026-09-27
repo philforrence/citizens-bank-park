@@ -19,6 +19,7 @@ import { Cars } from './gate3b/Cars.js';
 import { buildTailgates } from './gate3b/Tailgate.js';
 import { buildFurniture } from './gate3b/Furniture.js';
 import { buildDrips } from './gate3b/Drips.js';
+import { buildCelebration } from './gate3b/Celebration.js';
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -66,6 +67,9 @@ export default class ThirdBaseGate {
 		for ( const [ x, z ] of this.vendors.carts ) this.obstacles.push( [ x, z, 1.4 ] );
 		this._police();
 		this._ticketless();
+		// the last out: the ones outside pour onto the plaza and into Pattison (gate3b/Celebration.js)
+		const S = STATUES[ 'Mike Schmidt' ]?.[ 0 ];
+		if ( S ) this.celebration = buildCelebration( { group: this.group, cast: this.cast, statue: S, lift: LIFT } );
 		// FOX 29 live from the plaza (gate3b/TV.js)
 		this.tv = buildTV( { group: this.group, colliders, field, cast: this.cast } );
 		this.obstacles.push( ...this.tv.obstacles );
@@ -485,6 +489,7 @@ export default class ThirdBaseGate {
 		this.furniture?.update( w, this.clock );
 		this._lights();
 		this._updateFlash( Math.min( dt, 0.1 ) );
+		this.celebration?.update( Math.min( dt, 0.1 ) );
 		this.openGate?.poseTripods();
 		this.folk?.update();
 

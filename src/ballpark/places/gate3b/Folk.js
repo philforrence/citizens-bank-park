@@ -18,7 +18,7 @@ import { BONE, J, pose, boneXf, apply, unapply, unrotate, FOLK_FK } from './Folk
 //   const f = folk.add( { x, z, yaw, look, props, scale } );  f.pose (FolkRig.pose()), f.walk, f.phase
 //   folk.update()  (after moving and posing them)
 
-const MAX = 420;
+const MAX = 600;
 const K = 4; // vec4s per figure
 
 // the props: which bit shows them
