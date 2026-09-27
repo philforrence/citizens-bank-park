@@ -55,11 +55,14 @@ export default class Concourse1B {
 		// the third base side's place, if it's built: its props' material and its broadcast are shared
 		this.w2 = app?.places?.find( ( p ) => p.name === 'concourse3b' ) || null;
 		this.obstacles = [];
+		const T = this.buildTimes = {}, t0 = performance.now(), mark = ( k ) => T[ k ] = Math.round( performance.now() - t0 );
 		this._columns();
 		// the First Base Gate open for the game
 		this.gate = buildGate1B( { group: this.group, exterior: app?.exterior, colliders, field } );
+		mark( 'gate' );
 		this.kit = this._kit();
 		this.prints = new Prints();
+		mark( 'prints' );
 		this._bins();
 		this._carts();
 		this._tvs();
@@ -71,6 +74,7 @@ export default class Concourse1B {
 		this.tailgates = new Tailgates( { Pr: this.prints } );
 		this.group.add( this.kit.mesh( 'concourse1b-props' ) );
 		this.group.add( this.prints.mesh() );
+		mark( 'props' );
 		// the floor on the night
 		const doors = ( concourse?.doors || [] ).map( ( D ) => this.W.toSD( D.x, D.z ) ).filter( ( [ s ] ) => s > - 2 && s < S_END + 2 );
 		this.floor = floorSkin( this.W, { sEnd: S_END, gate: [ GATE_S + 3, 54 ], doors, lamps: this.lamps,
@@ -78,7 +82,9 @@ export default class Concourse1B {
 		this.floor.name = 'concourse1b-floor';
 		this.group.add( this.floor );
 		// the people
+		mark( 'floor' );
 		this.cast = new Cast( { parent: this.group, max: 560 } );
+		mark( 'cast' );
 		const mid = this.W.at( S_END / 2, 40 );
 		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.55 + 60 );
 		// (P0's pool reads this: the whole troupe skipped when the view's elsewhere)
@@ -105,6 +111,7 @@ export default class Concourse1B {
 		this.tailgates.addPeople( this.cast );
 		this._tailgateTVs();
 		people?.hiders?.push( ( x, z ) => this.covers( x, z ) );
+		mark( 'people' );
 		// what it sounds like (set up once the park's sound exists)
 		this.sounds = new Sounds1B( this );
 

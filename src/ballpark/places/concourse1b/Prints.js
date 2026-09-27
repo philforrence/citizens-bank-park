@@ -63,22 +63,25 @@ const hash = ( s ) => {
 // a crowd out of focus behind the player (the long lens)
 function blurCrowd( ctx, x, y, w, h, seed ) {
 
-	ctx.save();
-	ctx.beginPath(); ctx.rect( x, y, w, h ); ctx.clip();
-	const g = ctx.createLinearGradient( 0, y, 0, y + h );
+	// drawn small and scaled up: the blur for nothing (a blur filter on every dot costs seconds at load)
+	const k = 6, sw = Math.ceil( w / k ), sh = Math.ceil( h / k );
+	const small = new OffscreenCanvas( sw, sh ), c = small.getContext( '2d' );
+	const g = c.createLinearGradient( 0, 0, 0, sh );
 	g.addColorStop( 0, '#4a2429' ); g.addColorStop( 0.62, '#6f3336' ); g.addColorStop( 0.63, '#2b5733' ); g.addColorStop( 1, '#3a6a3b' );
-	ctx.fillStyle = g;
-	ctx.fillRect( x, y, w, h );
-	ctx.filter = 'blur( 5px )';
+	c.fillStyle = g;
+	c.fillRect( 0, 0, sw, sh );
 	for ( let i = 0; i < 240; i ++ ) {
 
 		const q = hash( seed + i * 1.37 );
-		ctx.fillStyle = q < 0.52 ? '#c42a3a' : q < 0.7 ? '#efe6dc' : q < 0.84 ? '#2a2630' : '#d8a078';
-		ctx.beginPath(); ctx.arc( x + hash( seed * 5 + i ) * w, y + hash( seed * 11 + i * 0.3 ) * h * 0.6, 6 + hash( i + seed ) * 8, 0, Math.PI * 2 ); ctx.fill();
+		c.fillStyle = q < 0.52 ? '#c42a3a' : q < 0.7 ? '#efe6dc' : q < 0.84 ? '#2a2630' : '#d8a078';
+		c.beginPath(); c.arc( hash( seed * 5 + i ) * sw, hash( seed * 11 + i * 0.3 ) * sh * 0.6, ( 6 + hash( i + seed ) * 8 ) / k, 0, Math.PI * 2 ); c.fill();
 
 	}
 
-	ctx.filter = 'none';
+	ctx.save();
+	ctx.imageSmoothingEnabled = true;
+	ctx.imageSmoothingQuality = 'high';
+	ctx.drawImage( small, x, y, w, h );
 	ctx.restore();
 
 }
