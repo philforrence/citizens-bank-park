@@ -9,5 +9,8 @@
 // and is listed here as [ name, class ] (imported above). The name is also its part for ?only=
 // (Scope.js): with a place in ?only= the whole park is built (it may use any part) and only the parts
 // named are drawn, e.g. ?only=gate,exterior,people.
+import ThirdBaseGate from './ThirdBaseGate.js';
+
 export const PLACES = [
+	[ 'gate3b', ThirdBaseGate ],
 ];

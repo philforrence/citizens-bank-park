@@ -532,8 +532,7 @@ export class Exterior {
 		// trees in grates across the plaza
 		for ( const [ x, z ] of [ [ - 118, 88 ], [ - 88, 90 ], [ - 126, 36 ], [ - 96, 20 ], [ - 110, 58 ], [ - 72, 74 ] ].filter( ( [ x, z ] ) => clearOfWalk( x, z, 1.5 ) ) ) {
 
-			this._tree( x, z, trunk, leaves );
-			box( steel, [ x, STREET + 0.03, z ], [ 1.8, 0.04, 1.8 ] );
+			this._tree( x, z, trunk, leaves ); // (W1: its grate is the gate3b place's)
 
 		}
 
@@ -573,23 +572,12 @@ export class Exterior {
 
 	}
 
-	_tree( x, z, trunk, leaves ) {
+	_tree( x, z ) {
 
-		const t = new Mesh( new CylinderGeometry( 0.15, 0.22, 3.2, 8 ), trunk );
-		t.position.set( x, STREET + 1.6, z );
-		t.castShadow = true;
-		this.group.add( t );
-		const k = 0.8 + 0.4 * Math.abs( Math.sin( x * 12.9 + z * 7.3 ) );
-		for ( const [ dx, dy, dz, r ] of [ [ 0, 4.3, 0, 1.9 ], [ 0.9, 3.8, 0.4, 1.3 ], [ - 0.8, 4.0, - 0.5, 1.4 ], [ 0.2, 5.1, - 0.3, 1.2 ] ] ) {
-
-			const c = new Mesh( new SphereGeometry( r * k, 10, 8 ), leaves );
-			c.position.set( x + dx, STREET + dy * k, z + dz );
-			c.castShadow = true;
-			c.receiveShadow = true;
-			this.group.add( c );
-
-		}
-
+		// ---- W1 (Third Base Gate): the trees themselves (and their grates) are grown by the gate3b place
+		// (places/gate3b/Trees.js: branches and leaves, not spheres); here only the spot and the collider
+		( this.treeSpots ||= [] ).push( [ x, z ] );
+		// ---- end W1
 		const w = this.field.toWorld( x, z );
 		this.colliders.addCylinder( w.x, w.z, 0.3, this.field.y0 + STREET, this.field.y0 + STREET + 3 );
 
@@ -1055,12 +1043,23 @@ export class Exterior {
 			ctx.fillText( 'SALES', w / 2, 240 );
 
 		}, 'bladeSign' );
-		const m = standard( { name: 'blade-sign', roughness: 0.5, side: 'double', textures: { bsTex: tex },
+		const m = standard( { name: 'blade-sign', roughness: 0.5, textures: { bsTex: tex },
 			surface: 'let t = textureSample( bsTex, smpAnisoClamp, in.uv ).rgb; s.albedo = t; s.emissive = t * smoothstep( 0.1, 0.7, frame.night ) * 0.35;' } );
 		m.underwaterLighting = 'none';
 		const q = new Quads(), W = 0.95, H = 1.2, o0 = 0.35;
-		q.tri( P( s, o0, y ), P( s, o0 + W, y ), P( s, o0 + W, y + H ), [ 1, 0, 0 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
-		q.tri( P( s, o0, y ), P( s, o0 + W, y + H ), P( s, o0, y + H ), [ 1, 0, 0 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+		// ---- W1 (Third Base Gate): a face each side (one double-sided face read backwards from behind),
+		// the text running the right way on both: out from the wall where the viewer's right hand points out
+		const e0 = P( s, 0, y ), e1 = P( s + 1, 0, y ), ux = e1[ 0 ] - e0[ 0 ], uz = e1[ 2 ] - e0[ 2 ];
+		for ( const side of [ 1, - 1 ] ) {
+
+			const out = side * ( uz * n[ 0 ] - ux * n[ 1 ] ) > 0, [ uA, uB ] = out ? [ 0, 1 ] : [ 1, 0 ];
+			const S = s + side * 0.012, N = [ ux * side, 0, uz * side ];
+			q.tri( P( S, o0, y ), P( S, o0 + W, y ), P( S, o0 + W, y + H ), N, [ uA, 1 ], [ uB, 1 ], [ uB, 0 ] );
+			q.tri( P( S, o0, y ), P( S, o0 + W, y + H ), P( S, o0, y + H ), N, [ uA, 1 ], [ uB, 0 ], [ uA, 0 ] );
+
+		}
+
+		// ---- end W1
 		this.group.add( new Mesh( q.geometry(), m ) );
 		const b = new Quads();
 		beam( b, P( s, 0, y + H + 0.08 ), P( s, o0 + W + 0.05, y + H + 0.08 ), 0.06 );
