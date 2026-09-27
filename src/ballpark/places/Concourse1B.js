@@ -11,6 +11,8 @@ import { Steam } from './Concourse3BSteam.js';
 import { Kit, trashCan, recycleBin, condiments, cart, pendant } from './Concourse3BProps.js';
 import { Walk1B } from './concourse1b/Walk.js';
 import { People1B, GATE_S, S_END } from './concourse1b/People.js';
+import { buildGate1B } from './concourse1b/Gate.js';
+import { Arrivals1B } from './concourse1b/Arrivals.js';
 
 // The main concourse on the first base side, behind home plate round to the right field corner (sections
 // 122 to 108), and the First Base Gate: the other half of the walkable ring, and the other way in. It was
@@ -34,7 +36,7 @@ const STREET = LEVELS.mainConcourse;
 
 export default class Concourse1B {
 
-	constructor( { app, field, bowl, people } ) {
+	constructor( { app, field, bowl, people, colliders } ) {
 
 		this.app = app;
 		this.field = field;
@@ -60,15 +62,35 @@ export default class Concourse1B {
 		this.floor.name = 'concourse1b-floor';
 		this.group.add( this.floor );
 		// the people
-		this.cast = new Cast( { parent: this.group, max: 420 } );
+		this.cast = new Cast( { parent: this.group, max: 560 } );
 		const mid = this.W.at( S_END / 2, 40 );
-		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.55 + 40 );
+		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.55 + 60 );
 		this.people = new People1B( { cast: this.cast, walkway: this.W, concourse, bowl, obstacles: this.obstacles, carts: this.carts, seed: 1029 } );
+		// the First Base Gate open for the game, and the fans coming in through it
+		this.gate = buildGate1B( { group: this.group, exterior: app?.exterior, colliders, field } );
+		if ( this.gate ) {
+
+			this._takeOverGate( people );
+			const plaza = [ [ 75, 69.8, 2.2 ], ...( this.gate.bins || [] ).map( ( b ) => [ b[ 0 ], b[ 2 ], 0.45 ] ) ];
+			this.arrivals = new Arrivals1B( { cast: this.cast, gate: this.gate, people: this.people, obstacles: plaza, seed: 1101 } );
+
+		}
+
 		// steam off the grills and the cups, and the breath
 		this.steam = new Steam( { parent: this.group, bounds: this.cast.mesh.boundingSphere } );
 		this.steam.mesh.name = 'concourse1b-steam';
 		this._steamers();
 		people?.hiders?.push( ( x, z ) => this.covers( x, z ) );
+
+	}
+
+	// People.js put a ticket taker at each of the gate's lanes and a guard either side: here they're the
+	// gate's own (Arrivals1B), so they go
+	_takeOverGate( people ) {
+
+		if ( ! people?.list ) return;
+		const g = this.gate.gate.at;
+		people.list = people.list.filter( ( p ) => ! ( Math.hypot( p.x - g[ 0 ], p.z - g[ 1 ] ) < 20 && Math.abs( p.y - STREET ) < 0.6 && ( p.reachAt != null || p.role === 2 ) ) );
 
 	}
 
@@ -339,6 +361,14 @@ export default class Concourse1B {
 
 	}
 
+	// what's going on (for the tests in Node)
+	report() {
+
+		const A = this.arrivals?.count();
+		return `gate ${ A ? JSON.stringify( A ) : 'none' } cast ${ this.cast.list.filter( ( p ) => p.visible ).length }/${ this.cast.list.length }`;
+
+	}
+
 	update( dt, director ) {
 
 		const ns = nightState( director );
@@ -350,6 +380,7 @@ export default class Concourse1B {
 			this.people.warming = true;
 			for ( let i = 0; i < 240; i ++ ) this.people.update( 0.25, ns );
 			this.people.warming = false;
+			this.arrivals?.reset( ns, t );
 			this.steam.warm( G.time.value );
 			this._warm = true;
 			for ( const p of this.cast.list ) p.fresh = true;
@@ -361,6 +392,7 @@ export default class Concourse1B {
 		const cam = camF ? [ camF[ 0 ], 0, camF[ 1 ] ] : null;
 		this.people.cam = camF;
 		this.people.update( dt, ns );
+		this.arrivals?.update( dt, ns, t );
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
 		this.cast.update( cam );
 		if ( this.ownTV ) this.tv.update( dt, director, ns );

@@ -23,7 +23,7 @@ export const GATES = [
 	// the Third and First Base Gates are the stadium's open maroon frame (`open`: no brick across that
 	// width), their gate line between two stair towers that carry the light towers
 	{ name: 'THIRD BASE GATE', at: [ - 80.95, 32.03 ], width: 30, open: 56, frame: true, leaves: 'open' }, // W1: its leaves open (gate3b)
-	{ name: 'FIRST BASE GATE', at: [ 73.5, 25.48 ], width: 30, open: 56, frame: true },
+	{ name: 'FIRST BASE GATE', at: [ 73.5, 25.48 ], width: 30, open: 56, frame: true, leaves: 'open' }, // ---- C: open for the game too (concourse1b)
 	{ name: 'LEFT FIELD GATE', at: [ - 103.86, - 135.3 ], width: 28 },
 	// behind home plate, the private entrance to the suites and the clubs (there was no Home Plate Gate)
 	{ name: 'SUITE & CLUB ENTRANCE', at: [ 0, 91.53 ], width: 12, suite: true, lintel: 6.2 },
