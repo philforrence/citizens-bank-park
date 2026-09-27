@@ -16,6 +16,7 @@ import { Arrivals1B } from './concourse1b/Arrivals.js';
 import { Prints } from './concourse1b/Prints.js';
 import { Stories1B } from './concourse1b/Stories.js';
 import { Sounds1B } from './concourse1b/Sounds.js';
+import { buildPlaza, buildPhunZone } from './concourse1b/Plaza.js';
 import { programKiosk, caricatureCorner, cartSigns, cartTop } from './concourse1b/Things.js';
 
 // The main concourse on the first base side, behind home plate round to the right field corner (sections
@@ -63,6 +64,7 @@ export default class Concourse1B {
 		this._lights();
 		this._hung();
 		this._fronts();
+		this._plaza();
 		this.group.add( this.kit.mesh( 'concourse1b-props' ) );
 		this.group.add( this.prints.mesh() );
 		// the floor on the night
@@ -81,7 +83,7 @@ export default class Concourse1B {
 		if ( this.gate ) {
 
 			this._takeOverGate( people );
-			const plaza = [ [ 75, 69.8, 2.2 ], ...( this.gate.bins || [] ).map( ( b ) => [ b[ 0 ], b[ 2 ], 0.45 ] ) ];
+			const plaza = [ ...( this.plaza?.obstacles || [] ), ...( this.gate.bins || [] ).map( ( b ) => [ b[ 0 ], b[ 2 ], 0.45 ] ) ];
 			this.arrivals = new Arrivals1B( { cast: this.cast, gate: this.gate, people: this.people, obstacles: plaza, seed: 1101 } );
 
 		}
@@ -391,6 +393,19 @@ export default class Concourse1B {
 			}
 
 		}
+
+	}
+
+	// The gate's plaza outside (the brick, the bollards, the lamps, the pier, the planting, Roberts's bench
+	// and bin, the pay phones, the drips off the canopy) and the Phanatic Phun Zone in the court inside the
+	// gate, past the east stair tower (concourse1b/Plaza.js)
+	_plaza() {
+
+		if ( ! this.gate ) return;
+		this.plaza = buildPlaza( { group: this.group, G: this.gate, Pr: this.prints, K: this.kit, W: this.W } );
+		const w = this.W.at( 104, 60 );
+		this.phun = { s: 104, d: 60, x: w.x, z: w.z, fwd: [ - w.ux, - w.uz ] };
+		buildPhunZone( this.prints, this._facing( [ w.x, w.z ], this.phun.fwd ) );
 
 	}
 

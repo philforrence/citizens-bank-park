@@ -25,6 +25,8 @@ const PALETTE = [
 	[ 'paper', [ 0.7, 0.68, 0.62 ], 0.95, 0 ], [ 'cardboard', [ 0.42, 0.29, 0.16 ], 0.85, 0 ], [ 'glass', [ 0.04, 0.05, 0.06 ], 0.05, 0.3 ],
 	[ 'screen', [ 0.02, 0.03, 0.03 ], 0.2, 0, [ 0.12, 0.5, 0.3 ] ], [ 'chrome', [ 0.8, 0.8, 0.82 ], 0.15, 1 ], [ 'redLamp', [ 0.4, 0.05, 0.02 ], 0.4, 0, [ 1.0, 0.25, 0.08 ] ],
 	[ 'foam', [ 0.2, 0.55, 0.2 ], 0.9, 0 ], [ 'orange', [ 0.8, 0.25, 0.02 ], 0.5, 0 ], [ 'skin', [ 0.55, 0.35, 0.25 ], 0.6, 0 ],
+	[ 'concrete', [ 0.42, 0.41, 0.39 ], 0.85, 0 ], [ 'charcoal', [ 0.04, 0.042, 0.045 ], 0.6, 0 ], [ 'brick', [ 0.26, 0.075, 0.045 ], 0.85, 0 ],
+	[ 'limestone', [ 0.6, 0.55, 0.45 ], 0.75, 0 ], [ 'phanatic', [ 0.08, 0.33, 0.07 ], 0.9, 0 ],
 ];
 export const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
 const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;
@@ -45,7 +47,7 @@ export const CELLS = {
 	hatfieldCart: [ 0, 1160, 512, 128 ], phood: [ 512, 1160, 512, 128 ], draft: [ 1024, 1160, 512, 128 ], bottles: [ 1536, 1230, 512, 128 ],
 	// the caricaturist's samples, WILL CALL, the World Series merchandise kiosk
 	caricatures: [ 0, 1300, 512, 384 ], willCall: [ 512, 1300, 512, 128 ], wsMerch: [ 512, 1430, 512, 128 ], sketch: [ 1024, 1300, 256, 320 ],
-	phunZone: [ 1280, 1370, 768, 160 ],
+	phunZone: [ 1280, 1370, 768, 160 ], inquirer: [ 1280, 1540, 768, 120 ],
 };
 const LIT = [ 'hatfieldCart', 'phood', 'draft', 'bottles', 'programs', 'wsMerch', 'willCall' ];
 
@@ -438,16 +440,46 @@ export function drawPrints() {
 
 		}
 
-		// ---- the Phanatic Phun Zone's sign: the Phanatic's green, the letters in yellow with a pink edge
+		// ---- the Phanatic Phun Zone's arch (Flickr krachel 2008, 2009): a white band edged in blue and green,
+		// PHANATIC and PHUN ZONE in red outlined in blue, his medallion in the middle (the Phanatic in a
+		// green-rimmed oval); and the Inquirer's black board over it, white Old English letters
 		{
 
 			const [ x, y, w, h ] = CELLS.phunZone;
-			ctx.fillStyle = '#2aa24a'; ctx.fillRect( x, y, w, h );
-			ctx.fillStyle = '#1b7a36'; for ( let i = 0; i < 40; i ++ ) ctx.fillRect( x + hash( i ) * w, y + hash( i * 3 ) * h, 6, 18 );
+			ctx.fillStyle = '#101010'; ctx.fillRect( x, y, w, h );
+			ctx.fillStyle = '#f4f2ea'; ctx.fillRect( x, y + 20, w, h - 40 );
+			ctx.fillStyle = '#2a58a8'; ctx.fillRect( x, y + 20, w, 10 ); ctx.fillRect( x, y + h - 30, w, 10 );
+			ctx.fillStyle = '#3a9a4a'; ctx.fillRect( x, y + h - 20, w, 6 ); ctx.fillRect( x, y + 14, w, 6 );
 			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-			ctx.font = `800 70px "Cooper Black", ${ SERIF }`;
-			ctx.lineWidth = 8; ctx.strokeStyle = '#d94a8c'; ctx.strokeText( 'PHANATIC PHUN ZONE', x + w / 2, y + h / 2, w - 40 );
-			ctx.fillStyle = '#f6d23e'; ctx.fillText( 'PHANATIC PHUN ZONE', x + w / 2, y + h / 2, w - 40 );
+			ctx.font = `800 58px ${ SANS }`;
+			ctx.lineWidth = 7; ctx.strokeStyle = '#2a58a8';
+			for ( const [ t, cx ] of [ [ 'PHANATIC', x + 170 ], [ 'PHUN ZONE', x + w - 175 ] ] ) {
+
+				ctx.strokeText( t, cx, y + h / 2, 300 );
+				ctx.fillStyle = '#d7263d'; ctx.fillText( t, cx, y + h / 2, 300 );
+
+			}
+
+			const mx = x + w / 2, my = y + h / 2;
+			ctx.fillStyle = '#2f8f3c'; ctx.beginPath(); ctx.ellipse( mx, my, 72, 76, 0, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#f7f5ee'; ctx.beginPath(); ctx.ellipse( mx, my, 60, 64, 0, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#3aa845'; ctx.beginPath(); ctx.ellipse( mx - 6, my + 12, 30, 40, 0, 0, Math.PI * 2 ); ctx.fill();
+			ctx.beginPath(); ctx.ellipse( mx + 16, my - 16, 22, 18, 0, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#d7263d'; ctx.beginPath(); ctx.ellipse( mx + 42, my - 12, 14, 7, 0.2, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#c8102e'; ctx.fillRect( mx - 4, my - 42, 30, 10 );
+			ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc( mx + 12, my - 24, 7, 0, Math.PI * 2 ); ctx.arc( mx + 24, my - 24, 7, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc( mx + 13, my - 23, 3, 0, Math.PI * 2 ); ctx.arc( mx + 25, my - 23, 3, 0, Math.PI * 2 ); ctx.fill();
+
+		}
+
+		{
+
+			const [ x, y, w, h ] = CELLS.inquirer;
+			ctx.fillStyle = '#141414'; ctx.fillRect( x, y, w, h );
+			ctx.strokeStyle = '#d8d8d8'; ctx.lineWidth = 3; ctx.strokeRect( x + 6, y + 6, w - 12, h - 12 );
+			ctx.fillStyle = '#f2f2f2'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.font = `400 64px "Old English Text MT", "UnifrakturMaguntia", "Luminari", "Apple Chancery", ${ SERIF }`;
+			ctx.fillText( 'The Philadelphia Inquirer', x + w / 2, y + h / 2 + 4, w - 40 );
 
 		}
 

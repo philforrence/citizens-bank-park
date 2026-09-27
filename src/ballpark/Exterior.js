@@ -1665,9 +1665,27 @@ export class Exterior {
 			// 2008): a low, wide slab of polished rose granite that people sit on, "MIKE SCHMIDT / PHILLIES HALL
 			// OF FAME THIRD BASEMAN 1972-1989" cut into its front; he faces south-south-west, his back (SCHMIDT
 			// 20) to the gate
-			const w1 = name === 'Mike Schmidt' ? { plinth: { w: 3.9, h: 0.55, lines: [ 'MIKE SCHMIDT', 'PHILLIES HALL OF FAME THIRD BASEMAN 1972-1989' ] }, yaw: 2.75 } : {};
+			let w1 = name === 'Mike Schmidt' ? { plinth: { w: 3.9, h: 0.55, lines: [ 'MIKE SCHMIDT', 'PHILLIES HALL OF FAME THIRD BASEMAN 1972-1989' ] }, yaw: 2.75 } : {};
 			// ---- end W1
-			this._statue( p[ 0 ], p[ 1 ], pose, label, years, drop, name === 'Steve Carlton' ? 'R' : 'L', w1 );
+			// ---- C (concourse1b): Robin Roberts as he stands (Flickr rdowens 3626891788 and 3626078323, Jul 2008;
+			// puckfiend 571731532, 2005; 2979052232, 26 Oct 2008): in his follow-through, the right hand swept
+			// down, the glove at his chest, the left foot striding off a little white rubber; the patina pale
+			// grey-white ("B/W in a color world") with the cap, sleeves, stirrups, belt, glove and spikes
+			// charcoal; on two tiers of reddish-mauve granite, "ROBIN ROBERTS / PHILLIES HALL OF FAME PITCHER
+			// 1948-1961" cut in the lower one's front. He stands in front of the fence a few metres west of the
+			// gate, facing south to Pattison, his back to the gate (Owens' GPS and the photos)
+			let spot = p, ps = pose;
+			if ( name === 'Robin Roberts' ) {
+
+				const g = GATES.find( ( q ) => /FIRST/.test( q.name ) )?.edge;
+				if ( g ) spot = [ g.a[ 0 ] + g.ux * ( g.t + 18.5 ) + g.nx * 6.5, g.a[ 1 ] + g.uz * ( g.t + 18.5 ) + g.nz * 6.5 ];
+				ps = M.delivery( 1.08 );
+				w1 = { plinth: { w: 3.2, h: 0.36, lines: [ 'ROBIN ROBERTS', 'PHILLIES HALL OF FAME PITCHER 1948-1961' ] }, tier: [ 1.6, 0.3, 2.3 ], yaw: Math.atan2( 0.22, 0.97 ) + Math.PI, figYaw: Math.PI, paint: true };
+
+			}
+
+			// ---- end C
+			this._statue( spot[ 0 ], spot[ 1 ], ps, label, years, drop, name === 'Steve Carlton' ? 'R' : 'L', w1 );
 			// Carlton's stands on a paved forecourt outside the Left Field Gate
 			if ( name === 'Steve Carlton' ) {
 
@@ -1764,6 +1782,41 @@ export class Exterior {
 		const fig = new Mesh( bakePose( pose, { gloveHand, drop } ), this.statueBronze );
 		fig.position.y = ph;
 		if ( PL ) fig.rotation.y = Math.PI / 2; // (W1: the baked swing faces its own side: turned, he faces the way his plinth does)
+		// ---- C (concourse1b): a second, smaller tier of the granite under the feet; the figure turned its
+		// own way; a painted patina (Roberts's: the uniform pale, the cap, sleeves, socks, belt, glove, shoes dark)
+		if ( w1.tier && PL ) {
+
+			const [ tw, th, td ] = w1.tier;
+			const tier = new Mesh( new BoxGeometry( tw, th, td ), this.roseGranite );
+			tier.position.y = ph + th / 2;
+			tier.castShadow = true;
+			tier.receiveShadow = true;
+			g.add( tier );
+			fig.position.y = ph + th;
+
+		}
+
+		if ( w1.figYaw !== undefined ) fig.rotation.y = w1.figYaw;
+		if ( w1.paint ) {
+
+			this.statuePainted ||= standard( { name: 'statue-painted', color: new Color( 0.62, 0.63, 0.64 ), roughness: 0.55, modules: [ commonModule ],
+				attributes: { aPart: 'f32' }, varyings: { vPart: 'f32' }, vertex: 'o.vPart = v.aPart;',
+				surface: /* wgsl */`
+	// the parts (Rig.PART): 3 socks, 4 shoes, 5 cap, 6 glove, 8 belt, 9 sleeve dark; the rest pale
+	let k = u32( in.vs.vPart + 0.5 );
+	let dark = k == 3u || k == 4u || k == 5u || k == 6u || k == 8u || k == 9u;
+	let n = mx_noise_float3( in.P * 6.0 );
+	s.albedo = select( mat.color, vec3f( 0.06, 0.065, 0.07 ), dark ) * ( 0.9 + 0.12 * n );
+	// the weather in the folds: a little darker low down and in the creases
+	s.albedo *= 0.82 + 0.18 * smoothstep( -0.4, 0.6, in.N.y );
+	s.roughness = select( 0.55, 0.4, dark );
+` } );
+			this.statuePainted.underwaterLighting = 'none';
+			fig.material = this.statuePainted;
+
+		}
+
+		// ---- end C
 		fig.scale.setScalar( 1.65 ); // 10 ft
 		fig.castShadow = true;
 		fig.receiveShadow = true;
