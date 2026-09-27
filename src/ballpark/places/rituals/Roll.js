@@ -249,6 +249,8 @@ function coverHeap( group ) {
 	s.emissive = c * smoothstep( 0.2, 0.8, frame.night ) * 0.3;
 ` } );
 	m.underwaterLighting = 'none';
+	// (L's cloth in the rain: soaked, matte; a define nothing reads before L's merge)
+	m.setDefine( 'WET_FABRIC', 1 );
 	const mesh = new Mesh( g, m );
 	mesh.name = 'tarp-cover-heap';
 	mesh.receiveShadow = true;

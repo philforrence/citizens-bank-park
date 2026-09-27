@@ -31,8 +31,9 @@ import { tarpState, rollAxis, sheetPoint, tubeAt, PULL_DIR, R_CORE, SHEET, T29, 
 //     Hamels, to the on-deck circle.
 
 const N_CREW = 20;
-// when the suspension is announced (s into the break): the park's cue to go home (Seats, the PA, the board)
-export const ANNOUNCE = 47;
+// when the suspension is announced (s into the break): the park's cue to go home (Seats, the PA, the
+// board). S's PA says "suspended" 55% of the way through the 27th's part (0.55 x 0.55 x 140 s)
+export const ANNOUNCE = 42.35;
 // the roll's radius wound back up (for where the workers leave it)
 const R_FULL_29 = 0.55;
 const hash = ( n ) => {
