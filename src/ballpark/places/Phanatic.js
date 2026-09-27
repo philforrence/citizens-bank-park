@@ -7,6 +7,7 @@ import { Launcher } from './phanatic/Launcher.js';
 import { Gator, GATOR } from './phanatic/Gator.js';
 import { Props } from './phanatic/Props.js';
 import { Squad } from './phanatic/Squad.js';
+import { Tracks } from './phanatic/Tracks.js';
 import { Ways, STREET } from './phanatic/Ways.js';
 import { buildNight } from './phanatic/Night.js';
 import { registerSounds } from './phanatic/Sounds.js';
@@ -50,6 +51,7 @@ export default class Phanatic {
 		this.dogs = new Launcher( this.group );
 		this.props = new Props( this.group );
 		this.squad = new Squad( this.group );
+		this.tracks = new Tracks( this.group, field );
 		// the people who come with his bits (Cast.js): the Gator's two, the dad with the little Phanatic,
 		// the kid and his dad at the parked four-wheeler
 		this.cast = new Cast( { parent: this.group, max: 8 } );
@@ -148,11 +150,53 @@ export default class Phanatic {
 		this.slot.visible = false;
 		this.belly = this.slot.packed.belly;
 		this.squad.setScene( this.plan.squad );
+		this._layTracks( director );
 		// the pure lookup for anyone who wants him at any time (Phanavision, the other places)
 		director.phanatic = {
 			at: ( t ) => this.plan.at( t ),
 			board: ( t ) => this.plan.at( t ).board,
 		};
+
+	}
+
+	// the wheels' tracks: every ride of the four-wheeler and the Gator's run, sampled from the plan (the
+	// 27th's raked out with the tarp at the suspension; the 29th's there to the end)
+	_layTracks( director ) {
+
+		const susp = director.segments.find( ( s ) => s.kind === 'switch' && s.snap.inning === 6 && s.snap.half === 'bottom' );
+		const tSusp = susp ? susp.t0 + 8 : 1e9;
+		const runs = [];
+		for ( const a of this.plan.acts ) {
+
+			if ( a.zone !== 'field' || a.t1 > 1e8 || ! a.fn( ( a.t1 - a.t0 ) / 2, a )?.atv ) continue;
+			const samples = [];
+			for ( let t = a.t0; t <= a.t1; t += 0.08 ) {
+
+				const v = a.fn( t - a.t0, a )?.atv;
+				if ( v ) samples.push( { t, x: v.x, z: v.z, yaw: v.yaw } );
+
+			}
+
+			runs.push( { samples, track: 0.81, wheelbase: 1.18, axleBack: 0.52, width: 0.2, end: a.t0 < tSusp - 8 ? tSusp : 1e9 } );
+
+		}
+
+		const G = this.plan.gatorRun;
+		if ( G ) {
+
+			const samples = [];
+			for ( let t = G.t0; t <= G.tEnd; t += 0.08 ) {
+
+				const g = G.at( t );
+				samples.push( { t, x: g.x, z: g.z, yaw: g.yaw } );
+
+			}
+
+			runs.push( { samples, track: 1.18, wheelbase: 1.8, axleBack: 0.88, width: 0.24, end: 1e9 } );
+
+		}
+
+		this.tracks.build( runs );
 
 	}
 
@@ -176,6 +220,7 @@ export default class Phanatic {
 		}
 
 		this.props.update( st );
+		this.tracks.update( t );
 		this._vehicles( st, t );
 		this.dogs.dogs( this.plan.shots || [], t );
 		this.squad.update( players, t, ( o ) => this.props.solve( o ) );
