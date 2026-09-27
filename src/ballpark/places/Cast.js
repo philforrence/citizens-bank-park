@@ -310,7 +310,7 @@ function figureGeometry( lod = 0 ) {
 	}
 
 	// a poncho: a bell of plastic from the shoulders to the knees, over everything (the spine bone)
-	loft( B.spine, PART.poncho, [ [ 0.6, 0.32, 0.25, 0.02 ], [ 0.85, 0.29, 0.21, 0.02 ], [ 1.12, 0.262, 0.175, 0.015 ], [ 1.36, 0.245, 0.14, 0.025 ], [ 1.44, 0.17, 0.105, 0.03 ], [ 1.49, 0.07, 0.068, 0.03 ] ], fine ? 14 : 8, false, false );
+	loft( B.spine, PART.poncho, [ [ 0.6, 0.29, 0.22, 0.02 ], [ 0.85, 0.27, 0.2, 0.02 ], [ 1.12, 0.262, 0.175, 0.015 ], [ 1.36, 0.245, 0.14, 0.025 ], [ 1.44, 0.17, 0.105, 0.03 ], [ 1.49, 0.07, 0.068, 0.03 ] ], fine ? 14 : 8, false, false );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
 	loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], fine ? 12 : 7, false, false );
 	loft( B.spine, PART.vest, [ [ 0.98, 0.178, 0.122, 0.01 ], [ 1.17, 0.18, 0.124, 0.006 ], [ 1.3, 0.194, 0.128, 0.012 ], [ 1.4, 0.18, 0.1, 0.024 ] ], fine ? 12 : 7, false, false );
@@ -862,13 +862,16 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 	if ( part == ${ PART.poncho }u ) {
 		// the poncho: clear plastic over the jacket (glossy, the jacket dulled through it), or red, white
 		// or yellow; wet on the 27th, and creased
-		var pc = select( select( select( mix( topC, vec3f( 0.45 ), 0.22 ), vec3f( 0.36, 0.02, 0.03 ), poncho == 2u ), vec3f( 0.62 ), poncho == 3u ), vec3f( 0.65, 0.5, 0.03 ), poncho == 4u );
+		let fres = pow( 1.0 - abs( dot( normalize( in.N ), normalize( in.V ) ) ), 2.5 );
+		var pc = select( select( select( mix( topC * 0.85, vec3f( 0.5, 0.52, 0.55 ), 0.08 + 0.55 * fres ), vec3f( 0.36, 0.02, 0.03 ), poncho == 2u ), vec3f( 0.62 ), poncho == 3u ), vec3f( 0.65, 0.5, 0.03 ), poncho == 4u );
 		if ( poncho == 5u ) { pc = vec3f( 0.62, 0.2, 0.02 ); }
 		if ( poncho == 6u ) { pc = vec3f( 0.06, 0.065, 0.07 ); }
 		let crease = 0.9 + 0.1 * sin( atan2( L.x, L.z ) * 11.0 + L.y * 7.0 ) + select( 0.0, 0.12 * sin( L.y * 31.0 + L.x * 17.0 ), poncho == 6u );
 		c = pc * crease;
 		// the clear ones catch the light like wet film: glossier where they face it
-		rough = select( 0.18, 0.1, poncho == 1u );
+		rough = select( 0.18, 0.06, poncho == 1u );
+		// the clear film shows the jacket's print through it
+		if ( poncho == 1u ) { c = mix( c, printC, printA * 0.6 ); }
 	}
 	// what's in their hands
 	if ( part >= 32u ) {

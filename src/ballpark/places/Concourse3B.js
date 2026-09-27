@@ -481,6 +481,7 @@ export default class Concourse3B {
 		if ( ! this._warm || Math.abs( t - this._lastT ) > 30 ) {
 
 			for ( let i = 0; i < 240; i ++ ) this.people.update( 0.25, ns );
+			this.steam.warm( G.time.value );
 			this._warm = true;
 			for ( const p of this.cast.list ) p.fresh = true;
 

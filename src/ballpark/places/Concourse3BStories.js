@@ -171,7 +171,7 @@ export class Stories {
 		const dave = this._add( { top: TOP.hoodie, color: COLOR.grey, chest: CHEST.block, hat: HAT.capRed, facial: 2, build: 1, pants: 0, shoes: 0 },
 			{ s: q[ 1 ].s, d: q[ 1 ].d, scale: 1.0, wet: { poncho: 1, hat: HAT.hood } } );
 		if ( ! dave ) return;
-		this.couple = { jen, dave };
+		this.couple = { jen, dave, sJ: q[ 0 ].s, sD: q[ 1 ].s - 0.2 };
 		// his left arm round her shoulders; her right on his back
 		this.couple.around = armIK( - 1, [ - 0.72, 1.33, 0.02 ] );
 		this.couple.back = armIK( 1, [ 0.5, 1.12, 0.12 ] );
@@ -434,8 +434,8 @@ export class Stories {
 
 		}
 
-		this._place( C.jen, C.jen.s, C.jen.d, face, dt );
-		this._place( C.dave, C.dave.s - 0.25, C.dave.d, face, dt );
+		this._place( C.jen, C.sJ, C.jen.d, face, dt );
+		this._place( C.dave, C.sD, C.dave.d, face, dt );
 
 	}
 

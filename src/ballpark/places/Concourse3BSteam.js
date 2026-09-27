@@ -98,6 +98,25 @@ export class Steam {
 
 	}
 
+	// the fixed ones as if they'd been going a while: puffs let go over the last few seconds
+	warm( time ) {
+
+		this.emitters.forEach( ( e ) => {
+
+			const n = Math.ceil( e.rate * e.life );
+			for ( let k = 0; k < n; k ++ ) {
+
+				const age = ( k / n ) * e.life, r = Math.random;
+				this.time = time - age;
+				this._puff( e.x + ( r() - 0.5 ) * e.spread[ 0 ], e.y, e.z + ( r() - 0.5 ) * e.spread[ 1 ], e.drift[ 0 ] + ( r() - 0.5 ) * 0.1, e.rise * ( 0.8 + 0.4 * r() ), e.drift[ 1 ] + ( r() - 0.5 ) * 0.1, e.life * ( 0.8 + 0.4 * r() ), e.kind );
+
+			}
+
+		} );
+		this.time = time;
+
+	}
+
 	// time: the shader's clock (frame.time); cast / people: for the cups and the breath (near the camera)
 	update( dt, time, { cast, cam, cold, wind } ) {
 
