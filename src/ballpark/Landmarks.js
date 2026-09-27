@@ -4,7 +4,7 @@ import * as Motions from './game/Motions.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
-import { canvasTexture, beam, box } from './geo.js';
+import { canvasTexture, beam, box, box as boxQuads } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, LEVELS, fencePoint } from './layout.js';
 import { offsetPolyline } from './Bowl.js';
@@ -67,7 +67,9 @@ export class Landmarks {
 		const W = 97 * FT, H = 79 * FT;
 		const [ x, z ] = fencePoint( - 36, 452 );
 		const g = this._facingHome( x, z );
-		const y0 = STREET + 10.5;
+		// raised on its legs over Harry the K's (the porch's 8 rows, the bar on its patio, the awnings, the
+		// green neon letters on brick, then the board)
+		const y0 = STREET + 15.7;
 		this.board = { W, H, y0 };
 		this.boardCanvas = new OffscreenCanvas( 1600, 1304 );
 		this.scoreboardTexture = canvasTexture( 1600, 1304, ( ctx, w, h ) => drawBoard2008( ctx, w, h, null ), 'scoreboard' );
@@ -105,49 +107,78 @@ export class Landmarks {
 
 		}
 
-		for ( const lx of [ - W * 0.32, 0, W * 0.3 ] ) {
+		// the script's frame: black steel, a lattice tower at each end and a Warren truss across
+		const blackSteel = this._blackSteel || ( this._blackSteel = standard( { name: 'script-steel', color: new Color( 0.012, 0.011, 0.013 ), roughness: 0.6, metalness: 0.4 } ) );
+		blackSteel.underwaterLighting = 'none';
+		const SW = W * 0.8, SH = W * 0.36;
+		const tq = new Quads();
+		for ( const ex of [ - SW * 0.44, SW * 0.44 ] ) {
 
-			const post = new Mesh( new BoxGeometry( 0.5, 7.5, 0.5 ), this.steel );
-			post.position.set( lx, y0 + H + 3.4, 0.4 );
-			g.add( post );
+			for ( const [ ox, oz ] of [ [ - 0.45, 0.2 ], [ 0.45, 0.2 ], [ - 0.45, 1.1 ], [ 0.45, 1.1 ] ] ) beam( tq, [ ex + ox, y0 + H, oz ], [ ex + ox, y0 + H + SH * 0.85, oz ], 0.14 );
+			for ( let yy = y0 + H + 1.2, k = 0; yy < y0 + H + SH * 0.85; yy += 1.2, k ++ ) beam( tq, [ ex - 0.45, yy - 1.2, 0.2 ], [ ex + 0.45, yy, 0.2 ], 0.06 );
 
 		}
 
-		const beam = new Mesh( new BoxGeometry( W * 0.75, 0.5, 0.5 ), this.steel );
-		beam.position.set( 0, y0 + H + 1.1, 0.4 );
-		g.add( beam );
+		const ty = y0 + H + SH * 0.3;
+		for ( const yy of [ ty, ty + 1.1 ] ) beam( tq, [ - SW * 0.44, yy, 0.6 ], [ SW * 0.44, yy, 0.6 ], 0.16 );
+		for ( let k = 0; k < 16; k ++ ) {
+
+			const xa = - SW * 0.44 + SW * 0.88 * k / 16, xb = - SW * 0.44 + SW * 0.88 * ( k + 1 ) / 16;
+			beam( tq, [ xa, k % 2 ? ty + 1.1 : ty, 0.6 ], [ xb, k % 2 ? ty : ty + 1.1, 0.6 ], 0.08 );
+
+		}
+
+		// and the legs' X-braced band under the board
+		for ( let k = 0; k < 8; k ++ ) {
+
+			const xa = - W / 2 + W * k / 8, xb = - W / 2 + W * ( k + 1 ) / 8;
+			beam( tq, [ xa, y0 - 0.9, 0.9 ], [ xb, y0, 0.9 ], 0.12 );
+			beam( tq, [ xa, y0, 0.9 ], [ xb, y0 - 0.9, 0.9 ], 0.12 );
+
+		}
+
+		beam( tq, [ - W / 2, y0 - 0.9, 0.9 ], [ W / 2, y0 - 0.9, 0.9 ], 0.25 );
+		const tm = new Mesh( tq.geometry(), blackSteel );
+		tm.castShadow = true;
+		g.add( tm );
 
 		// the script and its two stars
-		const sign = canvasTexture( 1024, 320, ( ctx, w, h ) => {
+		const sign = canvasTexture( 1024, 460, ( ctx, w, h ) => {
 
 			ctx.clearRect( 0, 0, w, h );
-			ctx.font = 'italic 700 220px Georgia, "Times New Roman", serif';
+			ctx.font = 'italic 700 300px Georgia, "Times New Roman", serif';
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
-			ctx.lineWidth = 14;
-			ctx.strokeStyle = '#c9a44a';
-			ctx.strokeText( 'Phillies', w / 2, h / 2 + 18 );
+			ctx.lineWidth = 18;
+			ctx.lineJoin = 'round';
+			ctx.strokeStyle = '#f2ead0';
+			ctx.strokeText( 'Phillies', w / 2, h / 2 + 22, w - 20 );
 			ctx.fillStyle = '#c8102e';
-			ctx.fillText( 'Phillies', w / 2, h / 2 + 18 );
-			// the underline swash
-			ctx.fillRect( w * 0.14, h * 0.86, w * 0.72, h * 0.05 );
-			for ( const sx of [ 0.46, 0.63 ] ) star( ctx, w * sx, h * 0.2, 26, '#1d3f8f' );
+			ctx.fillText( 'Phillies', w / 2, h / 2 + 22, w - 20 );
+			// the swash sweeping back under the word
+			ctx.beginPath();
+			ctx.moveTo( w * 0.9, h * 0.8 );
+			ctx.bezierCurveTo( w * 0.7, h * 0.95, w * 0.3, h * 0.9, w * 0.12, h * 0.84 );
+			ctx.lineWidth = 22; ctx.strokeStyle = '#f2ead0'; ctx.stroke();
+			ctx.lineWidth = 12; ctx.strokeStyle = '#c8102e'; ctx.stroke();
+			// the stars dot the i's
+			const full = Math.min( w - 20, ctx.measureText( 'Phillies' ).width ), k = full / ctx.measureText( 'Phillies' ).width, x0 = w / 2 - full / 2;
+			for ( const pre of [ 'Ph', 'Phill' ] ) star( ctx, x0 + ( ctx.measureText( pre ).width + ctx.measureText( 'i' ).width * 0.6 ) * k + 8, h * 0.2, 30, '#1d3f8f' );
 
 		}, 'scriptSign' );
 		// channel letters: the lit faces toward the field; behind them, the letters' maroon backs (the same
 		// outline, 0.9 m back, seen reversed from outside as they should be) and their returns between
 		const signMat = standard( {
 			name: 'script-sign', roughness: 0.5, alphaTest: 0.5, textures: { bpScript: sign },
-			surface: 'let t = textureSample( bpScript, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.6; s.emissive = t.rgb * mix( 0.2, 0.6, frame.night );',
+			surface: 'let t = textureSample( bpScript, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.6; s.emissive = t.rgb * mix( 0.2, 2.2, frame.night );',
 		} );
 		const backMat = standard( {
 			name: 'script-backs', color: new Color( 0.1, 0.022, 0.022 ), roughness: 0.6, metalness: 0.3, alphaTest: 0.5, side: 'double', textures: { bpScript: sign },
 			surface: 'let t = textureSample( bpScript, smpAnisoClamp, in.uv ); s.alpha = t.a;',
 		} );
 		for ( const m of [ signMat, backMat ] ) m.underwaterLighting = 'none';
-		const SW = W * 0.78, SH = SW * 320 / 1024;
-		g.add( new Mesh( quadUV( SW, SH, y0 + H + 0.9, - 0.2 ), signMat ) );
-		for ( let k = 1; k <= 6; k ++ ) g.add( new Mesh( quadUV( SW, SH, y0 + H + 0.9, - 0.2 + k * 0.15 ), backMat ) );
+		g.add( new Mesh( quadUV( SW, SH, y0 + H + 0.6, - 0.2 ), signMat ) );
+		for ( let k = 1; k <= 6; k ++ ) g.add( new Mesh( quadUV( SW, SH, y0 + H + 0.6, - 0.2 + k * 0.12 ), backMat ) );
 
 		// the cabinet's back and sides: light royal-blue ribbed siding, a column of louvres up one side,
 		// and on the back a huge Phillies cap and ball on navy with Citizens Bank Park along the top
@@ -238,93 +269,122 @@ export class Landmarks {
 	s.albedo = mix( mat.color * ( 0.9 + 0.2 * mx_noise_float2( floor( vec2f( bu, row ) ) * 0.37 ) ), vec3f( 0.42, 0.4, 0.36 ), clamp( mortar, 0.0, 1.0 ) * 0.75 );
 ` } ) );
 		hb.underwaterLighting = 'none';
-		const HW = W + 8, HD = 9, HY0 = STREET + 9.2, HY1 = y0 - 0.25;
-		const house = new Mesh( new BoxGeometry( HW, HY1 - STREET, HD ), hb );
-		house.position.set( - 2, STREET + ( HY1 - STREET ) / 2, - 1.0 + HD / 2 );
+		// Harry the K's: its facade 3 m in front of the board, the bar's glass storey on a patio over the
+		// porch, three awnings over it, the brick above carrying the neon letters up to the board's legs
+		const HW = W + 4, FZ = - 3.0, patio = y0 - 7.3, HY1 = y0 - 0.9;
+		const house = new Mesh( new BoxGeometry( HW, HY1 - STREET, 9 ), hb );
+		house.position.set( - 2, STREET + ( HY1 - STREET ) / 2, FZ + 4.5 );
 		house.castShadow = true;
 		house.receiveShadow = true;
 		g.add( house );
+		// the patio slab out to the porch, with its rail
+		const slab = new Mesh( new BoxGeometry( HW, 0.4, 4.6 ), this.steel );
+		slab.position.set( - 2, patio - 0.2, FZ - 2.3 );
+		slab.receiveShadow = true;
+		g.add( slab );
+		const rq2 = new Quads();
+		for ( const yy of [ patio + 0.55, patio + 1.07 ] ) beam( rq2, [ - HW / 2 - 2, yy, FZ - 4.55 ], [ HW / 2 - 2, yy, FZ - 4.55 ], 0.05 );
+		for ( let xx = - HW / 2 - 2; xx <= HW / 2 - 2; xx += 1.8 ) beam( rq2, [ xx, patio, FZ - 4.55 ], [ xx, patio + 1.07, FZ - 4.55 ], 0.045 );
+		g.add( new Mesh( rq2.geometry(), this.rail || this.steel ) );
 		const bar = canvasTexture( 1024, 128, ( ctx, w, h ) => {
 
 			// the bar's glass: warm light, people-height shapes, mullions
-			ctx.fillStyle = '#2a2016'; ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#1a1510'; ctx.fillRect( 0, 0, w, h );
 			for ( let x = 0; x < w; x += 64 ) {
 
-				ctx.fillStyle = '#e0a860'; ctx.fillRect( x + 4, 8, 56, h - 16 );
-				ctx.fillStyle = 'rgba( 40, 26, 14, 0.5 )'; ctx.fillRect( x + 18, 60, 14, h - 68 );
+				ctx.fillStyle = '#b88a50'; ctx.fillRect( x + 4, 8, 56, h - 16 );
+				ctx.fillStyle = 'rgba( 30, 20, 12, 0.6 )'; ctx.fillRect( x + 18, 60, 14, h - 68 );
 
 			}
 
 		}, 'harrysGlass' );
 		const barMat = standard( { name: 'harrys-glass', roughness: 0.1, textures: { bpBar: bar },
-			surface: 'let t = textureSample( bpBar, smpAnisoRepeat, in.uv ).rgb; s.albedo = t * 0.15; s.emissive = t * mix( 0.15, 0.6, frame.night );' } );
+			surface: 'let t = textureSample( bpBar, smpAnisoRepeat, in.uv ).rgb; s.albedo = t * 0.12; s.emissive = t * mix( 0.05, 0.35, frame.night );' } );
 		barMat.underwaterLighting = 'none';
 		const gq = new Quads();
-		const gz = - 1.02, gy0 = HY0 - 4.0, gy1 = HY0 - 0.9;
+		const gz = FZ - 0.02, gy0 = patio, gy1 = patio + 2.9;
 		gq.tri( [ HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy1, gz ], [ 0, 0, - 1 ], [ 0, 1 ], [ 8, 1 ], [ 8, 0 ] );
 		gq.tri( [ HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy1, gz ], [ HW / 2 - 2, gy1, gz ], [ 0, 0, - 1 ], [ 0, 1 ], [ 8, 0 ], [ 0, 0 ] );
 		g.add( new Mesh( gq.geometry(), barMat ) );
-		const awning = standard( { name: 'harrys-awnings', color: new Color( 0.012, 0.025, 0.1 ), roughness: 0.75, side: 'double' } );
+		// three slate-navy awnings, HARRY THE K'S on their valances
+		const awning = standard( { name: 'harrys-awnings', color: new Color( 0.024, 0.045, 0.09 ), roughness: 0.75, side: 'double' } );
 		awning.underwaterLighting = 'none';
 		const awq = new Quads();
-		for ( let k = 0; k < 6; k ++ ) {
+		const ay = gy1 + 0.2;
+		for ( let k = 0; k < 3; k ++ ) {
 
-			const xa = HW / 2 - 2 - k * HW / 6 - 0.3, xb = xa - HW / 6 + 0.6;
-			awq.add( [ xa, HY0 - 0.4, gz ], [ xb, HY0 - 0.4, gz ], [ xb, HY0 - 1.3, gz - 1.6 ], [ xa, HY0 - 1.3, gz - 1.6 ], [ 0, 0.8, - 0.5 ] );
+			const xa = HW / 2 - 2 - k * HW / 3 - 0.3, xb = xa - HW / 3 + 0.6;
+			awq.add( [ xa, ay + 0.9, gz ], [ xb, ay + 0.9, gz ], [ xb, ay, gz - 1.8 ], [ xa, ay, gz - 1.8 ], [ 0, 0.8, - 0.5 ] );
 
 		}
 
 		g.add( new Mesh( awq.geometry(), awning ) );
-		g.add( new Mesh( quadUV( W * 0.62, W * 0.62 / 8, HY0 + 0.3, - 1.05 ), neonMat ) );
-		const hk = canvasTexture( 512, 96, ( ctx, w, h ) => {
+		const hk = canvasTexture( 1024, 64, ( ctx, w, h ) => {
 
-			ctx.fillStyle = '#0c1a44'; ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#2b3f57'; ctx.fillRect( 0, 0, w, h );
 			ctx.fillStyle = '#f2ede1'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-			ctx.font = "italic 700 50px Georgia, serif"; ctx.fillText( "Harry the K's", w / 2, h * 0.45 );
-			ctx.font = '600 16px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'BROADCAST BAR & GRILLE', w / 2, h * 0.85 );
+			ctx.font = "700 34px 'Helvetica Neue', Arial, sans-serif";
+			ctx.fillText( "HARRY THE K'S  \u2022  BROADCAST BAR & GRILLE", w / 2, h / 2 + 2, w - 20 );
 
 		}, 'harrysSign' );
 		const hkMat = standard( { name: 'harrys-sign', roughness: 0.5, textures: { bpHK: hk }, surface: 'let t = textureSample( bpHK, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.7; s.emissive = t * step( 0.5, t.r ) * mix( 0.2, 1.0, frame.night );' } );
 		hkMat.underwaterLighting = 'none';
-		g.add( new Mesh( quadUV( 8, 1.5, gy0 - 1.8, - 1.04 ), hkMat ) );
+		for ( let k = 0; k < 3; k ++ ) {
 
-		// the ad column built into the board's center field edge, inside the same dark frame: TOYOTA,
-		// Choose Blue, W.B. MASON, Budweiser top to bottom; the light tower rises right behind it
-		const CW = 5.6, cx = - ( W / 2 + 0.6 + CW / 2 );
-		const frame = new Mesh( new BoxGeometry( CW + 0.8, H + 1.2, 1.2 ), cabinet );
-		frame.position.set( cx, y0 + H / 2, 0 );
-		frame.castShadow = true;
-		g.add( frame );
+			const xc = HW / 2 - 2 - ( k + 0.5 ) * HW / 3;
+			const vq = new Mesh( quadUV( HW / 3 - 0.8, 0.45, ay - 0.45, gz - 1.82 ), hkMat );
+			vq.position.x = xc;
+			g.add( vq );
+
+		}
+
+		// the green neon letters and the bank's emblem across the brick, flood lamps under the board
+		g.add( new Mesh( quadUV( W * 0.83, W * 0.83 / 8, ay + 1.3, FZ - 0.05 ), neonMat ) );
+		const fl = new Quads();
+		for ( let k = 0; k < 8; k ++ ) boxQuads( fl, [ - W * 0.42 + W * 0.84 * k / 7, y0 - 0.3, FZ - 0.5 ], [ 0.5, 0.35, 0.4 ] );
+		g.add( new Mesh( fl.geometry(), this.floodMat || ( this.floodMat = standard( { name: 'board-floods', color: new Color( 0.1, 0.1, 0.1 ), roughness: 0.4, surface: 's.emissive = vec3f( 1.0, 0.95, 0.85 ) * smoothstep( 0.2, 0.8, frame.night ) * 3.0 * step( in.N.y, -0.5 );' } ) ) ) );
+
+		// beside the board's center field edge, the light tower: a broad lattice from the street to its
+		// lamp bank high over the script, the four sponsors' panels hung on its field face with gaps
+		// between them (TOYOTA, Choose Blue., W.B. MASON, Budweiser, top to bottom)
+		const TW = 13, tcx = - ( W / 2 + 0.8 + TW / 2 );
 		g.updateMatrix();
-		const tw = new Vector3( cx, 0, 4.2 ).applyMatrix4( g.matrix );
-		this.bowl._lightTower( tw.x, tw.z, STREET, LEVELS.lightTowers + 6, [ 7, 5 ] );
-		const ads = [ [ 'TOYOTA', '#e00d1d', '#ffffff' ], [ 'Choose Blue.', '#1b5eb8', '#ffffff' ], [ 'W.B. MASON', '#d71920', '#ffffff' ], [ 'Budweiser', '#c8102e', '#ffffff' ] ];
-		const adTex = canvasTexture( 512, 192 * 4, ( ctx, w ) => {
+		const tw = new Vector3( tcx, 0, 4.0 ).applyMatrix4( g.matrix );
+		this.bowl._lightTower( tw.x, tw.z, STREET, y0 + H + SH + 6, [ TW, 6 ] );
+		const ads = [ [ 'TOYOTA', '#e00d1d', '#ffffff' ], [ 'Choose Blue.', '#1b5eb8', '#ffffff' ], [ 'W.B. MASON', '#d71920', '#f4de3a' ], [ 'Budweiser', '#c8102e', '#ffffff' ] ];
+		const adTex = canvasTexture( 512, 214 * 4, ( ctx, w ) => {
 
 			ads.forEach( ( [ text, fg, bg ], i ) => {
 
-				const y = i * 192;
+				const y = i * 214;
 				ctx.fillStyle = bg;
-				ctx.fillRect( 0, y, w, 192 );
+				ctx.fillRect( 0, y, w, 214 );
 				ctx.strokeStyle = '#1b2233';
-				ctx.lineWidth = 8;
-				ctx.strokeRect( 4, y + 4, w - 8, 184 );
-				ctx.font = ( i === 3 ? 'italic 700 104px Georgia, serif' : '800 96px "Helvetica Neue", Helvetica, Arial, sans-serif' );
+				ctx.lineWidth = 10;
+				ctx.strokeRect( 5, y + 5, w - 10, 204 );
+				ctx.font = ( i === 3 ? 'italic 700 110px Georgia, serif' : '800 100px "Helvetica Neue", Helvetica, Arial, sans-serif' );
 				ctx.fillStyle = fg;
 				ctx.textAlign = 'center';
 				ctx.textBaseline = 'middle';
-				ctx.fillText( text, w / 2, y + 100, w - 40 );
+				ctx.fillText( text, w / 2, y + 112, w - 40 );
 
 			} );
 
 		}, 'boardAds' );
-		const adMat = standard( { name: 'board-ads', roughness: 0.5, textures: { bpAd: adTex }, surface: 'let t = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.6; s.emissive = t * mix( 0.25, 0.7, frame.night );' } );
+		const adMat = standard( { name: 'board-ads', roughness: 0.5, textures: { bpAd: adTex }, surface: 'let t = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.6; s.emissive = t * mix( 0.25, 0.9, frame.night );' } );
 		adMat.underwaterLighting = 'none';
 		const aq = new Quads();
-		// seen from home plate +x is on the left: u runs toward -x
-		const xl = cx + CW / 2, xr = cx - CW / 2, zf = - 0.72;
-		aq.tri( [ xl, y0, zf ], [ xr, y0, zf ], [ xr, y0 + H, zf ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
-		aq.tri( [ xl, y0, zf ], [ xr, y0 + H, zf ], [ xl, y0 + H, zf ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+		const PW = 11, PH = 4.6, gap = 1.8, zf = 0.6;
+		for ( let k = 0; k < 4; k ++ ) {
+
+			const top = y0 + H + 2 - k * ( PH + gap ), bot = top - PH;
+			// seen from home plate +x is on the left: u runs toward -x
+			const xl = tcx + PW / 2, xr = tcx - PW / 2, v0 = k / 4, v1 = ( k + 1 ) / 4;
+			aq.tri( [ xl, bot, zf ], [ xr, bot, zf ], [ xr, top, zf ], [ 0, 0, - 1 ], [ 0, v1 ], [ 1, v1 ], [ 1, v0 ] );
+			aq.tri( [ xl, bot, zf ], [ xr, top, zf ], [ xl, top, zf ], [ 0, 0, - 1 ], [ 0, v1 ], [ 1, v0 ], [ 0, v0 ] );
+
+		}
+
 		g.add( new Mesh( aq.geometry(), adMat ) );
 
 		this.scoreboard = g;

@@ -278,7 +278,7 @@ export class Bowl {
 		const lfT = this.tiers[ 1 ];
 		const lfTop = lfT.start + lfT.rows * lfT.depth;
 		const lfY = STREET + 4.6;
-		tiers.push( { name: 'lf-deck', front: offsetPolyline( lfT.front, lfTop - 2.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: lfY, rows: 12, depth: ROW, rise: 0.48, section: 13, aisle: 1.2, soffit: 1.0, frontWall: { top: lfY + 1.0 }, back: { height: 1.2 }, base: lfY - 1.3 } );
+		tiers.push( { name: 'lf-deck', front: offsetPolyline( lfT.front, lfTop - 2.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: lfY, rows: 8, depth: ROW, rise: 0.48, section: 13, aisle: 1.2, soffit: 1.0, frontWall: { top: lfY + 1.0 }, back: { height: 1.2 }, base: lfY - 1.3 } );
 
 		// the Pavilion (201-211) and the Pavilion Deck (301-310) over the right field seats, from the 369 mark
 		// toward the pole (right-center is Ashburn Alley's: the rooftop seats and the Liberty Bell)
