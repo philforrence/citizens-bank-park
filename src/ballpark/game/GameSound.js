@@ -41,6 +41,7 @@ export class GameSound {
 		this.rain = this._loopNoise( [ [ 'highpass', 900, 0.5 ], [ 'lowpass', 7000, 0.5 ] ], 0 );
 		this._murmur();
 		this._load();
+		for ( const [ name, src ] of this._samples || [] ) this._loadSample( name, src );
 
 	}
 
@@ -97,6 +98,128 @@ export class GameSound {
 		if ( wet ) g.connect( this.reverb );
 		src.start( this.ctx.currentTime + delay );
 		return true;
+
+	}
+
+	// ---- sounds in a place (for the little worlds)
+	//
+	//   sound.sample( 'atv', 'audio/places/phanatic/atv.mp3' )    a recording (CC0, credited), or
+	//   sound.sample( 'sizzle', ( ctx ) => buffer )               one synthesized once the audio starts
+	//   const h = sound.spot( 'sizzle', position, { loop: true, vol: 0.5, ref: 4 } )
+	//   h.move( position ); h.set( { vol, rate } ); h.stop()
+	//
+	// A spot is heard from where it is: panned, and quieter with distance (ref: the distance at full
+	// level; max: silent beyond, so nothing far off plays). Positions are in the world (field.toWorld;
+	// camera space's metres). A looping spot made before the first click starts with the audio; a one-shot
+	// then is simply not heard. The listener follows the camera (listen(), every frame).
+	sample( name, src ) {
+
+		( this._samples ||= new Map() ).set( name, src );
+		if ( this.ctx ) this._loadSample( name, src );
+
+	}
+
+	async _loadSample( name, src ) {
+
+		try {
+
+			if ( typeof src === 'function' ) this.buffers[ name ] = src( this.ctx );
+			else this.buffers[ name ] = await this.ctx.decodeAudioData( await ( await fetch( src ) ).arrayBuffer() );
+
+		} catch ( e ) {
+
+			console.warn( 'sound', name, e.message );
+
+		}
+
+	}
+
+	spot( name, position, { loop = false, vol = 1, rate = 1, ref = 6, max = 150, rolloff = 1.3, wet = true } = {} ) {
+
+		const h = { name, position: position.clone ? position.clone() : { ...position }, loop, vol, rate, ref, max, rolloff, wet, node: null, gain: null, panner: null, live: true };
+		h.move = ( p ) => {
+
+			h.position.x = p.x;
+			h.position.y = p.y;
+			h.position.z = p.z;
+			if ( h.panner ) h.panner.positionX.value = p.x, h.panner.positionY.value = p.y, h.panner.positionZ.value = p.z;
+			return h;
+
+		};
+		h.set = ( { vol, rate } = {} ) => {
+
+			if ( vol !== undefined ) h.vol = vol, h.gain && ( h.gain.gain.value = vol );
+			if ( rate !== undefined ) h.rate = rate, h.node && ( h.node.playbackRate.value = rate );
+			return h;
+
+		};
+		h.stop = () => {
+
+			h.live = false;
+			try {
+
+				h.node?.stop();
+
+			} catch {}
+
+			( this._spots || [] ).splice( ( this._spots || [] ).indexOf( h ) >>> 0, 1 );
+
+		};
+		if ( loop ) ( this._spots ||= [] ).push( h );
+		if ( this.ctx ) this._startSpot( h );
+		return h;
+
+	}
+
+	_startSpot( h ) {
+
+		const b = this.buffers[ h.name ];
+		if ( ! b || ! h.live || h.node ) return;
+		const ctx = this.ctx;
+		const src = ctx.createBufferSource();
+		src.buffer = b;
+		src.loop = h.loop;
+		src.playbackRate.value = h.rate;
+		const p = ctx.createPanner();
+		p.panningModel = 'HRTF';
+		p.distanceModel = 'inverse';
+		p.refDistance = h.ref;
+		p.maxDistance = h.max;
+		p.rolloffFactor = h.rolloff;
+		p.positionX.value = h.position.x;
+		p.positionY.value = h.position.y;
+		p.positionZ.value = h.position.z;
+		const g = ctx.createGain();
+		g.gain.value = h.vol;
+		src.connect( g ).connect( p ).connect( this.master );
+		if ( h.wet ) p.connect( this.reverb );
+		src.start( 0, h.loop ? Math.random() * b.duration : 0 );
+		if ( ! h.loop ) src.onended = () => h.stop();
+		Object.assign( h, { node: src, gain: g, panner: p } );
+
+	}
+
+	// the listener is the camera (BallparkApp calls this every frame); the loops start once their samples
+	// are in
+	listen( camera ) {
+
+		if ( ! this.ctx ) return;
+		const L = this.ctx.listener, p = camera.position, e = camera.matrixWorld.elements;
+		if ( L.positionX ) {
+
+			L.positionX.value = p.x;
+			L.positionY.value = p.y;
+			L.positionZ.value = p.z;
+			L.forwardX.value = - e[ 8 ];
+			L.forwardY.value = - e[ 9 ];
+			L.forwardZ.value = - e[ 10 ];
+			L.upX.value = e[ 4 ];
+			L.upY.value = e[ 5 ];
+			L.upZ.value = e[ 6 ];
+
+		}
+
+		for ( const h of this._spots || [] ) if ( ! h.node ) this._startSpot( h );
 
 	}
 

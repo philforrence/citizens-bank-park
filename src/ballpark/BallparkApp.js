@@ -839,6 +839,7 @@ export class BallparkApp {
 		this.players.update();
 		if ( this.gameHUD ) this.gameHUD.refresh();
 		this.localLights.update( this.camera, dt );
+		this.sound?.listen( this.camera );
 
 		// ---- render
 		G.exposure.value = s.exposure;
