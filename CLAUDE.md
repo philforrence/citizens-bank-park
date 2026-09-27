@@ -1,11 +1,14 @@
 # Citizens Bank Park: notes for Claude
 
-## Where we are (2026-09-27)
+## 🛑 Where we left off (2026-09-27, afternoon)
 
-The plan is [docs/PLAN.md](docs/PLAN.md). Its section 7 decisions were answered on 2026-09-27 (recorded there).
-Section 1 (the GPU) is built: the lock, still mode, scoped builds and the render desk, in [docs/GPU.md](docs/GPU.md).
-Next: section 2 (win back the speed), then 3 (QA together), then round 2's first wave of 4.
-[START-HERE.md](START-HERE.md) has the one-screen summary.
+The owner disconnected while little-worlds wave 1 was merging.
+**Read [START-HERE.md](START-HERE.md) first:**
+- it says what's merged and what's left (W2, the concourse);
+- after that: profile, the review set, then show the owner the combined park;
+- **no next wave until the owner has reviewed it.**
+
+The plan is [docs/PLAN.md](docs/PLAN.md), the GPU rules are in [docs/GPU.md](docs/GPU.md), and the worlds loop is in [docs/notes/worlds/WAVES.md](docs/notes/worlds/WAVES.md).
 
 ## Standing rules
 
