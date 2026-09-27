@@ -6,6 +6,8 @@ import { nightState } from './Concourse3BPeople.js';
 import { Frame, STREET } from './leftfield/Frame.js';
 import { buildHarrys } from './leftfield/Harrys.js';
 import { HarrysPeople } from './leftfield/People.js';
+import { buildMonty } from './leftfield/Monty.js';
+import { buildRamp } from './leftfield/Ramp.js';
 import { Cast } from './Cast.js';
 import { Tempo } from './Tempo.js';
 
@@ -47,6 +49,13 @@ export default class LeftField {
 
 		}
 
+		// the seats over Monty's Angle, the Left Field ramp
+		if ( this.kit ) {
+
+			this.monty = buildMonty( this, this.kit, this.kit.frame( this.F ) );
+			this.ramp = buildRamp( this, this.kit );
+
+		}
 		// everything the Kit built, in one draw
 		if ( this.kit ) this.group.add( this.kit.mesh( 'leftfield-things' ) );
 		// the people (Cast.js's pool): a troupe of them, skipped whole when the view's elsewhere, moved at the
