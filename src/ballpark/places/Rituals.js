@@ -1,6 +1,8 @@
 import { Group } from '../../engine/index.js';
 import { tarpState } from '../game/TarpPlan.js';
+import { ANNOUNCE } from '../game/Suspension.js';
 import { Roll } from './rituals/Roll.js';
+import { Seats } from './rituals/Seats.js';
 
 // The night's rituals and the celebration, on the replay's timeline. The people on the field (the
 // grounds crew, the umpires, the players, the coaches) are the players' rig, posed by the Director from
@@ -9,11 +11,12 @@ import { Roll } from './rituals/Roll.js';
 //
 //   rituals/Roll.js     the tarp's roll off the wall: swung out, pushed across, thinning to the core;
 //                       the canvas cover left heaped along the wall
+//   rituals/Seats.js    the stands emptying into the rain on the 27th and filling again on the 29th
 //
 // Everything is a function of director.t (director.night() for which night it is), so scrubbing agrees.
 export default class Rituals {
 
-	constructor( { app, field } ) {
+	constructor( { app, field, bowl } ) {
 
 		this.app = app;
 		this.field = field;
@@ -21,14 +24,20 @@ export default class Rituals {
 		this.group.name = 'rituals';
 		field.group.add( this.group );
 		this.roll = new Roll( this.group );
+		this.seats = new Seats( { bowl, field } );
+		this._lastT = null;
 
 	}
 
 	update( dt, director ) {
 
 		if ( ! director?.night ) return;
-		const N = director.night( director.t );
+		const t = director.t;
+		const jumped = this._lastT === null || Math.abs( t - this._lastT ) > 1 + dt * ( director.speed || 1 );
+		this._lastT = t;
+		const N = director.night( t );
 		this.roll.update( tarpState( N ) );
+		this.seats.update( N, ANNOUNCE, dt, jumped );
 
 	}
 
