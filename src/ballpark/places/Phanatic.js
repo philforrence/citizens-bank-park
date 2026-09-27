@@ -85,7 +85,56 @@ export default class Phanatic {
 			dad: add( { skin: 0, hair: 1, facial: 4, build: 1, top: TOP.homeJersey, color: COLOR.white, sleeves: COLOR.grey, pants: 1, shoes: 1, seed: 313 } ),
 			frank: add( { skin: 2, hair: 3, hairStyle: 3, facial: 1, age: 1, build: 3, top: TOP.jacket, color: COLOR.red, sleeves: COLOR.red, chest: 1, pants: 0, hat: HAT.capRed, scarf: 1, seed: 314 } ),
 			sophia: add( { skin: 0, hair: 4, hairStyle: 2, female: true, age: 2, build: 0, top: TOP.hoodie, color: COLOR.pink, sleeves: COLOR.pink, pants: 1, hat: HAT.knitRed, seed: 315 } ),
+			// his handler (in 2008 a woman on the club's staff dressed him and went everywhere with him in the
+			// stands: Main Line Today, July 2008; a real person, so not named here): a step or two behind him
+			// in a red Phillies staff jacket, a radio on her hip
+			handler: add( { skin: 1, hair: 2, hairStyle: 2, female: true, age: 0, build: 1, top: TOP.staff, color: COLOR.red, sleeves: COLOR.red, pants: 3, shoes: 1, seed: 316 } ),
 		};
+
+	}
+
+	// the handler: where he was a couple of seconds ago (so she follows his path), or at his shoulder
+	// when he stops; walking when she's moving
+	_handler( st, t ) {
+
+		const h = this.people.handler;
+		// while he's up on the Phillies' roof she waits at the foot of the steps behind it, watching him
+		if ( st.visible && st.zone === 'roof1B' ) {
+
+			const w = this._foot ||= this.ways.roofStairs( '1B' ).pts.slice( - 3 )[ 0 ];
+			h.visible = true;
+			h.x = w[ 0 ]; h.y = w[ 1 ]; h.z = w[ 2 ];
+			h.yaw = Math.atan2( - ( st.x - w[ 0 ] ), - ( st.z - w[ 2 ] ) );
+			Object.assign( h.pose, { walk: 0, propL: 0, propR: 0, headYaw: 0, armL: [ 0.05, 0.08, 0, 0.15 ], armR: [ 0.05, 0.08, 0, 0.15 ] } );
+			return;
+
+		}
+
+		const among = st.visible && ( st.zone === 'concourse' || st.zone === 'stands' || st.zone === 'alley' );
+		h.visible = among;
+		if ( ! among ) return;
+		const back = this.plan.at( t - 2.2 ), back2 = this.plan.at( t - 2.4 );
+		let x = back.x, y = back.y, z = back.z;
+		const f = [ - Math.sin( st.yaw ), - Math.cos( st.yaw ) ];
+		if ( ! back.visible || back.zone !== st.zone || Math.hypot( x - st.x, z - st.z ) < 1.4 ) {
+
+			// at his shoulder: behind him and to his right
+			x = st.x - f[ 0 ] * 1.3 - f[ 1 ] * 0.8; z = st.z - f[ 1 ] * 1.3 + f[ 0 ] * 0.8; y = st.y;
+
+		}
+
+		const v = Math.hypot( back.x - back2.x, back.z - back2.z ) / 0.2;
+		const moving = back.visible && v > 0.2 && Math.hypot( x - back.x, z - back.z ) < 0.01;
+		h.x = x; h.y = y; h.z = z;
+		h.yaw = moving ? Math.atan2( - ( back.x - back2.x ), - ( back.z - back2.z ) ) : Math.atan2( - ( st.x - x ), - ( st.z - z ) );
+		const a = h.pose;
+		a.walk = moving ? 1 : 0;
+		a.phase = t * 5.4;
+		a.propL = 0; a.propR = moving ? 0 : PROP.phone * ( Math.sin( t * 0.2 ) > 0.6 ? 1 : 0 );
+		a.headYaw = moving ? 0 : 0.4 * Math.sin( t * 0.5 );
+		a.armL = [ 0.05, 0.08, 0, 0.15 ];
+		a.armR = moving ? [ 0.05, 0.08, 0, 0.15 ] : [ 0.5, 0.1, 0.3, 1.6 ];
+		a.blink = ( t * 0.37 ) % 1 < 0.05 ? 1 : 0;
 
 	}
 
@@ -131,6 +180,7 @@ export default class Phanatic {
 		this.dogs.dogs( this.plan.shots || [], t );
 		this.squad.update( players, t, ( o ) => this.props.solve( o ) );
 		this._mini( t );
+		this._handler( st, t );
 		this._castUpdate( camera );
 		// what the others can read
 		const n = this.now;

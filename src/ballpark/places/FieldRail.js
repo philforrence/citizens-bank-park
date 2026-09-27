@@ -115,6 +115,9 @@ export default class FieldRail {
 		// pale, grey-green
 		const fade = S.first ? 0.05 + 0.3 * S.progress : 0.5;
 		for ( const m of this.app?.details?.paintMats || [] ) m.uniforms.fade.value = fade;
+		// ---- A (Phanatic): where he is (places/Phanatic.js), for the wells to turn their lenses on him
+		S.phan = this.app?.phanatic?.now || null;
+		// ---- end A
 		this.wells.update( S, dt );
 		this.onDeck.update( S, dt, director );
 		this.ballGirls.update( S, dt, director );
