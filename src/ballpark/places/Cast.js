@@ -712,14 +712,14 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		let onBack = L.z > 0.03 && part == ${ PART.torso }u;
 		let onFront = L.z < - 0.03 && part == ${ PART.torso }u;
 		if ( back > 0u && onBack && L.y > 0.98 && L.y < 1.4 ) {
-			let uv = vec2f( 0.5 - L.x / 0.34, ( 1.4 - L.y ) / 0.42 );
+			let uv = vec2f( 0.5 + L.x / 0.34, ( 1.4 - L.y ) / 0.42 );
 			if ( all( uv > vec2f( 0.0 ) ) && all( uv < vec2f( 1.0 ) ) ) {
 				let cell = vec2f( f32( back % 8u ), f32( back / 8u ) );
 				printA = textureSample( c3Atlas, smpAnisoClamp, ( cell + uv ) / 8.0 ).r;
 			}
 		}
 		if ( chest > 0u && onFront && L.y > 1.08 && L.y < 1.36 ) {
-			let uv = vec2f( 0.5 + L.x / 0.32, ( 1.36 - L.y ) / 0.28 );
+			let uv = vec2f( 0.5 - L.x / 0.32, ( 1.36 - L.y ) / 0.28 );
 			if ( all( uv > vec2f( 0.0 ) ) && all( uv < vec2f( 1.0 ) ) ) {
 				let ci = ${ CHEST_CELL }u + chest;
 				let cell = vec2f( f32( ci % 8u ), f32( ci / 8u ) );
@@ -834,7 +834,7 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		if ( hat == ${ HAT.hood }u || ( poncho > 0u && g.x > 0.35 ) ) {
 			let oval = length( vec2f( d.x * 1.05, ( d.y + 0.08 ) * 0.92 ) );
 			if ( d.z > - 0.35 || oval > 0.72 ) {
-				c = select( topC, vec3f( 0.5 ), poncho > 0u );
+				c = select( topC, select( vec3f( 0.5 ), mix( topC * 0.85, vec3f( 0.45 ), 0.2 ), poncho == 1u ), poncho > 0u );
 				c *= select( 1.0, 0.55, oval < 0.85 && d.z < - 0.2 );
 				rough = select( 0.85, 0.2, poncho > 0u );
 			}
@@ -864,7 +864,7 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		// the poncho: clear plastic over the jacket (glossy, the jacket dulled through it), or red, white
 		// or yellow; wet on the 27th, and creased
 		let fres = pow( 1.0 - abs( dot( normalize( in.N ), normalize( in.V ) ) ), 2.5 );
-		var pc = select( select( select( mix( topC * 0.85, vec3f( 0.5, 0.52, 0.55 ), 0.08 + 0.55 * fres ), vec3f( 0.36, 0.02, 0.03 ), poncho == 2u ), vec3f( 0.62 ), poncho == 3u ), vec3f( 0.65, 0.5, 0.03 ), poncho == 4u );
+		var pc = select( select( select( mix( topC * 0.8, vec3f( 0.42, 0.44, 0.47 ), 0.03 + 0.35 * fres ), vec3f( 0.36, 0.02, 0.03 ), poncho == 2u ), vec3f( 0.62 ), poncho == 3u ), vec3f( 0.65, 0.5, 0.03 ), poncho == 4u );
 		if ( poncho == 5u ) { pc = vec3f( 0.62, 0.2, 0.02 ); }
 		if ( poncho == 6u ) { pc = vec3f( 0.06, 0.065, 0.07 ); }
 		let crease = 0.9 + 0.1 * sin( atan2( L.x, L.z ) * 11.0 + L.y * 7.0 ) + select( 0.0, 0.12 * sin( L.y * 31.0 + L.x * 17.0 ), poncho == 6u );
@@ -1082,8 +1082,8 @@ export class Cast {
 		this.orderNearBuf = new StorageBuffer( { label: 'castOrderNear', count: max, type: 'u32' } );
 		this.orderFarBuf = new StorageBuffer( { label: 'castOrderFar', count: max, type: 'u32' } );
 		this.orderTinyBuf = new StorageBuffer( { label: 'castOrderTiny', count: max, type: 'u32' } );
-		this.near = 22;
-		this.far = 60;
+		this.near = 15;
+		this.far = 45;
 		this.atlas = drawAtlas();
 		this.material = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderNearBuf, this.atlas );
 		this.materialFar = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderFarBuf, this.atlas );

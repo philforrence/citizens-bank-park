@@ -104,7 +104,7 @@ export class ConcoursePeople {
 		this._railSpots( concourse );
 		this._restrooms( concourse );
 		this._standing();
-		this._fans( 250 );
+		this._fans( 320 );
 
 	}
 
@@ -178,7 +178,7 @@ export class ConcoursePeople {
 		const seed = Math.floor( r() * 1e9 );
 		const rr = rng( seed );
 		const dry = look || dress( rr, o );
-		const wet = { ...dry, poncho: o.poncho ?? ( look ? 0 : r() < 0.26 ? Number( pick( r, { 1: 48, 4: 16, 5: 9, 2: 8, 6: 12, 3: 7 } ) ) : 0 ) };
+		const wet = { ...dry, poncho: o.poncho ?? ( look ? 0 : r() < 0.2 ? Number( pick( r, { 1: 48, 4: 16, 5: 9, 2: 8, 6: 12, 3: 7 } ) ) : 0 ) };
 		if ( wet.poncho && wet.hat === HAT.none && r() < 0.5 ) wet.hat = HAT.hood; // the poncho's hood up
 		const p = this.cast.add( wet );
 		if ( ! p ) return null;

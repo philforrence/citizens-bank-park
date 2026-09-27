@@ -53,7 +53,7 @@ export default class Concourse3B {
 			spills: [ [ 65, 43.4, 1.3 ], [ 63.4, 42.3, 0.6 ], [ 67.2, 41.8, 0.45 ], [ 17.4, 43.6, 0.5 ], [ 56.3, 43.2, 0.45 ], [ 47, 30.7, 0.5 ], [ 22, 30.6, 0.4 ], [ 88, 30.8, 0.4 ] ] } );
 		this.group.add( this.floor );
 		// the people: the cast (drawn here), and People.js's own figures handed over to it in this stretch
-		this.cast = new Cast( { parent: this.group, max: 360 } );
+		this.cast = new Cast( { parent: this.group, max: 440 } );
 		// where the cast is (for ?focus=, which drops what's wholly outside its circle)
 		const mid = this.W.at( S_END / 2, 40 );
 		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
