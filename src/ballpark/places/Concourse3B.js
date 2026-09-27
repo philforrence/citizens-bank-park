@@ -10,6 +10,7 @@ import { Stories } from './Concourse3BStories.js';
 import { Steam } from './Concourse3BSteam.js';
 import { G } from '../../core/Globals.js';
 import { Kit, trashCan, recycleBin, condiments, cart, programTable, pendant } from './Concourse3BProps.js';
+import { Tempo } from './Tempo.js'; // ---- H
 
 // The main concourse from behind home plate round to the third base side (sections 123 to 135): the
 // walk in from the Third Base Gate to your seat, at street level, under the suite level and open to the
@@ -59,6 +60,9 @@ export default class Concourse3B {
 		this.cast.bounds = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
 		this.people = new ConcoursePeople( { cast: this.cast, walkway: this.W, concourse, bowl, sEnd: S_END, obstacles: this.obstacles, carts: this.carts, seed: 1027 } );
 		this.stories = new Stories( this.people );
+		// ---- H: its people moved at the full rate only while some of them are seen (Tempo.js)
+		this._tempo = new Tempo( [ this.cast ] );
+		// ---- end H
 		// steam off the grills and the urns and the cups, and people's breath
 		this.steam = new Steam( { parent: this.group, bounds: this.cast.bounds } );
 		this._steamers();
@@ -419,7 +423,7 @@ export default class Concourse3B {
 
 	}
 
-	update( dt, director ) {
+	update( dt, director, camera ) {
 
 		const ns = nightState( director );
 		this.night = ns;
@@ -440,8 +444,16 @@ export default class Concourse3B {
 		this._lastT = t;
 		const camF = this.app?.camera ? this.field.toField( this.app.camera.position.x, this.app.camera.position.z ) : null;
 		this.people.cam = camF;
-		this.people.update( dt, ns );
-		this.stories.update( dt, ns );
+		// ---- H: while none of its people are seen, they're moved every 4th frame by that much time (Tempo.js)
+		const sdt = this._tempo.step( dt, camera || this.app?.camera );
+		this.people.catchUp = this._tempo.cut;
+		if ( sdt ) {
+
+			this.people.update( sdt, ns );
+			this.stories.update( sdt, ns );
+
+		}
+		// ---- end H
 		// the steam and the breath (the cold: 47 and raining on the 27th, 44 and windy on the 29th)
 		const cf = camF;
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam: cf ? [ cf[ 0 ], 0, cf[ 1 ] ] : null, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );

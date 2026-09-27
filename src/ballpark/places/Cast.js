@@ -33,6 +33,8 @@ import { canvasTexture } from '../geo.js';
 //     p.lod                                    (read) how they were drawn last frame: 0 the near figure,
 //                                              1 the far, 2 the distant, -1 not at all (out of view,
 //                                              hidden): update the unseen and the distant less often
+//     p.frac                                   (read; H) how tall they stood on the screen last frame, a
+//                                              share of its height (Tempo.js's cadence())
 //   cast.setLook( p, look )                    re-dressed (a poncho on for the rain, off on the 29th)
 //   cast.update( [ camX, 0, camZ ] )           once a frame, after posing (the camera in the field
 //                                              frame; optional: the pool finds the camera itself)
@@ -1863,20 +1865,13 @@ class Pool {
 		const M = G.matrixWorld.elements;
 		const P = this.pose;
 		const O = this.order, cap = this.cap;
-		const near = [], nearD = [], fresh = [];
+		// (---- H: the lists kept from frame to frame, emptied, not made anew)
+		const near = this._near ||= [], nearD = this._nearD ||= [], fresh = this._fresh ||= [];
+		near.length = 0; nearD.length = 0; fresh.length = 0;
 		let nBlob = 0, nFar = 0, nTiny = 0, culled = 0, drawn = 0, lo = Infinity, hi = - 1;
 		const hidden = this.hidden;
 		const inv = _inv.copy( G.matrixWorld ).invert();
-		const gone = ( t ) => {
-
-			for ( const p of t.list ) {
-
-				p.lod = - 1;
-				p.fresh = true;
-
-			}
-
-		};
+		const gone = _gone;
 
 		for ( const t of this.troupes ) {
 
@@ -1979,6 +1974,7 @@ class Pool {
 				const dx = wx - cx, dy = wy - cy, dz = wz - cz;
 				const d = Math.sqrt( dx * dx + dy * dy + dz * dz ) + 0.01;
 				const frac = H * s * focal / d;
+				p.frac = frac; // ---- H: how tall they stood on the screen (Tempo.js's cadence())
 				drawn ++;
 				t.drawn ++;
 				if ( frac > NEAR_FRAC ) {
@@ -2007,7 +2003,10 @@ class Pool {
 		}
 
 		// the near ones front to back (the ones behind are hidden early)
-		const idx = near.map( ( _, i ) => i ).sort( ( i, j ) => nearD[ i ] - nearD[ j ] );
+		const idx = this._idx ||= [];
+		idx.length = 0;
+		for ( let i = 0; i < near.length; i ++ ) idx.push( i );
+		idx.sort( ( i, j ) => nearD[ i ] - nearD[ j ] );
 		for ( let i = 0; i < idx.length; i ++ ) O[ cap + i ] = near[ idx[ i ] ];
 		const nNear = near.length;
 		// (profiling: a figure left out, window.__cast.debug = { near: false })
@@ -2043,6 +2042,18 @@ class Pool {
 		put( cap, nNear );
 		put( cap * 2, nFar );
 		put( cap * 3, nTiny );
+
+	}
+
+}
+
+// ---- H: a troupe not drawn this frame (its place isn't, or it's out of view)
+function _gone( t ) {
+
+	for ( const p of t.list ) {
+
+		p.lod = - 1;
+		p.fresh = true;
 
 	}
 

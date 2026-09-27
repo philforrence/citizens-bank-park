@@ -1,6 +1,7 @@
 import { PROP, restPose } from '../Cast.js';
 import { Walkway } from '../Concourse3BKit.js';
 import { SEATED, SIT, easeArms, sitPose, seatSpot } from './Poses.js';
+import { cadence } from '../Tempo.js'; // ---- H
 
 // The people in the seats behind home plate: Cast figures sat in the seats the place takes from the
 // crowd. They do what the crowd round them does (Crowd.mood(): up on two strikes with two outs, arms up
@@ -76,7 +77,24 @@ export class Fans {
 
 	update( dt, N ) {
 
-		for ( const f of this.list ) f.update( dt, N );
+		// ---- H: each one as often as they're seen (Tempo.js's cadence: every frame seen, every 3rd a few
+		// pixels tall or small and over 35 m off, every 4th unseen), by the time since; all of them on a cut
+		const fr = this._frame = ( this._frame || 0 ) + 1, cam = this.cam;
+		for ( const f of this.list ) {
+
+			f._acc += dt;
+			if ( ! this.catchUp ) {
+
+				const n = cadence( f.p, cam ? ( f.p.x - cam[ 0 ] ) ** 2 + ( f.p.z - cam[ 1 ] ) ** 2 : 0 );
+				if ( n > 1 && ( fr + f.p.slot ) % n ) continue;
+
+			}
+
+			f.update( f._acc, N );
+			f._acc = 0;
+
+		}
+		// ---- end H
 
 	}
 
@@ -106,6 +124,7 @@ export class Fan {
 		this.away = false;
 		this.hold = { L: 0, R: 0 };
 		this.night = 0;
+		this._acc = 0; // ---- H: the time since it was last moved (Fans.update)
 		this.script = o.script || null;
 		p.pose = restPose();
 		sitPose( p.pose, 0, this.scale );
@@ -154,15 +173,24 @@ export class Fan {
 		p.visible = true;
 		const k = 1 - Math.exp( - dt * 7 );
 		// what's asked of him now (the latest act that has started)
-		let act = null;
-		for ( const q of this.acts ) {
+		// (---- H: the finished ones taken out in place, not filtered into a new array every frame)
+		let act = null, done = 0;
+		const acts = this.acts;
+		for ( const q of acts ) {
 
 			q.t += dt;
 			if ( q.t >= 0 && q.t < q.dur ) act = q;
+			if ( q.t >= q.dur ) done ++;
 
 		}
 
-		this.acts = this.acts.filter( ( q ) => q.t < q.dur );
+		if ( done ) {
+
+			let j = 0;
+			for ( let i = 0; i < acts.length; i ++ ) if ( acts[ i ].t < acts[ i ].dur ) acts[ j ++ ] = acts[ i ];
+			acts.length = j;
+
+		}
 		const M = N.mood;
 		// ---- up or down: the crowd's mood, his own threshold; an act may stand him (or sit him)
 		let upT = M.stand > this.tr.stand ? 1 : 0;
@@ -178,9 +206,18 @@ export class Fan {
 		let g = null, L = 0, R = 0, mouth = 0, talk = false;
 		const drink = this.kit.drink;
 		// the idle choice: a new one every 9 to 25 s (a function of the time, so scrubbing agrees)
-		const per = 9 + 16 * hash( sd * 23 );
+		const per = this._per ??= 9 + 16 * hash( sd * 23 ); // (---- H: worked out once)
 		const slot = Math.floor( ( t + sd * 100 ) / per );
-		const idle = pickIdle( this.kit.idle, hash( slot * 1.37 + sd * 57 ), N );
+		// (---- H: picked again only when the slot or the night's weighting changes)
+		const ik = slot * 4 + ( N.first ? 2 : 0 ) + ( N.pitching ? 1 : 0 );
+		if ( ik !== this._ik ) {
+
+			this._ik = ik;
+			this._idle = pickIdle( this.kit.idle, hash( slot * 1.37 + sd * 57 ), N );
+
+		}
+
+		const idle = this._idle;
 		const I = IDLE[ idle ] || IDLE.watch;
 		g = SEATED[ I.g ];
 		L = I.L === 'drink' ? drink : I.L || 0;
@@ -282,7 +319,7 @@ export class Fan {
 
 		}
 
-		easeArms( this.arms, g || [ null, null ], act?.snap ? 1 : k );
+		easeArms( this.arms, g || NO_ARMS, act?.snap ? 1 : k ); // (---- H: NO_ARMS kept, not made each frame)
 		a.armL = this.arms[ 0 ];
 		a.armR = this.arms[ 1 ];
 		a.propL = L;
@@ -294,7 +331,7 @@ export class Fan {
 
 			const dx = target[ 0 ] - p.x, dz = target[ 2 ] - p.z, dy = target[ 1 ] - ( p.y + 1.1 + 0.45 * up );
 			hy = wrap( Walkway.yaw( dx, dz ) - p.yaw );
-			hp = - Math.atan2( dy, Math.hypot( dx, dz ) );
+			hp = - Math.atan2( dy, Math.sqrt( dx * dx + dz * dz ) ); // (---- H: sqrt, not hypot)
 
 		}
 
@@ -319,8 +356,9 @@ export class Fan {
 		a.blink = fract( t * 0.31 + sd * 7 ) < 0.035 ? 1 : 0;
 		// ---- the legs and where he is: seated, up, or up and jumping at the last out
 		sitPose( a, up, this.scale, act?.lean || 0 );
-		const [ x, z ] = act?.onSeat ? seatSpot( this.seat, 0 ) : seatSpot( this.seat, up );
-		p.x = x; p.z = z;
+		// (---- H: seatSpot()'s sum, without its array)
+		const st = this.seat, o = SIT.back + ( SIT.front - SIT.back ) * ( act?.onSeat ? 0 : up );
+		p.x = st.x + st.nx * o; p.z = st.z + st.nz * o;
 		// turned round (to someone behind), the turn eased
 		this.turn = ( this.turn || 0 ) + ( ( act?.turn || 0 ) - ( this.turn || 0 ) ) * k * 0.6;
 		p.yaw = this.seat.yaw + this.turn;
@@ -336,28 +374,31 @@ export class Fan {
 function pickIdle( weights, r, N ) {
 
 	let sum = 0;
-	for ( const k in weights ) sum += w( k );
+	for ( const k in weights ) sum += idleW( weights, k, N );
 	let x = r * sum;
 	for ( const k in weights ) {
 
-		x -= w( k );
+		x -= idleW( weights, k, N );
 		if ( x <= 0 ) return k;
 
 	}
 
 	return 'watch';
 
-	// the cold on the 29th brings the hands in; the pitch itself holds everyone's eyes
-	function w( k ) {
+}
 
-		let v = weights[ k ];
-		if ( ! N.first && ( k === 'pockets' || k === 'blow' || k === 'fold' ) ) v *= 1.6;
-		if ( N.pitching && ( k === 'text' || k === 'read' || k === 'call' ) ) v *= 0.4;
-		return v;
+// the cold on the 29th brings the hands in; the pitch itself holds everyone's eyes
+// (---- H: out of pickIdle(), so a call doesn't make a new closure)
+function idleW( weights, k, N ) {
 
-	}
+	let v = weights[ k ];
+	if ( ! N.first && ( k === 'pockets' || k === 'blow' || k === 'fold' ) ) v *= 1.6;
+	if ( N.pitching && ( k === 'text' || k === 'read' || k === 'call' ) ) v *= 0.4;
+	return v;
 
 }
+
+const NO_ARMS = [ null, null ]; // ---- H
 
 const fract = ( x ) => x - Math.floor( x );
 const smooth = ( x ) => {

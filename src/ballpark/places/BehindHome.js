@@ -17,6 +17,7 @@ import { Moments } from './home/Moments.js';
 import { Steam } from './Concourse3BSteam.js';
 import { buildBackstop, updateBackstop } from './home/Backstop.js';
 import { G } from '../../core/Globals.js';
+import { Tempo } from './Tempo.js'; // ---- H
 
 // Behind home plate: the TV's backdrop. The center field camera looks straight at it on every pitch
 // (press C), so this is the most-watched patch of the park: the Diamond Club's front rows and the field
@@ -50,6 +51,9 @@ export default class BehindHome {
 		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( 0, 4, 30 ), 34 );
 		this.fans = new Fans( this.cast );
 		this.fans.rows = ( sec, row ) => seats.bySec[ sec ]?.[ row ] || [];
+		// ---- H: its people moved at the full rate only while some of them are seen (Tempo.js)
+		this._tempo = new Tempo( [ this.cast ] );
+		// ---- end H
 		// the signs held up for the camera
 		this.signs = new Signs( this.group );
 		// the palette's material (the ledge, the camera), then the backstop's front: the green panel, the
@@ -230,15 +234,26 @@ export default class BehindHome {
 		const N = this._night( director, dt );
 		this.material.uniforms.night.value = N.first ? 27 : 29;
 		updateBackstop( this.backstop, this, N );
-		this.aisles.update( dt, N );
-		this.fouls.update( dt, N, director, camera );
-		this.moments.update( N );
-		this.fans.update( dt, N );
-		holdSigns( this );
-		this.blankets.update( N );
-		this.fouls.draw( camera );
-		this._fly( dt );
-		this.gear.update();
+		// ---- H: while none of its people are seen, they (and what they hold, sit under and throw) are
+		// moved every 4th frame by that much time (Tempo.js); seen, the fans a few pixels tall every 3rd
+		// (Fans.update)
+		const sdt = this._tempo.step( dt, camera || this.app?.camera );
+		if ( sdt ) {
+
+			this.fans.catchUp = this._tempo.cut;
+			this.fans.cam = camera ? this.field.toField( camera.position.x, camera.position.z ) : null;
+			this.aisles.update( sdt, N );
+			this.fouls.update( sdt, N, director, camera );
+			this.moments.update( N );
+			this.fans.update( sdt, N );
+			holdSigns( this );
+			this.blankets.update( N );
+			this.fouls.draw( camera );
+			this._fly( sdt );
+			this.gear.update();
+
+		}
+		// ---- end H
 		// the cast's detail by how big they are on screen: the distance against the lens (the center
 		// field camera's long lens sees the rows behind home plate from 150 m as if from 12)
 		const fov = camera?.fov || 60;

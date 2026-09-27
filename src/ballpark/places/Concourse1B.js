@@ -20,6 +20,7 @@ import { buildPlaza, buildPhunZone } from './concourse1b/Plaza.js';
 import { Scenes1B } from './concourse1b/Scenes.js';
 import { Tailgates } from './concourse1b/Tailgate.js';
 import { programKiosk, caricatureCorner, cartSigns, cartTop } from './concourse1b/Things.js';
+import { Tempo } from './Tempo.js'; // ---- H
 
 // The main concourse on the first base side, behind home plate round to the right field corner (sections
 // 122 to 108), and the First Base Gate: the other half of the walkable ring, and the other way in. It was
@@ -103,6 +104,9 @@ export default class Concourse1B {
 
 		}
 
+		// ---- H: its people moved at the full rate only while some of them are seen (Tempo.js)
+		this._tempo = new Tempo( [ this.cast ] );
+		// ---- end H
 		// steam off the grills and the cups, and the breath
 		this.steam = new Steam( { parent: this.group, bounds: this.cast.mesh.boundingSphere } );
 		this.steam.mesh.name = 'concourse1b-steam';
@@ -630,7 +634,7 @@ export default class Concourse1B {
 
 	}
 
-	update( dt, director ) {
+	update( dt, director, camera ) {
 
 		const ns = nightState( director );
 		this.night = ns;
@@ -653,13 +657,21 @@ export default class Concourse1B {
 		const camF = this.app?.camera ? this.field.toField( this.app.camera.position.x, this.app.camera.position.z ) : null;
 		const cam = camF ? [ camF[ 0 ], 0, camF[ 1 ] ] : null;
 		this.people.cam = camF;
-		this.people.update( dt, ns );
-		this.stories.update( dt, ns );
-		this.tailgates.update( dt, ns, this.people.react );
-		this.scenes?.update( dt, ns, t );
-		this.arrivals?.update( dt, ns, t );
+		// ---- H: while none of its people are seen, they're moved every 4th frame by that much time (Tempo.js)
+		const sdt = this._tempo.step( dt, camera || this.app?.camera );
+		this.people.catchUp = this._tempo.cut;
+		if ( sdt ) {
+
+			this.people.update( sdt, ns );
+			this.stories.update( sdt, ns );
+			this.tailgates.update( sdt, ns, this.people.react );
+			this.scenes?.update( sdt, ns, t );
+			this.arrivals?.update( sdt, ns, t );
+			this._phanatic();
+
+		}
+		// ---- end H
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
-		this._phanatic();
 		this.cast.update( cam );
 		this.sounds.update( dt, ns, camF );
 		if ( this.ownTV ) this.tv.update( dt, director, ns );

@@ -1,6 +1,7 @@
 import { LEVELS } from '../layout.js';
 import { PROP, TOP, COLOR, HAT, CHEST } from './Cast.js';
 import { Walkway, MID, GESTURE, railArms, dress, sizeOf, rng, pick } from './Concourse3BKit.js';
+import { cadence, due } from './Tempo.js'; // ---- H
 
 // The people of the third base concourse (Concourse3B.js): who walks it, where from and where to, the
 // lines at the stands and the people serving them, and how they carry themselves on a cold night.
@@ -16,6 +17,24 @@ const STREET = LEVELS.mainConcourse;
 export const RAIL_D = 30.1, FRONT_D = 44.76;
 const TAU = Math.PI * 2;
 const clamp = ( x, a, b ) => Math.max( a, Math.min( b, x ) );
+// ---- H: a line's slot as ( s, d ), looked up once (the stands, the carts and the restrooms don't move)
+const DOOR = [ 0, 0 ];
+const slotSD = ( S, q ) => {
+
+	const m = S._sd ||= new Map();
+	let v = m.get( q );
+	if ( ! v ) m.set( q, v = S.at( q[ 0 ], q[ 1 ] ) );
+	return v;
+
+};
+// ---- H: how many of the spots are taken (counted, not filtered into a new array)
+const taken = ( spots ) => {
+
+	let n = 0;
+	for ( const q of spots ) if ( q.who ) n ++;
+	return n;
+
+};
 const lerp = ( a, b, t ) => a + ( b - a ) * t;
 const lerpArm = ( a, b, t ) => a.map( ( x, k ) => lerp( x, b[ k ], t ) );
 // the short way round from angle a to b
@@ -581,10 +600,11 @@ export class ConcoursePeople {
 		const want = this.fans.length * clamp( ns.busy / 1.45, 0.12, 1 ) * 0.5;
 		let walking = 0;
 		for ( const f of this.fans ) if ( f.mode === 'walk' && ! f.spot && ! f.stand && ! f.loo ) walking ++;
+		// (---- H: the spots taken counted, not filtered into new arrays every frame)
 		const needs = this.stands.some( ( S ) => S.line.length + S.coming < Math.round( S.base * ( 0.35 + ns.busy ) * 3.5 ) )
 			|| this.loos.some( ( R ) => R.line.length + R.coming < Math.round( R.base * ( 0.2 + ns.busy ) * 4 ) )
-			|| this.stand.filter( ( q ) => q.who ).length < this._standWant( ns )
-			|| this.rail.filter( ( q ) => q.who ).length < this.rail.length * ( ns.celebrate ? 0.9 : ns.suspended ? 0.25 : ns.inning >= 9 && ! ns.first ? 0.8 : 0.5 );
+			|| taken( this.stand ) < this._standWant( ns )
+			|| taken( this.rail ) < this.rail.length * ( ns.celebrate ? 0.9 : ns.suspended ? 0.25 : ns.inning >= 9 && ! ns.first ? 0.8 : 0.5 );
 		// the lines and the rail fill a few people a second, whatever the walkers are doing
 		this._needT = ( this._needT || 0 ) + dt * 3;
 		for ( const f of this.fans ) {
@@ -613,13 +633,16 @@ export class ConcoursePeople {
 		this._needT = Math.min( this._needT, 3 );
 
 		// who's where, in 2 m bins along the concourse (for stepping round each other)
-		this._bins = new Map();
+		// (---- H: the bins kept from frame to frame and emptied, not built anew)
+		const bins = this._bins ||= new Map();
+		for ( const v of bins.values() ) v.length = 0;
 		for ( const o of this.actors ) {
 
 			if ( ! o.p?.visible || o.kind === 'staff' ) continue;
 			const b = Math.floor( o.s / 2 );
-			if ( ! this._bins.has( b ) ) this._bins.set( b, [] );
-			this._bins.get( b ).push( o );
+			let v = bins.get( b );
+			if ( ! v ) bins.set( b, v = [] );
+			v.push( o );
 
 		}
 
@@ -635,16 +658,25 @@ export class ConcoursePeople {
 
 			if ( f.mode === 'off' ) continue;
 			let fdt = dt;
-			if ( cam && ! this.warming ) {
+			// ---- H: P0's rule (Tempo.js's cadence), but by how big they were drawn as well as how far (the
+			// TV's long lens sees people 150 m off big: every frame); all of them on a cut (the pool's p.lod
+			// is the last view's)
+			if ( cam && ! this.warming && ! this.catchUp ) {
 
-				const dx = f.p.x - cam[ 0 ], dz = f.p.z - cam[ 1 ], lod = f.p.lod ?? 0;
-				const every = lod < 0 ? 4 : lod === 2 || dx * dx + dz * dz > 35 * 35 ? 3 : 1;
+				const dx = f.p.x - cam[ 0 ], dz = f.p.z - cam[ 1 ];
+				const every = cadence( f.p, dx * dx + dz * dz );
 				f._acc = ( f._acc || 0 ) + dt;
 				if ( every > 1 && ( this._frame + f.p.slot ) % every ) continue;
 				fdt = f._acc;
 				f._acc = 0;
 
+			} else if ( f._acc ) {
+
+				fdt += f._acc;
+				f._acc = 0;
+
 			}
+			// ---- end H
 
 			if ( f.mode === 'walk' ) this._walk( f, fdt, ns );
 			else if ( f.mode === 'queue' || f.mode === 'counter' ) this._inLine( f, fdt, ns );
@@ -675,7 +707,16 @@ export class ConcoursePeople {
 
 		if ( ! ns.celebrate ) this._rushed = false;
 
-		for ( const S of this.stands ) for ( const a of S.staff ) this._staffPose( a, dt, ns );
+		// ---- H: the staff as often as they're seen (Tempo.js), by the time since
+		for ( const S of this.stands ) for ( const a of S.staff ) {
+
+			a._acc = ( a._acc || 0 ) + dt;
+			if ( cam && ! this.warming && ! this.catchUp && ! due( a.p, cadence( a.p, ( a.p.x - cam[ 0 ] ) ** 2 + ( a.p.z - cam[ 1 ] ) ** 2 ), this._frame ) ) continue;
+			this._staffPose( a, a._acc, ns );
+			a._acc = 0;
+
+		}
+		// ---- end H
 		// the looks follow the night: ponchos on the 27th
 		if ( this._first !== ns.first ) {
 
@@ -713,13 +754,15 @@ export class ConcoursePeople {
 			// to the back of the line
 			const k = f.stand.line.length;
 			const q = f.stand.slots[ Math.min( k, f.stand.slots.length - 1 ) ];
-			[ gs, gd ] = f.stand.at( q[ 0 ], q[ 1 ] );
+			const g = slotSD( f.stand, q ); // ---- H: a slot's ( s, d ) looked up once
+			gs = g[ 0 ]; gd = g[ 1 ];
 			arrive = 0.6;
 
 		} else if ( f.loo ) {
 
 			const q = f.loo.slots[ Math.min( f.loo.line.length, f.loo.slots.length - 1 ) ];
-			[ gs, gd ] = f.loo.at( q[ 0 ], q[ 1 ] );
+			const g = slotSD( f.loo, q ); // ---- H
+			gs = g[ 0 ]; gd = g[ 1 ];
 			arrive = 0.6;
 
 		} else if ( f.spot ) {
@@ -815,7 +858,8 @@ export class ConcoursePeople {
 
 		}
 
-		[ vs, vd ] = this._avoid( f, vs, vd, dt );
+		const av = this._avoid( f, vs, vd, dt ); // ---- H (its answer in a kept array)
+		vs = av[ 0 ]; vd = av[ 1 ];
 		const vl = Math.hypot( vs, vd ) || 1;
 		// the crowd slows everyone down when it's busy
 		const speed = f.speed * ( ns.busy > 1.2 ? 0.8 : 1 ) * Math.min( 1, dist / 0.6 + 0.3 );
@@ -868,8 +912,10 @@ export class ConcoursePeople {
 		// off to (straight at it: by temperament, the same side every time)
 		const vl = Math.hypot( vs, vd ) || 1;
 		let us = vs / vl, ud = vd / vl;
-		for ( const [ os, od, orad ] of this._near( f.s ) ) {
+		// (---- H: the same steps, without building arrays)
+		for ( const o of this._near( f.s ) ) {
 
+			const os = o[ 0 ], od = o[ 1 ], orad = o[ 2 ];
 			const cs = os - f.s, cd = od - f.d, dist = Math.hypot( cs, cd ), R = orad + 0.42;
 			if ( dist > 3.2 || dist < 1e-3 ) continue;
 			const ahead = cs * us + cd * ud;
@@ -880,7 +926,9 @@ export class ConcoursePeople {
 			// turn away from it by the angle to its edge
 			const a = - side * ( Math.asin( Math.min( 1, R / Math.max( dist, R ) ) ) - Math.asin( clamp( Math.abs( across ) / dist, 0, 1 ) ) * 0.8 );
 			const c = Math.cos( a ), sn = Math.sin( a );
-			[ us, ud ] = [ us * c - ud * sn, us * sn + ud * c ];
+			const u2 = us * c - ud * sn;
+			ud = us * sn + ud * c;
+			us = u2;
 
 		}
 
@@ -888,38 +936,49 @@ export class ConcoursePeople {
 		// the others: someone on course steps to his right; nobody walks through anybody
 		f.side *= Math.exp( - dt * 0.8 );
 		const b = Math.floor( f.s / 2 );
-		for ( let k = b - 1; k <= b + 1; k ++ ) for ( const o of this._bins.get( k ) || [] ) {
+		for ( let k = b - 1; k <= b + 1; k ++ ) {
 
-			if ( o === f ) continue;
-			const es = f.s - o.s, ed = f.d - o.d;
-			if ( Math.abs( es ) > 2.2 || Math.abs( ed ) > 1.2 ) continue;
-			if ( es * Math.sign( vs ) < 0 && Math.abs( ed ) < 0.7 ) f.side += ( Math.sign( vs ) > 0 ? - 1 : 1 ) * dt * 1.4;
-			const e = Math.hypot( es, ed );
-			if ( e < 0.6 ) {
+			const B = this._bins.get( k );
+			if ( ! B ) continue;
+			for ( const o of B ) {
 
-				// two on the same spot part the same way every time (not a coin toss each frame)
-				const [ ps, pd ] = e > 0.05 ? [ es / e, ed / e ] : [ f.order > o.order ? 1 : - 1, 0 ];
-				vs += ps * ( 0.6 - e ) * 2;
-				vd += pd * ( 0.6 - e ) * 2;
+				if ( o === f ) continue;
+				const es = f.s - o.s, ed = f.d - o.d;
+				if ( Math.abs( es ) > 2.2 || Math.abs( ed ) > 1.2 ) continue;
+				if ( es * Math.sign( vs ) < 0 && Math.abs( ed ) < 0.7 ) f.side += ( Math.sign( vs ) > 0 ? - 1 : 1 ) * dt * 1.4;
+				const e = Math.hypot( es, ed );
+				if ( e < 0.6 ) {
+
+					// two on the same spot part the same way every time (not a coin toss each frame)
+					const far = e > 0.05, ps = far ? es / e : f.order > o.order ? 1 : - 1, pd = far ? ed / e : 0;
+					vs += ps * ( 0.6 - e ) * 2;
+					vd += pd * ( 0.6 - e ) * 2;
+
+				}
 
 			}
 
 		}
 
 		f.side = clamp( f.side, - 1.4, 1.4 );
-		return [ vs, vd ];
+		const r = this._av ||= [ 0, 0 ];
+		r[ 0 ] = vs; r[ 1 ] = vd;
+		return r;
+		// (---- end H)
 
 	}
 
 	// never inside a column: pushed out to its edge
 	_solid( f ) {
 
-		for ( const [ os, od, orad ] of this._near( f.s ) ) {
+		// (---- H: the same, without building arrays)
+		for ( const o of this._near( f.s ) ) {
 
+			const os = o[ 0 ], od = o[ 1 ], orad = o[ 2 ];
 			const es = f.s - os, ed = f.d - od, e = Math.hypot( es, ed ), R = orad + 0.3;
 			if ( e < R ) {
 
-				const [ us, ud ] = e > 1e-3 ? [ es / e, ed / e ] : [ 0, - 1 ];
+				const ok = e > 1e-3, us = ok ? es / e : 0, ud = ok ? ed / e : - 1;
 				f.s = os + us * R;
 				f.d = od + ud * R;
 
@@ -941,7 +1000,8 @@ export class ConcoursePeople {
 		p.x = a.x; p.z = a.z;
 		// on the aisle's steps, below the concourse
 		p.y = STREET - Math.max( 0, RAIL_D - f.d ) * 0.28;
-		const [ dx, dz ] = this._worldDir( f.s, f.d, f.vs, f.vd );
+		// (---- H: _worldDir's answer from the point just found, not a second look-up)
+		const dx = a.ux * f.vs - a.nx * f.vd, dz = a.uz * f.vs - a.nz * f.vd;
 		if ( faceYaw !== null ) p.yaw = turn( p.yaw, faceYaw, Math.min( 1, dt * 4 ) );
 		else if ( Math.hypot( dx, dz ) > 0.1 ) p.yaw = turn( p.yaw, Walkway.yaw( dx, dz ), Math.min( 1, dt * 6 ) );
 
@@ -1049,7 +1109,7 @@ export class ConcoursePeople {
 		f.railT += dt;
 		// back to the seats (or for another beer) after a while; not while it's the last out; the crowd
 		// behind home thins when the rain lets up
-		const tooMany = f.standing && this.stand.filter( ( q ) => q.who ).length > this._standWant( ns ) + 4 && this.r() < dt * 0.3;
+		const tooMany = f.standing && taken( this.stand ) > this._standWant( ns ) + 4 && this.r() < dt * 0.3; // ---- H: counted
 		if ( ( f.railT > f.stay && ! ns.celebrate ) || tooMany ) {
 
 			this._leave( f, [ 'aisle', 'aisle', 'door', 'end' ] );
@@ -1058,7 +1118,16 @@ export class ConcoursePeople {
 		}
 
 		f.s = spot.s; f.d = spot.d;
-		const w = this.W.at( spot.s, spot.d );
+		// ---- H: a spot's point on the walkway looked up once
+		if ( ! spot._w || spot._ws !== spot.s || spot._wd !== spot.d ) {
+
+			spot._w = this.W.at( spot.s, spot.d );
+			spot._ws = spot.s; spot._wd = spot.d;
+
+		}
+
+		const w = spot._w;
+		// ---- end H
 		p.x = w.x; p.z = w.z; p.y = STREET;
 		if ( spot.face === undefined ) spot.face = Walkway.yaw( w.nx, w.nz ) + Math.sin( spot.s * 5.3 ) * 0.25;
 		p.yaw = turn( p.yaw, spot.face, Math.min( 1, dt * 4 ) );
@@ -1114,8 +1183,7 @@ export class ConcoursePeople {
 		}
 
 		// the head: on the ball in play, else on home plate (and now and then a word with the next one)
-		const target = ns.ball ? [ ns.ball[ 0 ], ns.ball[ 2 ] ] : [ 0, 0 ];
-		const dx = target[ 0 ] - p.x, dz = target[ 1 ] - p.z;
+		const dx = ( ns.ball ? ns.ball[ 0 ] : 0 ) - p.x, dz = ( ns.ball ? ns.ball[ 2 ] : 0 ) - p.z; // (---- H: no array)
 		let yaw = Math.atan2( - dx, - dz ) - p.yaw;
 		yaw = ( ( yaw + Math.PI ) % TAU + TAU ) % TAU - Math.PI;
 		const chat = Math.max( 0, Math.sin( t * 0.15 + f.order * 23 ) - 0.75 ) / 0.25;
@@ -1251,11 +1319,11 @@ export class ConcoursePeople {
 		if ( ! R ) return;
 		const k = R.line.indexOf( f );
 		const q = R.slots[ Math.min( k, R.slots.length - 1 ) ];
-		const [ gs, gd ] = R.at( q[ 0 ], q[ 1 ] );
+		const [ gs, gd ] = slotSD( R, q ); // ---- H: looked up once
 		const ds = gs - f.s, dd = gd - f.d, dist = Math.hypot( ds, dd );
 		const v = dist > 0.08 ? Math.min( 0.8, dist * 1.5 ) : 0;
 		// facing up the line (toward the door)
-		const [ ns2, nd2 ] = k === 0 ? R.at( 0, 0 ) : R.at( ...R.slots[ k - 1 ] );
+		const [ ns2, nd2 ] = k === 0 ? slotSD( R, DOOR ) : slotSD( R, R.slots[ k - 1 ] ); // ---- H
 		const [ fx, fz ] = this._worldDir( f.s, f.d, ns2 - f.s, nd2 - f.d );
 		this._move( f, v ? ds / dist * v : 0, v ? dd / dist * v : 0, dt, Walkway.yaw( fx, fz ) );
 		a.walk = lerp( a.walk, Math.min( 1, Math.hypot( f.vs, f.vd ) / 0.6 ), Math.min( 1, dt * 5 ) );
@@ -1303,7 +1371,16 @@ export class ConcoursePeople {
 
 		}
 
-		const [ gs, gd ] = S.at( x, z );
+		// ---- H: where that is, looked up again only when it changes
+		if ( f._atS !== S || f._atX !== x || f._atZ !== z ) {
+
+			f._atSD = S.at( x, z );
+			f._atS = S; f._atX = x; f._atZ = z;
+
+		}
+
+		const [ gs, gd ] = f._atSD;
+		// ---- end H
 		const ds = gs - f.s, dd = gd - f.d, dist = Math.hypot( ds, dd );
 		const v = dist > 0.08 ? Math.min( 0.9, dist * 1.6 ) : 0;
 		this._move( f, v ? ds / dist * v : 0, v ? dd / dist * v : 0, dt, dist < 0.5 ? S.face : null );
@@ -1459,8 +1536,18 @@ export class ConcoursePeople {
 
 		const p = a.p, pose = p.pose, t = this.time;
 		a.t += dt;
-		const at = a.stand.at( a.x, a.z ?? - 0.62 );
-		const W = this.W.at( at[ 0 ], at[ 1 ] );
+		// ---- H: where the staff member stands, looked up once (the stand and the spot don't move)
+		const az = a.z ?? - 0.62;
+		if ( ! a._W || a._ax !== a.x || a._az !== az ) {
+
+			a._at = a.stand.at( a.x, az );
+			a._W = this.W.at( a._at[ 0 ], a._at[ 1 ] );
+			a._ax = a.x; a._az = az;
+
+		}
+
+		const at = a._at, W = a._W;
+		// ---- end H
 		let back = 0;
 		let yaw = a.stand.staffFace;
 		pose.propL = 0; pose.propR = 0; pose.mouth = 0;

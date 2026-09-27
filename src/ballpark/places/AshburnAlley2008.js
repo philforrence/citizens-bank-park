@@ -15,6 +15,7 @@ import { Bulls } from './alley/Bulls.js';
 import { Fair } from './alley/Fair.js';
 import { MemoryLane } from './alley/MemoryLane.js';
 import { allStarWalk } from './alley/AllStarWalk.js';
+import { Tempo } from './Tempo.js'; // ---- H
 
 // Ashburn Alley and the bullpens on the World Series nights, October 27 and 29, 2008: the park's living
 // room. The promenade behind center field (its bricks and the All-Star Walk in them, the Wall of Fame,
@@ -343,12 +344,17 @@ export default class AshburnAlley2008 {
 
 		}
 
-		if ( this.cast ) {
+		// ---- H: while none of its people are seen, they're moved every 4th frame by that much time
+		// (Tempo.js); the pens' warm-ups (the players' rig) every frame
+		const T = this._tempo ||= new Tempo( [ this.folk?.cast ] );
+		const sdt = T.step( dt, camera || this.app?.camera );
+		if ( this.cast && sdt ) {
 
-			this.cast.update( dt, director, w, this.penLife );
-			this.bulls?.update( dt, w, this.cast.time );
-			this.fair?.update( dt, w, this.cast.time );
-			this.memoryLane?.update( dt, w, this.cast.time );
+			this.cast.update( sdt, director, w, this.penLife );
+			this.bulls?.update( sdt, w, this.cast.time );
+			this.fair?.update( sdt, w, this.cast.time );
+			this.memoryLane?.update( sdt, w, this.cast.time );
+			// ---- end H
 			if ( this.bulls ) {
 
 				// the smoke goes with the flags' wind (BallparkApp._weather: the 27th a rainstorm, the 29th
