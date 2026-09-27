@@ -84,20 +84,14 @@ export class Cast {
 		const F = folk;
 		const r = rng( 20081029 );
 		// the rail: a point a way along its path, and the way to face (the field)
+		// (rail: { pts, drops }: the line and, for each stretch, the way the drop is, the way they face)
 		const seg = [];
 		let len = 0;
-		for ( let i = 0; i < rail.length - 1; i ++ ) {
+		for ( let i = 0; i < rail.pts.length - 1; i ++ ) {
 
-			const [ ax, az ] = rail[ i ], [ bx, bz ] = rail[ i + 1 ];
+			const [ ax, az ] = rail.pts[ i ], [ bx, bz ] = rail.pts[ i + 1 ];
 			const l = Math.hypot( bx - ax, bz - az );
-			let nx = - ( bz - az ) / l, nz = ( bx - ax ) / l;
-			if ( nx * - ax + nz * - az < 0 ) {
-
-				nx = - nx; nz = - nz;
-
-			}
-
-			seg.push( { a: rail[ i ], b: rail[ i + 1 ], l, s0: len, n: [ nx, nz ] } );
+			seg.push( { a: rail.pts[ i ], b: rail.pts[ i + 1 ], l, s0: len, n: rail.drops[ i ] } );
 			len += l;
 
 		}
@@ -140,7 +134,7 @@ export class Cast {
 		// the Kowalskis from Mayfair, their first World Series (the 29th: the tickets were his father's):
 		// Danny, 9, at the rail with his glove, hoping; Rich crouched beside him pointing out who's who in the
 		// pens; Linda with the camera
-		const dKid = 8.3;
+		const dKid = ( seg[ 3 ] || seg[ seg.length - 1 ] ).s0 + 4.5; // over the visitors' bench, the cave under the Alley's deck
 		const kidAt = railAt( dKid, 0.42 );
 		this.danny = add( 'rail', kidAt, { top: TOP.kidRed, hat: HAT.cap, kid: true, pants: PANTS.jeans }, { nights: 2, role: 'kid' } );
 		F.hold( this.danny, 'glove', { hand: 'left' } );

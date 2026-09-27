@@ -1,6 +1,7 @@
 import { Mesh, Color } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
 import { Quads } from '../../Stands.js';
+import { canvasTexture } from '../../geo.js';
 import { FieldFigures, OUTFIT, POSES } from '../../FieldFigures.js';
 import * as M from '../../game/Motions.js';
 import { look as lookFor } from '../../game/Looks.js';
@@ -19,11 +20,13 @@ import { RUBBER_FRONT } from '../../layout.js';
 //
 // The warm-ups use the detailed rig (game/Players.js: a few slots of its own), the rest FieldFigures.
 
-// the bullpen coaches and catchers, 2008: Ramon Henderson (Phillies' bullpen coach) and Bobby Ramos
-// (the Rays'); the bullpen catchers in their teams' uniforms with their staff numbers
+// the bullpen staffs in October 2008: Roly de Armas (#29), the Phillies' interim bullpen coach (Ramon Henderson
+// was on leave), Mick Billmeyer (#17), the catching instructor, catching the warm-ups; Bobby Ramos (#7) and
+// the Rays' bullpen catcher Scott Cursi (#77) (the rosters on Wikipedia; the Phillies' 2008 bullpen catcher
+// isn't recorded)
 const STAFF = {
-	home: { coach: 'Henderson', catcher: { number: '62', name: '', look: { skin: [ 0.5, 0.33, 0.22 ], beard: 1, height: 0.97, girth: 1.05 } } },
-	away: { coach: 'Ramos', catcher: { number: '80', name: 'CURSI', look: { skin: [ 0.55, 0.37, 0.26 ], beard: 0, height: 0.95, girth: 1.02 } } },
+	home: { coach: 'de Armas', catcher: { number: '17', name: '', look: { skin: [ 0.56, 0.36, 0.25 ], hair: [ 0.25, 0.2, 0.15 ], beard: 1, height: 0.99, girth: 1.12, belly: 0.3, age: 0.7 } } },
+	away: { coach: 'Ramos', catcher: { number: '77', name: 'CURSI', look: { skin: [ 0.55, 0.37, 0.26 ], beard: 0, height: 0.95, girth: 1.02 } } },
 };
 
 // who sits in each pen: the relievers, left to right along the bench (ids from the game's rosters)
@@ -160,6 +163,7 @@ export class Pens {
 		}
 
 		this.figs.build();
+		this._powerball( parent );
 		const gm = new Mesh( g.geometry(), gearMaterial() );
 		gm.name = 'pen-gear';
 		gm.castShadow = true;
@@ -167,6 +171,44 @@ export class Pens {
 		parent.add( gm );
 		// the warm-ups (the rig slots are taken on the first frame, once the players exist)
 		this.rig = null;
+
+	}
+
+	// The Pennsylvania Lottery's green Powerball sign on the visitors' back wall at the 398 end, where the
+	// 2008 photos have it (the jackpot's figure unreadable in them: this one invented), backlit at night
+	_powerball( parent ) {
+
+		const F = this.F;
+		const tex = canvasTexture( 512, 192, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#0d5a2c'; ctx.fillRect( 0, 0, w, h );
+			ctx.strokeStyle = '#e8e4d8'; ctx.lineWidth = 5; ctx.strokeRect( 6, 6, w - 12, h - 12 );
+			// the red ball and the word
+			ctx.fillStyle = '#d0202e'; ctx.beginPath(); ctx.arc( 70, 62, 34, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.font = '900 30px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'PB', 70, 64 );
+			ctx.font = '900 54px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'POWERBALL', 300, 62 );
+			ctx.fillStyle = '#f7d117'; ctx.font = '900 64px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( '$ 50 MILLION', w / 2, 142 );
+
+		}, 'powerball' );
+		const mat = standard( { name: 'pen-powerball', roughness: 0.4, textures: { bpPB: tex },
+			surface: 'let t = textureSample( bpPB, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.6; s.emissive = t * mix( 0.15, 0.8, smoothstep( 0.2, 0.8, frame.night ) );' } );
+		mat.underwaterLighting = 'none';
+		const q = new Quads();
+		const s0 = F.S1 - 4.1, s1 = F.S1 - 0.7, y0 = F.R + 1.35, y1 = F.R + 2.35, t = F.TB - 0.02;
+		const P = ( s, y ) => {
+
+			const [ x, z ] = F.at( s, t );
+			return [ x, y, z ];
+
+		};
+
+		// seen from the field, +s runs to the viewer's right
+		q.tri( P( s0, y0 ), P( s1, y0 ), P( s1, y1 ), [ - F.nx, 0, - F.nz ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+		q.tri( P( s0, y0 ), P( s1, y1 ), P( s0, y1 ), [ - F.nx, 0, - F.nz ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+		const m = new Mesh( q.geometry(), mat );
+		m.name = 'pen-powerball';
+		parent.add( m );
 
 	}
 
@@ -323,6 +365,10 @@ export class Pens {
 
 		// (Durbin sits back down when they stop: he never went in, so he isn't "gone" after)
 		if ( tSusp ) this.schedule.home.unshift( { id: 239795, from: tSusp - 200, to: tSusp, throws: 'R', stays: true } );
+		// and Balfour loose again in the visitors' pen before the resumption (Getty, October 29: he and Jim
+		// Hickey walked in from the pen to start it)
+		if ( tSusp ) this.schedule.away.push( { id: 346797, from: tSusp + 6, to: tResume, throws: 'R', stays: true } );
+		this.schedule.away.sort( ( a, b ) => a.from - b.from );
 
 	}
 
@@ -343,7 +389,7 @@ export class Pens {
 		const F = this.F;
 		const t = side === 'home' ? 4.5 : F.TU + 3.7;
 		const y = side === 'home' ? 0 : F.R;
-		const sR = F.S0 + 2.3 + 0.35; // the mounds at the 401 end (Field._buildBullpens)
+		const sR = F.SM + 0.35; // the mounds at the 401 end (Field._buildBullpens)
 		const sC = sR + RUBBER_FRONT + 0.45;
 		return { t, y, rubber: F.at( sR, t ), plate: F.at( sC, t ), toPlate: Math.atan2( - F.ux, - F.uz ), toMound: Math.atan2( F.ux, F.uz ) };
 
@@ -409,7 +455,7 @@ export class Pens {
 		const F = this.F, c = S.catcher;
 		const [ ax, az ] = F.at( 0, 0 );
 		const s = ( toss.to[ 0 ] - ax ) * F.ux + ( toss.to[ 1 ] - az ) * F.uz;
-		const [ x, z ] = F.at( s, F.TB - 1.6 );
+		const [ x, z ] = F.at( s, F.TB - F.overhang - 1.3 ); // out in front of the cave, clear of the deck over it
 		c.visible = true;
 		c.x = x; c.z = z; c.y = F.R;
 		c.yaw = Math.atan2( - F.nx, - F.nz );

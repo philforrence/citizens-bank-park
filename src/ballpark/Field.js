@@ -646,12 +646,14 @@ export class Field {
 		const grass = standard( { name: 'bullpen-grass', color: new Color( 0.045, 0.13, 0.028 ), roughness: 0.95, modules: [ commonModule ],
 			surface: 's.albedo = mat.color * ( 0.88 + 0.16 * mx_noise_float2( in.P.xz * 0.35 ) ) * ( 0.93 + 0.1 * mx_noise_float2( in.P.xz * 19.0 ) );' } );
 		const dirt = standard( { name: 'bullpen-dirt', color: new Color( 0.56, 0.27, 0.11 ), roughness: 0.92 } );
-		// the pens' walls: the outfield pads' teal, painted concrete
-		const wall = standard( { name: 'bullpen-wall', color: new Color( 0.02, 0.11, 0.085 ), roughness: 0.75, modules: [ commonModule ],
+		// the pens' walls: dark ballpark green, painted concrete (the 2008 photos: green everywhere; only the
+		// instructional plaques on the viewing platform are teal)
+		const wall = standard( { name: 'bullpen-wall', color: new Color( 0.011, 0.05, 0.03 ), roughness: 0.75, modules: [ commonModule ],
 			surface: 's.albedo = mat.color * ( 0.9 + 0.14 * mx_noise_float3( in.P * 1.7 ) ); s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.25;' } );
 		const white = standard( { name: 'bullpen-plates', color: new Color( 0.82, 0.82, 0.8 ), roughness: 0.6 } );
-		// under the upper pen: the soffit, teal-grey, a fluorescent strip every 2.4 m (on by day too)
-		const soffit = standard( { name: 'bullpen-soffit', color: new Color( 0.05, 0.085, 0.08 ), roughness: 0.8,
+		// under the upper pen (and under the Alley's deck over the visitors' bench): the soffit, a dark green-grey, a
+		// fluorescent strip every 2.4 m (on by day too)
+		const soffit = standard( { name: 'bullpen-soffit', color: new Color( 0.035, 0.05, 0.042 ), roughness: 0.8,
 			surface: /* wgsl */`
 	if ( in.N.y < -0.5 ) {
 		let g = abs( fract( in.uv.x / 2.4 ) - 0.5 ) * 2.4;
@@ -705,23 +707,35 @@ export class Field {
 		this.pens = [];
 		const S0 = 0.3, S1 = L + 2; // from the batter's eye's corner to a little past the 398 corner
 		// the frame the Alley builds the pens' life in: s along the fence from 401, t back from it
-		this.penFrame = { at, ux, uz, nx, nz, yaw, S0, S1, T0, D, R, TU, TB, SLAB, L };
+		// the Alley's deck reaches OVH out over the visitors' pen east of WEST (their bench in the cave under
+		// it); west of WEST the Alley builds Memory Lane's viewing platform with the Wall of Fame behind it
+		const OVH = 2.3, WEST = S0 + 9.6, STREET = LEVELS.mainConcourse;
+		const SM = S0 + 3.3; // the mounds, at the west end
+		this.penFrame = { at, ux, uz, nx, nz, yaw, S0, S1, T0, D, R, TU, TB, SLAB, L, overhang: OVH, west: WEST, SM };
 		// the Phillies' floor, field level; the visitors' raised floor on its slab, the recess under its front
 		box( grass, S0, S1, T0, T0 + D, - 0.1, 0.004, 'bullpen-floor' );
 		box( grass, S0, S1, TU, TB, R - 0.03, R, 'bullpen-upper', { walkable: true } );
-		const sl = box( soffit, S0, S1, TU, T0 + D + 0.3, R - SLAB, R - 0.03, 'bullpen-soffit' );
-		// the soffit's uv: metres along the pen (u) and across (v), for the strips
-		{
+		// a soffit's uv: metres along the pen (u) and across it 0..1 (v), for the strips
+		const soffitUV = ( m, len, dep ) => {
 
-			const g = sl.geometry, P = g.getAttribute( 'position' ).array, U = g.getAttribute( 'uv' ).array;
+			const g = m.geometry, P = g.getAttribute( 'position' ).array, U = g.getAttribute( 'uv' ).array;
 			for ( let i = 0; i < U.length / 2; i ++ ) {
 
-				U[ i * 2 ] = P[ i * 3 ] + ( S1 - S0 ) / 2;
-				U[ i * 2 + 1 ] = ( P[ i * 3 + 2 ] + ( T0 + D + 0.3 - TU ) / 2 ) / ( T0 + D + 0.3 - TU );
+				U[ i * 2 ] = P[ i * 3 ] + len / 2;
+				U[ i * 2 + 1 ] = ( P[ i * 3 + 2 ] + dep / 2 ) / dep;
 
 			}
 
-		}
+		};
+
+		soffitUV( box( soffit, S0, S1, TU, T0 + D + 0.3, R - SLAB, R - 0.03, 'bullpen-soffit' ), S1 - S0, T0 + D + 0.3 - TU );
+		// the Alley's deck over the visitors' bench: its soffit and strip lights, a green fascia on its edge,
+		// its top a concrete strip along the rail (walkable)
+		soffitUV( box( soffit, WEST, S1 + 0.4, TB - OVH, TB, STREET - 0.42, STREET - 0.03, 'bullpen-alley-soffit' ), S1 + 0.4 - WEST, OVH );
+		box( wall, WEST, S1 + 0.4, TB - OVH - 0.06, TB - OVH, STREET - 0.5, STREET - 0.02, 'bullpen-alley-fascia' );
+		const deck = standard( { name: 'bullpen-alley-deck', color: new Color( 0.42, 0.4, 0.37 ), roughness: 0.7 } );
+		deck.underwaterLighting = 'none';
+		box( deck, WEST, S1 + 0.4, TB - OVH - 0.06, TB + 0.4, STREET - 0.03, STREET + 0.012, 'bullpen-alley-deck', { walkable: true } );
 
 		box( wall, S0, S1, T0 + D, TB, 0, R - SLAB, 'bullpen-under', { solid: true } );
 		// the slab's front: a teal fascia and a curb 0.45 m over the upper floor, on steel posts
@@ -732,9 +746,9 @@ export class Field {
 		box( wall, S1, S1 + 0.4, T0, TB + 0.4, 0, R + 1.4, 'bullpen-end', { solid: true } );
 		box( wall, S0 - 0.4, S1 + 0.4, TB, TB + 0.4, R - 0.1, LEVELS.mainConcourse - 0.01, 'bullpen-back', { solid: true } );
 
-		// mounds, rubbers and plates: two lanes per pen, the mounds at the 401 end, throwing toward the 398 corner (as the 2005 photos from the
-		// Pavilion show: the dirt of the mounds by the batter's eye)
-		const SM = S0 + 2.3;
+		// mounds, rubbers and plates: two lanes per pen, the mounds at the 401 end, throwing toward the 398
+		// corner (as the 2005 photos from the Pavilion show: the dirt of the mounds by the batter's eye); a
+		// white cleat-cleaning grate beside each rubber (October 2008)
 		const plate = slab( [ [ 0, 0 ], [ 0.216, - 0.216 ], [ 0.216, - 0.432 ], [ - 0.216, - 0.432 ], [ - 0.216, - 0.216 ] ], 0.02 );
 		// (the lanes side by side: each mound narrowed across the pen, the two sharing one wide hump)
 		for ( const [ y, lanes ] of [ [ 0, [ 2.1, 4.5 ] ], [ R, [ TU + 1.4, TU + 3.7 ] ] ] ) {
@@ -754,6 +768,11 @@ export class Field {
 				rub.position.set( rx, y + bumpHeight( rx - mx, rz - mz ) + 0.01, rz );
 				rub.rotation.y = yaw;
 				this.group.add( rub );
+				const [ gx, gz ] = at( SM - 0.2, t + ( y > 0 ? - 1.1 : 1.1 ) );
+				const grate = new Mesh( new BoxGeometry( 0.55, 0.07, 0.4 ), white );
+				grate.position.set( gx, y + bumpHeight( gx - mx, gz - mz ) * 0.5 + 0.035, gz );
+				grate.rotation.y = yaw;
+				this.group.add( grate );
 				const [ px, pz ] = at( SM + 0.35 + RUBBER_FRONT, t );
 				const pl = new Mesh( plate, white );
 				pl.position.set( px, y, pz );
@@ -769,15 +788,42 @@ export class Field {
 
 		}
 
-		// the visitors' bench shelter against their back wall at the 398 end: a dark green roof on posts
-		const shelterMat = standard( { name: 'pen-shelter', color: new Color( 0.012, 0.06, 0.035 ), roughness: 0.6 } );
-		shelterMat.underwaterLighting = 'none';
+		// the visitors' bench is in the cave under the Alley's deck (Pens.js furnishes it)
+		this.penFrame.shelter = [ WEST + 1.0, S1 - 0.3 ];
+		// the white steel stair between the two pens at the west end: stringers, treads, pipe rails, from
+		// the Phillies' floor up over the lip to the visitors'
 		{
 
-			const sA = S1 - 9.5, sB = S1 - 0.2, y = R;
-			box( shelterMat, sA - 0.2, sB, TB - 2.3, TB, y + 2.5, y + 2.66, 'pen-shelter-roof' );
-			for ( const sp of [ sA, ( sA + sB ) / 2, sB - 0.12 ] ) box( shelterMat, sp, sp + 0.1, TB - 2.3, TB - 2.2, y, y + 2.5, 'pen-shelter-post' );
-			this.penFrame.shelter = [ sA, sB ];
+			const sq = new Quads(), whiteSteel = standard( { name: 'pen-stair', color: new Color( 0.72, 0.72, 0.7 ), roughness: 0.4, metalness: 0.5 } );
+			whiteSteel.underwaterLighting = 'none';
+			const s0 = S0 + 0.15, s1 = S0 + 1.15, n = 15, rise = ( R + 0.45 ) / n, run = 0.29;
+			const tTop = TU + 0.3, tBot = tTop - n * run;
+			const P3 = ( s, t, y ) => {
+
+				const [ x, z ] = at( s, t );
+				return [ x, y, z ];
+
+			};
+
+			for ( const s of [ s0, s1 ] ) {
+
+				beam( sq, P3( s, tBot, 0 ), P3( s, tTop, R + 0.45 ), 0.07 );
+				beam( sq, P3( s, tBot, 0.95 ), P3( s, tTop, R + 1.4 ), 0.045 );
+				for ( let k = 0; k <= n; k += 5 ) beam( sq, P3( s, tBot + k * run, k * rise ), P3( s, tBot + k * run, k * rise + 0.95 ), 0.045 );
+
+			}
+
+			for ( let k = 1; k <= n; k ++ ) {
+
+				const tt = tBot + k * run, yy = k * rise;
+				sq.add( P3( s0, tt - run, yy ), P3( s1, tt - run, yy ), P3( s1, tt, yy ), P3( s0, tt, yy ), [ 0, 1, 0 ] );
+
+			}
+
+			const stair = new Mesh( sq.geometry(), whiteSteel );
+			stair.name = 'pen-stair';
+			stair.castShadow = true;
+			this.group.add( stair );
 
 		}
 
