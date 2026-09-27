@@ -1858,7 +1858,7 @@ ${ SOFFIT_WGSL }
 		const [ inf, lf, rf, cLF, cRF ] = this.tiers;
 		const back = ( t ) => offsetPolyline( t.front, ( t.start || 0 ) + t.rows * t.depth, t.outward );
 		const cf = offsetPolyline( this._fenceLine( 3, 8 ), 7, [ 0, 0 ] ); // 387 .. 401: the batter's eye
-		const pens = offsetPolyline( this._fenceLine( 8, 9 ), 0.5 + 2 * BULLPENS.depth + 0.4, [ 0, 0 ] );
+		const pens = offsetPolyline( this._fenceLine( 8, 9 ), BULLPENS.back + 0.4, [ 0, 0 ] );
 		// round the back of the corner fans too (the right one runs from the outfield seats to the foul line)
 		const pts = [ ...back( lf ), ...cf, ...pens, ...back( rf ), ...back( cRF ), ...back( inf ), ...back( cLF ) ];
 		// drop near-duplicates

@@ -639,33 +639,9 @@ export class Details2008 {
 
 }
 
-// the Wall of Fame (2008): two rows of bronze plaques on the brick wall over the bullpens, facing the field
-Details2008.prototype._wallOfFame = function () {
-
-	const bronze = standard( { name: 'plaques', color: new Color( 0.2, 0.11, 0.04 ), roughness: 0.4, metalness: 0.85 } );
-	bronze.underwaterLighting = 'none';
-	const [ ax, az ] = fencePoint( 0, 401 ), [ bx, bz ] = fencePoint( 11, 398 );
-	const L = Math.hypot( bx - ax, bz - az ), ux = ( bx - ax ) / L, uz = ( bz - az ) / L;
-	let nx = - uz, nz = ux;
-	if ( nx * ax + nz * az < 0 ) {
-
-		nx = - nx; nz = - nz;
-
-	}
-
-	const t = 0.5 + 2 * BULLPENS.depth - 0.05; // the upper pen's back wall, its face toward the field
-	const geo = new BoxGeometry( 0.62, 0.8, 0.06 );
-	for ( let row = 0; row < 2; row ++ ) for ( let k = 0; k < 20; k ++ ) {
-
-		const s = - 2 + k * 1.3;
-		const m = new Mesh( geo, bronze );
-		m.position.set( ax + ux * s + nx * t, BULLPENS.upperRise + 1.2 + row * 0.95, az + uz * s + nz * t );
-		m.rotation.y = - Math.atan2( uz, ux );
-		this.group.add( m );
-
-	}
-
-};
+// ---- W3 (Alley): the Wall of Fame is built with the rest of Ashburn Alley now (places/AshburnAlley2008.js:
+// its plaques, on the Alley's brick over the pens); nothing here
+Details2008.prototype._wallOfFame = function () {};
 
 // ---------------------------------------------------------------- drawing
 

@@ -106,8 +106,11 @@ export const DUGOUTS = {
 };
 
 // The bullpens: behind the center field fence between 401 and the 398 corner, on two levels (the
-// Phillies' at field level, the visitors' above and behind it, against Ashburn Alley).
-export const BULLPENS = { depth: 9, upperRise: 2.6 };
+// Phillies' at field level, the visitors' above and behind it, against Ashburn Alley). The visitors'
+// floor reaches `overhang` out over the back of the Phillies' pen (their bench is in the recess under it).
+// `back`: from the fence to the face of the visitors' back wall (the Alley's rail is on top of it).
+export const BULLPENS = { depth: 8.5, upperRise: 2.75, overhang: 3, upperDepth: 7.5 };
+BULLPENS.back = 0.5 + BULLPENS.depth - BULLPENS.overhang + BULLPENS.upperDepth;
 
 // Levels above the field (the Phillies' figures): the field is 23 ft below the street.
 export const LEVELS = {

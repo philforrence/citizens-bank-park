@@ -633,16 +633,36 @@ export class Field {
 
 	// ---------------------------------------------------------------- bullpens
 
-	// Two pens behind the center field fence between 401 and the 398 corner: the Phillies' at field level,
-	// the visitors' raised behind it. Each has two mounds throwing along the fence toward two plates.
+	// The two pens behind the center field fence between 401 and the 398 corner, stacked as they were in
+	// 2008: the Phillies' at field level behind the fence, the visitors' raised behind it, its floor a slab
+	// that reaches out over the back of the Phillies' pen (their bench is in the recess under it, under a
+	// teal-grey soffit with its strip lights); the visitors' pen's back wall rises to Ashburn Alley, and the
+	// fans on the Alley's rail look straight down into it. Each pen has two mounds throwing along the fence
+	// toward two plates at the 401 end. The dark green chain-link over the fence and along the upper pen's
+	// lip is drawn thin enough to see through from any distance (a coverage-dithered alpha, not a solid
+	// sheet). The gear, the flowers and the people are the Alley's (places/AshburnAlley2008.js).
 	_buildBullpens() {
 
 		const grass = standard( { name: 'bullpen-grass', color: new Color( 0.045, 0.13, 0.028 ), roughness: 0.95, modules: [ commonModule ],
 			surface: 's.albedo = mat.color * ( 0.88 + 0.16 * mx_noise_float2( in.P.xz * 0.35 ) ) * ( 0.93 + 0.1 * mx_noise_float2( in.P.xz * 19.0 ) );' } );
 		const dirt = standard( { name: 'bullpen-dirt', color: new Color( 0.56, 0.27, 0.11 ), roughness: 0.92 } );
-		const wall = standard( { name: 'bullpen-wall', color: new Color( 0.018, 0.16, 0.1 ), roughness: 0.7 } );
+		// the pens' walls: the outfield pads' teal, painted concrete
+		const wall = standard( { name: 'bullpen-wall', color: new Color( 0.02, 0.11, 0.085 ), roughness: 0.75, modules: [ commonModule ],
+			surface: 's.albedo = mat.color * ( 0.9 + 0.14 * mx_noise_float3( in.P * 1.7 ) ); s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.25;' } );
 		const white = standard( { name: 'bullpen-plates', color: new Color( 0.82, 0.82, 0.8 ), roughness: 0.6 } );
-		for ( const m of [ grass, dirt, wall, white ] ) m.underwaterLighting = 'none';
+		// under the upper pen: the soffit, teal-grey, a fluorescent strip every 2.4 m (on by day too)
+		const soffit = standard( { name: 'bullpen-soffit', color: new Color( 0.05, 0.085, 0.08 ), roughness: 0.8,
+			surface: /* wgsl */`
+	if ( in.N.y < -0.5 ) {
+		let g = abs( fract( in.uv.x / 2.4 ) - 0.5 ) * 2.4;
+		let strip = ( 1.0 - smoothstep( 0.55, 0.6, g ) ) * ( 1.0 - smoothstep( 0.05, 0.07, abs( fract( in.uv.y ) - 0.5 ) ) );
+		s.emissive = vec3f( 0.95, 1.0, 0.95 ) * strip * mix( 1.2, 3.0, frame.night );
+	}
+	s.emissive = s.emissive + s.albedo * 0.4;
+` } );
+		const galv = standard( { name: 'bullpen-rail', color: new Color( 0.42, 0.43, 0.44 ), roughness: 0.35, metalness: 0.8 } );
+		for ( const m of [ grass, dirt, wall, white, soffit, galv ] ) m.underwaterLighting = 'none';
+		soffit.setDefine( 'DRY', 1 );
 
 		const [ ax, az ] = fencePoint( 0, 401 ), [ bx, bz ] = fencePoint( 11, 398 );
 		const L = Math.hypot( bx - ax, bz - az );
@@ -657,7 +677,9 @@ export class Field {
 
 		const yaw = - Math.atan2( uz, ux );
 		const worldYaw = yaw + this.group.rotation.y;
-		const D = BULLPENS.depth, R = BULLPENS.upperRise, T0 = 0.5; // T0: behind the fence
+		const { depth: D, upperRise: R, overhang: OV, upperDepth: D2 } = BULLPENS;
+		const T0 = 0.5; // behind the fence
+		const TU = T0 + D - OV, TB = TU + D2, SLAB = 0.3; // the upper pen's front, its back wall; its slab
 		const at = ( s, t ) => [ ax + ux * s + nx * t, az + uz * s + nz * t ];
 		const box = ( mat, s0, s1, t0, t1, y0, y1, name, collider = null ) => {
 
@@ -681,25 +703,48 @@ export class Field {
 		};
 
 		this.pens = [];
-		const S0 = - 3, S1 = L + 2; // a little past both ends of the fence segment
-		// lower pen floor (field level) and the raised upper pen
+		const S0 = 0.3, S1 = L + 2; // from the batter's eye's corner to a little past the 398 corner
+		// the frame the Alley builds the pens' life in: s along the fence from 401, t back from it
+		this.penFrame = { at, ux, uz, nx, nz, yaw, S0, S1, T0, D, R, TU, TB, SLAB, L };
+		// the Phillies' floor, field level; the visitors' raised floor on its slab, the recess under its front
 		box( grass, S0, S1, T0, T0 + D, - 0.1, 0.004, 'bullpen-floor' );
-		box( grass, S0, S1, T0 + D, T0 + 2 * D, - 0.1, R, 'bullpen-upper', { walkable: true } );
-		// walls: the ends, and the back of the upper pen (the front of Ashburn Alley above)
-		box( wall, S0 - 0.4, S0, T0, T0 + 2 * D, 0, R + 1.2, 'bullpen-end', { solid: true } );
-		box( wall, S1, S1 + 0.4, T0, T0 + 2 * D, 0, R + 1.2, 'bullpen-end', { solid: true } );
-		box( wall, S0 - 0.4, S1 + 0.4, T0 + 2 * D, T0 + 2 * D + 0.4, 0, R + 2.4, 'bullpen-back', { solid: true } );
+		box( grass, S0, S1, TU, TB, R - 0.03, R, 'bullpen-upper', { walkable: true } );
+		const sl = box( soffit, S0, S1, TU, T0 + D + 0.3, R - SLAB, R - 0.03, 'bullpen-soffit' );
+		// the soffit's uv: metres along the pen (u) and across (v), for the strips
+		{
+
+			const g = sl.geometry, P = g.getAttribute( 'position' ).array, U = g.getAttribute( 'uv' ).array;
+			for ( let i = 0; i < U.length / 2; i ++ ) {
+
+				U[ i * 2 ] = P[ i * 3 ] + ( S1 - S0 ) / 2;
+				U[ i * 2 + 1 ] = ( P[ i * 3 + 2 ] + ( T0 + D + 0.3 - TU ) / 2 ) / ( T0 + D + 0.3 - TU );
+
+			}
+
+		}
+
+		box( wall, S0, S1, T0 + D, TB, 0, R - SLAB, 'bullpen-under', { solid: true } );
+		// the slab's front: a teal fascia and a curb 0.45 m over the upper floor, on steel posts
+		box( wall, S0, S1, TU - 0.08, TU + 0.25, R - SLAB - 0.06, R + 0.45, 'bullpen-lip', { solid: true } );
+		for ( let s = S0 + 2.2; s < S1 - 1; s += ( S1 - S0 - 4.4 ) / 3 ) box( wall, s - 0.15, s + 0.15, TU + 0.1, TU + 0.4, 0, R - SLAB, 'bullpen-post', { solid: true } );
+		// the ends, and the upper pen's back wall up to the Alley (the pit's edge is its back face)
+		box( wall, S0 - 0.4, S0, T0, TB + 0.4, 0, R + 1.4, 'bullpen-end', { solid: true } );
+		box( wall, S1, S1 + 0.4, T0, TB + 0.4, 0, R + 1.4, 'bullpen-end', { solid: true } );
+		box( wall, S0 - 0.4, S1 + 0.4, TB, TB + 0.4, R - 0.1, LEVELS.mainConcourse - 0.01, 'bullpen-back', { solid: true } );
+
 		// mounds, rubbers and plates: two lanes per pen, throwing toward the 401 end
 		const plate = slab( [ [ 0, 0 ], [ 0.216, - 0.216 ], [ 0.216, - 0.432 ], [ - 0.216, - 0.432 ], [ - 0.216, - 0.216 ] ], 0.02 );
-		for ( const [ y, t0 ] of [ [ 0, T0 ], [ R, T0 + D ] ] ) {
+		// (the lanes side by side: each mound narrowed across the pen, the two sharing one wide hump)
+		for ( const [ y, lanes ] of [ [ 0, [ 2.1, 4.5 ] ], [ R, [ TU + 1.4, TU + 3.7 ] ] ] ) {
 
-			for ( const lane of [ 0.3, 0.7 ] ) {
+			for ( const t of lanes ) {
 
-				const t = t0 + D * lane;
 				const [ mx, mz ] = at( L - 2.5, t );
-				this.pens.push( { x: mx, z: mz, y } );
+				this.pens.push( { x: mx, z: mz, y, t, s: L - 2.5, upper: y > 0 } );
 				const mound = new Mesh( bumpGeometry(), dirt );
 				mound.position.set( mx, y + 0.003, mz );
+				mound.rotation.y = yaw;
+				mound.scale.set( 1, 1, 0.55 );
 				mound.receiveShadow = true;
 				this.group.add( mound );
 				const [ rx, rz ] = at( L - 2.5 - 0.35, t );
@@ -713,7 +758,7 @@ export class Field {
 				pl.rotation.y = yaw - Math.PI / 2; // the point toward the catcher (away from the mound)
 				this.group.add( pl );
 				const [ dx, dz ] = at( L - 2.5 - 0.35 - RUBBER_FRONT - 1.2, t );
-				const box2 = new Mesh( new BoxGeometry( 3.2, 0.01, 2.6 ), dirt );
+				const box2 = new Mesh( new BoxGeometry( 3.2, 0.01, 2.2 ), dirt );
 				box2.position.set( dx + ux * 1.1, y + 0.002, dz + uz * 1.1 );
 				box2.rotation.y = yaw;
 				this.group.add( box2 );
@@ -722,60 +767,61 @@ export class Field {
 
 		}
 
-		// each pen: a roofed bench shelter at its 398 end like a little dugout (bench, coolers), dark green
-		// chain-link along its field side, a planter of purple mums along the front of the upper tier
+		// the visitors' bench shelter against their back wall at the 398 end: a dark green roof on posts
 		const shelterMat = standard( { name: 'pen-shelter', color: new Color( 0.012, 0.06, 0.035 ), roughness: 0.6 } );
-		const benchMat = standard( { name: 'pen-bench', color: new Color( 0.03, 0.05, 0.16 ), roughness: 0.6 } );
-		const coolerMat = standard( { name: 'pen-coolers', color: new Color( 0.7, 0.2, 0.02 ), roughness: 0.45 } );
-		const flowers = standard( { name: 'pen-flowers', color: new Color( 0.2, 0.05, 0.25 ), roughness: 0.9, modules: [ commonModule ],
-			surface: 'let n = mx_noise_float3( in.P * 6.0 ); s.albedo = mix( vec3f( 0.03, 0.09, 0.03 ), mix( mat.color, vec3f( 0.6, 0.55, 0.6 ), step( 0.55, n ) ), smoothstep( -0.1, 0.25, n ) );' } );
+		shelterMat.underwaterLighting = 'none';
+		{
+
+			const sA = S1 - 9.5, sB = S1 - 0.2, y = R;
+			box( shelterMat, sA - 0.2, sB, TB - 2.3, TB, y + 2.5, y + 2.66, 'pen-shelter-roof' );
+			for ( const sp of [ sA, ( sA + sB ) / 2, sB - 0.12 ] ) box( shelterMat, sp, sp + 0.1, TB - 2.3, TB - 2.2, y, y + 2.5, 'pen-shelter-post' );
+			this.penFrame.shelter = [ sA, sB ];
+
+		}
+
+		// the chain-link: over the fence into the Phillies' pen (up to the padded rail), and along the
+		// upper pen's lip on galvanized square posts with a top rail. Seen through at any distance: each
+		// pixel is wire or not by how much of it the wire covers there, dithered (the TAA averages it)
 		const chain = standard( { name: 'pen-chain-link', color: new Color( 0.012, 0.05, 0.03 ), roughness: 0.5, metalness: 0.5, side: 'double', alphaTest: 0.5,
 			surface: /* wgsl */`
 	let p = vec2f( in.uv.x + in.uv.y, in.uv.x - in.uv.y ) / 0.05;
 	let g = abs( fract( p ) - 0.5 );
-	let fw = fwidth( p.x );
-	s.alpha = max( step( 0.42 - fw, max( g.x, g.y ) ) * step( fw, 0.9 ), clamp( fw * 0.35, 0.0, 0.35 ) );
+	let fw = max( fwidth( p.x ), fwidth( p.y ) );
+	let wire = smoothstep( 0.42 - fw, 0.42 + fw, max( g.x, g.y ) );
+	let cover = mix( wire, 0.3, clamp( fw * 1.2 - 0.2, 0.0, 1.0 ) );
+	let n = fract( sin( dot( floor( in.pixel ), vec2f( 12.9898, 78.233 ) ) + f32( frame.frameIndex % 16u ) * 1.618 ) * 43758.5453 );
+	s.alpha = select( 0.0, 1.0, cover > n );
 ` } );
-		for ( const m of [ shelterMat, benchMat, coolerMat, flowers, chain ] ) m.underwaterLighting = 'none';
-		for ( const [ y, t0 ] of [ [ 0, T0 ], [ R, T0 + D ] ] ) {
-
-			// the shelter: back wall, roof, bench, two coolers, at the far (398) end of the pen
-			const sA = S1 - 7, sB = S1 - 0.2;
-			box( shelterMat, sA, sB, t0 + D - 0.5, t0 + D - 0.2, y, y + 2.6, 'pen-shelter-back', { solid: true } );
-			box( shelterMat, sA - 0.2, sB, t0 + D - 2.6, t0 + D - 0.2, y + 2.6, y + 2.8, 'pen-shelter-roof' );
-			for ( const sp of [ sA, sB - 0.12 ] ) box( shelterMat, sp, sp + 0.12, t0 + D - 2.6, t0 + D - 2.48, y, y + 2.6, 'pen-shelter-post' );
-			box( benchMat, sA + 0.3, sB - 0.3, t0 + D - 1.0, t0 + D - 0.5, y + 0.42, y + 0.48, 'pen-bench', { walkable: true } );
-			box( coolerMat, sA + 0.4, sA + 0.9, t0 + D - 0.9, t0 + D - 0.5, y + 0.48, y + 1.0, 'pen-cooler' );
-			box( coolerMat, sB - 0.9, sB - 0.4, t0 + D - 0.9, t0 + D - 0.5, y + 0.48, y + 1.0, 'pen-cooler' );
-
-		}
-
-		// the chain-link over the fence into the lower pen, and along the front of the upper tier, with a
-		// planter of mums along the upper tier's lip
-		const cq = new Quads();
+		chain.underwaterLighting = 'none';
+		const cq = new Quads(), rq = new Quads();
 		const fenceTop = 6 * FT;
-		const link = ( t, yB, yT ) => {
+		const link = ( t, yB, yT, posts ) => {
 
 			const A = at( S0, t ), B = at( S1, t );
 			cq.tri( [ A[ 0 ], yB, A[ 1 ] ], [ B[ 0 ], yB, B[ 1 ] ], [ B[ 0 ], yT, B[ 1 ] ], [ - nx, 0, - nz ], [ 0, yB ], [ S1 - S0, yB ], [ S1 - S0, yT ] );
 			cq.tri( [ A[ 0 ], yB, A[ 1 ] ], [ B[ 0 ], yT, B[ 1 ] ], [ A[ 0 ], yT, A[ 1 ] ], [ - nx, 0, - nz ], [ 0, yB ], [ S1 - S0, yT ], [ 0, yT ] );
-			for ( let s = S0; s <= S1; s += 2.4 ) {
+			if ( ! posts ) return;
+			for ( let s = S0; s <= S1 + 0.01; s += ( S1 - S0 ) / Math.round( ( S1 - S0 ) / 2.4 ) ) {
 
 				const [ px, pz ] = at( s, t );
-				const post = new Mesh( new CylinderGeometry( 0.035, 0.035, yT - yB, 6 ), chain );
-				post.position.set( px, ( yB + yT ) / 2, pz );
-				this.group.add( post );
+				beam( rq, [ px, yB, pz ], [ px, yT + 0.02, pz ], 0.06 );
 
 			}
 
+			beam( rq, [ A[ 0 ], yT, A[ 1 ] ], [ B[ 0 ], yT, B[ 1 ] ], 0.05 );
+			beam( rq, [ A[ 0 ], yB + 0.08, A[ 1 ] ], [ B[ 0 ], yB + 0.08, B[ 1 ] ], 0.04 );
+
 		};
 
-		link( T0 - 0.2, fenceTop, fenceTop + 2.2 );
-		link( T0 + D + 0.05, R, R + 1.4 );
+		link( T0 - 0.2, fenceTop, fenceTop + 0.92, false );
+		link( TU + 0.1, R + 0.45, R + 1.5, true );
 		const cm = new Mesh( cq.geometry(), chain );
 		cm.name = 'pen-chain-link';
 		this.group.add( cm );
-		box( flowers, S0, S1, T0 + D + 0.1, T0 + D + 0.7, R, R + 0.5, 'pen-planter' );
+		const rm = new Mesh( rq.geometry(), galv );
+		rm.name = 'pen-rails';
+		rm.castShadow = true;
+		this.group.add( rm );
 
 	}
 
