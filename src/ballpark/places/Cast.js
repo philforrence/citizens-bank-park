@@ -121,6 +121,16 @@ const HAND_PROPS = [
 const FAR_PROPS = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove, PROP.camera, PROP.phone,
 	PROP.umbrella, PROP.sign, PROP.beers, PROP.tickets ];
 const TINY_PROPS = [ PROP.umbrella, PROP.sign ];
+// ---- R (rituals): the press on the field at the last out (Getty 83571364: the photographers' long
+// zooms, a flash on top; the handheld TV cameras on the shoulder; a boom mic in its fuzzy windscreen),
+// all held level in the right hand
+PROP.slr = 60; // a pro camera and zoom at the eye (var 0: Canon's white lens, 1: a black one)
+PROP.eng = 61; // a TV camera on the right shoulder, the hand on its lens
+PROP.boom = 62; // a boom pole up over the heads, the windscreen out front
+UPRIGHT.push( PROP.slr, PROP.eng, PROP.boom );
+HAND_PROPS[ 1 ].push( PROP.slr, PROP.eng, PROP.boom );
+FAR_PROPS.push( PROP.slr, PROP.eng, PROP.boom );
+// ---- end R
 
 // the pose: 8 vec4s per person
 export const POSE = 8;
@@ -717,6 +727,40 @@ function figureGeometry( lod = 0 ) {
 				// a transistor radio held at the chest, the aerial up
 				boxAt( bone, part, add( g, [ 0, 0.05, 0 ] ), [ 0.07, 0.045, 0.022 ] );
 				tube( bone, part, add( g, [ 0.05 * s, 0.09, 0 ] ), add( g, [ 0.07 * s, 0.33, 0 ] ), [ 0.003, 0.003 ], [ 0.002, 0.002 ], 3 );
+
+			// ---- R (rituals): the press's gear
+			} else if ( id === PROP.slr ) {
+
+				// the body in front of the face (the hand on its grip), the zoom out front, the flash on top
+				const b = add( h, [ - 0.075 * s, 0.01, - 0.02 ] );
+				boxAt( bone, part, b, [ 0.072, 0.055, 0.04 ] );
+				tube( bone, part, add( b, [ 0, - 0.005, - 0.04 ] ), add( b, [ 0, - 0.005, - 0.31 ] ), [ 0.043, 0.043 ], [ 0.047, 0.047 ], fine ? 10 : 6, false, true );
+				if ( fine ) tube( bone, part, add( b, [ 0, - 0.005, - 0.31 ] ), add( b, [ 0, - 0.005, - 0.37 ] ), [ 0.05, 0.05 ], [ 0.058, 0.058 ], 10 );
+				boxAt( bone, part, add( b, [ 0, 0.1, 0.005 ] ), [ 0.034, 0.042, 0.028 ] );
+
+			} else if ( id === PROP.eng ) {
+
+				// on the shoulder: the body back over it, the lens forward under the hand, the viewfinder at
+				// the eye, the battery at the back
+				const b = add( h, [ - 0.1 * s, 0.07, 0.12 ] );
+				boxAt( bone, part, b, [ 0.07, 0.1, 0.2 ] );
+				tube( bone, part, add( b, [ 0, - 0.02, - 0.2 ] ), add( b, [ 0, - 0.02, - 0.42 ] ), [ 0.05, 0.05 ], [ 0.055, 0.055 ], fine ? 8 : 5, false, true );
+				if ( fine ) {
+
+					boxAt( bone, part, add( b, [ - 0.1 * s, 0.07, - 0.16 ] ), [ 0.022, 0.03, 0.06 ] );
+					boxAt( bone, part, add( b, [ 0, 0.0, 0.24 ] ), [ 0.05, 0.07, 0.04 ] );
+					tube( bone, part, add( b, [ 0, 0.1, - 0.1 ] ), add( b, [ 0, 0.14, 0.12 ] ), [ 0.012, 0.012 ], [ 0.012, 0.012 ], 4 );
+
+				}
+
+			} else if ( id === PROP.boom ) {
+
+				// the pole out and up from the hands, the furry windscreen at its tip
+				const a = add( h, [ 0, 0.02, 0.35 ] ), tip = add( h, [ 0, 1.25, - 2.3 ] );
+				tube( bone, part, a, tip, [ 0.014, 0.014 ], [ 0.01, 0.01 ], fine ? 6 : 4 );
+				const d = [ tip[ 0 ] - a[ 0 ], tip[ 1 ] - a[ 1 ], tip[ 2 ] - a[ 2 ] ], l = Math.hypot( ...d );
+				tube( bone, part, add( tip, d.map( ( v ) => v / l * 0.02 ) ), add( tip, d.map( ( v ) => v / l * 0.34 ) ), [ 0.055, 0.055 ], [ 0.05, 0.05 ], fine ? 8 : 5, true, true );
+			// ---- end R
 
 			}
 
@@ -1461,6 +1505,30 @@ function castMaterial( pool ) {
 		if ( id == ${ PROP.cigarette }u ) { c = select( vec3f( 0.75 ), vec3f( 0.6, 0.35, 0.1 ), pl.z < ${ ( J.hand[ 2 ] + 0.0 ).toFixed( 3 ) } ); if ( pl.z > ${ ( J.hand[ 2 ] + 0.06 ).toFixed( 3 ) } ) { c = vec3f( 0.3, 0.05, 0.0 ); e = vec3f( 2.5, 0.5, 0.05 ) * ( 0.6 + 0.4 * sin( frame.time * 3.0 + g.y * 20.0 ) ); } rough = 0.9; }
 		if ( id == ${ PROP.thermos }u ) { c = select( vec3f( 0.08, 0.16, 0.08 ), vec3f( 0.3 ), pl.y > ${ ( J.hand[ 1 ] + 0.095 ).toFixed( 3 ) } ); metal = 0.4; rough = 0.45; }
 		if ( id == ${ PROP.radio }u ) { c = select( vec3f( 0.3, 0.02, 0.03 ), vec3f( 0.6 ), pl.y > ${ ( J.hand[ 1 ] + 0.02 ).toFixed( 3 ) } ); metal = 0.3; rough = 0.4; }
+		// ---- R (rituals): the press's gear: black bodies; Canon's white zoom with its red ring (or a black
+		// one); the flash firing now and then (the last out's flashes); the TV camera's grey, its red tally;
+		// the boom's grey pole and the windscreen's grey fur
+		if ( id == ${ PROP.slr }u ) {
+			c = vec3f( 0.018 ); rough = 0.45;
+			if ( pl.z < ${ ( J.hand[ 2 ] - 0.07 ).toFixed( 3 ) } ) {
+				c = select( vec3f( 0.72, 0.71, 0.66 ), vec3f( 0.02 ), pv == 1u ); rough = 0.35;
+				if ( abs( pl.z - ${ ( J.hand[ 2 ] - 0.32 ).toFixed( 3 ) } ) < 0.006 && pv == 0u ) { c = vec3f( 0.45, 0.02, 0.02 ); }
+				if ( pl.z < ${ ( J.hand[ 2 ] - 0.34 ).toFixed( 3 ) } ) { c = vec3f( 0.015 ); }
+			}
+			if ( pl.y > ${ ( J.hand[ 1 ] + 0.07 ).toFixed( 3 ) } ) {
+				c = vec3f( 0.02 );
+				if ( pl.z < ${ ( J.hand[ 2 ] - 0.04 ).toFixed( 3 ) } && fract( frame.time * 0.7 + g.x * 23.0 + g.y * 7.0 ) > 0.955 ) { e = vec3f( 60.0 ); }
+			}
+		}
+		if ( id == ${ PROP.eng }u ) {
+			c = select( vec3f( 0.06, 0.062, 0.066 ), vec3f( 0.015 ), pl.z < ${ ( J.hand[ 2 ] - 0.1 ).toFixed( 3 ) } ); metal = 0.3; rough = 0.4;
+			if ( pl.z < ${ ( J.hand[ 2 ] - 0.08 ).toFixed( 3 ) } && pl.z > ${ ( J.hand[ 2 ] - 0.11 ).toFixed( 3 ) } && pl.y > ${ ( J.hand[ 1 ] + 0.14 ).toFixed( 3 ) } ) { e = vec3f( 3.0, 0.1, 0.05 ); }
+		}
+		if ( id == ${ PROP.boom }u ) {
+			c = vec3f( 0.35, 0.35, 0.36 ); metal = 0.7; rough = 0.3;
+			if ( pl.y > ${ ( J.hand[ 1 ] + 1.2 ).toFixed( 3 ) } ) { c = vec3f( 0.3, 0.3, 0.29 ) * ( 0.8 + 0.3 * fract( sin( dot( pl.xz, vec2f( 91.0, 57.0 ) ) ) * 437.0 ) ); metal = 0.0; rough = 1.0; }
+		}
+		// ---- end R
 	}
 	// the rain on them: shoulders, caps and hoods darker and glossy on the 27th
 	let wetK = frame.wet * smoothstep( 0.2, 0.8, normalize( in.N ).y ) * select( 0.6, 1.0, part == ${ PART.poncho }u || part == 32u + ${ PROP.umbrella }u ) * select( 1.0, 0.0, ( ( lk.w >> 16u ) & 1u ) == 1u ) * select( 1.0 - 0.75 * in.vs.vPose.w, 1.0, part == 32u + ${ PROP.umbrella }u );
