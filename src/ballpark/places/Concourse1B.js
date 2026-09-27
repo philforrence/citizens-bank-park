@@ -275,7 +275,7 @@ export default class Concourse1B {
 		};
 
 		put( 'nachos', 'nachos', 9 );
-		put( 'beer', 'draft', 26 );
+		put( 'beer', 'draft', 34 ); // (behind 118-119: clear of Guest Services' window)
 		put( 'waterIce', 'waterIce', 44 );
 		put( 'nachos', 'hatfieldCart', 60 );
 		put( 'cottonCandy', 'phood', 84.6 );
