@@ -12,9 +12,11 @@
 import FieldRail from './FieldRail.js';
 import AshburnAlley2008 from './AshburnAlley2008.js';
 import ThirdBaseGate from './ThirdBaseGate.js';
+import Concourse3B from './Concourse3B.js';
 
 export const PLACES = [
 	[ 'rail', FieldRail ],
 	[ 'alley', AshburnAlley2008 ],
 	[ 'gate3b', ThirdBaseGate ],
+	[ 'concourse3b', Concourse3B ],
 ];

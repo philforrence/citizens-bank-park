@@ -656,38 +656,68 @@ export class Concourse {
 
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
+			// ---- W2 (concourse): the signs as the 2008 photos show them (harpo42, May 2008: 129★130; the
+			// Game 5 concourse, Oct 27: 131★132, 132★133, 133★134): a cream panel with fine tan pinstripes,
+			// the two sections either side of the aisle in heavy navy numerals with a red star between, a
+			// dark red band under them with SECTIONS in cream serif caps, in a navy frame; hung across the
+			// walkway, read as you walk along the concourse
 			for ( let i = 0; i < 32; i ++ ) {
 
 				const x = ( i % 4 ) * 256, y = Math.floor( i / 4 ) * 128;
-				const g = ctx.createLinearGradient( x, y, x, y + 128 );
-				g.addColorStop( 0, '#d8caa0' ); g.addColorStop( 1, '#c2b286' );
-				ctx.fillStyle = g;
+				ctx.fillStyle = '#232a4d';
 				ctx.fillRect( x, y, 256, 128 );
-				ctx.strokeStyle = '#5e1a24';
-				ctx.lineWidth = 5;
-				ctx.strokeRect( x + 9, y + 9, 238, 110 );
-				// screw heads in the corners, a little grime along the bottom
-				ctx.fillStyle = '#8f846a';
-				for ( const [ sx, sy ] of [ [ 20, 20 ], [ 236, 20 ], [ 20, 108 ], [ 236, 108 ] ] ) ctx.fillRect( x + sx - 3, y + sy - 3, 6, 6 );
-				ctx.fillStyle = 'rgba( 60, 50, 30, 0.12 )';
-				ctx.fillRect( x + 4, y + 110, 248, 16 );
-				ctx.fillStyle = '#6a1c28';
-				ctx.font = '800 92px "Helvetica Neue", Helvetica, Arial, sans-serif';
+				ctx.fillStyle = '#efe4c4';
+				ctx.fillRect( x + 6, y + 6, 244, 82 );
+				ctx.fillStyle = 'rgba( 170, 140, 90, 0.35 )';
+				for ( let px = x + 12; px < x + 250; px += 7 ) ctx.fillRect( px, y + 6, 1, 82 );
+				ctx.fillStyle = '#9e1b2a';
+				ctx.fillRect( x + 6, y + 88, 244, 34 );
+				ctx.fillStyle = '#efe4c4';
+				ctx.font = '600 22px Georgia, "Times New Roman", serif';
+				ctx.fillText( 'S E C T I O N S', x + 128, y + 106, 200 );
 				const num = this.aisles[ i ]?.num;
-				if ( num ) ctx.fillText( String( num ), x + 128, y + 68, 220 );
+				if ( num ) {
+
+					ctx.fillStyle = '#1f1b33';
+					ctx.font = '900 62px "Arial Narrow", "Helvetica Neue", Arial, sans-serif';
+					ctx.fillText( String( num ), x + 66, y + 50, 100 );
+					ctx.fillText( String( num + 1 ), x + 190, y + 50, 100 );
+					// the star
+					ctx.fillStyle = '#b31b2c';
+					ctx.beginPath();
+					for ( let k = 0; k < 10; k ++ ) {
+
+						const a = - Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 7 : 16;
+						ctx.lineTo( x + 128 + Math.cos( a ) * r, y + 48 + Math.sin( a ) * r );
+
+					}
+
+					ctx.fill();
+
+				}
+
+				// a little grime along the bottom
+				ctx.fillStyle = 'rgba( 30, 20, 20, 0.15 )';
+				ctx.fillRect( x + 6, y + 116, 244, 6 );
 
 			}
+			// ---- end W2
 
 		}, 'sectionSigns' );
 		const signMat = standard( { name: 'section-signs', roughness: 0.55, textures: { bpSec: atlas },
 			surface: 'let t = textureSample( bpSec, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.85; s.emissive = t * smoothstep( 0.1, 0.7, frame.night ) * 0.12;' } );
 		const post = new Quads(), face = new Quads();
-		const W = 0.62, H = 0.31;
+		// ---- W2 (concourse): the 2008 size (about 1.2 m across), turned to face along the concourse
+		const W = 1.15, H = 0.56;
+		// ---- end W2
 		// under the suites: the infield between the dugouts' far ends
 		const underDeck = ( x, z ) => Math.abs( Math.atan2( x, z ) ) < 1.95;
-		this.aisles.forEach( ( A, i ) => {
+		this.aisles.forEach( ( A0, i ) => {
 
 			if ( i >= 32 ) return;
+			// ---- W2 (concourse): the sign's face across the walkway (its plane along n, facing along u)
+			const A = { ...A0, ux: A0.nx, uz: A0.nz, nx: A0.ux, nz: A0.uz };
+			// ---- end W2
 			const hung = underDeck( A.x, A.z );
 			// hung over the aisle's middle, or on a post at the rail's end beside it
 			const along = hung ? 0 : 1.0;
