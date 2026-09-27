@@ -73,6 +73,9 @@ Choose by:
   - `People.js`: instanced standing and walking figures with roles, outfits and poses (stand, walk, reach). It's the natural home for staff, vendors and visitors. Add roles, outfits or poses there in a marked block.
   - `game/Players.js`: the detailed skinned rig, with faces and builds per person, and motions in `Motions.js`. Use it for a featured character seen up close.
   - `Crowd.js`: the seated fans. Don't edit it.
+- **Tools** (2026-09-27):
+  - **Blender 5.2 LTS** is installed and runs headless: `node tools/blender/run.mjs script.py -- args`. Script the modelling and export glTF. Bake with Cycles on the CPU; pass `--gpu` only for a GPU render, and it takes the lock. Engine side, `src/engine/loaders/GLTF.js` loads glTF (so far it has only loaded Tidewater's characters, so a static-mesh adapter may be needed).
+  - **Image generation:** `node tools/imagegen/gen.mjs` (Gemini "Nano Banana"). Use it only for generic materials, decals, interiors and invented people, never for real signage, logos or people, and log every image in CREDITS.md. Until billing is enabled on the key it returns a quota error; then fall back to CC0 photo scans (Poly Haven, ambientCG) or canvas textures.
 - **Don't break the game.** After your last change:
   - load your worktree's full park cleanly, with no console errors;
   - take a day shot, a night shot and a rain shot of your place, plus one TV shot, in one desk job.
