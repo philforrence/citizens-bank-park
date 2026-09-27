@@ -6,3 +6,4 @@ stages
 tools/osm/*.json
 tools/radio/.cache
 tools/body/.cache
+.claude/
