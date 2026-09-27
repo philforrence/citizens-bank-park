@@ -1680,7 +1680,7 @@ export class Exterior {
 				const g = GATES.find( ( q ) => /FIRST/.test( q.name ) )?.edge;
 				if ( g ) spot = [ g.a[ 0 ] + g.ux * ( g.t + 18.5 ) + g.nx * 6.5, g.a[ 1 ] + g.uz * ( g.t + 18.5 ) + g.nz * 6.5 ];
 				ps = M.delivery( 1.08 );
-				w1 = { plinth: { w: 3.2, h: 0.36, lines: [ 'ROBIN ROBERTS', 'PHILLIES HALL OF FAME PITCHER 1948-1961' ] }, tier: [ 1.6, 0.3, 2.3 ], yaw: Math.atan2( 0.22, 0.97 ) + Math.PI, figYaw: Math.PI / 2, paint: true };
+				w1 = { plinth: { w: 3.2, h: 0.36, lines: [ 'ROBIN ROBERTS', 'PHILLIES HALL OF FAME PITCHER 1948-1961' ] }, tier: [ 1.6, 0.3, 2.3 ], yaw: Math.atan2( 0.22, 0.97 ) + Math.PI, figYaw: 0, paint: true };
 
 			}
 
