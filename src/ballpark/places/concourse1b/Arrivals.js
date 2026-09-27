@@ -133,6 +133,23 @@ export class Arrivals1B {
 
 		}
 
+		// lane 4's: Dee Mastrangelo, 61, from Marcus Hook, thirty years an usher at the Vet ("Enjoy the game,
+		// hon"), and Terrell Johnson, 26, from Germantown, a Temple grad student, on the bag table
+		const L4 = this.lanes[ 3 ];
+		if ( L4?.taker ) {
+
+			L4.taker.name = 'Dee';
+			this.cast.setLook( L4.taker.p, { ...L4.taker.p.look, female: true, age: 1, hair: 6, hairStyle: 2, glasses: true, skin: 0, build: 3, hat: HAT.capNavy, facial: 0 } );
+
+		}
+
+		if ( L4?.bags ) {
+
+			L4.bags.name = 'Terrell';
+			this.cast.setLook( L4.bags.p, { ...L4.bags.p.look, female: false, age: 0, hair: 0, skin: 6, facial: 2, build: 1, hat: HAT.capBlack } );
+
+		}
+
 		// the towels: two with the cartons past the turnstiles
 		this.towels = ( this.gate.towelSpots || [] ).map( ( T ) => this._staffer( { top: TOP.jacket, color: COLOR.red, sleeves: COLOR.red, chest: CHEST.staff, hat: HAT.capRed, female: T.s > 0, hairStyle: T.s > 0 ? 2 : 0, age: 3, skin: T.s > 0 ? 5 : 1 },
 			[ T.at[ 0 ], T.at[ 1 ] ], out, 'towels', { give: 0 } ) );

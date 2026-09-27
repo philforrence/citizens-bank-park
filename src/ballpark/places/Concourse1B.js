@@ -14,6 +14,7 @@ import { People1B, GATE_S, S_END } from './concourse1b/People.js';
 import { buildGate1B } from './concourse1b/Gate.js';
 import { Arrivals1B } from './concourse1b/Arrivals.js';
 import { Prints } from './concourse1b/Prints.js';
+import { Stories1B } from './concourse1b/Stories.js';
 import { programKiosk, caricatureCorner, cartSigns, cartTop } from './concourse1b/Things.js';
 
 // The main concourse on the first base side, behind home plate round to the right field corner (sections
@@ -74,6 +75,7 @@ export default class Concourse1B {
 		const mid = this.W.at( S_END / 2, 40 );
 		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.55 + 60 );
 		this.people = new People1B( { cast: this.cast, walkway: this.W, concourse, bowl, obstacles: this.obstacles, carts: this.carts, seed: 1029 } );
+		this.stories = new Stories1B( this.people, { caricature: this.caricature } );
 		// the fans coming in through the gate
 		if ( this.gate ) {
 
@@ -522,6 +524,7 @@ export default class Concourse1B {
 		const cam = camF ? [ camF[ 0 ], 0, camF[ 1 ] ] : null;
 		this.people.cam = camF;
 		this.people.update( dt, ns );
+		this.stories.update( dt, ns );
 		this.arrivals?.update( dt, ns, t );
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
 		this.cast.update( cam );
