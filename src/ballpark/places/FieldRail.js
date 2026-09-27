@@ -105,6 +105,10 @@ export default class FieldRail {
 		// the plate: dirtier through the half inning (muddier in the rain), brushed at the change
 		const since = Math.max( 0, S.t - S.halfStart - 20 );
 		this.plate.uniforms.dirt.value = ( 1 - Math.exp( - since / ( S.first ? 90 : 200 ) ) ) * ( S.first ? 1 : 0.7 );
+		// the logos painted in the grass: the rain washes them out through the 27th; by the 29th they're
+		// pale, grey-green
+		const fade = S.first ? 0.05 + 0.3 * S.progress : 0.5;
+		for ( const m of this.app?.details?.paintMats || [] ) m.uniforms.fade.value = fade;
 		this.wells.update( S, dt );
 		this.onDeck.update( S, dt, director );
 		this.ballGirls.update( S, dt, director );

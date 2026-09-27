@@ -84,13 +84,41 @@ export class Details2008 {
 			ctx.restore();
 
 		}, 'onDeck' );
+		// ---- W4 (rail): paint sprayed into the grass, not a sticker on it: the blades come through it
+		// up close and it takes the mowing's light and dark; its stencilled edges a little ragged; and the
+		// rain on the 27th washes it out, pale and grey-green by the 29th (the Commons photo of the 29th:
+		// the World Series logo by the third base dugout faded). `fade` (0..1) is set by the rail
+		// (places/FieldRail.js) from the replay's time
+		this.paintMats = [];
 		const paint = ( tex, name ) => {
 
-			const m = standard( { name, roughness: 0.85, alphaTest: 0.4, textures: { bpPaint: tex }, surface: 'let t = textureSample( bpPaint, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.8;' } );
+			const m = standard( { name, roughness: 0.85, alphaTest: 0.4, textures: { bpPaint: tex }, modules: [ commonModule ], uniforms: { fade: [ 'f32', 0 ] },
+				surface: /* wgsl */`
+	let t = textureSample( bpPaint, smpAnisoClamp, in.uv );
+	let fw = length( fwidth( in.P.xz ) );
+	let near = 1.0 - smoothstep( 0.004, 0.03, fw );
+	// the blades: fine streaks, as the field's grass has them
+	let bl = mx_noise_float2( in.P.xz * vec2f( 230.0, 25.0 ) ) * 0.5 + 0.5;
+	let clump = mx_noise_float2( in.P.xz * 9.0 ) * 0.5 + 0.5;
+	let grass = vec3f( 0.13, 0.29, 0.05 ) * ( 0.85 + 0.3 * clump );
+	// how much paint there is: less where the blades part (up close), less as the rain washes it
+	let cover = clamp( 1.0 - mat.fade * ( 0.55 + 0.35 * clump ) - near * 0.35 * ( 1.0 - bl ), 0.0, 1.0 );
+	var c = mix( grass, t.rgb * 0.78 * ( 0.9 + 0.2 * bl ), cover );
+	// soaked, it darkens with the grass round it
+	c = c * ( 1.0 - 0.2 * frame.wet );
+	// the stencil's edge: overspray, ragged with the grass
+	s.alpha = t.a * ( 0.8 + 0.4 * mx_noise_float2( in.P.xz * 14.0 ) );
+	s.albedo = c;
+	s.roughness = 0.85;
+	s.emissive = c * smoothstep( 0.2, 0.8, frame.night ) * 0.35;
+` } );
 			m.underwaterLighting = 'none';
+			m.setDefine( 'DRY', 1 ); // it's grass: the field's own wet
+			this.paintMats.push( m );
 			return m;
 
 		};
+		// ---- end W4
 
 		// flat decals on the field: centre, size, which way their top faces (radians from -z, toward +x)
 		const decal = ( mat, [ cx, cz ], w, h, turn ) => {
