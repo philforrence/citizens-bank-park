@@ -1139,8 +1139,22 @@ export class ConcoursePeople {
 			a.armL = lerpArm( a.armL, [ up[ 0 ][ 0 ] + pump, up[ 0 ][ 1 ], up[ 0 ][ 2 ], up[ 0 ][ 3 ] ], k );
 			a.armR = lerpArm( a.armR, [ up[ 1 ][ 0 ] - pump, up[ 1 ][ 1 ], up[ 1 ][ 2 ], up[ 1 ][ 3 ] ], k );
 			a.propL = a.propL === PROP.pocket ? 0 : a.propL;
-			// the rally towels (the white 'Fightin' Phils' ones: a sea of them on the 29th)
-			if ( a.propR === PROP.pocket || a.propR === 0 ) a.propR = ! ns.first && f.order > 0.35 ? PROP.towel : 0;
+			// the rally towels (the white 'Fightin' Phils' ones: a sea of them on the 29th; some on the
+			// 27th too, the SRO photo behind 125 has them)
+			if ( a.propR === PROP.pocket || a.propR === 0 ) a.propR = f.order > ( ns.first ? 0.7 : 0.35 ) ? PROP.towel : 0;
+			// the cameras up for the last out: a picture over the heads, the flash
+			if ( R.kind === 'champions' && f.order > 0.18 && f.order < 0.33 ) {
+
+				a.propR = PROP.camera;
+				a.armR = lerpArm( a.armR, f.order < 0.25 ? GESTURE.photoHigh[ 1 ] : GESTURE.photo[ 1 ], k );
+				if ( f.order >= 0.25 ) {
+
+					a.armL = lerpArm( a.armL, GESTURE.photo[ 0 ], k );
+					a.propL = 0;
+
+				}
+
+			}
 			if ( a.propR === PROP.towel ) a.armR = lerpArm( a.armR, [ 2.5 + 0.35 * Math.sin( T * 10 + f.order * 4 ), 0.5, 0.2 * Math.sin( T * 10 + f.order * 4 ), 0.4 ], k );
 			// high fives and hugs with the one beside them at the last out
 			if ( R.kind === 'champions' && t > 2 + f.order * 4 && t < 6 + f.order * 4 && f.order < 0.35 ) {

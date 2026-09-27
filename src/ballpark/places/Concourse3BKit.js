@@ -249,6 +249,9 @@ export const GESTURE = {};
 	// lifting a kid under the arms
 	GESTURE.lift = both( [ - 0.14, 1.3, - 0.3 ], [ 0.14, 1.3, - 0.3 ] );
 	GESTURE.liftHigh = both( [ - 0.13, 1.68, - 0.28 ], [ 0.13, 1.68, - 0.28 ] );
+	// a camera held up to the eyes, both hands; held up high over the heads
+	GESTURE.photo = both( [ - 0.07, 1.5, - 0.3 ], [ 0.05, 1.52, - 0.32 ] );
+	GESTURE.photoHigh = [ null, armIK( 1, [ 0.12, 1.95, - 0.3 ] ) ];
 
 }
 

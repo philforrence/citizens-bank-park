@@ -45,13 +45,13 @@ export const PART = { torso: 0, pants: 1, hand: 2, head: 3, brim: 4, pompom: 5, 
 // the others turn with the hand (a program held up, a phone to the ear).
 export const PROP = {
 	none: 0, beer: 1, soda: 2, cocoa: 3, tray: 4, program: 5, phone: 6, glove: 7, towel: 8, bag: 9, sandwich: 10,
-	scorebook: 11, cottonCandy: 12, waterIce: 13, peanuts: 14, pocket: 15, programs: 16, hotdog: 17, money: 18, beers: 19, ticket: 20, pencil: 21,
+	scorebook: 11, cottonCandy: 12, waterIce: 13, peanuts: 14, pocket: 15, programs: 16, hotdog: 17, money: 18, beers: 19, ticket: 20, pencil: 21, camera: 22,
 };
 const UPRIGHT = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.bag, PROP.cottonCandy, PROP.waterIce, PROP.peanuts, PROP.beers ];
 // which props each hand can hold (the geometry is built once per hand)
 const HAND_PROPS = [
 	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.glove, PROP.bag, PROP.scorebook, PROP.peanuts, PROP.programs, PROP.money, PROP.hotdog, PROP.ticket ], // left
-	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.program, PROP.phone, PROP.towel, PROP.sandwich, PROP.waterIce, PROP.cottonCandy, PROP.hotdog, PROP.money, PROP.beers, PROP.ticket, PROP.pencil ], // right
+	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.program, PROP.phone, PROP.towel, PROP.sandwich, PROP.waterIce, PROP.cottonCandy, PROP.hotdog, PROP.money, PROP.beers, PROP.ticket, PROP.pencil, PROP.camera ], // right
 ];
 
 // the pose: 8 vec4s per person
@@ -406,6 +406,11 @@ function figureGeometry( lod = 0 ) {
 
 				// a ticket held out between the fingers
 				boxAt( bone, part, add( h, [ - 0.03 * s, - 0.07, - 0.03 ] ), [ 0.002, 0.03, 0.075 ] );
+
+			} else if ( id === PROP.camera ) {
+
+				// a silver point-and-shoot held up in the fingertips, its screen toward the face
+				boxAt( bone, part, add( h, [ - 0.04 * s, - 0.06, - 0.03 ] ), [ 0.05, 0.03, 0.013 ], Math.PI / 2 );
 
 			} else if ( id === PROP.pencil ) {
 
@@ -925,6 +930,12 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		// a World Series ticket: the white stock, a red band
 		if ( id == ${ PROP.ticket }u ) { c = select( vec3f( 0.75, 0.74, 0.7 ), vec3f( 0.45, 0.03, 0.04 ), fract( pl.y * 40.0 ) < 0.3 ); rough = 0.8; }
 		if ( id == ${ PROP.pencil }u ) { c = vec3f( 0.7, 0.55, 0.05 ); }
+		if ( id == ${ PROP.camera }u ) {
+			// silver, the screen lit; now and then the flash (the last out's flashbulbs)
+			c = vec3f( 0.55, 0.56, 0.58 ); metal = 0.7; rough = 0.3;
+			e = vec3f( 0.3, 0.45, 0.6 ) * 0.5;
+			if ( fract( frame.time * 0.9 + g.x * 17.0 ) > 0.965 ) { e = vec3f( 30.0 ); }
+		}
 	}
 	// the rain on them: shoulders, caps and hoods darker and glossy on the 27th
 	let wetK = frame.wet * smoothstep( 0.2, 0.8, normalize( in.N ).y ) * select( 0.6, 1.0, part == ${ PART.poncho }u );
