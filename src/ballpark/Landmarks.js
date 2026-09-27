@@ -1056,22 +1056,7 @@ export class Landmarks {
 
 			}
 
-			// 7:08, about when the gates open
-			const hand = ( ang, len, wd ) => {
-
-				ctx.save();
-				ctx.translate( w / 2, h / 2 );
-				ctx.rotate( ang );
-				ctx.fillStyle = '#1c2b5a';
-				ctx.fillRect( - wd / 2, - len, wd, len + 22 );
-				ctx.restore();
-
-			};
-
-			hand( ( 7 + 8 / 60 ) / 12 * Math.PI * 2, 100, 20 );
-			hand( 8 / 60 * Math.PI * 2, 140, 13 );
-			ctx.fillStyle = '#1c2b5a';
-			ctx.beginPath(); ctx.arc( w / 2, h / 2, 14, 0, Math.PI * 2 ); ctx.fill();
+			// (the hands are their own meshes: they keep the replay's time, see setClock)
 
 		}, 'clock' );
 		// October 2008: a blue backlit Sherwin-Williams box sign under the clock
@@ -1132,6 +1117,39 @@ export class Landmarks {
 		this.group.add( back );
 		add( fm, S, S, fy );
 		add( sm, 5.0, 1.56, ( t0 + t1 ) / 2 );
+		// the hands, navy bars over the face on a hub, turned by the replay's clock (places/AshburnAlley2008.js
+		// sets it every frame; 7:08, about when the gates open, until then)
+		const handMat = standard( { name: 'clock-hands', color: new Color( 0.012, 0.025, 0.09 ), roughness: 0.45, metalness: 0.3,
+			surface: 's.emissive = s.albedo * frame.night * 0.3;' } );
+		handMat.underwaterLighting = 'none';
+		this.clockHands = [ [ S * 0.2, 0.18, 0.06 ], [ S * 0.29, 0.12, 0.1 ] ].map( ( [ len, wd, dz ] ) => {
+
+			const pivot = new Group();
+			pivot.position.set( x, fy, fz + dz );
+			pivot.userData.dynamic = true;
+			const bar = new Mesh( new BoxGeometry( wd, len + 0.2, 0.03 ), handMat );
+			bar.position.y = len / 2 - 0.1;
+			bar.castShadow = true;
+			pivot.add( bar );
+			this.group.add( pivot );
+			return pivot;
+
+		} );
+		const hub = new Mesh( new CylinderGeometry( 0.13, 0.13, 0.06, 16 ), handMat );
+		hub.rotation.x = Math.PI / 2;
+		hub.position.set( x, fy, fz + 0.13 );
+		this.group.add( hub );
+		this.setClock( 7 + 8 / 60 );
+
+	}
+
+	// the clock's hands at this time of day (hours, 0..24)
+	setClock( hours ) {
+
+		if ( ! this.clockHands ) return;
+		const [ hr, min ] = this.clockHands;
+		hr.rotation.z = - ( hours % 12 ) / 12 * Math.PI * 2;
+		min.rotation.z = - ( hours % 1 ) * Math.PI * 2;
 
 	}
 
