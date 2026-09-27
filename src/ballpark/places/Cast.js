@@ -45,13 +45,13 @@ export const PART = { torso: 0, pants: 1, hand: 2, head: 3, brim: 4, pompom: 5, 
 // the others turn with the hand (a program held up, a phone to the ear).
 export const PROP = {
 	none: 0, beer: 1, soda: 2, cocoa: 3, tray: 4, program: 5, phone: 6, glove: 7, towel: 8, bag: 9, sandwich: 10,
-	scorebook: 11, cottonCandy: 12, waterIce: 13, peanuts: 14, pocket: 15, programs: 16, hotdog: 17, money: 18, beers: 19,
+	scorebook: 11, cottonCandy: 12, waterIce: 13, peanuts: 14, pocket: 15, programs: 16, hotdog: 17, money: 18, beers: 19, ticket: 20, pencil: 21,
 };
 const UPRIGHT = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.bag, PROP.cottonCandy, PROP.waterIce, PROP.peanuts, PROP.beers ];
 // which props each hand can hold (the geometry is built once per hand)
 const HAND_PROPS = [
-	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.glove, PROP.bag, PROP.scorebook, PROP.peanuts, PROP.programs, PROP.money, PROP.hotdog ], // left
-	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.program, PROP.phone, PROP.towel, PROP.sandwich, PROP.waterIce, PROP.cottonCandy, PROP.hotdog, PROP.money, PROP.beers ], // right
+	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.glove, PROP.bag, PROP.scorebook, PROP.peanuts, PROP.programs, PROP.money, PROP.hotdog, PROP.ticket ], // left
+	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.program, PROP.phone, PROP.towel, PROP.sandwich, PROP.waterIce, PROP.cottonCandy, PROP.hotdog, PROP.money, PROP.beers, PROP.ticket, PROP.pencil ], // right
 ];
 
 // the pose: 8 vec4s per person
@@ -395,6 +395,15 @@ function figureGeometry() {
 
 				boxAt( bone, part, add( h, [ - 0.02 * s, - 0.03, - 0.07 ] ), id === PROP.hotdog ? [ 0.028, 0.025, 0.1 ] : [ 0.035, 0.035, 0.12 ] );
 
+			} else if ( id === PROP.ticket ) {
+
+				// a ticket held out between the fingers
+				boxAt( bone, part, add( h, [ - 0.03 * s, - 0.07, - 0.03 ] ), [ 0.002, 0.03, 0.075 ] );
+
+			} else if ( id === PROP.pencil ) {
+
+				tube( bone, part, add( h, [ - 0.02 * s, - 0.02, - 0.04 ] ), add( h, [ - 0.02 * s, - 0.1, - 0.1 ] ), [ 0.004, 0.004 ], [ 0.003, 0.003 ], 4 );
+
 			} else if ( id === PROP.money ) {
 
 				boxAt( bone, part, add( h, [ - 0.03 * s, - 0.07, - 0.02 ] ), [ 0.003, 0.035, 0.07 ] );
@@ -589,7 +598,7 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 	if ( part == ${ PART.hairCard }u ) { gone = hairStyle != 1u || hat == ${ HAT.hood }u || poncho > 0u; }
 	if ( part == ${ PART.poncho }u ) { gone = poncho == 0u; }
 	if ( part == ${ PART.apron }u ) { gone = !( top == ${ TOP.staff }u || top == ${ TOP.cook }u || top == ${ TOP.seller }u ); }
-	if ( part == ${ PART.vest }u ) { gone = !( top == ${ TOP.security }u || top == ${ TOP.hawker }u ); }
+	if ( part == ${ PART.vest }u ) { gone = top != ${ TOP.security }u; }
 	if ( gone ) { q = ${ f3( J.spine ) }; }
 	var P0: C3Pose;
 	var P1: C3Pose;
@@ -683,6 +692,15 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		if ( top == ${ TOP.eagles }u && part == ${ PART.sleeve }u && L.y < 1.1 ) { c = vec3f( 0.25 ); }
 		// the concession staff's polo; the hawker's and the program seller's colours
 		if ( top == ${ TOP.usher }u && part == ${ PART.torso }u && L.z < 0.0 && L.y > 1.18 && L.y < 1.24 && L.x > 0.05 && L.x < 0.13 ) { c = vec3f( 0.7, 0.6, 0.3 ); metal = 0.5; }
+		if ( top == ${ TOP.usher }u ) {
+			// the royal-blue side panels down the ribs and the sleeves' undersides, white piping at their edges
+			let sidePanel = ( part == ${ PART.torso }u && abs( L.x ) > 0.125 && L.y < 1.36 ) || ( part == ${ PART.sleeve }u && L.z > 0.035 );
+			let piping = ( part == ${ PART.torso }u && abs( abs( L.x ) - 0.125 ) < 0.008 && L.y < 1.36 );
+			if ( sidePanel ) { c = vec3f( 0.03, 0.08, 0.36 ); }
+			if ( piping ) { c = vec3f( 0.75 ); }
+		}
+		// the hawkers' yellow shirts, a number badge on the chest
+		if ( top == ${ TOP.hawker }u && part == ${ PART.torso }u && L.z < 0.0 && abs( L.x - 0.08 ) < 0.035 && abs( L.y - 1.28 ) < 0.03 ) { c = vec3f( 0.8 ); }
 		// the prints: the name and number on the back, the chest's script
 		let onBack = L.z > 0.03 && part == ${ PART.torso }u;
 		let onFront = L.z < - 0.03 && part == ${ PART.torso }u;
@@ -831,8 +849,8 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 	}
 	if ( part == ${ PART.vest }u ) {
 		// hi-vis: fluorescent yellow-green, two silver bands (the hawkers' is yellow and red)
-		c = select( vec3f( 0.55, 0.62, 0.02 ), vec3f( 0.7, 0.45, 0.02 ), top == ${ TOP.hawker }u );
-		if ( abs( L.y - 1.06 ) < 0.02 || abs( L.y - 1.18 ) < 0.02 ) { c = select( vec3f( 0.65 ), vec3f( 0.3, 0.02, 0.03 ), top == ${ TOP.hawker }u ); rough = 0.3; }
+		c = select( vec3f( 0.55, 0.62, 0.02 ), vec3f( 0.68, 0.52, 0.03 ), top == ${ TOP.hawker }u );
+		if ( ( abs( L.y - 1.06 ) < 0.02 || abs( L.y - 1.18 ) < 0.02 ) && top != ${ TOP.hawker }u ) { c = vec3f( 0.65 ); rough = 0.3; }
 		e = c * 0.06;
 	}
 	if ( part == ${ PART.poncho }u ) {
@@ -889,6 +907,9 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		if ( id == ${ PROP.hotdog }u ) { c = vec3f( 0.62, 0.42, 0.2 ); }
 		if ( id == ${ PROP.peanuts }u ) { c = vec3f( 0.6, 0.5, 0.35 ); }
 		if ( id == ${ PROP.money }u ) { c = vec3f( 0.35, 0.42, 0.3 ); rough = 0.9; }
+		// a World Series ticket: the white stock, a red band
+		if ( id == ${ PROP.ticket }u ) { c = select( vec3f( 0.75, 0.74, 0.7 ), vec3f( 0.45, 0.03, 0.04 ), fract( pl.y * 40.0 ) < 0.3 ); rough = 0.8; }
+		if ( id == ${ PROP.pencil }u ) { c = vec3f( 0.7, 0.55, 0.05 ); }
 	}
 	// the rain on them: shoulders, caps and hoods darker and glossy on the 27th
 	let wetK = frame.wet * smoothstep( 0.2, 0.8, normalize( in.N ).y ) * select( 0.6, 1.0, part == ${ PART.poncho }u );

@@ -6,7 +6,8 @@ import { LEVELS } from '../layout.js';
 import { Cast } from './Cast.js';
 import { Walkway } from './Concourse3BKit.js';
 import { ConcoursePeople, nightState, RAIL_D, FRONT_D } from './Concourse3BPeople.js';
-import { Kit, trashCan, recycleBin, condiments, cart, programTable } from './Concourse3BProps.js';
+import { Stories } from './Concourse3BStories.js';
+import { Kit, trashCan, recycleBin, condiments, cart, programTable, pendant } from './Concourse3BProps.js';
 import { rng } from './Concourse3BKit.js';
 
 // The main concourse from behind home plate round to the third base side (sections 123 to 135): the
@@ -43,10 +44,11 @@ export default class Concourse3B {
 		this._bins();
 		this._carts();
 		this._tvs();
+		this._hung();
 		this.group.add( this.kit.mesh() );
 		// the floor on the night: the wet, the prints, the spills, the litter
 		const doors = ( concourse?.doors || [] ).map( ( D ) => this.W.toSD( D.x, D.z ) ).filter( ( [ s ] ) => s > - 2 && s < S_END + 2 );
-		this.floor = floorSkin( this.W, { sEnd: S_END, gate: [ 73.2, 60 ], doors,
+		this.floor = floorSkin( this.W, { sEnd: S_END, gate: [ 73.2, 60 ], doors, lamps: this.lamps,
 			spills: [ [ 65, 43.4, 1.3 ], [ 63.4, 42.3, 0.6 ], [ 67.2, 41.8, 0.45 ], [ 17.4, 43.6, 0.5 ], [ 56.3, 43.2, 0.45 ], [ 47, 30.7, 0.5 ], [ 22, 30.6, 0.4 ], [ 88, 30.8, 0.4 ] ] } );
 		this.group.add( this.floor );
 		// the people: the cast (drawn here), and People.js's own figures handed over to it in this stretch
@@ -55,6 +57,7 @@ export default class Concourse3B {
 		const mid = this.W.at( S_END / 2, 40 );
 		for ( const m of [ this.cast.mesh, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
 		this.people = new ConcoursePeople( { cast: this.cast, walkway: this.W, concourse, bowl, sEnd: S_END, obstacles: this.obstacles, carts: this.carts, seed: 1027 } );
+		this.stories = new Stories( this.people );
 		people?.hiders?.push( ( x, z ) => this.covers( x, z ) );
 		// the rain's cover: built now, before the static batching takes the bowl's meshes apart
 		const t0 = performance.now();
@@ -264,6 +267,108 @@ export default class Concourse3B {
 
 	}
 
+	// What hangs over the concourse, from the 2008 photos: the players' banners in the trusses (Rollins and
+	// Feliz over the Third Base Gate's atrium as on Game 5 night, Kendrick beside them, Dobbs by 129-130,
+	// Burrell behind home), a Coca-Cola banner on a column here and there, the atrium's directional sign
+	// facing the way in from the gate, ELEVATORS DOWN ONLY by the elevator, the HOME STAND sign over the
+	// team store, the bedsheet a fan from Buena Vista hung over Brewerytown for Charlie Manuel; and the
+	// white dome pendants down the middle of the walkway
+	_hung() {
+
+		const K = this.kit, W = this.W;
+		const top = 11.5; // the club level's floor overhead
+		const frame = ( s, d, faceAlong = true ) => {
+
+			const w = W.at( s, d );
+			// facing along the concourse (read walking along it), or out to the walkway (toward the field)
+			return faceAlong ? Kit.frame( [ w.x, w.z ], [ - w.nx, - w.nz ], [ w.ux, w.uz ] ) : Kit.frame( [ w.x, w.z ], [ w.ux, w.uz ], [ w.nx, w.nz ] );
+
+		};
+
+		for ( const [ cell, s, d, y ] of [ [ 'rollins', 70.5, 47.2, 8.4 ], [ 'feliz', 76.5, 51.5, 7.6 ], [ 'kendrick', 81.5, 46.8, 8.6 ], [ 'dobbs', 47.6, 46.4, 8.5 ], [ 'burrell', 13, 46.4, 8.5 ] ] ) {
+
+			const P = frame( s, d );
+			K.sheet( P, 0, y, 0, 3.4, 4.25, cell );
+			// the hanging bar along its top, the cables up to the deck
+			K.use( 'navy' ).box( P, 0, y + 2.17, 0, 3.5, 0.08, 0.06 );
+			for ( const x of [ - 1.5, 1.5 ] ) K.use( 'grey' ).box( P, x, ( y + 2.2 + top ) / 2, 0, 0.012, top - y - 2.2, 0.012 );
+
+		}
+
+		// the Coca-Cola banners on the walkway faces of three of the columns
+		[ [ 'pole51', 29.74 ], [ 'pole26', 56.41 ], [ 'pole35', 80.89 ] ].forEach( ( [ cell, s ] ) => {
+
+			const col = this.columns.find( ( c ) => Math.abs( c[ 0 ] - s ) < 0.6 );
+			if ( ! col ) return;
+			const P = frame( col[ 0 ], col[ 1 ] - 0.37, false );
+			// facing the rail side (the frame's +z is toward the field)
+			K.sheet( P, 0, 4.7, 0, 0.8, 2.1, cell );
+			for ( const y of [ 3.62, 5.78 ] ) K.use( 'grey' ).box( P, 0, y, 0.0, 0.84, 0.03, 0.03 );
+
+		} );
+		// the directional sign at the atrium's mouth, facing the way in from the gate
+		{
+
+			const w = W.at( 71.2, 45.8 );
+			const P = Kit.frame( [ w.x, w.z ], [ - w.ux, - w.uz ], [ - w.nx, - w.nz ] );
+			K.sheet( P, 0, 4.2, 0, 1.3, 1.95, 'wayfind' );
+			for ( const x of [ - 0.5, 0.5 ] ) K.use( 'grey' ).box( P, x, ( 5.2 + top ) / 2, 0, 0.015, top - 5.2, 0.015 );
+
+		}
+
+		// ELEVATORS DOWN ONLY, over the walkway in front of the elevator
+		{
+
+			const P = frame( 86.2, 42.0, false );
+			K.sheet( P, 0, 3.55, 0, 1.2, 0.52, 'elevators' );
+			for ( const x of [ - 0.45, 0.45 ] ) K.use( 'grey' ).box( P, x, ( 3.8 + top ) / 2, 0, 0.012, top - 3.8, 0.012 );
+
+		}
+
+		// HOME STAND over the team store, and the bedsheet over Brewerytown
+		for ( const U of this.concourse?.units || [] ) {
+
+			const [ s ] = W.toSD( U.mid[ 0 ], U.mid[ 1 ] );
+			if ( s < 0 || s > S_END ) continue;
+			const P = Kit.frame( U.mid, U.a, U.n );
+			if ( Array.isArray( U.what ) && U.what[ 0 ] === 'merch' ) {
+
+				K.sheet( P, 0, 4.72, 0.05, 2.6, 0.9, 'homeStand' );
+				K.use( 'lid' ).box( P, 0, 4.3, 0.0, 0.08, 0.2, 0.08 );
+
+			}
+
+			if ( U.what === 'brewerytown' && ! this._goodLuck ) {
+
+				this._goodLuck = true;
+				// a pipe across over the stand, the sheet tied to it with twine, sagging
+				K.use( 'grey' ).box( P, 0, 5.75, 0.25, 3.8, 0.05, 0.05 );
+				for ( const x of [ - 1.85, 1.85 ] ) K.use( 'grey' ).box( P, x, 4.97, 0.25, 0.05, 1.55, 0.05 );
+				K.sheet( P, 0, 5.05, 0.28, 3.1, 1.26, 'goodLuck', 0.08 );
+
+			}
+
+		}
+
+		// the pendants: down the middle of the walkway between the columns, and along the stands' side
+		this.lamps = [];
+		const cols = this.columns.map( ( c ) => c[ 0 ] ).sort( ( a, b ) => a - b );
+		for ( let i = 0; i < cols.length - 1; i ++ ) {
+
+			const s = ( cols[ i ] + cols[ i + 1 ] ) / 2;
+			if ( s < 1 || s > S_END - 1 ) continue;
+			for ( const d of [ 36.4, 43.0 ] ) {
+
+				const w = W.at( s, d );
+				pendant( K, Kit.frame( [ w.x, w.z ], [ w.ux, w.uz ], [ w.nx, w.nz ] ), 0, 0, 7.2, top );
+				this.lamps.push( [ s, d ] );
+
+			}
+
+		}
+
+	}
+
 	// The rain stays out from under the decks: a map of the top of whatever's overhead (the heights of the
 	// decks, the stands, the roofs, the outer ring's floors) over the whole park, rasterized once from the
 	// bowl's and the facade's meshes (not the thin things: rails, lamps, the light towers, the netting),
@@ -346,6 +451,7 @@ export default class Concourse3B {
 
 		this._lastT = t;
 		this.people.update( dt, ns );
+		this.stories.update( dt, ns );
 		this.cast.update();
 		this.tv.update( dt, director, ns );
 		// the floor: wet on the 27th (wetter as it pours), dry prints on the 29th, the litter piling up

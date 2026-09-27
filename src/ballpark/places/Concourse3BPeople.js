@@ -151,15 +151,17 @@ export class ConcoursePeople {
 
 	}
 
-	_pickPortal( not = null, kinds = null ) {
+	_pickPortal( not = null, kinds = null, near = null ) {
 
 		const list = this.portals.filter( ( p ) => p !== not && ( ! kinds || kinds.includes( p.kind ) ) );
+		// nearer ones likelier (a walk of 40 m is likelier than one of 120)
+		const w = ( p ) => p.w * ( near === null ? 1 : Math.exp( - Math.abs( p.s - near ) / 45 ) );
 		let sum = 0;
-		for ( const p of list ) sum += p.w;
+		for ( const p of list ) sum += w( p );
 		let x = this.r() * sum;
 		for ( const p of list ) {
 
-			x -= p.w;
+			x -= w( p );
 			if ( x <= 0 ) return p;
 
 		}
@@ -352,11 +354,29 @@ export class ConcoursePeople {
 
 	}
 
+	// a fan with a look and a job of their own (Kevin, the beer men): they walk from portal to portal
+	// with what they carry, never to a line or the rail
+	addFan( look, extra = {} ) {
+
+		const p = this.person( { poncho: 0 }, { ...look, seed: Math.floor( this.r() * 65536 ) } );
+		if ( ! p ) return null;
+		p.scale = 1.0;
+		const f = {
+			p, kind: 'fan', mode: 'off', wait: this.r() * 4, speed: 1.3, order: this.r(), s: 0, d: MID, vs: 0, vd: 0, side: 0, lane: MID,
+			carry: 'none', hands: 'free', swing: 0.3, fixed: true, ...extra,
+		};
+		this.fans.push( f );
+		this.actors.push( f );
+		return f;
+
+	}
+
 	// a fan sets out: from somewhere to somewhere (a stand's line most often, the seats, the restrooms)
-	_start( f, ns ) {
+	_start( f, ns, forNeed = false ) {
 
 		const r = this.r;
 		const from = this._pickPortal();
+		f.forNeed = forNeed;
 		f.from = from;
 		f.s = from.s + ( r() - 0.5 ) * ( from.kind === 'end' ? 2 : 0.6 );
 		f.d = from.kind === 'end' ? lerp( 32, 43, r() ) : from.d;
@@ -373,8 +393,24 @@ export class ConcoursePeople {
 		// to a stand whose line is short of what the night wants (from the aisles and doors near it), or
 		// on to somewhere
 		let stand = null;
+		f.checked = false;
+		if ( f.fixed ) {
+
+			// the ones with a job: from the concourse's ends to the aisles and back
+			f.stand = null; f.spot = null; f.loo = null;
+			f.to = from.kind === 'aisle' ? this._pickPortal( from, [ 'end', 'aisle' ] ) : this._pickPortal( from, [ 'aisle' ] );
+			f.mode = 'walk';
+			f.phase = 'in';
+			this._lane( f, f.to.s );
+			f.p.visible = true;
+			f.p.fresh = true;
+			f.p.pose.phase = r() * TAU;
+			return;
+
+		}
+
 		const short = this.stands.filter( ( S ) => S.line.length + S.coming < Math.round( S.base * ( 0.35 + ns.busy ) * 3.5 ) );
-		if ( short.length && r() < 0.75 ) {
+		if ( short.length && r() < ( forNeed ? 0.6 : 0.75 ) ) {
 
 			stand = short[ Math.floor( r() * short.length ) ];
 			const near = this.portals.filter( ( q ) => Math.abs( q.s - stand.s ) < 30 && q.kind !== 'end' );
@@ -398,7 +434,7 @@ export class ConcoursePeople {
 		f.stand = stand;
 		f.spot = null;
 		f.loo = null;
-		f.to = stand ? null : from.kind === 'aisle' ? this._pickPortal( from, [ 'door', 'end', 'aisle' ] ) : this._pickPortal( from, [ 'aisle', 'aisle', 'door', 'end' ] );
+		f.to = stand ? null : from.kind === 'aisle' ? this._pickPortal( from, [ 'door', 'end', 'aisle' ], f.s ) : this._pickPortal( from, [ 'aisle', 'aisle', 'door', 'end' ], f.s );
 		// the women's line, if it's short of what the night wants (the women, mostly)
 		if ( ! stand ) {
 
@@ -418,8 +454,8 @@ export class ConcoursePeople {
 		if ( ! f.stand && ! f.loo && this.rail.length ) {
 
 			const taken = this.rail.filter( ( q ) => q.who ).length;
-			const wantRail = this.rail.length * ( ns.celebrate ? 0.9 : ns.suspended ? 0.25 : 0.5 );
-			if ( taken < wantRail && r() < 0.6 ) {
+			const wantRail = this.rail.length * ( ns.celebrate ? 0.9 : ns.suspended ? 0.25 : ns.inning >= 9 && ! ns.first ? 0.8 : 0.5 );
+			if ( taken < wantRail && ( r() < 0.6 || forNeed ) ) {
 
 				const free = this.rail.filter( ( q ) => ! q.who && Math.abs( q.s - f.s ) < 40 );
 				if ( free.length ) {
@@ -464,7 +500,7 @@ export class ConcoursePeople {
 		f.loo = null;
 		if ( f.spot ) f.spot.who = null;
 		f.spot = null;
-		f.to = this._pickPortal( null, kinds );
+		f.to = this._pickPortal( null, kinds, f.s );
 		this._lane( f, f.to.s );
 
 	}
@@ -487,15 +523,24 @@ export class ConcoursePeople {
 		for ( const f of this.fans ) if ( f.mode === 'walk' ) walking ++;
 		const needs = this.stands.some( ( S ) => S.line.length + S.coming < Math.round( S.base * ( 0.35 + ns.busy ) * 3.5 ) )
 			|| this.loos.some( ( R ) => R.line.length + R.coming < Math.round( R.base * ( 0.2 + ns.busy ) * 4 ) )
-			|| this.rail.filter( ( q ) => q.who ).length < this.rail.length * ( ns.celebrate ? 0.9 : ns.suspended ? 0.25 : 0.5 );
+			|| this.rail.filter( ( q ) => q.who ).length < this.rail.length * ( ns.celebrate ? 0.9 : ns.suspended ? 0.25 : ns.inning >= 9 && ! ns.first ? 0.8 : 0.5 );
+		// the lines and the rail fill a few people a second, whatever the walkers are doing
+		this._needT = ( this._needT || 0 ) + dt * 3;
 		for ( const f of this.fans ) {
 
 			if ( f.mode === 'off' ) {
 
 				f.wait -= dt;
-				if ( f.wait <= 0 && ( walking < want || ( needs && walking < want + 18 ) ) ) {
+				if ( f.wait > 0 ) continue;
+				if ( walking < want ) {
 
 					this._start( f, ns );
+					walking ++;
+
+				} else if ( needs && this._needT >= 1 && ! f.fixed && walking < want * 2 + 10 ) {
+
+					this._needT -= 1;
+					this._start( f, ns, true );
 					walking ++;
 
 				}
@@ -503,6 +548,8 @@ export class ConcoursePeople {
 			}
 
 		}
+
+		this._needT = Math.min( this._needT, 3 );
 
 		// who's where, in 2 m bins along the concourse (for stepping round each other)
 		this._bins = new Map();
@@ -564,6 +611,23 @@ export class ConcoursePeople {
 	_walk( f, dt, ns ) {
 
 		const p = f.p;
+		if ( f.hold > 0 ) {
+
+			// stopped for the usher: the ticket held out to him, then off down the steps
+			f.hold -= dt;
+			const u = f.to.usher;
+			const [ dx, dz ] = this._worldDir( f.s, f.d, u.s - f.s, u.d - f.d );
+			this._move( f, 0, 0, dt, Walkway.yaw( dx, dz ) );
+			const a = p.pose;
+			a.walk = lerp( a.walk, 0, Math.min( 1, dt * 6 ) );
+			this._hands( f, a, ns );
+			a.armL = GESTURE.reachL[ 0 ].slice();
+			a.propL = PROP.ticket;
+			a.headPitch = 0.1;
+			return;
+
+		}
+
 		let gs, gd, arrive = 0.35;
 		if ( f.stand ) {
 
@@ -634,7 +698,19 @@ export class ConcoursePeople {
 
 			}
 
-			if ( f.phase === 'in' && f.to.kind !== 'end' ) f.phase = 'exit';
+			if ( f.phase === 'in' && f.to.kind !== 'end' ) {
+
+				f.phase = 'exit';
+				// the usher at the top of the aisle wants to see the ticket (the beer men he knows)
+				if ( f.to.usher && ! f.checked && ! f.hawker && this.r() < 0.8 ) {
+
+					f.hold = 2.3;
+					f.checked = true;
+					f.to.usher.checkFan = f;
+
+				}
+
+			}
 			else {
 
 				f.mode = 'off';
