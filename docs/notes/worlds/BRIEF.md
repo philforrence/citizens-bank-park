@@ -75,6 +75,7 @@ Choose by:
   - `Crowd.js`: the seated fans. Don't edit it.
 - **Tools** (2026-09-27):
   - **Blender 5.2 LTS** is installed and runs headless: `node tools/blender/run.mjs script.py -- args`. Script the modelling and export glTF. Bake with Cycles on the CPU; pass `--gpu` only for a GPU render, and it takes the lock. Engine side, `src/engine/loaders/GLTF.js` loads glTF (so far it has only loaded Tidewater's characters, so a static-mesh adapter may be needed).
+  - **Photographic textures:** `node tools/textures/fetch.mjs <asset>` fetches a CC0 Poly Haven scan (colour, normals, roughness, height) into `public/textures/`; `--search brick` finds one. Load it with `imageTexture( '/textures/<asset>/diff.jpg' )` (in geo.js; `srgb: false` for data maps). Keep it to 1k unless the surface is seen up close, and add the credit line to CREDITS.md. Where a photo beats a shader pattern, use it: this is what makes surfaces read as real.
   - **Image generation:** `node tools/imagegen/gen.mjs` (Gemini "Nano Banana"). Use it only for generic materials, decals, interiors and invented people, never for real signage, logos or people, and log every image in CREDITS.md. Until billing is enabled on the key it returns a quota error; then fall back to CC0 photo scans (Poly Haven, ambientCG) or canvas textures.
 - **Don't break the game.** After your last change:
   - load your worktree's full park cleanly, with no console errors;
