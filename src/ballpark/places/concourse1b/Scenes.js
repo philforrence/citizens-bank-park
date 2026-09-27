@@ -75,6 +75,18 @@ export class Scenes1B {
 					{ name: 'Mary Beth', looks: look( { female: true, age: 0, skin: 0, hair: 4, hairStyle: 2, top: TOP.hoodie, color: COLOR.grey, sleeves: COLOR.grey, chest: CHEST.block, pants: 5, shoes: 0 }, { poncho: 1, hat: HAT.hood } ), at: [ 42.8, 103.4 ], speed: 2.4 },
 				],
 			},
+			// the last out on the 29th: the ones without tickets, from the tailgates in Lot K across Pattison
+			// (tailgating was allowed in K), running over to the gate to be as near as they can, jumping,
+			// hugging, towels round their heads
+			{
+				name: 'lastOut', windows: [ [ 3353, 3500 ] ], rush: true,
+				people: Array.from( { length: 12 }, ( _, i ) => ( {
+					name: 'celebrant' + i, speed: 3.2 + ( i % 3 ) * 0.3,
+					looks: look( { age: i % 5 === 4 ? 3 : 0, female: i % 3 === 1, hairStyle: i % 3 === 1 ? 2 : 0, skin: [ 0, 1, 5, 2, 0, 6 ][ i % 6 ], hair: [ 1, 2, 0, 4, 3, 1 ][ i % 6 ], build: i % 4, top: [ TOP.hoodie, TOP.homeJersey, TOP.jacket, TOP.nameTee, TOP.fleece, TOP.champsTee ][ i % 6 ], color: [ COLOR.red, COLOR.white, COLOR.red, COLOR.red, COLOR.navy, COLOR.grey ][ i % 6 ], sleeves: COLOR.grey, back: [ 0, BACK.UTLEY, 0, BACK.HOWARD, 0, 0 ][ i % 6 ], chest: [ CHEST.block, CHEST.script, 0, 0, 0, CHEST.champs ][ i % 6 ], hat: [ HAT.knitRed, HAT.capRed, HAT.none, HAT.capBack, HAT.knitGrey, HAT.capRed ][ i % 6 ], pants: i % 3, shoes: i % 2 } ),
+					from: [ 78 + ( i * 7.3 ) % 34, 128 + ( i * 3.7 ) % 18 ], to: P( - 11 + ( i * 5.1 ) % 22, 3.2 + ( i % 3 ) * 1.4 ), at: [ 78 + ( i * 7.3 ) % 34, 128 + ( i * 3.7 ) % 18 ], delay: i * 1.3,
+				} ) ),
+				pose: ( p, i, T, ns ) => this._lastOut( p, i, T, ns ),
+			},
 		];
 		for ( const sc of this.scenes ) sc.state = 'idle';
 		// the arrivals keep enough slots free for them
@@ -95,6 +107,14 @@ export class Scenes1B {
 
 	}
 
+	reset1( sc ) {
+
+		for ( const a of sc.active || [] ) if ( a.mode === 'scene' ) this.A._free( a );
+		sc.active = null;
+		sc.state = 'idle';
+
+	}
+
 	update( dt, ns, t ) {
 
 		this.time += dt;
@@ -102,7 +122,8 @@ export class Scenes1B {
 
 			const w = sc.windows.find( ( [ a, b ] ) => t >= a && t < b );
 			if ( sc.state === 'idle' && w && t < w[ 1 ] - ( sc.send ? 0 : 15 ) ) this._start( sc, ns, w );
-			else if ( sc.state === 'active' && ( ! w || t >= w[ 1 ] || sc.send ) ) this._go( sc );
+			else if ( sc.state === 'active' && sc.rush && ! w ) this.reset1( sc );
+			else if ( sc.state === 'active' && ! sc.rush && ( ! w || t >= w[ 1 ] || sc.send ) ) this._go( sc );
 			else if ( sc.state === 'gone' && ! w ) sc.state = 'idle';
 			if ( sc.state === 'active' ) sc.active.forEach( ( a, i ) => {
 
@@ -187,6 +208,48 @@ export class Scenes1B {
 		}
 
 		P.blink = ( t * 0.3 + i ) % 1 < 0.04 ? 1 : 0;
+
+	}
+
+	// ---- the last out: running over from Lot K, then jumping and hugging and waving the towels in front of
+	// the gate
+	_lastOut( p, i, T, ns ) {
+
+		const q = this.scenes[ 4 ].people[ i ], P = p.pose, t = this.time;
+		const run = Math.max( 0, T - q.delay );
+		const dx = q.to[ 0 ] - q.from[ 0 ], dz = q.to[ 1 ] - q.from[ 1 ], L = Math.hypot( dx, dz );
+		const k = Math.min( 1, run * q.speed / L );
+		p.x = q.from[ 0 ] + dx * k; p.z = q.from[ 1 ] + dz * k; p.y = 7.01;
+		P.lean = 0; P.twist = 0; P.hipL = P.hipR = P.kneeL = P.kneeR = 0; P.propL = 0;
+		if ( k < 1 && run > 0 ) {
+
+			// running, arms up now and then
+			p.yaw = Math.atan2( - dx, - dz );
+			P.walk = 1;
+			P.phase = ( P.phase + 1 / 60 * q.speed / 1.3 * Math.PI * 2 ) % ( Math.PI * 2 );
+			const up = i % 2 === 0;
+			P.armL = up ? [ 2.6, 0.3, 0, 0.4 ] : [ Math.sin( P.phase ) * 0.6, 0.1, 0, 0.9 ];
+			P.armR = up ? [ 2.6, 0.3, 0, 0.4 ] : [ - Math.sin( P.phase ) * 0.6, 0.1, 0, 0.9 ];
+			P.propR = up ? PROP.towel : 0;
+			P.mouth = 0.8;
+			P.lean = 0.15;
+			P.drop = 0;
+			return;
+
+		}
+
+		// there: facing the gate, jumping, hugging the one beside, the towel round the head
+		p.yaw = Math.atan2( this.G.n[ 0 ], this.G.n[ 1 ] ) + Math.sin( i * 2.1 ) * 0.4;
+		P.walk = 0;
+		const hug = ( ( T * 0.2 + i * 0.37 ) % 1 ) < 0.18;
+		P.drop = hug ? 0 : - Math.max( 0, Math.sin( t * 8 + i ) ) * 0.12;
+		P.armL = hug ? [ 1.6, 1.1, - 0.6, 0.5 ] : [ 2.7, 0.3, 0, 0.35 ];
+		P.armR = hug ? [ 1.6, 1.1, - 0.6, 0.5 ] : [ 2.5 + 0.35 * Math.sin( t * 10 + i ), 0.5, 0.2 * Math.sin( t * 10 + i ), 0.4 ];
+		P.propR = hug ? 0 : ( i % 3 ? PROP.towel : 0 );
+		P.twist = hug ? ( i % 2 ? 0.5 : - 0.5 ) : 0;
+		P.headPitch = - 0.3;
+		P.mouth = 0.8;
+		P.blink = 0;
 
 	}
 

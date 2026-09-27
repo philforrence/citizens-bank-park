@@ -895,6 +895,18 @@ export class Arrivals1B {
 
 		}
 
+		// the last out: the gate's staff too, arms up, jumping, hugging the one beside them
+		if ( ns.celebrate ) {
+
+			const hug = ( ( t * 0.15 + s.order ) % 1 ) < 0.2;
+			P.armL = hug ? [ 1.6, 1.1, - 0.6, 0.5 ] : [ 2.6, 0.3, 0, 0.4 ];
+			P.armR = hug ? [ 1.6, 1.1, - 0.6, 0.5 ] : [ 2.4 + 0.3 * Math.sin( t * 9 + s.order * 5 ), 0.4, 0, 0.4 ];
+			P.propL = 0; P.propR = s.kind === 'towels' ? PROP.towel : 0;
+			P.mouth = 0.8; P.lean = 0; P.headPitch = - 0.2;
+			P.drop = s.kind === 'guard' ? 0 : - Math.max( 0, Math.sin( t * 7.5 + s.order * 9 ) ) * 0.08;
+
+		} else P.drop = 0;
+
 		this._turnTo( p, yaw, dt, 5 );
 		P.blink = ( t * 0.3 + s.order * 3 ) % 1 < 0.04 ? 1 : 0;
 
