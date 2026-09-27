@@ -25,6 +25,8 @@ It runs in waves of 4 builders, one place each, on the shared brief ([BRIEF.md](
 | W3 | Ashburn Alley and the bullpens | `places/AshburnAlley2008.js` (`alley`) |
 | W4 | Field level round home and the dugouts (the rail) | `places/FieldRail.js` (`rail`) |
 
+**Status:** all four merged (2026-09-27), the combined summary is in [WAVE1.md](WAVE1.md), and it's waiting on the owner's review.
+
 ## Candidates for the next waves
 
 - **Harry the K's and the left field corner:**
