@@ -244,7 +244,12 @@ export class BallparkApp {
 		G.seaLevel.value = this.field.y0 - 1;
 		// what you walk on: street level round the pit, the field (and the seats' colliders) inside it
 		this.terrain = { heightAt: ( x, z ) => F.y0 + B.heightAt( ...F.toField( x, z ) ) };
-		this.ground = new Ground( { scene, hole: FOOTPRINT.map( ( [ x, z ] ) => {
+		// ---- L: the grid of the city's streets for its lamps at night (Ground.js): the field frame's x axis
+		// in the world, and the park's centre
+		const gc = this.field.toWorld( 0, - 40 ), gx = this.field.toWorld( 1, - 40 );
+		const grid = { centre: [ gc.x, gc.z ], axis: [ gx.x - gc.x, gx.z - gc.z ] };
+		// ---- end L
+		this.ground = new Ground( { scene, grid, hole: FOOTPRINT.map( ( [ x, z ] ) => {
 
 			const w = this.field.toWorld( x, z );
 			return [ w.x, w.z ];

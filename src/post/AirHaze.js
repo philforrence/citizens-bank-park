@@ -382,7 +382,7 @@ fn hazeApply( uv: vec2f, c: vec4f ) -> vec4f {
 			}
 #if HZ_NIGHT
 			// ---- L (the ballpark's night): the air lit by the light banks, up to what's there
-			out += nightAirApply( underwaterParams.camPos, dir, dist );
+			out = nightAirApply( out, underwaterParams.camPos, dir, dist, sky );
 			// ---- end L
 #endif
 

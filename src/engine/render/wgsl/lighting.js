@@ -406,6 +406,9 @@ fn shadeSurface( s0: Surface, P: vec3f, V: vec3f, pixel: vec2f ) -> vec3f {
 		let pool = smoothstep( -0.05, 0.45, pn );
 		s.albedo = s.albedo * mix( 1.0, 0.58, wetK * smoothstep( 0.25, 0.9, r0 ) );
 		s.roughness = mix( r0, min( r0, mix( 0.3, 0.05, pool ) ), wetK );
+		// at night the film mirrors a dark sky (the environment probe holds more than the eye sees there):
+		// what shines in it is the lamps (their own highlights), not a sheet of sky
+		s.envIntensity = s.envIntensity * mix( 1.0, 0.3, wetK * frame.night );
 		// bare metal (the rails, the seat standards) beads up: its sheen tightens
 		let wetM = frame.wet * smoothstep( -0.2, 0.6, s.normal.y ) * s.metalness;
 		s.roughness = mix( s.roughness, s.roughness * 0.55, wetM );

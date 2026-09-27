@@ -1,4 +1,5 @@
-import { Vector2, Vector3, Vector4 } from '../engine/index.js';
+import { Vector2, Vector3, Vector4, Color } from '../engine/index.js';
+import { LEVELS } from './layout.js';
 import { ShaderModule, UniformBlock } from '../engine/gpu/Shader.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { SceneLighting, surfaceModule } from '../engine/render/wgsl/lighting.js';
@@ -43,6 +44,9 @@ const params = new UniformBlock( 'NightAir', {
 	cosInner: [ 'f32', 0.83 ],
 	sigmaN: [ 'f32', 0 ],
 	gN: [ 'f32', 0.9 ],
+	// the rain's extinction beyond the park (1/m) and the colour it fades to
+	veil: [ 'vec3f', new Vector3( 0.004, 0.0032, 0.0026 ) ],
+	rainExt: [ 'f32', 0 ],
 }, { label: 'nightAir' } );
 
 export const nightAirModule = new ShaderModule( {
@@ -130,8 +134,19 @@ fn nightAirInScatter( o: vec3f, d: vec3f, tMax: f32 ) -> vec3f {
 	return nightAir.color * acc * nightAir.on;
 }
 
-// the composite's night term: the lit air, and on the 27th the rain showing in it
-fn nightAirApply( o: vec3f, d: vec3f, dist: f32 ) -> vec3f {
+// the composite's night term on the colour c: the lit air, and on the 27th the rain showing in it; and
+// past the park the rain's own veil (heavy rain sees a kilometre or two: by the 5th inning Center City is
+// a glow through it), in the colour of the low cloud lit by the city
+fn nightAirApply( c: vec3f, o: vec3f, d: vec3f, dist: f32, sky: bool ) -> vec3f {
+	var base = c;
+	if ( ! sky && nightAir.rainExt > 0.0 ) {
+		let T = exp( - nightAir.rainExt * max( dist - 180.0, 0.0 ) );
+		base = mix( nightAir.veil, c, T );
+	}
+	return base + nightAirLight( o, d, dist );
+}
+
+fn nightAirLight( o: vec3f, d: vec3f, dist: f32 ) -> vec3f {
 	let air = nightAirInScatter( o, d, dist );
 	if ( nightAir.streaks <= 0.0 || nightAir.on < 0.001 ) { return air; }
 	// three sheets of drops beyond the camera's own rain (Rain.js, within ~40 m), where they're in
@@ -153,13 +168,14 @@ export const NIGHT_AIR = params.fields;
 // the players' shadows fall toward center field). It stood for the banks everywhere: the stands as bright
 // as the field and the plaza and the lots lit like the infield. The banks light the field; the stands
 // get less (the near ones only spill), and outside the park the key fades out to the street lamps and the
-// lot poles (their own lights). A radial footprint round the field's centre (world x z; the radii where
-// the stands start and where the park ends).
+// lot poles (their own lights). The footprint is an ellipse on the field (world: its centre, the field
+// frame's x axis; radii 75 m across, 70 m from home to the fence): full inside it, the stands' share
+// from its wall out, the outside's past the facade.
 const keyParams = new UniformBlock( 'NightKey', {
-	centre: [ 'vec4f', new Vector4( 0, 0, 80, 140 ) ],
+	centre: [ 'vec4f', new Vector4( 0, 0, 1, 0 ) ], // x z, then the field's +x in the world (x z)
 	on: [ 'f32', 0 ],
-	stands: [ 'f32', 0.45 ],
-	outside: [ 'f32', 0.1 ],
+	stands: [ 'f32', 0.4 ],
+	outside: [ 'f32', 0.3 ],
 	pad: [ 'f32', 0 ],
 }, { label: 'nightKey' } );
 
@@ -171,9 +187,12 @@ export const nightKeyModule = new ShaderModule( {
 	code: /* wgsl */`
 fn nightKeyFootprint( P: vec3f ) -> f32 {
 	if ( nightKey.on < 0.001 ) { return 1.0; }
-	let r = length( P.xz - nightKey.centre.xy );
-	let bowl = mix( 1.0, nightKey.stands, smoothstep( nightKey.centre.z, nightKey.centre.w, r ) );
-	let k = mix( bowl, nightKey.outside, smoothstep( nightKey.centre.w, nightKey.centre.w + 45.0, r ) );
+	let d = P.xz - nightKey.centre.xy;
+	let ax = nightKey.centre.zw;
+	let q = vec2f( dot( d, ax ), dot( d, vec2f( - ax.y, ax.x ) ) ) / vec2f( 75.0, 70.0 );
+	let e = length( q );
+	let bowl = mix( 1.0, nightKey.stands, smoothstep( 1.0, 1.4, e ) );
+	let k = mix( bowl, nightKey.outside, smoothstep( 1.8, 2.25, e ) );
 	return mix( 1.0, k, nightKey.on );
 }
 `,
@@ -201,14 +220,72 @@ export class Night {
 		NIGHT_AIR.cosInner.value = Math.cos( BEAM.inner * Math.PI / 180 );
 		this._fabric();
 		// the stadium key's footprint, with the clouds' shadow the hook had
-		const c = app.field.toWorld( 0, - 50 );
-		NIGHT_KEY.centre.value.set( c.x, c.z, 80, 140 );
+		const c = app.field.toWorld( 0, - 55 ), c1 = app.field.toWorld( 1, - 55 );
+		NIGHT_KEY.centre.value.set( c.x, c.z, c1.x - c.x, c1.z - c.z );
 		const clouds = app.clouds;
 		SceneLighting.set( 'directModulation', new ShaderModule( {
 			name: 'hook-directModulation-night',
 			deps: [ surfaceModule, clouds?.shadowModule, nightKeyModule ].filter( Boolean ),
 			code: `fn hookDirectModulation( P: vec3f, N: vec3f ) -> vec3f { return vec3f( ${ clouds ? 'cloudsShadow( P.xz )' : '1.0' } * nightKeyFootprint( P ) ); }`,
 		} ) );
+		this._boardLight();
+
+	}
+
+	// Phanavision's light on the fans in front of it: the porch, the left field seats, the warning track
+	// below (Getty 83486198: the 29th's last pitch, the Rays' logo lighting the rows under it). A wide spot
+	// just off the board's face, coloured and dimmed as the board's picture changes (sampled when it's
+	// redrawn, at most every 1.5 s, from a 12 x 10 copy)
+	_boardLight() {
+
+		const a = this.app, lm = a.landmarks, F = a.field;
+		if ( ! lm?.boardCanvas || ! a.localLights ) return;
+		// the board faces home from fencePoint( -36, 452 ft ), its face from 15.7 m over the street
+		const at = [ - 81.0 + 0.588 * 3, - 111.5 + 0.809 * 3 ], y = LEVELS.mainConcourse + 15.7 + 12;
+		const w = F.toWorld( at[ 0 ], at[ 1 ] ), aim = F.toWorld( - 52, - 78 );
+		const position = new Vector3( w.x, F.y0 + y, w.z );
+		const dir = new Vector3( aim.x, F.y0 + 9, aim.z ).sub( position ).normalize();
+		this.board = a.localLights.add( {
+			position, dir, color: new Color( 0.6, 0.65, 0.7 ), intensity: 110, range: 80,
+			cosInner: Math.cos( 45 * Math.PI / 180 ), cosOuter: Math.cos( 82 * Math.PI / 180 ), kind: 'board', priority: 0,
+		} );
+		this._small = new OffscreenCanvas( 12, 10 );
+		this._smallCtx = this._small.getContext( '2d', { willReadFrequently: true } );
+		const redraw = lm.updateScoreboard.bind( lm );
+		lm.updateScoreboard = ( ...args ) => {
+
+			redraw( ...args );
+			this._boardDirty = true;
+
+		};
+		this._boardDirty = true;
+		this._boardT = 0;
+
+	}
+
+	_sampleBoard( dt ) {
+
+		this._boardT += dt;
+		if ( ! this.board || ! this._boardDirty || this._boardT < 1.5 ) return;
+		this._boardDirty = false;
+		this._boardT = 0;
+		const c = this._smallCtx;
+		c.drawImage( this.app.landmarks.boardCanvas, 0, 0, 12, 10 );
+		const px = c.getImageData( 0, 0, 12, 10 ).data;
+		let r = 0, g = 0, b = 0;
+		for ( let i = 0; i < px.length; i += 4 ) {
+
+			// linear light
+			r += ( px[ i ] / 255 ) ** 2.2;
+			g += ( px[ i + 1 ] / 255 ) ** 2.2;
+			b += ( px[ i + 2 ] / 255 ) ** 2.2;
+
+		}
+
+		const n = px.length / 4;
+		this.board.color.setRGB( r / n, g / n, b / n );
+		// the board's own brightness carries in the colour: a mid picture ~0.2 linear
+		this.board.scale = 4.0;
 
 	}
 
@@ -248,10 +325,15 @@ export class Night {
 		NIGHT_AIR.sigmaN.value = 0.0004 + 0.0022 * rain;
 		NIGHT_AIR.g.value = 0.3 + 0.15 * rain;
 		NIGHT_AIR.gN.value = 0.9;
+		NIGHT_AIR.rainExt.value = 0.00045 * rain * rain;
+		// the veil takes the colour of the low cloud near the horizon (SkyGlow's dome and the sky's glow)
+		const glow = ( a.skyGlow || 0.006 ) * G.night.value * 3.2;
+		NIGHT_AIR.veil.value.set( glow, glow * 0.8, glow * 0.63 );
 		NIGHT_AIR.streaks.value = rain > 0.01 ? 25 * rain : 0;
 		const w = a.rain?.material.uniforms.wind.value;
 		if ( w ) NIGHT_AIR.wind.value.set( w.x, w.y );
 		this._broadcast();
+		this._sampleBoard( dt || 0 );
 
 	}
 

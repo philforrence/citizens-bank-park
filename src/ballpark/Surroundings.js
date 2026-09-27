@@ -1,4 +1,4 @@
-import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, Float32BufferAttribute, Color } from '../engine/index.js';
+import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, Float32BufferAttribute, BufferGeometry, Color } from '../engine/index.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
@@ -11,6 +11,27 @@ import { TOWERS, NEIGHBOURS, ROADS } from './data/surroundings.js';
 // footprints, 5 km north, with City Hall's tower among them. Field frame, street level = LEVELS.mainConcourse.
 
 const STREET = LEVELS.mainConcourse;
+
+// ---- L (light and night): Center City as it stood and was lit in October 2008.
+// The towers finished after the 2008 World Series (their completion years: ref/night/INDEX.md)
+const AFTER_2008 = new Set( [ 'Comcast Technology Center', 'FMC Tower', 'W Hotel & Element by Westin Philadelphia', 'The Laurel',
+	'Evo Cira Centre South', '1919 Market', 'Riverwalk North Tower', 'Avira', 'Broad + Noble Apartments', 'One Riverside', 'The Crane',
+	'NorthXNorthwest', 'The Harper', 'The Alexander', '1213 Walnut' ] );
+// The crowns lit at night (the lots on Oct 27, 2008, ref/night roadieshow 3024603196: Mellon's pyramid red
+// over a white band, One Liberty's gables in red chevrons, Two Liberty's red and white, Comcast Center's
+// glass top white; FOX's skyline shot that night: City Hall floodlit, the PSFS sign red; the Cira
+// Centre's LED facade red for the Phillies, blender13 2985440887, Oct 29). `shape` corrects a tower's top
+// for its crown; kinds: 1 gables (nested chevrons), 2 a lit pyramid over a band, 3 a glass lantern,
+// 4 a neon sign, 5 a spire, 6 an LED facade, 7 an obstruction light.
+const CROWNS = {
+	'One Liberty Place': { gables: { w: 12, H: 17, lines: 5 }, spire: 11, beacon: true },
+	'Two Liberty Place': { shape: { h: 232, spire: 258 }, gables: { w: 10, H: 20, lines: 4 }, spire: 6, beacon: true },
+	'BNY Mellon Center': { shape: { h: 222, spire: 241 }, pyramid: { w: 15, H: 19 }, beacon: true },
+	'Comcast Center': { lantern: 13, beacon: true },
+	'Loews Philadelphia Hotel': { sign: [ 24, 7 ] },
+	'Cira Centre': { led: true },
+};
+// ---- end L
 
 const NEIGHBOUR_HEIGHT = {
 	'Lincoln Financial Field': 38,
@@ -189,14 +210,29 @@ export class Surroundings {
 	s.albedo = c;
 	s.roughness = mix( 0.15, 0.7, max( spandrel, mullion ) );
 	s.metalness = mix( 0.6, 0.1, max( spandrel, mullion ) );
-	let lit = step( 0.72, fract( sin( dot( vec2f( colI, floorI ), vec2f( 39.3468, 11.135 ) ) + seed * 91.7 ) * 43758.5453 ) );
-	s.emissive = vec3f( 1.0, 0.78, 0.5 ) * lit * ( 1.0 - spandrel ) * ( 1.0 - mullion ) * frame.night * 2.5;
+	// ---- L: after dark, a weeknight at nine: most office floors dark, the cleaners' floors lit end to end,
+	// a few late offices; the flats and hotels warmer. From the ballpark a window is finer than a pixel,
+	// so there the floor's share glows (it used to sparkle, a Christmas display: ref/night lots photo
+	// roadieshow 3024603196, jackiesheeran 2962605155)
+	let fr = hash21( vec2f( floorI, seed * 131.0 ) );
+	let share = select( select( 0.03, 0.16, fr > 0.7 ), 0.8, fr > 0.93 );
+	let cellLit = step( 1.0 - share, hash21( vec2f( colI + seed * 57.0, floorI ) ) ) * ( 1.0 - spandrel ) * ( 1.0 - mullion );
+	let wpx = max( fwidth( u ) / 1.6, fwidth( P.y ) / 4.0 );
+	let lit = mix( cellLit, share * 0.62, smoothstep( 0.3, 1.1, wpx ) );
+	let warm = step( 0.5, seed );
+	s.emissive = mix( vec3f( 0.8, 0.92, 0.95 ), vec3f( 1.0, 0.74, 0.46 ), warm ) * lit * frame.night * 2.0;
+	// ---- end L
 `,
 		} );
 		const roof = standard( { name: 'tower-roofs', color: new Color( 0.2, 0.2, 0.21 ), roughness: 0.7 } );
 		for ( const m of [ glass, roof ] ) m.underwaterLighting = 'none';
-		for ( const t of TOWERS ) {
+		for ( const t0 of TOWERS ) {
 
+			// ---- L: the skyline of October 2008 (the towers finished since are left out), and the crowns
+			// as they were lit (_nightCrown)
+			if ( AFTER_2008.has( t0.name ) ) continue;
+			const t = CROWNS[ t0.name ]?.shape ? { ...t0, ...CROWNS[ t0.name ].shape } : t0;
+			// ---- end L
 			if ( t.cityHall ) {
 
 				this._cityHall( t.at );
@@ -205,7 +241,8 @@ export class Surroundings {
 			}
 
 			this._prism( t.fp, STREET - 2, STREET + t.h, glass, roof, t.name || 'tower', false );
-			if ( t.spire ) {
+			if ( CROWNS[ t.name ] ) this._nightCrown( t ); // ---- L
+			else if ( t.spire ) {
 
 				// the Liberty Places' crowns: a stepped pyramid and a spire
 				const cx = t.fp.reduce( ( a, p ) => a + p[ 0 ], 0 ) / t.fp.length, cz = t.fp.reduce( ( a, p ) => a + p[ 1 ], 0 ) / t.fp.length;
@@ -221,13 +258,242 @@ export class Surroundings {
 
 		}
 
+		this._beacons(); // ---- L
+
 	}
+
+	// ---- L: a tower's lit crown (CROWNS), into one mesh with the beacons (one draw): each triangle carries
+	// its kind, the crown's axis and a shape number for the shader
+	_nightCrown( t ) {
+
+		const C = CROWNS[ t.name ];
+		const L = this._lit || ( this._lit = { pos: [], nrm: [], lit: [], beacons: [] } );
+		const cx = t.fp.reduce( ( a, p ) => a + p[ 0 ], 0 ) / t.fp.length, cz = t.fp.reduce( ( a, p ) => a + p[ 1 ], 0 ) / t.fp.length;
+		const tri = ( A, B, D, n, kind, k ) => {
+
+			L.pos.push( ...A, ...B, ...D );
+			for ( let i = 0; i < 3; i ++ ) {
+
+				L.nrm.push( ...n );
+				L.lit.push( cx, cz, kind, k );
+
+			}
+
+		};
+		const quad = ( A, B, D, E, n, kind, k ) => {
+
+			tri( A, B, D, n, kind, k );
+			tri( A, D, E, n, kind, k );
+
+		};
+		// a square pyramid, half-width w at y0, its apex H above
+		const pyramid = ( w, y0, H, kind, k ) => {
+
+			const apex = [ cx, y0 + H, cz ];
+			const c = [ [ - w, - w ], [ w, - w ], [ w, w ], [ - w, w ] ];
+			for ( let i = 0; i < 4; i ++ ) {
+
+				const [ ax, az ] = c[ i ], [ bx, bz ] = c[ ( i + 1 ) % 4 ];
+				const mx = ( ax + bx ) / 2, mz = ( az + bz ) / 2, l = Math.hypot( mx, mz );
+				const n = [ mx / l * H, w, mz / l * H ], nl = Math.hypot( ...n );
+				tri( [ cx + ax, y0, cz + az ], [ cx + bx, y0, cz + bz ], apex, n.map( ( v ) => v / nl ), kind, k );
+
+			}
+
+		};
+		const box4 = ( r, y0, y1, kind, k ) => {
+
+			for ( const [ ax, az, bx, bz, n ] of [ [ - r, - r, r, - r, [ 0, 0, - 1 ] ], [ r, - r, r, r, [ 1, 0, 0 ] ], [ r, r, - r, r, [ 0, 0, 1 ] ], [ - r, r, - r, - r, [ - 1, 0, 0 ] ] ] ) {
+
+				quad( [ cx + ax, y0, cz + az ], [ cx + bx, y0, cz + bz ], [ cx + bx, y1, cz + bz ], [ cx + ax, y1, cz + az ], n, kind, k );
+
+			}
+
+		};
+		const top = STREET + t.h;
+		if ( C.gables ) pyramid( C.gables.w, top, C.gables.H, 1, C.gables.H / C.gables.w + C.gables.lines * 100 );
+		if ( C.pyramid ) {
+
+			pyramid( C.pyramid.w, top, C.pyramid.H, 2, 0 );
+			// the white band round its foot
+			box4( C.pyramid.w, top - 3, top + 0.2, 2, 1 );
+
+		}
+
+		if ( C.spire ) {
+
+			// a thin mast from inside the crown, lit
+			const y0 = top + ( C.gables ? C.gables.H - 3 : 0 ), H = C.spire, r = 0.8;
+			for ( const [ ax, az, bx, bz, n ] of [ [ - r, - r, r, - r, [ 0, 0, - 1 ] ], [ r, - r, r, r, [ 1, 0, 0 ] ], [ r, r, - r, r, [ 0, 0, 1 ] ], [ - r, r, - r, - r, [ - 1, 0, 0 ] ] ] ) {
+
+				tri( [ cx + ax, y0, cz + az ], [ cx + bx, y0, cz + bz ], [ cx, y0 + H, cz ], n, 5, 0 );
+
+			}
+
+			L.beacons.push( [ cx, y0 + H + 0.8, cz ] );
+
+		} else if ( C.beacon ) L.beacons.push( [ cx, top + ( C.pyramid ? C.pyramid.H : 0 ) + 1.2, cz ] );
+		// a shell 0.4 m out from the tower's walls, from y0 to y1
+		const shell = ( y0, y1, kind, k ) => {
+
+			const fp = t.fp, n = fp.length;
+			let area = 0;
+			for ( let i = 0; i < n; i ++ ) area += fp[ i ][ 0 ] * fp[ ( i + 1 ) % n ][ 1 ] - fp[ ( i + 1 ) % n ][ 0 ] * fp[ i ][ 1 ];
+			const sgn = area > 0 ? 1 : - 1;
+			for ( let i = 0; i < n; i ++ ) {
+
+				const [ ax, az ] = fp[ i ], [ bx, bz ] = fp[ ( i + 1 ) % n ];
+				const len = Math.hypot( bx - ax, bz - az );
+				if ( len < 0.05 ) continue;
+				const nx = sgn * ( bz - az ) / len, nz = - sgn * ( bx - ax ) / len, o = 0.4;
+				quad( [ ax + nx * o, y0, az + nz * o ], [ bx + nx * o, y0, bz + nz * o ], [ bx + nx * o, y1, bz + nz * o ], [ ax + nx * o, y1, az + nz * o ], [ nx, 0, nz ], kind, k );
+
+			}
+
+		};
+		if ( C.lantern ) shell( top - C.lantern, top + 0.3, 3, 0 );
+		if ( C.led ) shell( STREET + 6, top, 6, 0 );
+		if ( C.sign ) {
+
+			// the PSFS letters on the roof: neon on a frame, lettered both ways
+			const [ w, h ] = C.sign, d = 3;
+			quad( [ cx - w / 2, top, cz - d ], [ cx + w / 2, top, cz - d ], [ cx + w / 2, top + h, cz - d ], [ cx - w / 2, top + h, cz - d ], [ 0, 0, - 1 ], 4, 0 );
+			quad( [ cx + w / 2, top, cz + d ], [ cx - w / 2, top, cz + d ], [ cx - w / 2, top + h, cz + d ], [ cx + w / 2, top + h, cz + d ], [ 0, 0, 1 ], 4, 0 );
+
+		}
+
+	}
+
+	// the obstruction lights on the tall towers' tops, then the crowns' and the lights' one mesh
+	_beacons() {
+
+		const L = this._lit;
+		if ( ! L ) return;
+		// every other tower over 150 m: a red light on its roof
+		for ( const t of TOWERS ) {
+
+			if ( AFTER_2008.has( t.name ) || CROWNS[ t.name ] || t.cityHall || t.h < 150 ) continue;
+			const cx = t.fp.reduce( ( a, p ) => a + p[ 0 ], 0 ) / t.fp.length, cz = t.fp.reduce( ( a, p ) => a + p[ 1 ], 0 ) / t.fp.length;
+			L.beacons.push( [ cx, STREET + t.h + 1.2, cz ] );
+
+		}
+
+		// each a small box of red light (big enough to hold a pixel from the ballpark)
+		const b = 1.4;
+		for ( const [ x, y, z ] of L.beacons ) {
+
+			for ( const [ n, u, v ] of [ [ [ 1, 0, 0 ], [ 0, 0, 1 ], [ 0, 1, 0 ] ], [ [ - 1, 0, 0 ], [ 0, 0, - 1 ], [ 0, 1, 0 ] ], [ [ 0, 0, 1 ], [ - 1, 0, 0 ], [ 0, 1, 0 ] ],
+				[ [ 0, 0, - 1 ], [ 1, 0, 0 ], [ 0, 1, 0 ] ], [ [ 0, 1, 0 ], [ 1, 0, 0 ], [ 0, 0, - 1 ] ] ] ) {
+
+				const c = [ x + n[ 0 ] * b, y + n[ 1 ] * b, z + n[ 2 ] * b ];
+				const P = ( su, sv ) => [ c[ 0 ] + ( u[ 0 ] * su + v[ 0 ] * sv ) * b, c[ 1 ] + ( u[ 1 ] * su + v[ 1 ] * sv ) * b, c[ 2 ] + ( u[ 2 ] * su + v[ 2 ] * sv ) * b ];
+				for ( const [ A, B, D ] of [ [ P( - 1, - 1 ), P( 1, - 1 ), P( 1, 1 ) ], [ P( - 1, - 1 ), P( 1, 1 ), P( - 1, 1 ) ] ] ) {
+
+					L.pos.push( ...A, ...B, ...D );
+					for ( let i = 0; i < 3; i ++ ) {
+
+						L.nrm.push( ...n );
+						L.lit.push( x, z, 7, 0 );
+
+					}
+
+				}
+
+			}
+
+		}
+
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( L.pos, 3 ) );
+		g.setAttribute( 'normal', new Float32BufferAttribute( L.nrm, 3 ) );
+		g.setAttribute( 'uv', new Float32BufferAttribute( new Float32Array( L.pos.length / 3 * 2 ), 2 ) );
+		g.setAttribute( 'aLit', new Float32BufferAttribute( L.lit, 4 ) );
+		g.computeBoundingBox();
+		g.computeBoundingSphere();
+		const mat = standard( {
+			name: 'skyline-lights', color: new Color( 0.14, 0.16, 0.19 ), roughness: 0.3, metalness: 0.5, side: 'double', modules: [ commonModule ],
+			attributes: { aLit: 'vec4f' }, varyings: { vLit: 'vec4f', vLocal: 'vec3f' },
+			vertex: 'o.vLit = v.aLit; o.vLocal = v.position;',
+			surface: /* wgsl */`
+	let kind = i32( in.vs.vLit.z + 0.5 );
+	let k = in.vs.vLit.w;
+	let lp = in.vs.vLocal;
+	let d = lp.xz - in.vs.vLit.xy;
+	let nk = smoothstep( 0.1, 0.6, frame.night );
+	let red = vec3f( 1.0, 0.06, 0.05 );
+	let n2 = normalize( in.N.xz + vec2f( 1e-5, 0.0 ) );
+	let fwy = fwidth( lp.y );
+	var e = vec3f( 0.0 );
+	if ( kind == 1 ) {
+		// the gables: nested chevrons on each face, lines parallel to its slanted edges
+		let slope = k - floor( k / 100.0 ) * 100.0;
+		let lines = floor( k / 100.0 );
+		let a = abs( dot( d, vec2f( - n2.y, n2.x ) ) );
+		let c = lp.y + a * slope;
+		let sp = 17.0 / lines;
+		let f = abs( fract( c / sp ) - 0.5 ) * sp;
+		let lineK = 1.0 - smoothstep( 0.3, 0.5 + fwy * 2.0, f );
+		let alt = step( 0.5, fract( floor( c / sp ) * 0.5 ) );
+		e = mix( red * 1.5, vec3f( 1.0, 0.85, 0.85 ), alt * 0.35 ) * lineK * 9.0 * ( 1.0 - 0.7 * clamp( fwy, 0.0, 1.0 ) );
+	} else if ( kind == 2 ) {
+		// Mellon's pyramid washed red, its band white
+		e = select( red * 2.2, vec3f( 1.0, 0.97, 0.92 ) * 3.0, k > 0.5 );
+	} else if ( kind == 3 ) {
+		// Comcast Center's glass top lit from inside, white, the mullions dark
+		let u = dot( lp.xz, vec2f( - n2.y, n2.x ) );
+		let mull = step( 0.85, fract( u / 1.5 ) ) * ( 1.0 - clamp( fwidth( u ) / 1.5, 0.0, 1.0 ) );
+		e = vec3f( 0.92, 0.97, 1.0 ) * 3.2 * ( 1.0 - 0.6 * mull );
+	} else if ( kind == 4 ) {
+		// the PSFS neon: four letters' strokes on the frame
+		let u = dot( d, vec2f( - n2.y, n2.x ) ) / 24.0 + 0.5;
+		let cell = fract( u * 4.0 );
+		let stroke = step( 0.15, cell ) * step( cell, 0.85 ) * ( step( abs( fract( u * 12.0 ) - 0.5 ), 0.18 ) + step( abs( fract( lp.y / 2.3 ) - 0.5 ), 0.12 ) );
+		e = red * 6.0 * clamp( stroke, 0.0, 1.0 );
+	} else if ( kind == 5 ) {
+		e = vec3f( 1.0, 0.95, 0.95 ) * 3.0;
+	} else if ( kind == 6 ) {
+		// the Cira Centre's LED lines along its floor slabs, red for the Phillies; its glass dark behind
+		let row = abs( fract( lp.y / 4.1 ) - 0.5 ) * 4.1;
+		let lineK = 1.0 - smoothstep( 0.2, 0.35 + fwy * 2.0, row );
+		e = red * 3.0 * mix( lineK, 0.3, smoothstep( 0.3, 1.0, fwy / 4.1 ) );
+	} else {
+		// an obstruction light
+		e = red * 14.0;
+		s.albedo = vec3f( 0.3, 0.02, 0.02 );
+	}
+	s.emissive = e * nk;
+`,
+		} );
+		mat.underwaterLighting = 'none';
+		const mesh = new Mesh( g, mat );
+		mesh.name = 'skyline-lights';
+		this.group.add( mesh );
+
+	}
+	// ---- end L
 
 	// City Hall: the stone building round its courtyard and the tower in the middle, 548 ft to the top
 	// of William Penn's hat
 	_cityHall( [ x, z ] ) {
 
-		const stone = standard( { name: 'city-hall', color: new Color( 0.45, 0.42, 0.36 ), roughness: 0.8 } );
+		// ---- L: floodlit after dark, the tower brighter than the building and William Penn brightest, and
+		// the four clock faces lit (FOX's skyline shot on Oct 27, 2008; ref/night)
+		const base = this.field.y0 + STREET, cw = this.field.toWorld( x, z );
+		const stone = standard( { name: 'city-hall', color: new Color( 0.45, 0.42, 0.36 ), roughness: 0.8, surface: /* wgsl */`
+	let yl = in.P.y - ${ base.toFixed( 2 ) };
+	let nk = smoothstep( 0.1, 0.6, frame.night );
+	let flood = select( select( 0.22, 0.6, yl > 42.5 ), 1.4, yl > 150.0 );
+	var e = s.albedo * vec3f( 1.0, 0.86, 0.6 ) * flood;
+	let d = in.P.xz - vec2f( ${ cw.x.toFixed( 2 ) }, ${ cw.z.toFixed( 2 ) } );
+	let n2 = normalize( in.N.xz + vec2f( 1e-5, 0.0 ) );
+	if ( abs( in.N.y ) < 0.3 && abs( dot( d, n2 ) - 11.0 ) < 0.6 && yl > 105.0 && yl < 125.0 ) {
+		let a = dot( d, vec2f( - n2.y, n2.x ) );
+		let r = length( vec2f( a, yl - 115.5 ) );
+		e = mix( e, vec3f( 1.0, 0.95, 0.8 ) * 4.0, 1.0 - smoothstep( 3.6, 4.0, r ) );
+	}
+	s.emissive = e * nk;
+` } );
+		// ---- end L
 		stone.underwaterLighting = 'none';
 		const g = new Group();
 		g.position.set( x, STREET, z );
