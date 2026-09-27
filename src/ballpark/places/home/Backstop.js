@@ -8,6 +8,8 @@ import { CLUB } from './Seats.js';
 import { TOP, COLOR, HAT, restPose } from '../Cast.js';
 import { armIK, Walkway } from '../Concourse3BKit.js';
 import { hash } from './Fans.js';
+import { offsetPolyline } from '../../Bowl.js';
+import { LEVELS } from '../../layout.js';
 
 // What the center field camera sees round the plate, from the evidence (Getty 83457399 and 83485455,
 // Zelevansky's center field angle on Oct 27 and 29; FOX's feed of Game 5):
@@ -184,6 +186,7 @@ export function buildBackstop( place ) {
 		back: 0, chest: 0, pants: 3, shoes: 1, hat: HAT.capRed, poncho: 0, scarf: 0, gloves: true, seed: 3001,
 	} );
 	if ( op ) op.pose = restPose();
+	buildPlacards( place );
 	// his hands on the pan bar and the zoom (solved once)
 	const arms = [ armIK( - 1, [ - 0.2, 1.52, - 0.5 ], { lean: 0.28 } ), armIK( 1, [ 0.12, 1.66, - 0.45 ], { lean: 0.28 } ) ];
 	return { panel, mat, head, base, op, arms };
@@ -228,3 +231,96 @@ export function updateBackstop( B, place, N ) {
 }
 
 export { Quaternion };
+
+// The stations' placards over the booths' windows on the press box's navy band (a 2009 photo from
+// below, flickr yeago81 5247698087: Comcast SportsNet, 1210 AM The Big Talker, my PHL17, Béisbol 1480
+// AM, first base side to third), over the booths Bowl's press box draws in the same order (its B block)
+function buildPlacards( place ) {
+
+	const bowl = place.bowl;
+	if ( ! bowl.path || ! bowl.D ) return;
+	// the press box's front as Bowl lays it (Bowl._buildUpperDecks: the 300s' front, its middle four points)
+	const P = offsetPolyline( bowl.path, bowl.D.t300, [ 0, - 40 ] ).slice( 4, 8 );
+	const t300Y = LEVELS.terraceConcourse - 7 * 0.52 - 0.3;
+	const yS = t300Y - 1.1 + 1.4, yG = yS + 2.7, y1 = LEVELS.terraceConcourse - 0.15, tilt = 0.45;
+	const segs = [];
+	let total = 0;
+	for ( let i = 0; i < P.length - 1; i ++ ) {
+
+		const l = Math.hypot( P[ i + 1 ][ 0 ] - P[ i ][ 0 ], P[ i + 1 ][ 1 ] - P[ i ][ 1 ] );
+		segs.push( { a: P[ i ], b: P[ i + 1 ], l, u0: total } );
+		total += l;
+
+	}
+
+	const nB = Math.round( total / 4.5 ), bw = total / nB, mid = Math.floor( nB / 2 );
+	const at = ( u ) => {
+
+		const g = segs.find( ( q ) => u <= q.u0 + q.l ) || segs[ segs.length - 1 ];
+		const t = ( u - g.u0 ) / g.l;
+		const ux = ( g.b[ 0 ] - g.a[ 0 ] ) / g.l, uz = ( g.b[ 1 ] - g.a[ 1 ] ) / g.l;
+		let nx = - uz, nz = ux;
+		if ( nx * ( 0 - g.a[ 0 ] ) + nz * ( - 40 - g.a[ 1 ] ) < 0 ) {
+
+			nx = - nx; nz = - nz;
+
+		}
+
+		return { x: g.a[ 0 ] + ( g.b[ 0 ] - g.a[ 0 ] ) * t, z: g.a[ 1 ] + ( g.b[ 1 ] - g.a[ 1 ] ) * t, ux, uz, nx, nz };
+
+	};
+
+	const NAMES = [ [ 'Comcast', 'SPORTSNET' ], [ '1210 AM', 'The Big Talker' ], [ 'my', 'PHL 17' ], [ 'Béisbol', '1480 AM' ] ];
+	const tex = canvasTexture( 1024, 256, ( ctx ) => {
+
+		NAMES.forEach( ( [ a, b ], i ) => {
+
+			const x = i * 256;
+			const navy = i === 1;
+			ctx.fillStyle = navy ? '#12225a' : '#f2f0ea';
+			ctx.fillRect( x + 4, 4, 248, 248 );
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillStyle = navy ? '#ffffff' : i === 2 ? '#1c3c8c' : '#1a1a1a';
+			ctx.font = `${ i === 1 ? 'italic 900' : '800' } ${ i === 2 ? 62 : 50 }px "Helvetica Neue", Arial, sans-serif`;
+			ctx.fillText( a, x + 128, 90, 230 );
+			ctx.fillStyle = navy ? '#ffffff' : i === 0 ? '#3a2a8c' : '#b3121c';
+			ctx.font = `${ i === 1 ? 'italic 800' : '800' } ${ i === 1 ? 34 : 44 }px "Helvetica Neue", Arial, sans-serif`;
+			ctx.fillText( b, x + 128, 170, 236 );
+
+		} );
+
+	}, 'homePlacards' );
+	const mat = standard( { name: 'home-placards', roughness: 0.6, textures: { hpl: tex }, varyings: { vUV: 'vec2f' }, vertex: 'o.vUV = v.uv;',
+		surface: `s.albedo = textureSample( hpl, smpAnisoClamp, in.vs.vUV ).rgb; s.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.35;` } );
+	mat.underwaterLighting = 'none';
+	mat.setDefine( 'DRY', 1 );
+	const q = new Quads();
+	const w = 1.5, h = 0.56, yc = ( yG + y1 ) / 2;
+	const frames = NAMES.map( ( _, i ) => {
+
+		const c = at( ( i + mid + 0.5 ) * bw );
+		const o = tilt + 0.03;
+		const P0 = ( s, y ) => [ c.x + c.ux * s + c.nx * o, y, c.z + c.uz * s + c.nz * o ];
+		q.add( P0( w / 2, yc - h / 2 ), P0( - w / 2, yc - h / 2 ), P0( - w / 2, yc + h / 2 ), P0( w / 2, yc + h / 2 ), [ c.nx, 0, c.nz ] );
+		return c;
+
+	} );
+	const geo = q.geometry();
+	// each placard's uvs from where its corners are: seen from the field the words run from the first
+	// base end toward third (+u)
+	const pos = geo.getAttribute( 'position' ), uv = geo.getAttribute( 'uv' );
+	for ( let k = 0; k < pos.count; k ++ ) {
+
+		const i = Math.floor( k / 6 ), c = frames[ i ];
+		const s = ( pos.getX( k ) - c.x ) * c.ux + ( pos.getZ( k ) - c.z ) * c.uz;
+		uv.setXY( k, ( i + ( s + w / 2 ) / w ) / 4, ( yc + h / 2 - pos.getY( k ) ) / h );
+
+	}
+
+	const m = new Mesh( geo, mat );
+	m.name = 'home-placards';
+	m.receiveShadow = true;
+	place.group.add( m );
+
+}

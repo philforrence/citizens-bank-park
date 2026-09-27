@@ -566,7 +566,20 @@ export class Bowl {
 	let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), Nh ) );
 	let Vd = normalize( in.P - frame.cameraPos );
 	let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - Nh ), 0.05 ) );
-	let id = floor( in.uv.x / bw ) - ${ mid }.0;
+	// ---- B (home): the booths in the order a 2009 photo from below shows them, first base side to third
+	// (flickr yeago81 5247698087; the writers' press box on the first base side): FOX in the TV booth
+	// behind the plate, then the Phillies' radio (1210 WPHT), the Rays' radio in the next TV booth, the
+	// Spanish radio (WUBA 1480, "Béisbol 1480 AM"), ESPN Radio; the PA announcer's booth on the writers'
+	// side of FOX. T8's booths keep their people: this maps the booth's place to them
+	let id0 = floor( in.uv.x / bw ) - ${ mid }.0;
+	var id = id0 - 10.0;
+	if ( id0 == 0.0 ) { id = 0.0; }
+	if ( id0 == 1.0 ) { id = - 1.0; }
+	if ( id0 == 2.0 ) { id = 1.0; }
+	if ( id0 == 3.0 ) { id = 2.0; }
+	if ( id0 == 4.0 ) { id = - 2.0; }
+	if ( id0 == - 1.0 ) { id = 7.0; }
+	// ---- end B
 	let lean = clamp( ( in.uv.y - ${ yS.toFixed( 3 ) } ) / ${ ( yG - yS ).toFixed( 3 ) }, 0.0, 1.0 ) * ${ tilt };
 	let ro = vec3f( fract( in.uv.x / bw ) * bw - bw * 0.5, in.uv.y - ${ yF.toFixed( 3 ) }, - lean );
 	let tx = ( select( - bw * 0.5, bw * 0.5, rd.x > 0.0 ) - ro.x ) / rd.x;
@@ -574,7 +587,7 @@ export class Bowl {
 	let tz = ( 3.6 - ro.z ) / rd.z;
 	var t = min( tx, min( ty, tz ) );
 	var hit = ro + rd * t;
-	let media = abs( id ) < 2.5;
+	let media = abs( id ) < 2.5 || id == 7.0; // ---- B (home): and the PA's
 	var room = vec3f( 0.45, 0.43, 0.4 );
 	if ( t == ty && rd.y > 0.0 ) {
 		let g = abs( fract( hit.xz / vec2f( 1.2, 1.5 ) ) - 0.5 );
@@ -629,7 +642,9 @@ export class Bowl {
 		hs = 1.0;
 	} else if ( id == - 1.0 ) {
 		px = array<f32, 3>( - 0.95, 0.0, 0.95 );
-		coat = array<vec3f, 3>( vec3f( 0.4, 0.03, 0.04 ), vec3f( 0.42, 0.31, 0.18 ), vec3f( 0.03, 0.04, 0.1 ) );
+		// ---- B (home): Kalas in the red jacket with the cream stripes he'd worn on the field before the
+		// resumption (the CSN frames of his call, Oct 29), Andersen in a dark jacket
+		coat = array<vec3f, 3>( vec3f( 0.06, 0.06, 0.07 ), vec3f( 0.42, 0.03, 0.04 ), vec3f( 0.03, 0.04, 0.1 ) );
 		hair = array<vec3f, 3>( vec3f( 0.14, 0.11, 0.09 ), vec3f( 0.86, 0.86, 0.83 ), vec3f( 0.12, 0.07, 0.04 ) );
 		hs = 1.0;
 	} else if ( id == 1.0 ) {
@@ -647,6 +662,11 @@ export class Bowl {
 		px = array<f32, 3>( - 0.6, 0.6, 99.0 );
 		skin = array<vec3f, 3>( vec3f( 0.45, 0.3, 0.2 ), vec3f( 0.48, 0.32, 0.22 ), vec3f( 0.0 ) );
 		hs = 1.0;
+	} else if ( id == 7.0 ) {
+		// ---- B (home): the PA announcer alone at his microphone
+		px = array<f32, 3>( 0.2, 99.0, 99.0 );
+		coat = array<vec3f, 3>( vec3f( 0.04, 0.05, 0.1 ), vec3f( 0.0 ), vec3f( 0.0 ) );
+		hair = array<vec3f, 3>( vec3f( 0.5, 0.49, 0.47 ), vec3f( 0.0 ), vec3f( 0.0 ) );
 	} else {
 		// writers: their own coats, some seats empty (downstairs for quotes)
 		for ( var k = 0; k < 3; k ++ ) {
