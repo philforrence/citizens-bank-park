@@ -1867,7 +1867,8 @@ class Pool {
 			// a troupe whose place isn't drawn (?only=), or looked away from
 			let o = t.parent;
 			while ( o && o !== G ) o = o.parent;
-			if ( ! o || hidden ) {
+			// (profiling: window.__cast.skip, a Set of troupes left out)
+			if ( ! o || hidden || this.skip?.has( t ) ) {
 
 				gone( t );
 				continue;
