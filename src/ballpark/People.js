@@ -410,10 +410,16 @@ export class People {
 		secs.forEach( ( S, i ) => {
 
 			if ( ! S.seats ) return;
-			const top = aisle( S, deep + 0.5 ), foot = aisle( S, - 0.6 );
+			const top = aisle( S, deep + 0.5 );
 			const inward = Math.atan2( S.nx, S.nz ); // facing the field (-n)
 			if ( i % 2 === 0 ) this._add( ROLE.usher, top[ 0 ], yAt( deep ) + 0.05, top[ 1 ], inward );
-			if ( i % 3 === 1 ) this._add( ROLE.security, foot[ 0 ], ys[ 0 ] - 0.3, foot[ 1 ], inward + Math.PI );
+			// ---- W4 (rail): the guard stands on the aisle's first step, facing the crowd. He stood in the
+			// air in front of the wall (on the backstop's cushions, on the dugout roofs); behind a dugout the
+			// section's first rows are its roof, so his step is the first row behind it
+			const first = S.skipRows || 0;
+			const foot = aisle( S, first * D + 0.3 );
+			if ( i % 3 === 1 ) this._add( ROLE.security, foot[ 0 ], ys[ first ] + 0.01, foot[ 1 ], inward + Math.PI );
+			// ---- end W4
 			// one or two people on the steps
 			for ( let k = 0; k < 2; k ++ ) {
 
@@ -421,7 +427,9 @@ export class People {
 				const p = this._add( ROLE.fan, 0, 0, 0, 0 );
 				if ( ! p ) return;
 				p.walk = 1;
-				p.aisle = { S, d: rnd( i * 7 + k ) * deep, dir: rnd( i * 3 + k ) < 0.5 ? - 1 : 1, deep, at: aisle, yAt, pause: 0 };
+				// ---- W4 (rail): d0, where the steps start (behind a dugout, past its roof)
+				const d0 = ( S.skipRows || 0 ) * D;
+				p.aisle = { S, d: d0 + rnd( i * 7 + k ) * ( deep - d0 ), d0, dir: rnd( i * 3 + k ) < 0.5 ? - 1 : 1, deep, at: aisle, yAt, pause: 0 };
 
 			}
 
@@ -558,11 +566,11 @@ export class People {
 
 				p.walk = 1;
 				A.d += A.dir * 0.75 * dt;
-				if ( A.d > A.deep || A.d < 0 ) {
+				if ( A.d > A.deep || A.d < ( A.d0 || 0 ) ) {
 
 					A.dir *= - 1;
 					A.pause = 2 + rnd( p.seed * 7 + this.time ) * 6;
-					A.d = Math.max( 0, Math.min( A.deep, A.d ) );
+					A.d = Math.max( A.d0 || 0, Math.min( A.deep, A.d ) );
 
 				}
 
