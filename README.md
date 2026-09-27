@@ -1,5 +1,8 @@
 # Citizens Bank Park
 
+> **🛑 Dev note: where we left off (2026-09-26, 23:04 EDT).** Round-1 merges are done; the next session starts from
+> **[START-HERE.md](START-HERE.md)** → **[docs/PLAN.md](docs/PLAN.md)**. Remove this note before publishing.
+
 A walkable Citizens Bank Park in the browser: start at the third base gate and head on in. An unofficial
 fan project, not affiliated with the Philadelphia Phillies, Major League Baseball or Citizens Bank.
 
