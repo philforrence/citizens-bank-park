@@ -211,7 +211,8 @@ export class BallparkApp {
 
 		// the rain kept out from under the decks and the stands, from whatever's in scope (RainCover.js), before
 		// the batching takes the bowl's meshes apart
-		const cover = time( 'rainCover', () => rainCover( F, [ B.group, this.exterior?.group, this.concourse?.group ] ) );
+		// (---- H: and the roofs a place puts up over its people, its `rainRoof`: Harry the K's walkway)
+		const cover = time( 'rainCover', () => rainCover( F, [ B.group, this.exterior?.group, this.concourse?.group, ...this.places.flatMap( ( p ) => p.rainRoof || [] ) ] ) );
 		// the hundreds of little static meshes merged by material into a few draws
 		const batched = time( 'batching', () => batchStatic( this.field.group ) );
 		console.info( `static batching: ${ batched.before } meshes into ${ batched.after }` );

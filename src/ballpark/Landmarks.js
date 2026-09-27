@@ -331,7 +331,12 @@ export class Landmarks {
 		const gz = FZ - 0.02, gy0 = patio, gy1 = patio + 2.9;
 		gq.tri( [ HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy1, gz ], [ 0, 0, - 1 ], [ 0, 1 ], [ 8, 1 ], [ 8, 0 ] );
 		gq.tri( [ HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy1, gz ], [ HW / 2 - 2, gy1, gz ], [ 0, 0, - 1 ], [ 0, 1 ], [ 8, 0 ], [ 0, 0 ] );
-		g.add( new Mesh( gq.geometry(), barMat ) );
+		const glassMesh = new Mesh( gq.geometry(), barMat );
+		g.add( glassMesh );
+		// ---- H (leftfield): Harry the K's for the place that builds it out (places/LeftField.js): the frame,
+		// the brick house and the flat glass it replaces with its two bars, and where things are
+		this.harrys = { g, house, glass: glassMesh, brick: hb, W, H, y0, HW, FZ, patio, gy1, ay: gy1 + 0.2 };
+		// ---- end H
 		// three slate-navy awnings, HARRY THE K'S on their valances
 		const awning = standard( { name: 'harrys-awnings', color: new Color( 0.024, 0.045, 0.09 ), roughness: 0.75, side: 'double' } );
 		awning.underwaterLighting = 'none';
