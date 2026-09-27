@@ -11,7 +11,7 @@ import { put, rnd } from './Props.js';
 //
 //   Jess, first base side, a Temple junior in her first World Series;
 //   Caitlin, third base side, her fourth season, who taught Jess how to take a hop off the wall;
-//   Tyler, 9, from Cherry Hill, on the first base side with his dad's tickets; on the third base side
+//   Ryan, 9, from Cherry Hill, on the first base side with his dad's tickets; on the third base side
 //   Maria, 11, in her brother's old glove. On the 29th two other kids, same idea.
 
 const WALK = 1.35; // m/s along the wall

@@ -382,7 +382,7 @@ export class ConcoursePeople {
 
 	}
 
-	// a fan with a look and a job of their own (Kevin, the beer men): they walk from portal to portal
+	// a fan with a look and a job of their own (Travis, the beer men): they walk from portal to portal
 	// with what they carry, never to a line or the rail
 	addFan( look, extra = {} ) {
 

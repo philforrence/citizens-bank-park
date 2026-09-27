@@ -131,13 +131,13 @@ export class Cast {
 		this.tommy = [ 1, 2 ].map( ( night ) => add( 'sign', railAt( dJoey - 2.2, 0.75 ), { top: TOP.greyHoodie, hat: HAT.cap, glasses: true, poncho: night === 1, open: true }, { nights: night, role: 'sign' } ) );
 		F.hold( this.tommy[ 0 ], 'sign', { hand: 'both', variant: SIGN.notLeaving } );
 		F.hold( this.tommy[ 1 ], 'sign', { hand: 'both', variant: SIGN.rainCheck } );
-		// the Kowalskis from Mayfair, their first World Series (the 29th: the tickets were his father's):
-		// Danny, 9, at the rail with his glove, hoping; Rich crouched beside him pointing out who's who in the
+		// the Szymanskis from Mayfair, their first World Series (the 29th: the tickets were his father's):
+		// Josh, 9, at the rail with his glove, hoping; Rich crouched beside him pointing out who's who in the
 		// pens; Linda with the camera
 		const dKid = ( seg[ 3 ] || seg[ seg.length - 1 ] ).s0 + 4.5; // over the visitors' bench, the cave under the Alley's deck
 		const kidAt = railAt( dKid, 0.42 );
-		this.danny = add( 'rail', kidAt, { top: TOP.kidRed, hat: HAT.cap, kid: true, pants: PANTS.jeans }, { nights: 2, role: 'kid' } );
-		F.hold( this.danny, 'glove', { hand: 'left' } );
+		this.josh = add( 'rail', kidAt, { top: TOP.kidRed, hat: HAT.cap, kid: true, pants: PANTS.jeans }, { nights: 2, role: 'kid' } );
+		F.hold( this.josh, 'glove', { hand: 'left' } );
 		this.rich = add( 'crouch', { ...railAt( dKid + 0.55, 0.62 ), yaw: kidAt.yaw - 0.35 }, { top: TOP.carhartt, hat: HAT.cap, beard: true }, { nights: 2, role: 'dad' } );
 		this.linda = add( 'photo', { ...railAt( dKid - 1.6, 1.4 ), yaw: kidAt.yaw + 0.8 }, { top: TOP.redJacket, woman: true, hat: HAT.none }, { nights: 2, role: 'mom' } );
 		F.hold( this.linda, 'camera', { hand: 'both', variant: 1, offset: [ 0, 0.02, - 0.02 ] } );
@@ -146,7 +146,7 @@ export class Cast {
 		const waltAt = railAt( 1.2, 0.6 );
 		this.walt = [ add( 'umbrella', waltAt, { top: TOP.redJacket, hat: HAT.cabbie, glasses: true, mustache: true, pants: PANTS.khaki }, { nights: 1, role: 'walt', k: 0 } ), add( 'pockets', waltAt, { top: TOP.redJacket, hat: HAT.cabbie, glasses: true, mustache: true, pants: PANTS.khaki }, { nights: 2, role: 'walt' } ) ];
 		F.hold( this.walt[ 0 ], 'umbrella', { variant: 2 } );
-		// Carlos Reyes, a Rays fan from Clearwater (his cowbell), with Gina Russo, born in Delco, in her Utley
+		// Carlos Reyes, a Rays fan from St. Petersburg, the Rays' own town (his cowbell), with Gina Russo, born in Delco, in her Utley
 		// jersey: she's been ribbing him all night
 		const cgAt = railAt( 15.5, 1.9 );
 		this.carlos = add( 'cheer', { ...cgAt, yaw: cgAt.yaw - 0.6 }, { top: TOP.rays, hat: HAT.raysCap }, { role: 'rays', k: 0 } );
@@ -284,7 +284,7 @@ export class Cast {
 
 		}
 
-		// the ball: a Rays bullpen catcher tosses one up to Danny between halves on the 29th
+		// the ball: a Rays bullpen catcher tosses one up to Josh between halves on the 29th
 		this.ball = new Mesh( new SphereGeometry( 0.037, 10, 8 ), standard( { name: 'alley-toss-ball', color: new Color( 0.8, 0.79, 0.75 ), roughness: 0.5 } ) );
 		this.ball.userData.dynamic = true;
 		this.ball.visible = false;
@@ -403,21 +403,21 @@ export class Cast {
 
 		}
 
-		// the Kowalskis: Rich points out the pens (Lidge when he gets up); Linda's camera
+		// the Szymanskis: Rich points out the pens (Lidge when he gets up); Linda's camera
 		this.rich.k = philsUp ? 1 : 0.4 + 0.4 * Math.sin( now * 0.35 );
-		this.danny.k = 0.1;
-		// the toss: the catcher comes over under the rail, lobs it up, Danny reaches, has it, holds it up
+		this.josh.k = 0.1;
+		// the toss: the catcher comes over under the rail, lobs it up, Josh reaches, has it, holds it up
 		this.ball.visible = false;
 		if ( this.tossT > 0 && pens ) {
 
 			const T0 = this.tossT, dur = 1.35;
-			pens.toss = { t: T0, to: [ this.danny.x, this.danny.z ] };
+			pens.toss = { t: T0, to: [ this.josh.x, this.josh.z ] };
 			const from = pens.tossFrom;
-			if ( t > T0 - 0.4 ) this.danny.k = Math.min( 1, ( t - ( T0 - 0.4 ) ) / 0.6 );
+			if ( t > T0 - 0.4 ) this.josh.k = Math.min( 1, ( t - ( T0 - 0.4 ) ) / 0.6 );
 			if ( t > T0 + dur ) {
 
 				// he has it: up over his head for a while, then he shows his dad
-				this.danny.k = t < T0 + 14 ? 1 : 0.3;
+				this.josh.k = t < T0 + 14 ? 1 : 0.3;
 				this.rich.k = t < T0 + 6 ? 1 : this.rich.k;
 
 			}
@@ -425,9 +425,9 @@ export class Cast {
 			if ( from && t >= T0 && t < T0 + dur ) {
 
 				const k = ( t - T0 ) / dur;
-				const hand = this.folk.handAt( this.danny, - 1 );
-				const to = this._v.set( hand[ 0 ], hand[ 1 ], hand[ 2 ] ).multiplyScalar( this.danny.scale ).applyAxisAngle( new Vector3( 0, 1, 0 ), this.danny.yaw );
-				const tx = this.danny.x + to.x, ty = this.danny.y + to.y, tz = this.danny.z + to.z;
+				const hand = this.folk.handAt( this.josh, - 1 );
+				const to = this._v.set( hand[ 0 ], hand[ 1 ], hand[ 2 ] ).multiplyScalar( this.josh.scale ).applyAxisAngle( new Vector3( 0, 1, 0 ), this.josh.yaw );
+				const tx = this.josh.x + to.x, ty = this.josh.y + to.y, tz = this.josh.z + to.z;
 				this.ball.position.set( from[ 0 ] + ( tx - from[ 0 ] ) * k, from[ 1 ] + ( ty - from[ 1 ] ) * k + 4 * 1.6 * k * ( 1 - k ), from[ 2 ] + ( tz - from[ 2 ] ) * k );
 				this.ball.visible = night === 2;
 
