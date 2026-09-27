@@ -8,6 +8,7 @@
 //                                               (warnings are listed, but don't fail)
 //   node tools/gpu/desk.mjs status              the desk, its queue and its warm pages
 //   node tools/gpu/desk.mjs stop                stop the desk (its browser and dev servers)
+//   node tools/gpu/desk.mjs start               start it (shoot does, when it isn't running)
 //   node tools/gpu/desk.mjs serve               run the desk in the foreground (shoot starts it)
 //
 // A job:
@@ -270,9 +271,23 @@ class Desk {
 
 		if ( this.browser && this.browser.connected ) return this.browser;
 		const puppeteer = ( await import( 'puppeteer-core' ) ).default;
+		// a profile that outlives the browser: Chrome keeps its compiled shaders there, so a browser closed
+		// for someone else's profiling (and relaunched) loads the park warm, not recompiling ~600 pipelines
+		const profile = join( DESK, 'chrome-profile' );
+		mkdirSync( profile, { recursive: true } );
+		let ps = '';
+		try {
+
+			ps = execFileSync( 'ps', [ '-axo', 'command=' ], { encoding: 'utf8' } );
+
+		} catch {}
+
+		// a crashed desk's Chrome can leave the profile locked
+		if ( ! ps.includes( profile ) ) for ( const f of [ 'SingletonLock', 'SingletonSocket', 'SingletonCookie' ] ) rmSync( join( profile, f ), { force: true } );
 		this.browser = await puppeteer.launch( {
 			executablePath: CHROME,
 			headless: true,
+			userDataDir: profile,
 			// no --disable-frame-rate-limit / --disable-gpu-vsync, ever
 			args: [ '--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=metal', '--no-first-run', '--no-default-browser-check' ],
 			protocolTimeout: 600e3,
@@ -656,6 +671,12 @@ const [ cmd, arg ] = process.argv.slice( 2 );
 if ( cmd === 'serve' ) await new Desk().serve();
 else if ( cmd === 'shoot' && arg ) await shoot( arg );
 else if ( cmd === 'status' ) status();
+else if ( cmd === 'start' ) {
+
+	ensureDesk();
+	console.log( deskPid() ? `desk running (pid ${ deskPid() })` : 'desk starting' );
+
+}
 else if ( cmd === 'stop' ) {
 
 	const pid = deskPid();
