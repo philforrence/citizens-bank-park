@@ -981,6 +981,11 @@ function castMaterial( pool ) {
 	o.vVar = f32( select( vars >> 8u, vars & 255u, right ) );
 `,
 		surface: /* wgsl */`
+#if C3_FLAT
+	// (profiling: the dressing skipped, the lighting kept)
+	s.albedo = vec3f( 0.3 ); s.roughness = 0.8; s.metalness = 0.0; s.emissive = vec3f( 0.0 );
+	return;
+#endif
 	let part = in.vs.vPart;
 	let L = in.vs.vLocal;
 	let lk = in.vs.vLook;
@@ -1925,10 +1930,12 @@ class Pool {
 		const idx = near.map( ( _, i ) => i ).sort( ( i, j ) => nearD[ i ] - nearD[ j ] );
 		for ( let i = 0; i < idx.length; i ++ ) O[ cap + i ] = near[ idx[ i ] ];
 		const nNear = near.length;
-		this.geometry[ 0 ].instanceCount = nNear;
-		this.geometry[ 1 ].instanceCount = nFar;
-		this.geometry[ 2 ].instanceCount = nTiny;
-		this.blobs.geometry.instanceCount = nBlob;
+		// (profiling: a figure left out, window.__cast.debug = { near: false })
+		const D = this.debug;
+		this.geometry[ 0 ].instanceCount = D && D.near === false ? 0 : nNear;
+		this.geometry[ 1 ].instanceCount = D && D.far === false ? 0 : nFar;
+		this.geometry[ 2 ].instanceCount = D && D.tiny === false ? 0 : nTiny;
+		this.blobs.geometry.instanceCount = D && D.blobs === false ? 0 : nBlob;
 		Object.assign( this.stats, { people: n, drawn, near: nNear, far: nFar, tiny: nTiny, culled } );
 		if ( ! n ) return;
 		const len = n * POSE * 4;
