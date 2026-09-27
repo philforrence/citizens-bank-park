@@ -117,7 +117,8 @@ const HAND_PROPS = [
 		PROP.peanuts, PROP.bag, PROP.umbrella, PROP.furled, PROP.sign, PROP.scanner, PROP.mic, PROP.tickets, PROP.cowbell, PROP.tongs, PROP.pennant, PROP.photo, PROP.cigarette, PROP.thermos ], // right
 ];
 // the props that show past the near figure (the rest are too small to read there)
-const FAR_PROPS = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove,
+// (B: the camera and the phone too - their flash and screen are what the TV's long lens sees of them)
+const FAR_PROPS = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove, PROP.camera, PROP.phone,
 	PROP.umbrella, PROP.sign, PROP.beers, PROP.tickets ];
 const TINY_PROPS = [ PROP.umbrella, PROP.sign ];
 
@@ -193,6 +194,10 @@ export const BACKS = [
 	[ '=STAFF' ], [ '=SECURITY' ], [ '=POLICE' ], [ '=FOX 29' ],
 	// (48-51: B's; 52-55: C's)
 ];
+// ---- B (home): the vendors' numbers, big and red on the backs of their mustard-yellow shirts (the
+// 2008-09 photos), in atlas cells 56-59
+BACKS[ 56 ] = [ '', '47' ]; BACKS[ 57 ] = [ '', '112' ]; BACKS[ 58 ] = [ '', '23' ]; BACKS[ 59 ] = [ '', '88' ];
+// ---- end B
 export const BACK = Object.fromEntries( BACKS.map( ( b, i ) => [ b ? b[ 0 ].replace( /^=/, '' ).replace( ' ', '' ).toUpperCase() : 'NONE', i ] ).filter( ( [ k ] ) => k !== 'NONE' ) );
 BACK.NONE = 0;
 const CHEST_CELL = 64; // the chest prints start at this atlas cell (8 x 10 cells of 128 px)
@@ -1137,6 +1142,23 @@ function castMaterial( pool ) {
 		if ( chest == ${ CHEST.ws }u && onFront ) { printC = select( vec3f( 0.75, 0.6, 0.2 ), vec3f( 0.72, 0.71, 0.68 ), dot( topC, vec3f( 0.33 ) ) < 0.2 ); }
 		if ( chest == ${ CHEST.bulls }u && onFront ) { printC = vec3f( 0.75, 0.55, 0.15 ); }
 		c = mix( c, printC, printA );
+		// ---- B (home): a ticket lanyard (the Diamond Club's, heston 2986440011): a white strap from the
+		// sides of the neck down to a clear pouch on the chest with the ticket in it (look.z bit 18)
+		if ( ( ( lk.z >> 18u ) & 1u ) == 1u && part == ${ PART.torso }u && L.z < - 0.02 ) {
+			let lx = abs( L.x );
+			let sy = clamp( ( L.y - 1.2 ) / 0.23, 0.0, 1.0 );
+			let strap = abs( lx - mix( 0.014, 0.068, sy ) ) < 0.007 && L.y > 1.19 && L.y < 1.44;
+			let pouch = lx < 0.043 && L.y > 1.06 && L.y < 1.2;
+			if ( strap ) { c = vec3f( 0.7, 0.69, 0.66 ); rough = 0.8; }
+			if ( pouch ) {
+				// the ticket through the plastic: white stock, a red band, a dark barcode
+				c = vec3f( 0.68, 0.67, 0.64 );
+				if ( L.y > 1.165 ) { c = vec3f( 0.42, 0.03, 0.04 ); }
+				if ( L.y < 1.085 && abs( fract( L.x * 160.0 ) - 0.5 ) < 0.2 ) { c = vec3f( 0.05 ); }
+				rough = 0.15;
+			}
+		}
+		// ---- end B
 		// a scarf round the neck
 		if ( scarf > 0u && part == ${ PART.torso }u && L.y > 1.38 ) {
 			c = select( select( vec3f( 0.012 ), vec3f( 0.25 ), scarf == 2u ), select( vec3f( 0.32, 0.02, 0.03 ), vec3f( 0.7 ), fract( ( L.x + L.y ) / 0.05 ) < 0.5 ), scarf == 1u );

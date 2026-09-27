@@ -58,6 +58,10 @@ export function tierSections( tier ) {
 	const P = tier.front;
 	const [ ox, oz ] = tier.outward;
 	const out = [];
+	// ---- B (home): pk, a section's place in the default split (the portals and anything else that
+	// counts sections round the bowl keep their places when a tier splits a segment its own way)
+	let pk = 0;
+	// ---- end B
 	for ( let k = 0; k < P.length - 1; k ++ ) {
 
 		const [ ax, az ] = P[ k ], [ bx, bz ] = P[ k + 1 ];
@@ -72,7 +76,10 @@ export function tierSections( tier ) {
 		}
 
 		// split long segments into sections
-		const n = Math.max( 1, Math.ceil( len / ( tier.section || 1e9 ) ) );
+		const nDef = Math.max( 1, Math.ceil( len / ( tier.section || 1e9 ) ) );
+		// ---- B (home): or into the tier's own count for this segment (tier.splits[ k ])
+		const n = tier.splits?.[ k ] ?? nDef;
+		// ---- end B
 		const skip = ( tier.skip || [] ).some( ( [ i0, i1 ] ) => k >= i0 && k <= i1 );
 		const skipRows = tier.skipRows ? tier.skipRows( k ) : 0;
 		for ( let s = 0; s < n; s ++ ) {
@@ -84,9 +91,12 @@ export function tierSections( tier ) {
 				m0: s === 0 ? mitre( P, k, ux, uz, nx, nz, true ) : 0,
 				m1: s === n - 1 ? mitre( P, k + 1, ux, uz, nx, nz, false ) : 0,
 				seats: ! skip, skipRows,
+				pk: pk + Math.min( s, nDef - 1 ), // ---- B (home)
 			} );
 
 		}
+
+		pk += nDef; // ---- B (home)
 
 	}
 
@@ -121,6 +131,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	const group = new Group();
 	group.name = tier.name;
 	const ys = rowHeights( tier );
+	// ---- B (home): a tier may set some sections' rows at their own heights (tier.rowY( S, r, y ))
+	const rowY = ( S, r ) => tier.rowY ? tier.rowY( S, r, ys[ r ] ) : ys[ r ];
+	// ---- end B
 	const secs = tierSections( tier );
 	const D = tier.depth, A = tier.aisle ?? 1.2, W = tier.seat ?? SEAT_W;
 	const S0 = tier.start || 0; // the first row's front edge, this far behind the front line
@@ -135,7 +148,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	const PO = tier.portals;
 	secs.forEach( ( S, k ) => {
 
-		if ( ! PO || ! S.seats || S.len < PO.width + 3 || k % PO.every !== Math.floor( PO.every / 2 ) ) return;
+		if ( ! PO || ! S.seats || S.len < PO.width + 3 || ( S.pk ?? k ) % PO.every !== Math.floor( PO.every / 2 ) ) return; // ---- B (home): pk
 		portals.push( { S, s: S.len / 2, r0: PO.row, r1: PO.row + PO.rows } );
 
 	} );
@@ -163,7 +176,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		for ( let r = first; r < tier.rows; r ++ ) {
 
 			const d0 = S0 + r * D, d1 = S0 + ( r + 1 ) * D;
-			const y = ys[ r ], yPrev = r > first ? ys[ r - 1 ] : ( first ? base : ( tier.frontY ?? base ) );
+			const y = rowY( S, r ), yPrev = r > first ? rowY( S, r - 1 ) : ( first ? base : ( tier.frontY ?? base ) );
 			const [ f0, f1 ] = ends( d0 ), [ b0, b1 ] = ends( d1 );
 			if ( f1 - f0 < 0.05 && b1 - b0 < 0.05 ) continue;
 			// tread
@@ -296,7 +309,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const mid = ( r ) => {
 
 			const d = S0 + ( r + 0.5 ) * D, s = S.len - S.m1 * d;
-			return [ S.a[ 0 ] + S.ux * s + S.nx * d, ys[ r ] + RH, S.a[ 1 ] + S.uz * s + S.nz * d ];
+			return [ S.a[ 0 ] + S.ux * s + S.nx * d, rowY( S, r ) + RH, S.a[ 1 ] + S.uz * s + S.nz * d ];
 
 		};
 		for ( let r0 = first + 1; r0 < tier.rows - 1; r0 += 4 ) {
@@ -306,7 +319,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			for ( const r of [ r0, r1 ] ) {
 
 				const p = mid( r );
-				beam( rq, [ p[ 0 ], ys[ r ], p[ 2 ] ], p, 0.04 );
+				beam( rq, [ p[ 0 ], rowY( S, r ), p[ 2 ] ], p, 0.04 );
 
 			}
 
