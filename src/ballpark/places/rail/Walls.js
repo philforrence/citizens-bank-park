@@ -37,6 +37,31 @@ const drugfree = ( ctx, w, h ) => {
 
 };
 
+// State Farm's red panel: its three ovals and the name in white (the 27th, past the visitors' well:
+// puffygreenjacket 2983578054)
+const stateFarm = ( ctx, w, h ) => {
+
+	ctx.fillStyle = '#d62311';
+	ctx.fillRect( 0, 0, w, h );
+	ctx.strokeStyle = '#ffffff';
+	ctx.lineWidth = h * 0.05;
+	const cx = w * 0.14, cy = h * 0.5, r = h * 0.2;
+	for ( const [ dx, dy ] of [ [ 0, - 0.55 ], [ - 0.6, 0.45 ], [ 0.6, 0.45 ] ] ) {
+
+		ctx.beginPath();
+		ctx.ellipse( cx + dx * r * 1.1, cy + dy * r * 1.1, r * 0.75, r * 0.55, 0, 0, Math.PI * 2 );
+		ctx.stroke();
+
+	}
+
+	ctx.fillStyle = '#ffffff';
+	ctx.textAlign = 'left';
+	ctx.textBaseline = 'middle';
+	ctx.font = `700 ${ Math.round( h * 0.5 ) }px "Helvetica Neue", Arial, sans-serif`;
+	ctx.fillText( 'State Farm', w * 0.27, h * 0.5, w * 0.68 );
+
+};
+
 const worldSeries = ( ctx, w, h ) => {
 
 	ctx.fillStyle = '#10275f';
@@ -69,18 +94,32 @@ function panel( q, A, B, y0, y1 ) {
 export function buildWalls( group, M ) {
 
 	const F = FOUL_TERRITORY;
-	const dq = new Quads(), wq = new Quads();
+	const dq = new Quads(), wq = new Quads(), swapQ = new Quads();
 	for ( const [ a, b ] of [ [ F[ 4 ], F[ 3 ] ], [ F[ 9 ], F[ 10 ] ] ] ) {
 
 		const len = Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] );
 		const at = ( s ) => [ a[ 0 ] + ( b[ 0 ] - a[ 0 ] ) * s / len, a[ 1 ] + ( b[ 1 ] - a[ 1 ] ) * s / len ];
 		panel( dq, at( 0.35 ), at( 4.75 ), 0.14, 1.06 );
-		panel( dq, at( 4.95 ), at( 9.35 ), 0.14, 1.06 );
+		// the third base side's second panel changed between the nights: State Farm on the 27th,
+		// drugfree.org on the 29th (the two photos)
+		panel( a === F[ 9 ] ? swapQ : dq, at( 4.95 ), at( 9.35 ), 0.14, 1.06 );
 		panel( wq, at( 9.8 ), at( 14.3 ), 0.14, 1.06 );
 
 	}
 
-	for ( const [ q, mat ] of [ [ dq, panelMaterial( drugfree, 'wallDrugfree' ) ], [ wq, panelMaterial( worldSeries, 'wallWorldSeries' ) ] ] ) {
+	const drugMat = panelMaterial( drugfree, 'wallDrugfree' );
+	const swap = [ drugMat, panelMaterial( stateFarm, 'wallStateFarm' ) ].map( ( mat ) => {
+
+		const m = new Mesh( swapQ.geometry(), mat );
+		m.name = 'rail-wall-panel-swap';
+		m.receiveShadow = true;
+		m.userData.dynamic = true; // shown by night
+		group.add( m );
+		return m;
+
+	} );
+
+	for ( const [ q, mat ] of [ [ dq, drugMat ], [ wq, panelMaterial( worldSeries, 'wallWorldSeries' ) ] ] ) {
 
 		const m = new Mesh( q.geometry(), mat );
 		m.name = 'rail-wall-panels';
@@ -129,5 +168,7 @@ export function buildWalls( group, M ) {
 	cm.name = 'backstop-cables';
 	cm.castShadow = false;
 	group.add( cm );
+	// the night's panel: [ the 29th's, the 27th's ]
+	return { swap };
 
 }

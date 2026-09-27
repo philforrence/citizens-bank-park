@@ -10,6 +10,7 @@ import { buildTarpTube } from './rail/Tarp.js';
 import { Crew } from './rail/Crew.js';
 import { Police } from './rail/Police.js';
 import { buildWalls } from './rail/Walls.js';
+import { Drips } from './rail/Drips.js';
 
 // The rail: field level round home plate and the dugouts, the strip every TV shot sees. The backstop,
 // the camera wells, the front rows and the dugout surrounds, the on-deck circles and foul territory down
@@ -50,7 +51,9 @@ export default class FieldRail {
 		// event staff on the track, and the police who line it in the 9th on the 29th
 		this.police = new Police( ctx );
 		// the Series' panels on the walls past the wells, the backstop net's cables
-		buildWalls( this.group, this.M );
+		this.walls = buildWalls( this.group, this.M );
+		// the dugouts in the rain: water on their roofs, drips off their front edges
+		this.drips = new Drips( ctx );
 		this.figs.build();
 		this.state = {};
 
@@ -117,6 +120,10 @@ export default class FieldRail {
 		this.ballGirls.update( S, dt, director );
 		this.crew.update( S, dt );
 		this.police.update( S, dt, director );
+		this.drips.update( S );
+		// the panel past the visitors' well: State Farm on the 27th, drugfree.org on the 29th
+		this.walls.swap[ 0 ].visible = ! S.first;
+		this.walls.swap[ 1 ].visible = S.first;
 		this.figs.update();
 
 	}
