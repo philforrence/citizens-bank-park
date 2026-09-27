@@ -128,6 +128,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	const q = new Quads();
 	const seatMats = [];
 	const seatCols = [];
+	const seatInfo = []; // for the crowd: the row (from the front) and, at a row's ends, the aisle's side
 	const _m = new Matrix4(), _q = new Quaternion(), _p = new Vector3(), _s = new Vector3( 1, 1, 1 ), _up = new Vector3( 0, 1, 0 );
 
 	const portals = [];
@@ -200,6 +201,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 				// a little fading from seat to seat
 				const k = 0.9 + 0.2 * hash( x * 13.1 + z * 7.7 + r );
 				seatCols.push( k );
+				// the aisle at the row's first / last seat, as a side of the seat's own x axis ( cos yaw, -sin yaw )
+				const xu = Math.cos( yawSeat ) * ux - Math.sin( yawSeat ) * uz;
+				seatInfo.push( { row: r - first, rows: tier.rows - first, aisle: ( i === 0 ? - 1 : i === n - 1 ? 1 : 0 ) * Math.sign( xu ) } );
 
 			}
 
@@ -422,7 +426,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 
 		}
 
-		if ( crowd ) crowd.addChunk( group, taken.map( ( k ) => seatMats[ k ] ), tier.name );
+		if ( crowd ) crowd.addChunk( group, taken.map( ( k ) => seatMats[ k ] ), tier.name, taken.map( ( k ) => seatInfo[ k ] ) );
 
 	}
 
