@@ -802,7 +802,7 @@ export class Crowd {
 	// a crowd chunk on these seats (their matrices): near, middle and far versions, one drawn at a time
 	addChunk( group, mats, name, info = [] ) {
 
-		if ( ! mats.length ) return;
+		if ( this.off || ! mats.length ) return;
 		const ids = new InstancedBufferAttribute( this._dress( mats, name, info ), 3 );
 		let first = null;
 		const make = ( k, suffix ) => {

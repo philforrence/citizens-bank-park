@@ -2,6 +2,7 @@ import './core/BenchSeed.js';
 import { BallparkApp as App } from './ballpark/BallparkApp.js';
 import { UI } from './ui/UI.js';
 import { BallparkUI as AppUI } from './ballpark/BallparkUI.js';
+import { QA } from './ballpark/QA.js';
 
 // ?bench runs in background tabs too (automation): rAF does not fire in a hidden page
 if ( /[?&]bench\b/.test( location.search ) ) {
@@ -32,7 +33,9 @@ app.init( ( p, text, until ) => ui.setLoading( p, text, until ) ).then( async ()
 		if ( app.qs.has( 'wdbg' ) && app.waterMaterial ) app.waterMaterial.debugMode.value = Number( app.qs.get( 'wdbg' ) );
 		if ( app.qs.has( 'shots' ) ) window.__job = window.__bench.shots( app.qs.get( 'shots' ).split( ',' ), { tag: app.qs.get( 'tag' ) || 'shot', dt: Number( app.qs.get( 'dt' ) ) || 0, seq: Number( app.qs.get( 'seq' ) ) || 1, every: Number( app.qs.get( 'every' ) ) || 1 } );
 
-	} else app.start();
+	// ?still: no render loop; frames are drawn only when a shot asks for them (window.__qa.still())
+	} else if ( ! app.qs.has( 'still' ) ) app.start();
+	window.__qa = new QA( app );
 	ui.showStartOverlay( () => {
 
 		app.input.requestLock();
@@ -43,6 +46,7 @@ app.init( ( p, text, until ) => ui.setLoading( p, text, until ) ).then( async ()
 } ).catch( ( e ) => {
 
 	console.error( e );
+	window.__loadError = e.message || String( e );
 	ui.setLoadingError( 'Something went wrong: ' + e.message );
 
 } );

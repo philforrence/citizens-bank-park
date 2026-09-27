@@ -49,6 +49,7 @@ import { Rain } from './game/Rain.js';
 import { GAME } from './data/game-2008-ws5.js';
 import { FOOTPRINT, LEVELS } from './layout.js';
 import { Walker } from './Walker.js';
+import { Scope } from './Scope.js';
 
 const _up = new Vector3( 0, 1, 0 );
 
@@ -144,26 +145,59 @@ export class BallparkApp {
 		this.environment = new Environment( renderer, scene, this.sky );
 
 		// ---------------------------------------------------------------- world
+		// ?only= / ?focus=: part of the park (Scope.js); the parts not built are undefined below
+		const scope = this.scope = new Scope( qs );
+		// how long each part takes to build (CPU), in ms
+		const buildMs = this.buildMs = {};
+		const time = ( name, make ) => {
+
+			const t0 = performance.now();
+			const r = make();
+			buildMs[ name ] = Math.round( performance.now() - t0 );
+			return r;
+
+		};
+
 		await progress( 0.1, 'Laying the ground…' );
 		this.colliders = new Colliders();
-		this.field = new Field( { scene, colliders: this.colliders } );
+		this.field = time( 'field', () => new Field( { scene, colliders: this.colliders } ) );
+		const fieldOwn = [ ...this.field.group.children ];
 		await progress( 0.14, 'Building the stands…' );
-		this.bowl = new Bowl( { field: this.field, colliders: this.colliders } );
+		this.bowl = time( 'bowl', () => new Bowl( { field: this.field, colliders: this.colliders, crowd: scope.has( 'crowd' ) } ) );
 		await progress( 0.17, 'Bricking the facade…' );
-		this.exterior = new Exterior( { field: this.field, colliders: this.colliders } );
-		this.exterior.buildGateSign( this.bowl );
+		const F = this.field, B = this.bowl, colliders = this.colliders;
+		if ( scope.builds( 'exterior' ) ) this.exterior = time( 'exterior', () => {
+
+			const e = new Exterior( { field: F, colliders } );
+			e.buildGateSign( B );
+			return e;
+
+		} );
 		await progress( 0.19, 'Raising the skyline…' );
-		this.surroundings = new Surroundings( { field: this.field } );
-		this.complex = new Complex( { field: this.field } );
-		this.landmarks = new Landmarks( { field: this.field, bowl: this.bowl, colliders: this.colliders } );
-		this.details = new Details2008( { field: this.field } );
-		this.fascia = new Fascia( { field: this.field, bowl: this.bowl } );
-		this.concourse = new Concourse( { field: this.field, bowl: this.bowl, colliders: this.colliders } );
-		this.people = new People( { field: this.field, bowl: this.bowl, concourse: this.concourse, exterior: this.exterior, landmarks: this.landmarks } );
+		if ( scope.builds( 'surroundings' ) ) this.surroundings = time( 'surroundings', () => new Surroundings( { field: F } ) );
+		if ( scope.builds( 'complex' ) ) this.complex = time( 'complex', () => new Complex( { field: F } ) );
+		if ( scope.builds( 'landmarks' ) ) this.landmarks = time( 'landmarks', () => new Landmarks( { field: F, bowl: B, colliders } ) );
+		if ( scope.builds( 'details' ) ) this.details = time( 'details', () => new Details2008( { field: F } ) );
+		if ( scope.builds( 'fascia' ) ) this.fascia = time( 'fascia', () => new Fascia( { field: F, bowl: B } ) );
+		if ( scope.builds( 'concourse' ) ) this.concourse = time( 'concourse', () => new Concourse( { field: F, bowl: B, colliders } ) );
+		if ( scope.builds( 'people' ) ) this.people = time( 'people', () => new People( { field: F, bowl: B, concourse: this.concourse, exterior: this.exterior, landmarks: this.landmarks } ) );
+		if ( ! scope.full ) {
+
+			// the fans without their stands: keep them where they sit
+			if ( scope.has( 'crowd' ) && ! scope.has( 'bowl' ) ) for ( const m of B.crowd.meshes ) F.group.attach( m );
+			const removed = scope.apply( F.group, {
+				field: fieldOwn, bowl: [ B.group ], crowd: B.crowd.meshes, exterior: [ this.exterior?.group ], surroundings: [ this.surroundings?.group ],
+				complex: [ this.complex?.group ], landmarks: [ this.landmarks?.group ], details: [ this.details?.group ], fascia: [ this.fascia?.group ],
+				concourse: [ this.concourse?.group ], people: [ this.people?.mesh ],
+			}, ( x, z ) => F.toField( x, z ) );
+			console.info( `scope: ${ scope.only ? 'only ' + [ ...scope.only ].join( ', ' ) : 'all parts' }${ scope.focus ? `, focus ${ Object.values( scope.focus ).join( ', ' ) } (${ removed.focus } meshes outside dropped)` : '' }` );
+
+		}
+
 		// the hundreds of little static meshes merged by material into a few draws
-		const batched = batchStatic( this.field.group );
+		const batched = time( 'batching', () => batchStatic( this.field.group ) );
 		console.info( `static batching: ${ batched.before } meshes into ${ batched.after }` );
-		this.players = new Players( { parent: this.field.group } );
+		this.players = time( 'players', () => new Players( { parent: this.field.group } ) );
 		if ( qs.has( 'poses' ) ) this._poseLineup();
 		else {
 
@@ -180,6 +214,8 @@ export class BallparkApp {
 			if ( qs.has( 'paused' ) ) this.director.playing = false;
 
 		}
+		// ?only= without 'players': the timeline still runs (the weather, the boards), undrawn
+		if ( ! scope.has( 'players' ) ) for ( const m of [ this.players.mesh, this.ball?.mesh ] ) m?.removeFromParent();
 		// the city's glow in the night air and the halos round the light banks; Center City is north
 		// (world -z)
 		this.skyGlowLayer = new SkyGlow( scene, this.bowl.lightSources().map( ( l ) => l.position ) );
@@ -187,7 +223,6 @@ export class BallparkApp {
 		// the haze thickens toward "sea level": put that under the field, which is below the street
 		G.seaLevel.value = this.field.y0 - 1;
 		// what you walk on: street level round the pit, the field (and the seats' colliders) inside it
-		const F = this.field, B = this.bowl;
 		this.terrain = { heightAt: ( x, z ) => F.y0 + B.heightAt( ...F.toField( x, z ) ) };
 		this.ground = new Ground( { scene, hole: FOOTPRINT.map( ( [ x, z ] ) => {
 
@@ -210,7 +245,7 @@ export class BallparkApp {
 		}
 
 		// the plaza's lamp posts
-		for ( const { position, tall } of this.exterior.lampSources() ) {
+		for ( const { position, tall } of this.exterior?.lampSources() || [] ) {
 
 			// full cut-off: a pool of light under each
 			this.localLights.add( { position, dir: new Vector3( 0, - 1, 0 ), color: new Color( 1.0, 0.78, 0.5 ), intensity: tall ? 140 : 70, range: tall ? 20 : 12,
@@ -427,8 +462,9 @@ export class BallparkApp {
 		P.dofFocus.value = eye.distanceTo( this._camAim || target );
 		P.dofScale.value = 2.6;
 
-		// a cut (another camera, or a jump in the replay): start clean
-		if ( this._lastEye && this._lastEye.distanceTo( eye ) > 3 ) {
+		// a cut (another camera, or a jump in the replay): start clean, on the new camera's framing
+		const cut = ! this._lastEye || this._lastEye.distanceTo( eye ) > 3;
+		if ( cut ) {
 
 			this._camAim = null;
 			this.post?.cut();
@@ -441,7 +477,7 @@ export class BallparkApp {
 		this._camAim = this._camAim ? this._camAim.lerp( target, k ) : target.clone();
 		this.camera.position.copy( eye );
 		this.camera.lookAt( this._camAim );
-		const f = this.camera.fov + ( fov - this.camera.fov ) * k;
+		const f = cut ? fov : this.camera.fov + ( fov - this.camera.fov ) * k;
 		if ( Math.abs( f - this.camera.fov ) > 0.01 ) {
 
 			this.camera.fov = f;
@@ -458,12 +494,12 @@ export class BallparkApp {
 		if ( this._boardT < 0.25 ) return;
 		this._boardT = 0;
 		const st = this.director.boardState();
-		this.fascia.update( st, this.director );
-		const key = JSON.stringify( [ st.score, st.count, st.outs, st.batter?.last, st.inning, st.half, st.video.kind, st.today.length, st.line, st.pitcher, this.landmarks.boardKey?.( this.director ) ] );
+		this.fascia?.update( st, this.director );
+		const key = JSON.stringify( [ st.score, st.count, st.outs, st.batter?.last, st.inning, st.half, st.video.kind, st.today.length, st.line, st.pitcher, this.landmarks?.boardKey?.( this.director ) ] );
 		if ( key === this._boardKey ) return;
 		this._boardKey = key;
-		this.landmarks.updateScoreboard( st, this.director );
-		this.details.updateOutOfTown( st );
+		this.landmarks?.updateScoreboard( st, this.director );
+		this.details?.updateOutOfTown( st );
 
 	}
 
@@ -495,7 +531,7 @@ export class BallparkApp {
 		const flagWind = ( wx, wz, k ) => {
 
 			const a = F.toField( wx, wz ), o = F.toField( 0, 0 );
-			this.landmarks.flags?.setWind( ( a.x ?? a[ 0 ] ) - ( o.x ?? o[ 0 ] ), ( a.z ?? a[ 1 ] ) - ( o.z ?? o[ 1 ] ), k );
+			this.landmarks?.flags?.setWind( ( a.x ?? a[ 0 ] ) - ( o.x ?? o[ 0 ] ), ( a.z ?? a[ 1 ] ) - ( o.z ?? o[ 1 ] ), k );
 
 		};
 
@@ -513,7 +549,7 @@ export class BallparkApp {
 		// the suspension: the break after the top of the 6th on October 27, the crew pulls the tarp over
 		// the infield in the first seconds of it (it's off again when play resumes on the 29th)
 		const susp = seg.kind === 'switch' && inning === 6 && half === 'bottom';
-		this.details.setTarp( susp ? MathUtils.smoothstep( d.t - seg.t0, 2, 11 ) * ( 1 - MathUtils.smoothstep( d.t - seg.t0, seg.dur - 6, seg.dur - 1 ) ) : 0 );
+		this.details?.setTarp( susp ? MathUtils.smoothstep( d.t - seg.t0, 2, 11 ) * ( 1 - MathUtils.smoothstep( d.t - seg.t0, seg.dur - 6, seg.dur - 1 ) ) : 0 );
 		// progress through the first night, 0 (first pitch) .. 1 (the suspension)
 		const firstNight = inning < 6 || ( inning === 6 && half === 'top' );
 		const k = firstNight ? Math.min( 1, ( ( inning - 1 ) * 2 + ( half === 'top' ? 0 : 1 ) ) / 10 ) : 0;
@@ -691,6 +727,7 @@ export class BallparkApp {
 
 	start() {
 
+		this.running = true;
 		this.engine.start( ( dt, t ) => this.frame( dt, t ) );
 
 	}
@@ -775,12 +812,12 @@ export class BallparkApp {
 
 		this.bowl.crowd.update( this.director, dt, this._crowdRain || 0 );
 		this.bowl.crowd.lod( this.camera );
-		this.people.update( dt, this.director );
-		this.landmarks.update( dt, this.director, this.sound );
+		this.people?.update( dt, this.director );
+		this.landmarks?.update( dt, this.director, this.sound );
 		// FOX's cameras pan with the play (the one you're looking through isn't drawn)
 		const cf = this.field.toField( this.camera.position.x, this.camera.position.z );
 		this.bowl.updateCameras( this.director ? this.director.ballAt : null, dt, [ cf[ 0 ], this.camera.position.y - this.field.y0, cf[ 1 ] ] );
-		this.details.update( dt, this.director );
+		this.details?.update( dt, this.director );
 
 		this.players.update();
 		if ( this.gameHUD ) this.gameHUD.refresh();

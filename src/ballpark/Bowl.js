@@ -71,7 +71,9 @@ const ROWS = { field: 37, right: 16, left: 21, club: 8, t300: 8, t400: 16, pavil
 
 export class Bowl {
 
-	constructor( { field, colliders } ) {
+	// crowd: false leaves the seats empty of fans (?only= without 'crowd'; the seats still fold down
+	// where they'd sit)
+	constructor( { field, colliders, crowd = true } ) {
 
 		this.field = field;
 		this.colliders = colliders;
@@ -80,6 +82,7 @@ export class Bowl {
 		field.group.add( this.group );
 		this.materials = standsMaterials();
 		this.crowd = this.materials.crowd = new Crowd();
+		this.crowd.off = ! crowd;
 		const worldYaw = field.group.rotation.y;
 		this.ctx = {
 			toWorld: ( x, z ) => field.toWorld( x, z ),
