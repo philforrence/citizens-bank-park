@@ -18,6 +18,7 @@ import { Stories1B } from './concourse1b/Stories.js';
 import { Sounds1B } from './concourse1b/Sounds.js';
 import { buildPlaza, buildPhunZone } from './concourse1b/Plaza.js';
 import { Scenes1B } from './concourse1b/Scenes.js';
+import { Tailgates } from './concourse1b/Tailgate.js';
 import { programKiosk, caricatureCorner, cartSigns, cartTop } from './concourse1b/Things.js';
 
 // The main concourse on the first base side, behind home plate round to the right field corner (sections
@@ -66,6 +67,8 @@ export default class Concourse1B {
 		this._hung();
 		this._fronts();
 		this._plaza();
+		// the tailgates across Pattison in Lot K
+		this.tailgates = new Tailgates( { Pr: this.prints } );
 		this.group.add( this.kit.mesh( 'concourse1b-props' ) );
 		this.group.add( this.prints.mesh() );
 		// the floor on the night
@@ -98,6 +101,9 @@ export default class Concourse1B {
 		this.steam = new Steam( { parent: this.group, bounds: this.cast.mesh.boundingSphere } );
 		this.steam.mesh.name = 'concourse1b-steam';
 		this._steamers();
+		this.tailgates.smoke( this.steam );
+		this.tailgates.addPeople( this.cast );
+		this._tailgateTVs();
 		people?.hiders?.push( ( x, z ) => this.covers( x, z ) );
 		// what it sounds like (set up once the park's sound exists)
 		this.sounds = new Sounds1B( this );
@@ -373,6 +379,7 @@ export default class Concourse1B {
 
 		}
 
+		this.tvMat = mat;
 		const mesh = new Mesh( g, mat );
 		mesh.name = 'concourse1b-tv';
 		this.group.add( mesh );
@@ -428,6 +435,30 @@ export default class Concourse1B {
 			}
 
 		}
+
+	}
+
+	// the tailgates' little TVs: the broadcast's picture on each, one small mesh with the screens' material
+	_tailgateTVs() {
+
+		const pos = [], nrm = [], uv = [];
+		for ( const [ a, b, c, d, n ] of this.tailgates.screens ) for ( const [ q, u ] of [ [ a, [ 0, 1 ] ], [ b, [ 1, 1 ] ], [ c, [ 1, 0 ] ], [ a, [ 0, 1 ] ], [ c, [ 1, 0 ] ], [ d, [ 0, 0 ] ] ] ) {
+
+			pos.push( ...q );
+			nrm.push( ...n );
+			uv.push( ...u );
+
+		}
+
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		g.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
+		g.setAttribute( 'uv', new Float32BufferAttribute( uv, 2 ) );
+		g.computeBoundingBox();
+		g.computeBoundingSphere();
+		const m = new Mesh( g, this.tvMat );
+		m.name = 'concourse1b-tailgate-tvs';
+		this.group.add( m );
 
 	}
 
@@ -617,6 +648,7 @@ export default class Concourse1B {
 		this.people.cam = camF;
 		this.people.update( dt, ns );
 		this.stories.update( dt, ns );
+		this.tailgates.update( dt, ns, this.people.react );
 		this.scenes?.update( dt, ns, t );
 		this.arrivals?.update( dt, ns, t );
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );

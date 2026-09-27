@@ -47,7 +47,7 @@ export const CELLS = {
 	hatfieldCart: [ 0, 1160, 512, 128 ], phood: [ 512, 1160, 512, 128 ], draft: [ 1024, 1160, 512, 128 ], bottles: [ 1536, 1230, 512, 128 ],
 	// the caricaturist's samples, WILL CALL, the World Series merchandise kiosk
 	caricatures: [ 0, 1300, 512, 384 ], willCall: [ 512, 1300, 512, 128 ], wsMerch: [ 512, 1430, 512, 128 ], sketch: [ 1024, 1300, 256, 320 ],
-	phunZone: [ 1280, 1370, 768, 160 ], inquirer: [ 1280, 1540, 768, 120 ], cobblestone: [ 0, 1700, 420, 320 ],
+	phunZone: [ 1280, 1370, 768, 160 ], inquirer: [ 1280, 1540, 768, 120 ], cobblestone: [ 0, 1700, 420, 320 ], valance: [ 420, 1700, 512, 64 ], flag: [ 420, 1770, 300, 180 ],
 };
 const LIT = [ 'hatfieldCart', 'phood', 'draft', 'bottles', 'programs', 'wsMerch', 'willCall' ];
 
@@ -433,6 +433,26 @@ export function drawPrints() {
 		wayfind( ctx, CELLS.wayGate, [ [ '←', 'SECTIONS 101 - 114' ], [ '→', 'SECTIONS 115 - 133' ], [ '↗', 'ESCALATOR' ], [ '→', 'GUEST SERVICES' ], [ '←', 'FIRST AID' ], [ '→', 'THIRD BASE GATE' ], [ '←', 'PHANATIC PHUN ZONE' ] ] );
 		marketHeader( ctx, CELLS.market );
 		cobblestone( ctx, CELLS.cobblestone );
+		// a canopy's valance: Phillies red, the script in white, repeated; a flag: red, the P and the script
+		{
+
+			const [ x, y, w, h ] = CELLS.valance;
+			ctx.fillStyle = '#b3121b'; ctx.fillRect( x, y, w, h );
+			ctx.fillStyle = '#ffffff'; ctx.font = `italic 700 40px ${ SCRIPT }`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.fillText( 'Phillies', x + w * 0.25, y + h / 2 + 2 ); ctx.fillText( 'Phillies', x + w * 0.75, y + h / 2 + 2 );
+			ctx.fillRect( x, y + h - 6, w, 3 );
+
+		}
+
+		{
+
+			const [ x, y, w, h ] = CELLS.flag;
+			ctx.fillStyle = '#c8102e'; ctx.fillRect( x, y, w, h );
+			ctx.fillStyle = '#ffffff'; ctx.fillRect( x, y + 8, w, 6 ); ctx.fillRect( x, y + h - 14, w, 6 );
+			ctx.font = `italic 700 64px ${ SCRIPT }`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.fillText( 'Phillies', x + w / 2, y + h / 2 + 4, w - 30 );
+
+		}
 		// ---- the program kiosk's panels: white, the script, PROGRAMS in red (Getty 83600062, 25 Oct 2008)
 		{
 
@@ -736,6 +756,13 @@ export class Prints {
 				[ atlasUV( print, 1 - u1, 1 ), atlasUV( print, 1 - u0, 1 ), atlasUV( print, 1 - u0, 0 ), atlasUV( print, 1 - u1, 0 ) ] );
 
 		}
+
+	}
+
+	// a cell's corners' uvs, for a quad ( bottom-left, bottom-right, top-right, top-left )
+	uvOf( cell ) {
+
+		return [ atlasUV( cell, 0, 1 ), atlasUV( cell, 1, 1 ), atlasUV( cell, 1, 0 ), atlasUV( cell, 0, 0 ) ];
 
 	}
 

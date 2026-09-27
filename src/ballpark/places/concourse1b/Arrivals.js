@@ -434,6 +434,18 @@ export class Arrivals1B {
 
 		}
 
+		// the suspension: already streaming out, all the way from the gate to the street
+		if ( ns.suspended ) for ( let i = 0; i < 60; i ++ ) {
+
+			const a = this._fan( ns );
+			if ( ! a ) break;
+			this._leave( a );
+			a.s = this.r() * a.total * 0.7;
+			this.walkers.push( a );
+			this._walk( a, 0, ns );
+
+		}
+
 	}
 
 	update( dt, ns, t ) {
