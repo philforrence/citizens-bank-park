@@ -1,4 +1,4 @@
-import { BufferGeometry, Float32BufferAttribute, BoxGeometry, CylinderGeometry, SphereGeometry, LatheGeometry, Matrix3, Matrix4, Vector2, Vector3, Quaternion, Euler } from '../../engine/index.js';
+import { BufferGeometry, Float32BufferAttribute, BoxGeometry, CylinderGeometry, SphereGeometry, LatheGeometry, TorusGeometry, Matrix3, Matrix4, Vector2, Vector3, Quaternion, Euler } from '../../engine/index.js';
 import { BODY } from './data/body.js';
 
 // A ballplayer's body: 17 bones and one continuous skinned mesh (data/body.js: the MakeHuman base mesh
@@ -24,7 +24,14 @@ export const BONES = {
 };
 export const NB = 17;
 
-export const PART = { skin: 0, jersey: 1, pants: 2, socks: 3, shoes: 4, cap: 5, glove: 6, bat: 7, belt: 8, sleeve: 9, helmet: 10, gear: 11, mask: 12, hair: 13, body: 14, eye: 15 };
+export const PART = { skin: 0, jersey: 1, pants: 2, socks: 3, shoes: 4, cap: 5, glove: 6, bat: 7, belt: 8, sleeve: 9, helmet: 10, gear: 11, mask: 12, hair: 13, body: 14, eye: 15,
+	// the pieces only some wear (Players.js shows them by the slot's role and kind): the batting helmet's
+	// ear flaps, the catcher's skull cap and the mask's pads, the catcher's and first baseman's mitts, the
+	// plate umpire's ball bag, the grounds crew's rake and rain hood, the Phanatic's head, snout and eyes,
+	// glasses
+	flapL: 16, flapR: 17, ccap: 18, maskPad: 19, mittC: 20, mitt1B: 21, bag: 22, rake: 23, hood: 24, phHead: 25, snout: 26, phEye: 27, glasses: 28 };
+// the optional pieces (left out of statues)
+export const OPTIONAL = [ 10, 11, 12, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28 ];
 
 // body dimensions (a 6'2" player), measured off the mesh's skeleton
 export const DIM = { ...BODY.dim };
@@ -171,21 +178,126 @@ export function buildPlayerGeometry() {
 	add( dome( 1, 24, 12, Math.PI * 0.56 ), B.head, P.cap, 0, skullY - 0.004, skullZ, 0.22, 0, 0, rx, 0.1, rz );
 	add( cyl( 0.009, 0.009, 0.01, 8 ), B.head, P.cap, 0, skullY + 0.093, skullZ - 0.02 );
 	add( lathe( [ [ 0.0, - 0.003 ], [ 0.086, - 0.003 ], [ 0.086, 0.003 ], [ 0.0, 0.003 ] ], 24 ), B.head, P.cap, 0, skullY + 0.004, skullZ - rz + 0.012, 0.22, 0, 0, 0.95, 1, 0.9 );
-	// the batting helmet: a shell down over the ears, the flap over the ear toward the pitcher, a short bill
+	// the batting helmet: a shell down over the ears, a short bill; the ear flaps (the one toward the
+	// pitcher: a right-handed hitter's on his left ear, a lefty's on his right, switch hitters both)
 	add( dome( 1, 24, 14, Math.PI * 0.62 ), B.head, P.helmet, 0, skullY - 0.004, skullZ + 0.004, 0.12, 0, 0, rx + 0.017, 0.128, rz + 0.016 );
-	add( sph( 0.05, 12, 8 ), B.head, P.helmet, - rx - 0.004, skullY - 0.075, skullZ + 0.02, 0, 0, 0, 0.36, 1.15, 1.05 );
+	add( sph( 0.05, 12, 8 ), B.head, P.flapL, - rx - 0.004, skullY - 0.075, skullZ + 0.02, 0, 0, 0, 0.36, 1.15, 1.05 );
+	add( sph( 0.05, 12, 8 ), B.head, P.flapR, rx + 0.004, skullY - 0.075, skullZ + 0.02, 0, 0, 0, 0.36, 1.15, 1.05 );
 	add( lathe( [ [ 0.0, - 0.004 ], [ 0.07, - 0.004 ], [ 0.07, 0.004 ], [ 0.0, 0.004 ] ], 20 ), B.head, P.helmet, 0, skullY - 0.01, skullZ - rz - 0.004, 0.12, 0, 0, 1.15, 1, 0.62 );
-	// the catcher's mask: a frame and cage over the face
-	add( new BoxGeometry( 0.17, 0.22, 0.05 ), B.head, P.mask, 0, F.eyeL[ 1 ] - 0.04 - hb.y, F.skull.z0 - 0.045 - hb.z );
+	// the catcher's skull cap: the shell without flaps, worn backwards (the short bill over his neck)
+	add( dome( 1, 20, 10, Math.PI * 0.55 ), B.head, P.ccap, 0, skullY - 0.004, skullZ + 0.004, - 0.1, 0, 0, rx + 0.014, 0.122, rz + 0.013 );
+	add( lathe( [ [ 0.0, - 0.004 ], [ 0.065, - 0.004 ], [ 0.065, 0.004 ], [ 0.0, 0.004 ] ], 16 ), B.head, P.ccap, 0, skullY - 0.004, skullZ + rz + 0.004, - 0.2, 0, 0, 1.1, 1, 0.5 );
+	// the mask (the catcher's and the plate umpire's): a steel frame curving back round the face, bars
+	// across it below the eyes and two down the middle, a throat guard hanging under the chin, the
+	// leather pads behind the frame
+	{
 
-	// the catcher's chest protector over the front of the torso
-	add( sph( 0.2, 14, 10 ), B.torso, P.gear, 0, 0.26, - 0.085, 0, 0, 0, 0.95, 1.3, 0.45 );
-	for ( const sh of [ B.shinL, B.shinR ] ) {
+		const cy = F.eyeL[ 1 ] - 0.04 - hb.y, cz = F.skull.z0 - 0.028 - hb.z;
+		const bend = ( geo, k = 3.2 ) => {
 
-		add( sph( 0.06, 12, 8 ), sh, P.gear, 0, - D.shin * 0.45, - 0.04, 0, 0, 0, 1.05, 3.6, 0.7 );
-		add( sph( 0.06, 12, 8 ), sh, P.gear, 0, - 0.02, - 0.055, 0, 0, 0, 1.1, 1.1, 0.8 );
+			const pa = geo.getAttribute( 'position' );
+			for ( let i = 0; i < pa.count; i ++ ) pa.setZ( i, pa.getZ( i ) + k * pa.getX( i ) ** 2 );
+			geo.computeVertexNormals();
+			return geo;
+
+		};
+
+		const ring = new TorusGeometry( 1, 0.075, 5, 28 );
+		ring.scale( 0.088, 0.118, 0.1 );
+		add( bend( ring ), B.head, P.mask, 0, cy, cz );
+		for ( const y of [ - 0.03, 0.0, 0.035, 0.068 ] ) {
+
+			const w = Math.sqrt( Math.max( 0, 1 - ( ( y + 0.005 ) / 0.118 ) ** 2 ) ) * 0.088;
+			const bar = new CylinderGeometry( 0.0035, 0.0035, 2 * w, 5, 6 );
+			bar.rotateZ( Math.PI / 2 );
+			add( bend( bar ), B.head, P.mask, 0, cy - y, cz - 0.002 );
+
+		}
+
+		for ( const x of [ - 0.022, 0.022 ] ) {
+
+			const bar = new CylinderGeometry( 0.0035, 0.0035, 0.12, 5, 1 );
+			bar.translate( x, 0, 0 );
+			add( bend( bar ), B.head, P.mask, 0, cy - 0.055, cz - 0.003 );
+
+		}
+
+		// the throat guard
+		add( sph( 0.04, 10, 6 ), B.head, P.mask, 0, cy - 0.14, cz + 0.02, 0.5, 0, 0, 1.05, 0.9, 0.2 );
+		// the pads: forehead, chin and cheeks
+		const pad = new TorusGeometry( 1, 0.16, 5, 22 );
+		pad.scale( 0.074, 0.1, 0.12 );
+		add( bend( pad, 3.8 ), B.head, P.maskPad, 0, cy, cz + 0.014 );
 
 	}
+
+	// the hood of a rain jacket, over the cap (the grounds crew in the downpour)
+	add( dome( 1, 20, 10, Math.PI * 0.64 ), B.head, P.hood, 0, skullY - 0.02, skullZ + 0.012, 0.3, 0, 0, rx + 0.03, 0.14, rz + 0.03 );
+	// glasses: two thin rims, the bridge, the arms back to the ears
+	{
+
+		const eyeY = F.eyeL[ 1 ] - hb.y, eyeZ = F.eyeL[ 2 ] - hb.z - 0.019;
+		for ( const sx of [ - 1, 1 ] ) {
+
+			const rim = new TorusGeometry( 1, 0.12, 4, 16 );
+			rim.scale( 0.024, 0.019, 0.02 );
+			add( rim, B.head, P.glasses, sx * 0.032, eyeY, eyeZ );
+			add( cyl( 0.0025, 0.0025, 0.1, 4 ), B.head, P.glasses, sx * 0.064, eyeY + 0.004, eyeZ + 0.052, Math.PI / 2, 0, 0 );
+
+		}
+
+		add( cyl( 0.0025, 0.0025, 0.018, 4 ), B.head, P.glasses, 0, eyeY + 0.006, eyeZ, 0, 0, Math.PI / 2 );
+
+	}
+
+	// the Phillie Phanatic's head: a great round shaggy head, the long tube of a snout reaching forward
+	// and down, two big eyes under their lids
+	{
+
+		const hy = skullY + 0.1, hz = skullZ - 0.01;
+		add( sph( 1, 22, 16 ), B.head, P.phHead, 0, hy, hz, 0, 0, 0, 0.25, 0.26, 0.25 );
+		const snout = cyl( 0.075, 0.1, 0.34, 16 );
+		add( snout, B.head, P.snout, 0, hy - 0.1, hz - 0.33, Math.PI / 2 + 0.35, 0, 0 );
+		add( new TorusGeometry( 0.075, 0.022, 6, 16 ), B.head, P.snout, 0, hy - 0.16, hz - 0.49, 0.35, 0, 0 );
+		for ( const sx of [ - 1, 1 ] ) add( sph( 0.078, 14, 10 ), B.head, P.phEye, sx * 0.1, hy + 0.08, hz - 0.19, 0, sx * 0.25, 0 );
+
+	}
+
+	// the catcher's chest protector: a padded plate curving round his chest from the collar to the belt,
+	// the shoulders capped, a flap over the belly
+	{
+
+		const plate = new BoxGeometry( 0.37, 0.46, 0.035, 10, 10, 1 );
+		const pa = plate.getAttribute( 'position' );
+		for ( let i = 0; i < pa.count; i ++ ) {
+
+			const x = pa.getX( i ), y = pa.getY( i );
+			const taper = 1 - 0.18 * Math.max( 0, - y / 0.23 );
+			pa.setX( i, x * taper );
+			pa.setZ( i, pa.getZ( i ) + 2.4 * ( x * taper ) ** 2 - 0.05 * ( y / 0.23 ) ** 2 );
+
+		}
+
+		plate.computeVertexNormals();
+		add( plate, B.torso, P.gear, 0, 0.25, - 0.155 );
+		for ( const sx of [ - 1, 1 ] ) add( sph( 0.07, 10, 6 ), B.torso, P.gear, sx * 0.16, 0.44, - 0.04, 0, 0, sx * 0.35, 1.1, 0.35, 1.2 );
+		add( new BoxGeometry( 0.2, 0.1, 0.03 ), B.torso, P.gear, 0, - 0.02, - 0.14, - 0.15, 0, 0 );
+
+	}
+
+	// the shin guards: a shell down the front of each shin, the knee cap, the flap over the instep; the
+	// knee savers behind the knees
+	for ( const [ sh, th ] of [ [ B.shinL, B.thighL ], [ B.shinR, B.thighR ] ] ) {
+
+		add( new CylinderGeometry( 0.066, 0.056, D.shin * 0.78, 12, 1, true, Math.PI / 2 - 0.2, Math.PI + 0.4 ), sh, P.gear, 0, - D.shin * 0.46, 0.0 );
+		add( sph( 0.064, 12, 8 ), sh, P.gear, 0, - 0.015, - 0.045, 0, 0, 0, 1.0, 1.15, 0.75 );
+		add( new BoxGeometry( 0.085, 0.07, 0.02 ), sh, P.gear, 0, - D.shin + 0.035, - 0.085, 0.6, 0, 0 );
+		add( new BoxGeometry( 0.11, 0.1, 0.07 ), th, P.gear, 0, - D.thigh + 0.07, 0.07 );
+
+	}
+
+	// the plate umpire's ball bags, one on each hip
+	for ( const sx of [ - 1, 1 ] ) add( new BoxGeometry( 0.1, 0.12, 0.085 ), B.pelvis, P.bag, sx * 0.185, - 0.05, 0.0, 0, sx * 0.3, 0 );
 
 	// the cleats: a lofted shoe on each foot (the ankle is the frame's origin; the sole on the ground)
 	const ankleY = BODY.joints.ankleL[ 1 ];
@@ -206,6 +318,15 @@ export function buildPlayerGeometry() {
 	capsule( 0.024, B.glove, 0.07, - 0.04, 0.115, - 0.2, - 0.03 );
 	mark = - 2;
 	add( new BoxGeometry( 0.05, 0.1, 0.012 ), B.glove, P.glove, 0.085, - 0.21, - 0.03, 0, 0, - 0.2 );
+	// the catcher's mitt: a round, thick pillow with a laced rim and a stubby thumb; the first baseman's:
+	// a long scoop with a laced web
+	add( new TorusGeometry( 0.112, 0.014, 5, 20 ), B.glove, P.mittC, 0, - 0.105, - 0.022, 0, 0, 0, 1.08, 1.04, 1 );
+	mark = - 1;
+	add( sph( 0.1, 16, 12 ), B.glove, P.mittC, 0, - 0.105, - 0.02, 0, 0, 0, 1.2, 1.16, 0.52 );
+	add( sph( 0.1, 10, 6 ), B.glove, P.mittC, 0.105, - 0.05, - 0.035, 0, 0, - 0.5, 0.32, 0.55, 0.36 );
+	add( sph( 0.1, 16, 12 ), B.glove, P.mitt1B, 0, - 0.125, - 0.02, 0, 0, 0, 0.82, 1.55, 0.42 );
+	mark = - 2;
+	add( new BoxGeometry( 0.05, 0.11, 0.012 ), B.glove, P.mitt1B, 0.07, - 0.21, - 0.028, 0, 0, - 0.15 );
 	mark = - 1;
 
 	// the bat, along the bat bone from the knob (at the hands) to the barrel
@@ -214,6 +335,10 @@ export function buildPlayerGeometry() {
 	add( cyl( 0.015, 0.033, 0.2, 12 ), B.bat, P.bat, 0, 0.46, 0 );
 	add( cyl( 0.033, 0.033, 0.28, 12 ), B.bat, P.bat, 0, 0.7, 0 );
 	add( sph( 0.033, 12, 6 ), B.bat, P.bat, 0, 0.84, 0, 0, 0, 0, 1, 0.3, 1 );
+	// the grounds crew's rake, on the same bone: the handle through the right hand, the head at the end
+	add( cyl( 0.013, 0.013, 1.55, 6 ), B.bat, P.rake, 0, 0.55, 0 );
+	add( new BoxGeometry( 0.62, 0.05, 0.035 ), B.bat, P.rake, 0, 1.33, 0.0 );
+	add( new BoxGeometry( 0.6, 0.05, 0.008 ), B.bat, P.rake, 0, 1.37, 0.03, 0.4, 0, 0 );
 
 	const g = new BufferGeometry();
 	g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
@@ -306,52 +431,61 @@ const _v = new Vector3(), _a = new Vector3(), _b = new Vector3(), _c = new Vecto
 const _x = new Vector3(), _y = new Vector3(), _z = new Vector3(), _p = new Vector3();
 
 // Writes the NB bone matrices (column-major, 16 floats each) of a player standing at `root` (a matrix:
-// position and heading in the field frame) in `pose` into out[ offset .. ].
-export function solvePose( root, pose, out, offset, gloveHand = 'L' ) {
+// position and heading in the field frame, scaled by his height over the mesh's 6'2") in `pose` into
+// out[ offset .. ]. `girth` (1 the mesh's athlete) makes the trunk and limbs broader or slighter; the
+// head grows only a third as much as the body, a bat is a bat.
+const _g = new Matrix4(), _hs = new Matrix4(), _pm = new Matrix4();
+export function solvePose( root, pose, out, offset, gloveHand = 'L', girth = 1 ) {
 
 	const D = DIM, B = BONES;
+	const s = Math.cbrt( Math.abs( root.determinant() ) ) || 1;
+	const g = girth;
 	const put = ( b, m ) => m.toArray( out, offset + b * 16 );
+	_g.makeScale( g, 1, g );
 	// pelvis
 	const pelvis = new Matrix4().copy( root ).multiply( _m.compose( _t.set( pose.pelvisX || 0, pose.pelvisY, pose.pelvisZ || 0 ), _q.setFromEuler( _e.set( pose.pelvis[ 0 ], pose.pelvis[ 1 ], pose.pelvis[ 2 ] ) ), _v.set( 1, 1, 1 ) ) );
-	put( B.pelvis, pelvis );
+	put( B.pelvis, _pm.copy( pelvis ).multiply( _g ) );
 	// torso and head
 	const torso = new Matrix4().copy( pelvis ).multiply( _m.compose( _t.set( 0, D.waist, 0 ), _q.setFromEuler( _e.set( pose.torso[ 0 ], pose.torso[ 1 ], pose.torso[ 2 ] ) ), _v.set( 1, 1, 1 ) ) );
-	put( B.torso, torso );
+	put( B.torso, _pm.copy( torso ).multiply( _g ) );
 	const head = new Matrix4().copy( torso ).multiply( _m.compose( _t.set( 0, D.torso - 0.005, 0 ), _q.setFromEuler( _e.set( pose.head[ 0 ], pose.head[ 1 ], 0 ) ), _v.set( 1, 1, 1 ) ) );
-	put( B.head, head );
+	const hk = ( 1 + ( s - 1 ) * 0.35 ) / s;
+	put( B.head, head.multiply( _hs.makeScale( hk, hk, hk ) ) );
 
 	// limb targets are in the player's frame: into the field frame through `root`
 	const tgt = ( a, v ) => v.set( a[ 0 ], a[ 1 ], a[ 2 ] ).applyMatrix4( root );
 	// the player's forward (-z) and right (+x) in the field frame, for the poles
 	const fwd = _p.set( 0, 0, - 1 ).transformDirection( root ).clone(), right = new Vector3( 1, 0, 0 ).transformDirection( root );
+	const gs = g * s;
 
 	// legs: hips from the pelvis, knees bend forward
 	for ( const [ side, th, sh, ft, foot, yaw ] of [ [ - 1, B.thighL, B.shinL, B.footL, pose.footL, pose.footYawL ], [ 1, B.thighR, B.shinR, B.footR, pose.footR, pose.footYawR ] ] ) {
 
-		const hip = new Vector3( side * D.hipWidth, - 0.04, 0 ).applyMatrix4( pelvis );
+		const hip = new Vector3( side * D.hipWidth * g, - 0.04, 0 ).applyMatrix4( pelvis );
 		const target = tgt( foot, new Vector3() );
-		const [ knee, end ] = twoBone( hip, target, D.thigh, D.shin, poleOf( side < 0 ? pose.kneeL : pose.kneeR, fwd.clone().addScaledVector( right, side * 0.15 ), root ) );
-		put( th, boneMatrix( hip, knee, fwd ) );
-		put( sh, boneMatrix( knee, end, fwd ) );
+		const [ knee, end ] = twoBone( hip, target, D.thigh * s, D.shin * s, poleOf( side < 0 ? pose.kneeL : pose.kneeR, fwd.clone().addScaledVector( right, side * 0.15 ), root ) );
+		put( th, boneMatrix( hip, knee, fwd, gs, s ) );
+		put( sh, boneMatrix( knee, end, fwd, gs, s ) );
 		// the foot: flat on its yaw, at the ankle
 		const fy = new Vector3( 0, 1, 0 );
 		const ff = fwd.clone().applyAxisAngle( fy, yaw || 0 );
-		put( ft, basisAt( end, ff.clone().cross( fy ).normalize(), fy, ff.clone().negate() ) );
+		put( ft, basisAt( end, ff.clone().cross( fy ).normalize().multiplyScalar( s ), fy.clone().multiplyScalar( s ), ff.clone().negate().multiplyScalar( s ) ) );
 
 	}
 
 	// arms: shoulders from the torso, elbows bend down and back
 	const handPos = {};
+	const gw = 1 + ( g - 1 ) * 0.7;
 	for ( const [ side, ua, fa, hd, hand ] of [ [ - 1, B.upperArmL, B.forearmL, B.handL, pose.handL ], [ 1, B.upperArmR, B.forearmR, B.handR, pose.handR ] ] ) {
 
-		const sh = new Vector3( side * D.shoulder, D.shoulderY, 0 ).applyMatrix4( torso );
+		const sh = new Vector3( side * D.shoulder * gw, D.shoulderY, 0 ).applyMatrix4( torso );
 		const target = tgt( hand, new Vector3() );
 		const pole = poleOf( side < 0 ? pose.elbowL : pose.elbowR, new Vector3( 0, - 1, 0 ).addScaledVector( fwd, - 0.6 ).addScaledVector( right, side * 0.8 ), root );
-		const [ elbow, wrist ] = twoBone( sh, target, D.upperArm, D.forearm, pole );
-		put( ua, boneMatrix( sh, elbow, fwd ) );
-		put( fa, boneMatrix( elbow, wrist, fwd ) );
+		const [ elbow, wrist ] = twoBone( sh, target, D.upperArm * s, D.forearm * s, pole );
+		put( ua, boneMatrix( sh, elbow, fwd, gs, s ) );
+		put( fa, boneMatrix( elbow, wrist, fwd, gs, s ) );
 		const dir = wrist.clone().sub( elbow ).normalize();
-		const hm = boneMatrix( wrist, wrist.clone().addScaledVector( dir, D.hand ), fwd );
+		const hm = boneMatrix( wrist, wrist.clone().addScaledVector( dir, D.hand * s ), fwd, s, s );
 		put( hd, hm );
 		handPos[ side ] = { wrist, hm };
 
@@ -415,13 +549,15 @@ export function twoBone( A, T, l1, l2, pole ) {
 
 // A bone from joint `a` to joint `b`: its local -y runs along the segment (the meshes hang down their
 // bones), local -z toward `front` as near as possible.
-function boneMatrix( a, b, front ) {
+// `across` / `along` scale it (a broader or longer limb than the mesh's).
+function boneMatrix( a, b, front, across = 1, along = 1 ) {
 
 	_y.copy( a ).sub( b ).normalize(); // +y points back up the segment
 	_z.copy( front ).negate().addScaledVector( _y, front.dot( _y ) ).normalize();
 	if ( _z.lengthSq() < 1e-6 ) _z.set( 0, 0, 1 );
 	_x.copy( _y ).cross( _z ).normalize();
 	_z.copy( _x ).cross( _y ).normalize();
+	if ( across !== 1 || along !== 1 ) return basisAt( a, _x.multiplyScalar( across ), _y.multiplyScalar( along ), _z.multiplyScalar( across ) );
 	return basisAt( a, _x, _y, _z );
 
 }
@@ -435,15 +571,15 @@ function basisAt( o, x, y, z ) {
 void _b; void _c; void _k;
 
 // A pose baked into a static mesh (statues): the body skinned on the CPU, in the player's own frame
-// (feet on y = 0, facing -z). The helmet and the catcher's gear are left out, and the parts listed in
-// `drop` (PART codes).
+// (feet on y = 0, facing -z). The pieces only some wear (the helmet, the catcher's gear, the mitts, ...)
+// are left out, and the parts listed in `drop` (PART codes).
 export function bakePose( pose, { gloveHand = 'L', drop = [] } = {} ) {
 
 	const src = buildPlayerGeometry();
 	const mats = new Float32Array( NB * 16 );
 	solvePose( new Matrix4(), pose, mats, 0, gloveHand );
 	skinMatrices( mats, 0 );
-	const skip = [ PART.helmet, PART.gear, PART.mask, ...drop ];
+	const skip = [ ...OPTIONAL, ...drop ];
 	const P = src.getAttribute( 'position' ), N = src.getAttribute( 'normal' ), Bn = src.getAttribute( 'aBones' ), W = src.getAttribute( 'aWeights' ), Pt = src.getAttribute( 'aPart' );
 	const index = src.index.array;
 	const M = [];
