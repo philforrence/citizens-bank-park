@@ -13,7 +13,7 @@ import { LEVELS } from '../layout.js';
 // along in the rising puddles".
 const STREET = LEVELS.mainConcourse;
 
-export function floorSkin( W, { sEnd, gate, doors, spills } ) {
+export function floorSkin( W, { sEnd, gate, doors, spills, lamps = [] } ) {
 
 	// a grid over the walkway from the rail to the stands, and out through the gate's mouth
 	const pos = [], nrm = [], uv = [];
@@ -132,8 +132,12 @@ export function floorSkin( W, { sEnd, gate, doors, spills } ) {
 	}
 	// gum everywhere, from years of it
 	if ( length( rp ) < 0.008 && lh.z > 0.93 ) { lcol = vec3f( 0.04 ); la = 1.0; }
+	// ---- the pools of light under the pendants after dark (a warm lift on the grey)
+	var pool = 0.0;
+	${ lamps.map( ( [ ls, ld ] ) => `pool = max( pool, smoothstep( 4.2, 0.4, length( vec2f( cs - ${ f( ls ) }, cd - ${ f( ld ) } ) ) ) );` ).join( '\n\t' ) }
+	pool *= smoothstep( 0.2, 0.8, frame.night );
 	// ---- put together: the wet (darker, glossy), the prints, the spills, the litter on top
-	a = max( max( wet, printK ), max( spill, la ) );
+	a = max( max( max( wet, printK ), max( spill, la ) ), pool * 0.5 );
 	if ( a < 0.02 ) { discard; }
 	// the concrete under it as the floor draws it (Bowl.js): the saw cuts every 1.8 m, the wear
 	let pp = in.P.xz;
@@ -153,6 +157,7 @@ export function floorSkin( W, { sEnd, gate, doors, spills } ) {
 	s.albedo = col;
 	s.roughness = rough;
 	s.ao = 0.45;
+	s.emissive = col * vec3f( 1.0, 0.86, 0.66 ) * pool * pool * 0.35;
 	// the edges of the wet fade into the concrete (the skin shows the same concrete where it'cs thin)
 	s.albedo = mix( concrete, s.albedo, smoothstep( 0.0, 0.25, a ) );
 `,

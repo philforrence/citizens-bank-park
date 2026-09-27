@@ -3,6 +3,7 @@ import { standard } from '../../materials/Materials.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
 import { canvasTexture } from '../geo.js';
 import { LEVELS } from '../layout.js';
+import { drawAtlas2, CELLS2, ATLAS2 } from './Concourse3BSigns.js';
 
 // The third base concourse's things on the floor (Concourse3B.js), all in one draw: the trash cans and
 // the recycling bins, the condiment stations, the carts, the signs. A vertex's uv carries either a
@@ -200,21 +201,35 @@ function drawAtlas() {
 // the uv of a place in the atlas (offset by 100: the shader's sign that it's printed)
 function atlasUV( k, u, v ) {
 
+	if ( CELLS2[ k ] ) {
+
+		// the banners' and signs' atlas: offset by 200
+		const [ x, y, w, h ] = CELLS2[ k ];
+		return [ 200 + ( x + u * w ) / ATLAS2[ 0 ], 200 + ( y + v * h ) / ATLAS2[ 1 ] ];
+
+	}
+
 	const [ x, y, w, h ] = CELLS[ k ];
 	return [ 100 + ( x + u * w ) / ATLAS, 100 + ( y + v * h ) / ATLAS ];
 
 }
 
-function propsMaterial( atlas ) {
+function propsMaterial( atlas, atlas2 ) {
 
 	const mat = standard( {
-		name: 'concourse3b-props', roughness: 0.5, modules: [ commonModule ], textures: { c3bAtlas: atlas },
+		name: 'concourse3b-props', roughness: 0.5, modules: [ commonModule ], textures: { c3bAtlas: atlas, c3bAtlas2: atlas2 },
 		surface: /* wgsl */`
 	var alb = array<vec3f, ${ PALETTE.length }>( ${ PALETTE.map( ( p ) => f3( p[ 1 ] ) ).join( ', ' ) } );
 	var rm = array<vec2f, ${ PALETTE.length }>( ${ PALETTE.map( ( p ) => `vec2f( ${ p[ 2 ].toFixed( 2 ) }, ${ p[ 3 ].toFixed( 2 ) } )` ).join( ', ' ) } );
 	var glo = array<vec3f, ${ PALETTE.length }>( ${ PALETTE.map( ( p ) => f3( p[ 4 ] || [ 0, 0, 0 ] ) ).join( ', ' ) } );
 	let nk = smoothstep( 0.1, 0.7, frame.night );
-	if ( in.uv.x >= 99.0 ) {
+	if ( in.uv.x >= 199.0 ) {
+		// the banners and the signs, lit by the spots in the trusses after dark
+		let t = textureSample( c3bAtlas2, smpAnisoClamp, in.uv - vec2f( 200.0 ) ).rgb;
+		s.albedo = t * 0.8;
+		s.roughness = 0.6;
+		s.emissive = t * mix( 0.05, 0.3, nk );
+	} else if ( in.uv.x >= 99.0 ) {
 		// printed: the atlas (the carts' signs are lit from behind)
 		let t = textureSample( c3bAtlas, smpAnisoClamp, in.uv - vec2f( 100.0 ) ).rgb;
 		s.albedo = t * 0.8;
@@ -249,7 +264,8 @@ export class Kit {
 		this.pos = []; this.nrm = []; this.uv = [];
 		this.k = 0;
 		this.atlas = drawAtlas();
-		this.material = propsMaterial( this.atlas );
+		this.atlas2 = drawAtlas2();
+		this.material = propsMaterial( this.atlas, this.atlas2 );
 
 	}
 
@@ -347,6 +363,26 @@ export class Kit {
 
 	}
 
+	// a printed sheet, both faces reading right way round: centre ( x, y, z ), w wide, h tall, facing +z
+	// (and -z); `sag` droops its middle (a bedsheet on twine)
+	sheet( P, x, y, z, w, h, print, sag = 0 ) {
+
+		const n = 6;
+		for ( let i = 0; i < n; i ++ ) {
+
+			const u0 = i / n, u1 = ( i + 1 ) / n;
+			const x0 = x - w / 2 + w * u0, x1 = x - w / 2 + w * u1;
+			const d0 = sag * Math.sin( u0 * Math.PI ), d1 = sag * Math.sin( u1 * Math.PI );
+			const F = P.dir( 0, 0, 1 ), B = P.dir( 0, 0, - 1 );
+			this.quad( P( x0, y - h / 2 - d0, z ), P( x1, y - h / 2 - d1, z ), P( x1, y + h / 2 - d1, z ), P( x0, y + h / 2 - d0, z ), F,
+				[ atlasUV( print, u0, 1 ), atlasUV( print, u1, 1 ), atlasUV( print, u1, 0 ), atlasUV( print, u0, 0 ) ] );
+			this.quad( P( x1, y - h / 2 - d1, z - 0.005 ), P( x0, y - h / 2 - d0, z - 0.005 ), P( x0, y + h / 2 - d0, z - 0.005 ), P( x1, y + h / 2 - d1, z - 0.005 ), B,
+				[ atlasUV( print, 1 - u1, 1 ), atlasUV( print, 1 - u0, 1 ), atlasUV( print, 1 - u0, 0 ), atlasUV( print, 1 - u1, 0 ) ] );
+
+		}
+
+	}
+
 	mesh( name = 'concourse3b-props' ) {
 
 		const g = new BufferGeometry();
@@ -438,6 +474,16 @@ export function condiments( K, P, x, z, r ) {
 	K.box( P, x, H + 0.66, z - 0.27, W, 0.24, 0.03, 'condiments' );
 	K.use( 'steel' ).box( P, x - W / 2 + 0.03, H + 0.3, z - 0.27, 0.03, 0.6, 0.03 );
 	K.use( 'steel' ).box( P, x + W / 2 - 0.03, H + 0.3, z - 0.27, 0.03, 0.6, 0.03 );
+
+}
+
+// A white dome pendant light (the 2008 photos: about 50 cm across, hung from the trusses), its cord up
+// to the deck overhead
+export function pendant( K, P, x, z, y, top ) {
+
+	K.use( 'grey' ).cyl( P, x, z, y + 0.3, top, 0.008, 0.008, 4, { top: false } );
+	K.use( 'enamel' ).cyl( P, x, z, y + 0.12, y + 0.3, 0.26, 0.05, 12 );
+	K.use( 'lamp' ).cyl( P, x, z, y + 0.08, y + 0.12, 0.25, 0.25, 12, { top: false, bottom: true } );
 
 }
 
