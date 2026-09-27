@@ -12,6 +12,7 @@ import { Folk } from './alley/Folk.js';
 import { Cast } from './alley/Cast.js';
 import { SIGNS } from './alley/Signs.js';
 import { Bulls } from './alley/Bulls.js';
+import { Fair } from './alley/Fair.js';
 
 // Ashburn Alley and the bullpens on the World Series nights, October 27 and 29, 2008: the park's living
 // room. The promenade behind center field (its bricks and the All-Star Walk in them, the Wall of Fame,
@@ -24,7 +25,7 @@ import { Bulls } from './alley/Bulls.js';
 
 const STREET = LEVELS.mainConcourse;
 // the promenade's ends, along the Alley (the storefronts run from -62 to 60)
-const X0 = - 80, X1 = 64;
+const X0 = - 80, X1 = 67.5;
 
 export default class AshburnAlley2008 {
 
@@ -55,6 +56,15 @@ export default class AshburnAlley2008 {
 		this._cast( L );
 		// Bull's BBQ at the left field end, its plaza, the Bull signing
 		this.bulls = new Bulls( { parent: this.group, folk: this.folk, at: [ - 71.5, - 140 ] } );
+		// the street fair: the carts, the cans, the ATM, the Games of Baseball at the right field end
+		const zf = this.zFront;
+		this.fair = new Fair( {
+			parent: this.group, folk: this.folk, zFront: zf,
+			// (the funnel cake stand by the clock's pylons and the statue, as the research found it)
+			carts: [ [ - 40.5, - 132.5, 0 ], [ - 28.5, - 132.5, 1 ], [ - 16.5, - 132.8, 2 ], [ 42.5, - 132.5, 3 ], [ - 4.5, - 135.4, 4 ] ],
+			cans: [ [ - 51, zf + 1.3 ], [ - 37, zf + 1.3 ], [ - 25.3, zf + 1.3 ], [ 11.3, zf + 1.3 ], [ 20.7, zf + 1.3 ], [ 44, zf + 1.3 ], [ 52, zf + 1.3 ], [ - 60, - 133 ], [ 28, - 131.5 ] ],
+			atm: [ 32.8, zf + 1.7 ], gamesAt: [ 63.3, zf + 0.9 ],
+		} );
 		this._bleacherFans();
 		this.folk.build();
 
@@ -247,6 +257,7 @@ export default class AshburnAlley2008 {
 
 			this.cast.update( dt, director, w, this.penLife );
 			this.bulls?.update( dt, w, this.cast.time );
+			this.fair?.update( dt, w, this.cast.time );
 			if ( this.bulls ) {
 
 				// the smoke goes with the flags' wind (BallparkApp._weather: the 27th a rainstorm, the 29th

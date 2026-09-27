@@ -248,14 +248,14 @@ export class Cast {
 		}
 
 		// ---- up and down the walk: both ways, in lanes clear of the posts, the statue, the tables
-		const lanes = [ zFront + 3.4, zFront + 5.4, zFront + 7.3 ];
+		const lanes = [ zFront + 3.4, zFront + 5.4, zFront + 6.9 ];
 		// (the 29th's forty, the 27th's fourteen: ponchos and umbrellas, hurrying)
 		for ( let i = 0; i < 54; i ++ ) {
 
 			const wet = i >= 40;
 			const lane = lanes[ i % lanes.length ] + ( r() - 0.5 ) * 0.8;
 			const p = add( 'walk', { x: - 60 + r() * 120, z: lane, yaw: 0 }, fan( r, { poncho: wet && r() < 0.55, open: wet } ), { nights: wet ? 1 : 2 } );
-			p.walk = { dir: r() < 0.5 ? - 1 : 1, speed: ( wet ? 1.3 : 1.05 ) + r() * 0.5, lane, phase: r() * 6.28, x0: - 62, x1: 62 };
+			p.walk = { dir: r() < 0.5 ? - 1 : 1, speed: ( wet ? 1.3 : 1.05 ) + r() * 0.5, lane, phase: r() * 6.28, x0: - 62, x1: 58 };
 			if ( r() < 0.35 ) F.hold( p, r() < 0.5 ? 'cup' : r() < 0.5 ? 'hoagie' : 'bag', { hand: r() < 0.5 ? 'right' : 'left', variant: Math.floor( r() * 2 ) } );
 			else if ( wet && r() < 0.6 ) F.hold( p, 'umbrella', { variant: Math.floor( r() * 3 ), open: 1 } );
 			this.walkers.push( p );

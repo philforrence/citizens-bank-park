@@ -61,7 +61,9 @@ function drawMenu( ctx, w, h ) {
 	ctx.fillStyle = '#c8102e'; ctx.fillRect( 4, 4, w - 8, h * 0.2 );
 	ctx.fillStyle = '#ffffff'; ctx.font = `900 ${ h * 0.13 }px "Arial Black", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 	ctx.fillText( "BULL'S BBQ", w / 2, h * 0.11 );
-	const items = [ [ 'Pulled Pork Sandwich', '8.75' ], [ 'Beef Brisket Sandwich', '8.75' ], [ 'BBQ Chicken Sandwich', '8.25' ], [ 'Smoked Turkey Leg', '9.50' ], [ 'Baked Beans', '3.50' ], [ 'Cole Slaw', '3.00' ] ];
+	// the 2008 menu (Phillies.com, October 2008: pit beef, ribs, pit turkey, pulled pork, turkey legs, the Bulldog);
+	// the prices invented (the page lists none)
+	const items = [ [ 'Pit Beef', '8.75' ], [ 'Pulled BBQ Pork', '8.75' ], [ 'Pit Turkey', '8.75' ], [ 'BBQ Ribs', '11.50' ], [ 'BBQ Turkey Leg', '9.50' ], [ 'The Bulldog (kielbasa)', '8.25' ] ];
 	ctx.font = `600 ${ h * 0.085 }px "Helvetica Neue", Arial, sans-serif`;
 	items.forEach( ( [ n, p ], i ) => {
 

@@ -712,13 +712,44 @@ export class Landmarks {
 
 		// each stand its own sign (drawn in its own style), a menu board over an open counter onto a
 		// lit kitchen, a flat dark canopy with downlights over it, and TVs on the piers between
+		// The Alley's stands in October 2008, bay by bay from the left field end. What was there: Phillies.com's
+		// concessions guide as captured on 2008-10-06 (the Alley Store, Planet Hoagie behind 147, Hatfield
+		// Grill, the Phanatic Phood stand, Tony Luke's, Chickie's & Pete's "by the bullpens", Neighborhood
+		// Pizza's Seasons Pizza, Rick's Steaks, Brewerytown, Old City Creamery's Turkey Hill soft serve in
+		// little batting helmets). Where: the 2008 photos (Tony Luke's left of the batter's eye; a red-awning
+		// stand over the Wall of Fame; Seasons, Rick's and Brewerytown side by side under the rooftop
+		// bleachers). Bull's BBQ has its own tent at the end (places/alley/Bulls.js).
 		const vendors = [
-			[ "BULL'S BBQ", ( c, W, H ) => {
+			[ 'THE ALLEY STORE', ( c, W, H ) => {
 
-				c.fillStyle = '#4a120a'; c.fillRect( 0, 0, W, H );
-				c.strokeStyle = '#e8b04a'; c.lineWidth = 6; c.strokeRect( 10, 10, W - 20, H - 20 );
-				c.fillStyle = '#f2c14e'; c.font = '900 84px Georgia, serif'; c.fillText( "BULL'S", W * 0.36, H * 0.5 );
-				c.font = 'italic 800 60px Georgia, serif'; c.fillText( 'BBQ', W * 0.72, H * 0.55 );
+				// the team store: red, the Phillies script, OFFICIAL PHILLIES MERCHANDISE
+				c.fillStyle = '#c8102e'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#ffffff'; c.font = 'italic 800 70px Georgia, serif'; c.fillText( 'Phillies', W * 0.3, H * 0.48 );
+				c.font = '900 56px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'ALLEY STORE', W * 0.7, H * 0.48, W * 0.5 );
+				c.font = '700 26px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'OFFICIAL PHILLIES MERCHANDISE  •  WORLD SERIES 2008', W / 2, H * 0.82, W - 60 );
+
+			} ],
+			[ 'PLANET HOAGIE', ( c, W, H ) => {
+
+				c.fillStyle = '#1d6b34'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#f5c400'; c.beginPath(); c.arc( 80, H / 2, 38, 0, Math.PI * 2 ); c.fill();
+				c.strokeStyle = '#f5c400'; c.lineWidth = 6; c.beginPath(); c.ellipse( 80, H / 2, 62, 16, - 0.3, 0, Math.PI * 2 ); c.stroke();
+				c.fillStyle = '#ffffff'; c.font = '900 72px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'PLANET HOAGIE', W * 0.57, H * 0.53, W - 190 );
+
+			} ],
+			[ 'HATFIELD GRILL', ( c, W, H ) => {
+
+				c.fillStyle = '#b3121f'; c.fillRect( 0, 0, W, H );
+				c.strokeStyle = '#ffffff'; c.lineWidth = 5; c.strokeRect( 10, 10, W - 20, H - 20 );
+				c.fillStyle = '#ffffff'; c.font = 'italic 800 88px Georgia, serif'; c.fillText( 'Hatfield', W * 0.4, H * 0.5 );
+				c.font = '900 50px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'GRILL', W * 0.8, H * 0.54 );
+
+			} ],
+			[ 'PHANATIC PHOOD', ( c, W, H ) => {
+
+				c.fillStyle = '#2e8b3a'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#f7d117'; c.font = '900 76px "Arial Rounded MT Bold", "Helvetica Neue", Arial, sans-serif'; c.fillText( 'PHANATIC PHOOD', W / 2, H * 0.46, W - 60 );
+				c.fillStyle = '#ffffff'; c.font = '700 30px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'KIDS’ MEALS  •  PHUN SIZE', W / 2, H * 0.8 );
 
 			} ],
 			[ "TONY LUKE'S", ( c, W, H ) => {
@@ -735,18 +766,15 @@ export class Landmarks {
 				c.font = '700 34px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'CRAB FRIES', W * 0.57, H * 0.76 );
 
 			} ],
-			[ 'PLANET HOAGIE', ( c, W, H ) => {
-
-				c.fillStyle = '#1d6b34'; c.fillRect( 0, 0, W, H );
-				c.fillStyle = '#f5c400'; c.beginPath(); c.arc( 80, H / 2, 38, 0, Math.PI * 2 ); c.fill();
-				c.strokeStyle = '#f5c400'; c.lineWidth = 6; c.beginPath(); c.ellipse( 80, H / 2, 62, 16, - 0.3, 0, Math.PI * 2 ); c.stroke();
-				c.fillStyle = '#ffffff'; c.font = '900 72px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'PLANET HOAGIE', W * 0.57, H * 0.53, W - 190 );
-
-			} ],
 			[ 'SEASONS PIZZA', ( c, W, H ) => {
 
-				c.fillStyle = '#f2e8cf'; c.fillRect( 0, 0, W, H );
-				c.fillStyle = '#c8102e'; c.font = '900 80px Georgia, serif'; c.fillText( 'SEASONS PIZZA', W / 2, H * 0.54, W - 60 );
+				// the white box sign, the red script, the yellow and green crescent
+				c.fillStyle = '#f4f1ea'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#f2b705'; c.beginPath(); c.arc( 110, H / 2, 52, 0, Math.PI * 2 ); c.fill();
+				c.fillStyle = '#2e7d32'; c.beginPath(); c.arc( 128, H / 2 - 6, 46, 0, Math.PI * 2 ); c.fill();
+				c.fillStyle = '#f4f1ea'; c.beginPath(); c.arc( 140, H / 2 - 10, 40, 0, Math.PI * 2 ); c.fill();
+				c.fillStyle = '#c8102e'; c.font = 'italic 800 84px Georgia, serif'; c.fillText( 'Seasons', W * 0.45, H * 0.52 );
+				c.font = '800 64px Georgia, serif'; c.fillText( 'Pizza', W * 0.8, H * 0.54 );
 
 			} ],
 			[ "RICK'S STEAKS", ( c, W, H ) => {
@@ -770,6 +798,24 @@ export class Landmarks {
 				for ( let x = 0; x < W; x += 90 ) c.fillRect( x, H * ( 0.55 + 0.2 * Math.abs( Math.sin( x ) ) ), 70, H );
 				c.fillRect( W * 0.8, H * 0.2, 26, H );
 				c.fillStyle = '#f7e6c0'; c.font = '900 76px Georgia, serif'; c.fillText( 'BREWERYTOWN', W / 2, H * 0.42, W - 60 );
+
+			} ],
+			[ 'OLD CITY CREAMERY', ( c, W, H ) => {
+
+				// cream, the name in brown serif, Turkey Hill's red under it, a little helmet sundae
+				c.fillStyle = '#f3e9d2'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#5a3220'; c.font = '700 64px Georgia, serif'; c.fillText( 'Old City Creamery', W * 0.55, H * 0.42, W - 200 );
+				c.fillStyle = '#c8102e'; c.font = '800 30px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'TURKEY HILL SOFT SERVE', W * 0.55, H * 0.76 );
+				c.fillStyle = '#c8102e'; c.beginPath(); c.arc( 90, H * 0.6, 40, Math.PI, 0 ); c.fill(); c.fillRect( 50, H * 0.6, 100, 10 );
+				c.fillStyle = '#f7f1e3'; c.beginPath(); c.arc( 90, H * 0.36, 30, 0, Math.PI * 2 ); c.fill();
+
+			} ],
+			[ 'HATFIELD GRILL', ( c, W, H ) => {
+
+				c.fillStyle = '#b3121f'; c.fillRect( 0, 0, W, H );
+				c.strokeStyle = '#ffffff'; c.lineWidth = 5; c.strokeRect( 10, 10, W - 20, H - 20 );
+				c.fillStyle = '#ffffff'; c.font = 'italic 800 88px Georgia, serif'; c.fillText( 'Hatfield', W * 0.4, H * 0.5 );
+				c.font = '900 50px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'GRILL', W * 0.8, H * 0.54 );
 
 			} ],
 		];
