@@ -985,6 +985,14 @@ export class ConcoursePeople {
 
 			}
 
+		} else if ( c === 'none' && f.hands !== 'phone' && Math.sin( t * 0.23 + f.order * 31 ) > ( ns.first ? 0.93 : 0.85 ) ) {
+
+			// blowing into the hands against the cold, rubbing them
+			a.armL = GESTURE.blow[ 0 ].slice(); a.armR = GESTURE.blow[ 1 ].slice();
+			a.armL[ 2 ] += 0.05 * Math.sin( t * 11 ); a.armR[ 2 ] -= 0.05 * Math.sin( t * 11 );
+			a.propL = 0; a.propR = 0;
+			a.mouth = 0.5;
+
 		} else if ( f.hands === 'phone' && c === 'none' ) {
 
 			a.armR = GESTURE.phone[ 1 ].slice();
@@ -1131,7 +1139,17 @@ export class ConcoursePeople {
 			a.armL = lerpArm( a.armL, [ up[ 0 ][ 0 ] + pump, up[ 0 ][ 1 ], up[ 0 ][ 2 ], up[ 0 ][ 3 ] ], k );
 			a.armR = lerpArm( a.armR, [ up[ 1 ][ 0 ] - pump, up[ 1 ][ 1 ], up[ 1 ][ 2 ], up[ 1 ][ 3 ] ], k );
 			a.propL = a.propL === PROP.pocket ? 0 : a.propL;
-			if ( a.propR === PROP.pocket ) a.propR = R.kind === 'champions' && f.order > 0.6 ? PROP.towel : 0;
+			// the rally towels (the white 'Fightin' Phils' ones: a sea of them on the 29th)
+			if ( a.propR === PROP.pocket || a.propR === 0 ) a.propR = ! ns.first && f.order > 0.35 ? PROP.towel : 0;
+			if ( a.propR === PROP.towel ) a.armR = lerpArm( a.armR, [ 2.5 + 0.35 * Math.sin( T * 10 + f.order * 4 ), 0.5, 0.2 * Math.sin( T * 10 + f.order * 4 ), 0.4 ], k );
+			// high fives and hugs with the one beside them at the last out
+			if ( R.kind === 'champions' && t > 2 + f.order * 4 && t < 6 + f.order * 4 && f.order < 0.35 ) {
+
+				a.armL = lerpArm( a.armL, [ 1.9, 1.2, - 0.5, 0.3 ], k );
+				a.twist = lerp( a.twist, f.order < 0.17 ? 0.5 : - 0.5, k );
+				a.headYaw = lerp( a.headYaw, f.order < 0.17 ? 0.9 : - 0.9, k );
+
+			}
 			a.lean = lerp( a.lean, - 0.05, k );
 			a.mouth = k * ( 0.7 + 0.3 * Math.sin( T * 5 + f.order ) );
 			a.headPitch = lerp( a.headPitch, - 0.25, k );

@@ -910,7 +910,12 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		if ( id == ${ PROP.scorebook }u ) { c = vec3f( 0.7, 0.68, 0.62 ); rough = 0.8; }
 		if ( id == ${ PROP.phone }u ) { c = vec3f( 0.08, 0.08, 0.09 ); metal = 0.5; e = vec3f( 0.25, 0.4, 0.6 ) * 0.8 * step( 0.5, fract( pl.y * 30.0 ) ); }
 		if ( id == ${ PROP.glove }u ) { c = vec3f( 0.3, 0.14, 0.05 ); rough = 0.6; }
-		if ( id == ${ PROP.towel }u ) { c = vec3f( 0.75, 0.74, 0.7 ); rough = 1.0; }
+		if ( id == ${ PROP.towel }u ) {
+			// the 2008 rally towel (the Game 4 photos): white terry, a big red square, the script in white
+			c = vec3f( 0.75, 0.74, 0.7 ); rough = 1.0;
+			let tq = vec2f( pl.z * 4.0, ( pl.y - 0.6 ) * 4.5 );
+			if ( abs( fract( tq.x + 0.5 ) - 0.5 ) < 0.3 && abs( fract( tq.y + 0.5 ) - 0.5 ) < 0.28 ) { c = vec3f( 0.36, 0.02, 0.03 ); if ( abs( fract( tq.y + 0.5 ) - 0.5 ) < 0.05 && abs( fract( tq.x + 0.5 ) - 0.5 ) < 0.22 ) { c = vec3f( 0.8 ); } }
+		}
 		if ( id == ${ PROP.bag }u ) { c = select( vec3f( 0.72 ), vec3f( 0.35, 0.02, 0.03 ), g.w > 0.5 ); rough = 0.35; }
 		if ( id == ${ PROP.sandwich }u ) { c = vec3f( 0.7, 0.7, 0.72 ); metal = 0.9; rough = 0.35; }
 		if ( id == ${ PROP.hotdog }u ) { c = vec3f( 0.62, 0.42, 0.2 ); }
