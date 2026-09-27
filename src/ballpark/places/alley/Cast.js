@@ -326,7 +326,7 @@ export class Cast {
 		const since = last ? t - last.t : 1e9;
 		const phillies = last?.home && since < 9, rays = last && ! last.home && since < 9;
 		const cel = w.celebrate, lt = w.lt;
-		const raysUp = pens?.warming?.away, philsUp = pens?.warming?.home;
+		const raysUp = pens?.warming?.away, philsUp = pens?.warming?.home, lidgeUp = pens?.warmingId?.home === 400058;
 		// the suspension: they drift away from the rail as it's called
 		const leaving = w.suspended ? Math.min( 1, lt / 20 ) : 0;
 		const pulse = ( rate, seed ) => 0.5 + 0.5 * Math.sin( now * rate + seed * 40 );
@@ -372,7 +372,14 @@ export class Cast {
 			}
 
 			// the signs come up when there's something to wave them at
-			if ( p.signProp ) p.signProp.shown = cel || phillies || ( raysUp && p.seed > 0.5 );
+			// (and Lidge's own sign whenever he's up: 48 for 48)
+			if ( p.signProp ) p.signProp.shown = cel || phillies || ( raysUp && p.seed > 0.5 ) || ( lidgeUp && p.signProp.variant === SIGN.lidge );
+			// when a Phillies reliever gets up the rail turns to watch him and claps him on
+			if ( philsUp && ! cel && ! phillies && ( p.pair === 'cheer' || p.pair === 'rail' ) && p.seed > 0.4 ) {
+
+				p.k = p.pair === 'cheer' ? 0.08 * ( 1 + Math.sin( now * 13 + p.seed * 9 ) ) : 0.25 + 0.1 * Math.sin( now * 11 + p.seed * 9 );
+
+			}
 
 		}
 

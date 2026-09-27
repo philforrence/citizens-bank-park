@@ -294,6 +294,7 @@ export class Pens {
 		const t = director.t;
 		const cel = w.celebrate;
 		this.warming = { home: false, away: false };
+		this.warmingId = { home: null, away: null };
 		this.tossFrom = null;
 		for ( const side of [ 'home', 'away' ] ) {
 
@@ -314,6 +315,7 @@ export class Pens {
 				if ( S.pitcherId !== warm.id ) this._dress( S, side, warm.id, players );
 				this._warm( S, side, warm, t - warm.from );
 				this.warming[ side ] = true;
+				this.warmingId[ side ] = warm.id;
 
 			} else {
 

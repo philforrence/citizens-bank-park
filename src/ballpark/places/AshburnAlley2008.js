@@ -327,7 +327,7 @@ export default class AshburnAlley2008 {
 
 	}
 
-	update( dt, director ) {
+	update( dt, director, camera ) {
 
 		if ( ! director ) return;
 		const w = when( director );
@@ -358,6 +358,7 @@ export default class AshburnAlley2008 {
 
 			}
 			this.folk.update();
+			this.folk.lod( camera );
 
 		}
 

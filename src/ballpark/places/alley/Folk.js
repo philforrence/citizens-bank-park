@@ -361,7 +361,8 @@ const cross = ( a, b ) => [ a[ 1 ] * b[ 2 ] - a[ 2 ] * b[ 1 ], a[ 2 ] * b[ 0 ] -
 const norm = ( a ) => mul( a, 1 / ( Math.hypot( ...a ) || 1 ) );
 
 // the figure in one pose: positions, normals, parts, the index (the same topology for every pose)
-function build( pose ) {
+// far: the version for a crowd seen from across the park (4-sided tubes, a coarser head)
+function build( pose, far = false ) {
 
 	const J = jointsOf( pose );
 	const pos = [], nrm = [], part = [], index = [];
@@ -373,6 +374,8 @@ function build( pose ) {
 	};
 
 	const tube = ( a, b, rA, rB, pt, n = 6, capA = false, capB = false ) => {
+
+		if ( far ) n = Math.min( n, 4 );
 
 		const ax = norm( sub( b, a ) );
 		let across = cross( ax, [ 0, 0, 1 ] );
@@ -412,6 +415,13 @@ function build( pose ) {
 	};
 
 	const sphere = ( c, r, W, H, pt ) => {
+
+		if ( far ) {
+
+			W = Math.min( W, 6 ); H = Math.min( H, 4 );
+
+		}
+
 
 		const first = pos.length / 3;
 		for ( let j = 0; j <= H; j ++ ) for ( let i = 0; i < W; i ++ ) {
@@ -468,9 +478,9 @@ function build( pose ) {
 // positions and normals, the offsets to pose B and B's normals, where each vertex sits on the body at rest
 // (for the shirts' lettering and the faces; the head's from its centre: it moves rigidly) and its part
 const STRIDE = 16;
-function pairGeometry( a, b ) {
+function pairGeometry( a, b, far = false ) {
 
-	const A = build( a ), B = build( b ), R = build( 'stand' );
+	const A = build( a, far ), B = build( b, far ), R = build( 'stand', far );
 	const n = A.pos.length / 3;
 	const data = new Float32Array( n * STRIDE );
 	for ( let i = 0; i < n; i ++ ) {
@@ -1015,17 +1025,32 @@ export class Folk {
 				p.index = i;
 
 			} );
-			g.setAttribute( 'aWho', new InstancedBufferAttribute( who, 4 ) );
-			g.setAttribute( 'aAnim', new InstancedBufferAttribute( anim, 4 ) );
-			g.setAttribute( 'aMove', new InstancedBufferAttribute( move, 4 ) );
+			// the near and the far versions share the people (their matrices and records)
+			const gFar = pairGeometry( a, b, true );
+			const attrs = { aWho: new InstancedBufferAttribute( who, 4 ), aAnim: new InstancedBufferAttribute( anim, 4 ), aMove: new InstancedBufferAttribute( move, 4 ) };
+			for ( const [ k, v ] of Object.entries( attrs ) ) {
+
+				g.setAttribute( k, v );
+				gFar.setAttribute( k, v );
+
+			}
+
 			const mesh = new InstancedMesh( g, this.material, list.length );
-			mesh.name = 'alley-folk-' + pair;
-			mesh.castShadow = false;
-			mesh.receiveShadow = true;
-			mesh.frustumCulled = false;
-			mesh.userData.dynamic = true;
-			this.parent.add( mesh );
-			this.meshes.set( pair, { mesh, list, anim, move, poses: [ POSES[ a ], POSES[ b ] ] } );
+			const far = new InstancedMesh( gFar, this.material, list.length );
+			far.instanceMatrix = mesh.instanceMatrix;
+			for ( const [ m, name ] of [ [ mesh, 'alley-folk-' + pair ], [ far, 'alley-folk-far-' + pair ] ] ) {
+
+				m.name = name;
+				m.castShadow = false;
+				m.receiveShadow = true;
+				m.frustumCulled = false;
+				m.userData.dynamic = true;
+				this.parent.add( m );
+
+			}
+
+			far.visible = false;
+			this.meshes.set( pair, { mesh, far, list, anim, move, poses: [ POSES[ a ], POSES[ b ] ] } );
 
 		}
 
@@ -1060,12 +1085,38 @@ export class Folk {
 		this.update();
 		// they stay in their place: one sphere round it for the frustum culling (the TV cameras on the
 		// infield don't pay for them)
-		if ( this.bounds ) for ( const m of [ ...[ ...this.meshes.values() ].map( ( e ) => e.mesh ), this.propMesh, this.blobs ] ) {
+		if ( this.bounds ) for ( const m of [ ...[ ...this.meshes.values() ].flatMap( ( e ) => [ e.mesh, e.far ] ), this.propMesh, this.blobs ] ) {
 
 			m.boundingSphere = this.bounds.clone();
 			m.frustumCulled = true;
 
 		}
+
+	}
+
+	// the level of detail for this camera: past ~45 m (the TV cameras, the stands across the park) the
+	// coarser figures, and no props or contact shadows (a few pixels each by then)
+	lod( camera ) {
+
+		if ( ! this.bounds || ! camera ) return;
+		const c = ( this._c ||= new Vector3() ).copy( camera.position );
+		this.parent.updateWorldMatrix?.( true, false );
+		const inv = ( this._inv ||= new Matrix4() ).copy( this.parent.matrixWorld ).invert();
+		c.applyMatrix4( inv );
+		// the distance to the nearest part of the place, and the lens (a long one sees them big)
+		const d = Math.max( 0, c.distanceTo( this.bounds.center ) - this.bounds.radius * 0.6 ) * Math.tan( ( camera.fov || 60 ) * Math.PI / 360 ) / Math.tan( 30 * Math.PI / 180 );
+		const near = d < 45;
+		if ( near === this._near ) return;
+		this._near = near;
+		for ( const { mesh, far } of this.meshes.values() ) {
+
+			mesh.visible = near;
+			far.visible = ! near;
+
+		}
+
+		this.propMesh.visible = near;
+		this.blobs.visible = near;
 
 	}
 
