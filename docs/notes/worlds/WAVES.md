@@ -14,6 +14,8 @@ It runs in waves of 4 builders, one place each, on the shared brief ([BRIEF.md](
    - the problems they flagged elsewhere.
 4. Launch the next 4 places, their prompts pointing at `WAVE<n>.md` so they build on what's there.
 
+**The owner reviews each combined wave before the next is launched** (2026-09-27): "once everyone finishes combine all their work and let me view before next iteration." After step 3, stop, show them the merged park (`npm run dev`, the places' shots), and launch nothing until they say so.
+
 ## Wave 1 (launched 2026-09-27)
 
 | Key | Place | Module |
