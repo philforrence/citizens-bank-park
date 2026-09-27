@@ -26,6 +26,12 @@ const hash = ( n ) => {
 	return s - Math.floor( s );
 
 };
+const ease01 = ( x ) => {
+
+	const t = Math.min( 1, Math.max( 0, x ) );
+	return t * t * ( 3 - 2 * t );
+
+};
 
 export class Director {
 
@@ -601,6 +607,38 @@ export class Director {
 			[ - 5, [ - 70 * r2 - 1.2, - 70 * r2 + 1.2 ], M.stand( lt + 5 ) ],
 			[ - 6, [ 70 * r2 + 1.2, - 70 * r2 + 1.2 ], M.stand( lt + 6 ) ],
 		];
+		// the calls: the plate umpire's called strike (strike three punched out, a swinging third strike
+		// hammered), both arms up on a foul; the base umpires' outs at their bags; the line umpire's twirl on
+		// a home run
+		if ( seg.kind === 'pitch' ) {
+
+			const e = seg.ev, tc = lt - PACE.set - M.REL - seg.path.toCatcher;
+			const three = e.count[ 1 ] >= 3;
+			if ( tc > 0 && ( e.call === 'C' || ( three && ( e.call === 'S' || e.call === 'W' || e.call === 'T' ) ) ) ) crew[ 0 ][ 2 ] = M.umpStrike( tc, three );
+			const tf = lt - PACE.set - M.REL - seg.path.flight;
+			if ( seg.foul && tf > 0.2 && ! three ) crew[ 0 ][ 2 ] = M.umpArmsUp( tf - 0.2 );
+
+		} else if ( seg.kind === 'inplay' ) {
+
+			for ( const r of seg.plan.runners ) {
+
+				const tr = lt - ( r.out && r.tOut != null ? r.tOut : r.tArrive );
+				if ( ! r.out || tr < 0 || tr > 1.8 ) continue;
+				const b = ( r.out ? ( r.to || r.from + 1 ) : r.to ) % 4;
+				const u = b === 1 ? 1 : b === 2 ? 2 : b === 3 ? 3 : 0;
+				crew[ u ][ 2 ] = M.umpCall( tr, true );
+
+			}
+
+			if ( seg.plan.hr && lt > seg.plan.bb.time && lt < seg.plan.bb.time + 4 ) {
+
+				const to = seg.plan.bb.at( seg.plan.bb.time );
+				crew[ to[ 0 ] < 0 ? 4 : 5 ][ 2 ] = M.umpTwirl( lt - seg.plan.bb.time );
+
+			}
+
+		}
+
 		for ( const [ id, at, pose, role ] of crew ) {
 
 			pose.glove = false;
@@ -725,11 +763,12 @@ export class Director {
 
 	}
 
-	_batter( snap, pose ) {
+	// `off`: metres back out of the box, away from the plate (stepping out between pitches)
+	_batter( snap, pose, off = 0 ) {
 
 		const [ x, z ] = boxFor( snap.bats );
 		const left = snap.bats === 'L';
-		this.act( snap.batter, x, z, left ? Math.PI / 2 : - Math.PI / 2, left ? M.mirror( pose ) : pose );
+		this.act( snap.batter, x + ( left ? off : - off ), z + off * 0.3, left ? Math.PI / 2 : - Math.PI / 2, left ? M.mirror( pose ) : pose );
 
 	}
 
@@ -859,7 +898,17 @@ export class Director {
 		// (his frame is scaled by his height)
 		relLocal = relLocal.map( ( v ) => v / this._height( pid ) );
 		let pp;
-		if ( d < 0 ) pp = lt < 1.2 ? M.stand( lt ) : M.blend( M.stand( lt ), M.pitcherSet(), Math.min( 1, ( lt - 1.2 ) / 0.6 ) );
+		// before it: on the rubber, leaning in for the sign (now and then shaking one off), the nod, then
+		// he comes set
+		const shakes = hash( seg.t0 ) < 0.22;
+		if ( d < 0 ) {
+
+			if ( lt < 0.9 ) pp = M.stand( lt );
+			else if ( lt < 1.3 ) pp = M.blend( M.stand( lt ), M.lookIn( lt ), ease01( ( lt - 0.9 ) / 0.4 ) );
+			else if ( lt < 2.2 ) pp = M.lookIn( lt, ( lt - 1.8 ) / 0.3, shakes ? ( lt - 1.3 ) / 0.45 : 0 );
+			else pp = M.blend( M.lookIn( lt ), M.pitcherSet(), ease01( ( lt - 2.2 ) / 0.5 ) );
+
+		}
 		else pp = M.delivery( d, relLocal );
 		this.act( pid, root[ 0 ], root[ 1 ], Math.PI, lefty ? M.mirror( pp ) : pp, { y: 0.25 } );
 
@@ -876,7 +925,13 @@ export class Director {
 		const ch = this._height( s.defense.C );
 		const glove = [ ( catchAt[ 0 ] - POSITIONS.C[ 0 ] ) / ch, catchAt[ 1 ] / ch, ( catchAt[ 2 ] - POSITIONS.C[ 1 ] ) / ch ];
 		const gk = Math.min( 1, Math.max( 0, ( tb + 0.35 ) / 0.3 ) );
-		this._catcher( s, lt, gk > 0 ? [ - 0.08 + ( glove[ 0 ] + 0.08 ) * gk, 0.72 + ( glove[ 1 ] - 0.72 ) * gk, - 0.48 + ( glove[ 2 ] + 0.48 ) * gk ] : null );
+		// the catcher puts down the sign while the pitcher leans in, then gives the target
+		if ( d < 0 && lt > 1.15 && lt < 2.25 && s.defense.C ) {
+
+			const k = Math.min( 1, ( lt - 1.15 ) / 0.2, ( 2.25 - lt ) / 0.2 );
+			this.act( s.defense.C, POSITIONS.C[ 0 ], POSITIONS.C[ 1 ], 0, M.blend( M.catcherCrouch( lt ), M.catcherSigns( lt ), k ), { roleAdd: ROLE.mask } );
+
+		} else this._catcher( s, lt, gk > 0 ? [ - 0.08 + ( glove[ 0 ] + 0.08 ) * gk, 0.72 + ( glove[ 1 ] - 0.72 ) * gk, - 0.48 + ( glove[ 2 ] + 0.48 ) * gk ] : null );
 		if ( tb >= - 0.02 && tb < flight ) this.ballAt = seg.path.at( Math.max( 0, tb ) );
 		else if ( tb >= flight && ! seg.foul && ! e.inPlay ) {
 
@@ -898,17 +953,28 @@ export class Director {
 
 		}
 
-		// the batter
+		// the batter: back in from stepping out after the last pitch (the gloves' straps tugged, a tap of
+		// the plate), the stance, the swing or the take; after a pitch that doesn't end it he steps out
+		const stepIn = s.balls + s.strikes > 0 && lt < 1.7;
+		const stance = stepIn ? ( lt < 1.0 ? M.adjustGloves( lt ) : lt < 1.35 ? M.blend( M.adjustGloves( lt ), M.tapPlate( lt - 1.0 ), ease01( ( lt - 1.0 ) / 0.35 ) ) : M.blend( M.tapPlate( lt - 1.0 ), M.batterStance( lt ), ease01( ( lt - 1.35 ) / 0.35 ) ) ) : M.batterStance( lt );
+		const inOff = stepIn ? 0.55 * ( 1 - ease01( ( lt - 0.6 ) / 0.6 ) ) : 0;
+		const [ eb, es ] = e.count;
+		const goesOn = ! e.inPlay && eb < 4 && es < 3 && e.call !== 'H';
+		const out = goesOn ? ease01( ( tb - toC - 0.9 ) / 0.8 ) : 0;
+		let bp;
 		if ( seg.swing ) {
 
 			const start = M.REL + flight - M.CONTACT;
-			this._batter( s, d >= start ? M.swing( d - start ) : M.batterStance( lt ) );
+			bp = d >= start ? M.swing( d - start ) : stance;
 
 		} else {
 
-			this._batter( s, d >= M.REL ? M.take( d - M.REL ) : M.batterStance( lt ) );
+			bp = d >= M.REL ? M.take( d - M.REL ) : stance;
 
 		}
+
+		if ( out > 0 ) bp = M.blend( bp, M.adjustGloves( lt ), out );
+		this._batter( s, bp, Math.max( inOff, out * 0.55 ) );
 
 		// steals and passed balls on this pitch
 		for ( const a of seg.acts ) for ( const mv of a.moves ) {

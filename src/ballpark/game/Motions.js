@@ -312,6 +312,290 @@ export function throwBall( t ) {
 
 }
 
+// ---------------------------------------------------------------- the pitcher's routine
+
+// Leaning in for the sign from the rubber: his feet already as in the set, bent at the waist, the ball
+// hand hidden down by his back thigh, the glove on his front knee, his eyes on the catcher. `nod`: 0..1
+// through the nod that takes the sign, `shake`: a shake of the head that turns one down.
+export function lookIn( t = 0, nod = 0, shake = 0 ) {
+
+	const s = pitcherSet();
+	const p = P( { ...s } );
+	p.torso = [ s.torso[ 0 ] - 0.42, s.torso[ 1 ] + 0.05, s.torso[ 2 ] ];
+	p.pelvisY = s.pelvisY - 0.05;
+	p.head = [ s.head[ 0 ] + 0.5 - 0.22 * Math.sin( Math.PI * clamp( nod, 0, 1 ) ), s.head[ 1 ] + 0.3 + 0.22 * Math.sin( Math.PI * 4 * clamp( shake, 0, 1 ) ) * ( shake > 0 && shake < 1 ? 1 : 0 ) ];
+	p.handL = [ 0.02, 0.7 + Math.sin( t * 1.3 ) * 0.01, - 0.36 ];
+	p.handR = [ 0.06, 0.84, 0.03 ];
+	p.elbowL = p.elbowR = undefined;
+	return p;
+
+}
+
+// At the rosin bag behind the mound: down for it, a few bounces in the throwing hand, dropped
+export function rosin( t ) {
+
+	const st = stand( t );
+	const down = P( {
+		pelvisY: 0.72, pelvis: [ - 0.5, 0, 0 ], torso: [ - 0.75, 0, 0 ], head: [ 0.55, 0 ],
+		footL: [ - 0.2, 0.08, - 0.05 ], footR: [ 0.2, 0.08, 0.12 ], footYawL: 0.2, footYawR: - 0.2,
+		handL: [ - 0.25, 0.75, - 0.25 ], handR: [ 0.14, 0.14, - 0.42 ],
+	} );
+	const bounce = ( h ) => P( { ...st, head: [ - 0.45, 0 ], handR: [ 0.22, h, - 0.3 ], handL: [ - 0.24, 0.9, - 0.08 ] } );
+	return keyframes( [ [ 0, st ], [ 0.55, down ], [ 0.85, down ], [ 1.2, bounce( 1.02 ) ], [ 1.35, bounce( 1.12 ) ], [ 1.5, bounce( 1.02 ) ], [ 1.65, bounce( 1.12 ) ], [ 1.8, bounce( 1.0 ) ], [ 2.2, st ] ], t );
+
+}
+
+// ---------------------------------------------------------------- the catcher's signs
+
+// Down in his crouch between pitches, the fingers flashed low between his thighs (the glove over his
+// left knee hiding them from the third base coach)
+export function catcherSigns( t = 0 ) {
+
+	const p = catcherCrouch( t );
+	const flick = Math.floor( t * 3.2 ) % 2;
+	p.handR = [ 0.03, 0.44 + flick * 0.025, - 0.2 ];
+	p.handL = [ - 0.24, 0.56, - 0.33 ];
+	p.head = [ 0.35, 0 ];
+	return p;
+
+}
+
+// ---------------------------------------------------------------- the batter's routine
+
+// Out of the box between pitches: the bat hanging from his right hand, the left tugging the strap of
+// his batting glove, eyes down; `tug` in cycles
+export function adjustGloves( t = 0 ) {
+
+	const w = Math.sin( t * 9 ) * 0.02;
+	return P( {
+		pelvisY: DIM.hip - 0.02, torso: [ - 0.12, 0.25, 0 ], head: [ - 0.5, 0.3 ],
+		footL: [ - 0.15, 0.08, 0.02 ], footR: [ 0.13, 0.08, - 0.02 ], footYawL: 0.2, footYawR: - 0.15,
+		handL: [ 0.04, 1.02 + w, - 0.3 ], handR: [ 0.14, 0.98, - 0.28 ],
+		bat: { dir: [ 0.15, - 0.88, - 0.45 ] }, glove: false,
+	} );
+
+}
+
+// A tap of the plate with the bat as he steps back in
+export function tapPlate( t = 0 ) {
+
+	const k = Math.sin( Math.PI * clamp( t / 0.5, 0, 1 ) );
+	return P( {
+		pelvisY: DIM.hip - 0.06, pelvis: [ - 0.12, 0, 0 ], torso: [ - 0.3, 0, 0 ], head: [ - 0.1, 0.4 ],
+		footL: [ - 0.3, 0.08, 0.02 ], footR: [ 0.2, 0.08, - 0.02 ], footYawL: 0.3, footYawR: - 0.1,
+		handL: [ 0.02, 1.0, - 0.38 ], handR: [ 0.1, 1.02, - 0.36 ],
+		bat: { dir: [ - 0.12, - 0.82 - 0.1 * k, - 0.56 ] }, glove: false,
+	} );
+
+}
+
+// the on-deck hitter down on one knee, the bat upright in front of him, watching the pitcher
+export function onDeckKneel( t = 0 ) {
+
+	const b = Math.sin( t * 1.2 ) * 0.008;
+	return P( {
+		pelvisY: 0.55 + b, pelvis: [ 0.05, 0.1, 0 ], torso: [ 0.02, - 0.1, 0 ], head: [ 0.05, - 0.3 ],
+		footL: [ - 0.14, 0.08, - 0.35 ], footR: [ 0.16, 0.11, 0.32 ], footYawL: 0.1, footYawR: 0,
+		kneeR: [ 0, - 0.9, - 0.4 ],
+		handL: [ - 0.02, 0.95, - 0.38 ], handR: [ 0.04, 0.9, - 0.36 ],
+		bat: { dir: [ - 0.05, 0.99, 0.05 ] }, glove: false,
+	} );
+
+}
+
+// ---------------------------------------------------------------- the umpires' calls
+
+// The plate umpire's called strike: up out of his crouch, the right fist up and hammered down (strike
+// three: turned toward first, the arm thrown out and pumped: the punch-out)
+export function umpStrike( t, three = false ) {
+
+	const set = umpSet( t );
+	const up = P( { pelvisY: DIM.hip - 0.06, torso: [ - 0.05, three ? - 0.5 : - 0.15, 0 ], head: [ 0, three ? 0.2 : 0 ],
+		footL: [ - 0.22, 0.08, 0.02 ], footR: [ 0.26, 0.08, 0.06 ], footYawL: 0.2, footYawR: - 0.4,
+		handL: [ - 0.2, 0.95, - 0.12 ], handR: [ 0.3, 1.55, - 0.05 ], glove: false } );
+	const hit = P( { ...up, handR: three ? [ 0.75, 1.35, - 0.3 ] : [ 0.38, 1.25, - 0.4 ] } );
+	const pump = P( { ...up, handR: three ? [ 0.55, 1.45, - 0.15 ] : [ 0.32, 1.35, - 0.3 ] } );
+	const done = P( { ...up, handR: [ 0.26, 0.95, 0.0 ], torso: [ - 0.05, 0, 0 ], head: [ 0, 0 ] } );
+	return keyframes( three
+		? [ [ 0, set ], [ 0.3, up ], [ 0.5, hit ], [ 0.65, pump ], [ 0.8, hit ], [ 1.6, done ] ]
+		: [ [ 0, set ], [ 0.3, up ], [ 0.48, hit ], [ 1.3, done ] ], t );
+
+}
+
+// both arms up (a foul ball; `time` out)
+export function umpArmsUp( t ) {
+
+	const st = stand( t );
+	const up = P( { ...st, handL: [ - 0.32, 1.95, - 0.1 ], handR: [ 0.32, 1.95, - 0.1 ], glove: false } );
+	return keyframes( [ [ 0, st ], [ 0.25, up ], [ 0.9, up ], [ 1.3, st ] ], t );
+
+}
+
+// a base umpire's call: out (the fist, then the hammer) or safe (the arms swept out flat)
+export function umpCall( t, out = true ) {
+
+	const r = umpReady( t );
+	const st = P( { ...stand( t ), torso: [ - 0.15, 0, 0 ], head: [ 0.2, 0 ] } );
+	let keys;
+	if ( out ) {
+
+		const a = P( { ...st, handR: [ 0.28, 1.62, - 0.08 ] } );
+		const b = P( { ...st, handR: [ 0.34, 1.22, - 0.38 ] } );
+		keys = [ [ 0, r ], [ 0.2, st ], [ 0.35, a ], [ 0.55, b ], [ 0.7, a ], [ 0.85, b ], [ 1.7, st ] ];
+
+	} else {
+
+		const a = P( { ...st, pelvisY: DIM.hip - 0.12, handL: [ - 0.12, 1.3, - 0.34 ], handR: [ 0.12, 1.3, - 0.34 ] } );
+		const b = P( { ...st, pelvisY: DIM.hip - 0.12, handL: [ - 0.78, 1.35, - 0.08 ], handR: [ 0.78, 1.35, - 0.08 ] } );
+		keys = [ [ 0, r ], [ 0.2, a ], [ 0.42, b ], [ 1.1, b ], [ 1.6, st ] ];
+
+	}
+
+	for ( const [ , p ] of keys ) p.glove = false;
+	return keyframes( keys, t );
+
+}
+
+// a home run: the right hand up, the index finger twirling
+export function umpTwirl( t ) {
+
+	const st = stand( t );
+	const k = clamp( t / 0.3, 0, 1 );
+	const a = t * 9;
+	return P( { ...st, handR: [ 0.24 + 0.07 * Math.cos( a ) * k, lerp( 0.92, 2.0, k ), - 0.1 + 0.07 * Math.sin( a ) * k ], glove: false } );
+
+}
+
+// ---------------------------------------------------------------- the coaches and the managers
+
+// A base coach flashing the signs: the right hand to the cap, the nose, the chest, the belt, the left
+// forearm in quick touches, the left hand on his hip
+export function coachSigns( t ) {
+
+	const spots = [ [ 0.06, 1.84, - 0.14 ], [ 0.02, 1.72, - 0.16 ], [ 0.05, 1.36, - 0.2 ], [ 0.06, 1.06, - 0.17 ], [ - 0.18, 1.18, - 0.24 ], [ 0.14, 1.5, - 0.12 ], [ 0.02, 1.72, - 0.16 ] ];
+	const u = t / 0.34, i = Math.floor( u ) % spots.length, j = ( i + 1 ) % spots.length, f = ease( clamp( ( u % 1 ) * 2, 0, 1 ) );
+	const st = stand( t );
+	return P( { ...st, torso: [ - 0.04, 0, 0 ], head: [ 0.05, 0 ], handL: [ - 0.24, 1.02, 0.04 ], handR: lerpA( spots[ i ], spots[ j ], f ), glove: false } );
+
+}
+
+// clapping, hands up in front of his chest
+export function clap( t ) {
+
+	const k = Math.abs( Math.sin( t * 7 ) );
+	return P( { ...stand( t ), handL: [ - 0.04 - 0.1 * k, 1.3, - 0.3 ], handR: [ 0.04 + 0.1 * k, 1.3, - 0.3 ], glove: false } );
+
+}
+
+// the third base coach waving a runner round: the right arm windmilling
+export function windmill( t ) {
+
+	const a = t * 8;
+	return P( { ...stand( t ), torso: [ - 0.05, 0.4, 0 ], head: [ 0.1, 0.5 ], handL: [ - 0.3, 1.0, 0.05 ], handR: [ 0.45 + 0.35 * Math.cos( a ), 1.55 + 0.4 * Math.sin( a ), - 0.2 ], glove: false } );
+
+}
+
+// a runner told to hold: both arms up, palms out
+export function holdUp( t ) {
+
+	return P( { ...stand( t ), handL: [ - 0.35, 1.8, - 0.25 ], handR: [ 0.35, 1.8, - 0.25 ], glove: false } );
+
+}
+
+// on the dugout step: bent forward, forearms on the rail
+export function leanRail( t = 0, h = 1.12 ) {
+
+	const b = Math.sin( t * 0.9 ) * 0.01;
+	return P( {
+		pelvisY: DIM.hip - 0.04, pelvis: [ - 0.3, 0, 0 ], torso: [ - 0.35 + b, 0, 0 ], head: [ 0.45, 0 ],
+		footL: [ - 0.16, 0.08, 0.1 ], footR: [ 0.16, 0.08, 0.05 ], footYawL: 0.15, footYawR: - 0.15,
+		handL: [ - 0.18, h, - 0.48 ], handR: [ 0.18, h, - 0.5 ], glove: false,
+	} );
+
+}
+
+// standing with the arms folded
+export function armsFolded( t = 0 ) {
+
+	return P( { ...stand( t ), handL: [ 0.13, 1.3, - 0.22 ], handR: [ - 0.13, 1.28, - 0.2 ], elbowL: [ - 0.2, - 0.2, 0 ], elbowR: [ 0.2, - 0.2, 0 ], glove: false } );
+
+}
+
+// ---------------------------------------------------------------- everyone else
+
+// sitting (a ball girl on her stool, relievers on the bench): `seat` the seat's height
+export function sit( t = 0, seat = 0.62, glove = false ) {
+
+	const b = Math.sin( t * 1.1 ) * 0.006;
+	return P( {
+		pelvisY: seat + 0.04 + b, pelvis: [ 0.1, 0, 0 ], torso: [ - 0.25, 0, 0 ], head: [ 0.2, 0 ],
+		footL: [ - 0.17, 0.08, - 0.42 ], footR: [ 0.17, 0.08, - 0.38 ], footYawL: 0.1, footYawR: - 0.1,
+		kneeL: [ 0, 0, - 0.9 ], kneeR: [ 0, 0, - 0.9 ],
+		handL: [ - 0.18, seat + 0.12, - 0.36 ], handR: [ 0.18, seat + 0.12, - 0.34 ], glove,
+	} );
+
+}
+
+// raking the clay: the rake reaching out in front, drawn back toward him in long strokes
+export function rake( t ) {
+
+	const k = 0.5 + 0.5 * Math.sin( t * 2.4 );
+	return P( {
+		pelvisY: DIM.hip - 0.06, pelvis: [ - 0.15, 0, 0 ], torso: [ - 0.35 - 0.1 * k, 0.1, 0 ], head: [ 0.4, 0 ],
+		footL: [ - 0.2, 0.08, - 0.15 ], footR: [ 0.2, 0.08, 0.15 ], footYawL: 0.2, footYawR: - 0.2,
+		handL: [ - 0.02, 0.95 + 0.05 * k, - 0.45 + 0.2 * k ], handR: [ 0.05, 1.12 + 0.05 * k, - 0.2 + 0.2 * k ],
+		bat: { dir: [ - 0.02, - 0.55, - 0.83 ] }, glove: false,
+	} );
+
+}
+
+// spreading drying compound from a bag: bent over, the right hand sweeping out
+export function spread( t ) {
+
+	const a = Math.sin( t * 5 );
+	return P( {
+		pelvisY: 0.78, pelvis: [ - 0.45, 0, 0 ], torso: [ - 0.55, 0.15 * a, 0 ], head: [ 0.6, 0 ],
+		footL: [ - 0.26, 0.08, - 0.1 ], footR: [ 0.26, 0.08, 0.12 ], footYawL: 0.3, footYawR: - 0.3,
+		handL: [ - 0.12, 0.72, - 0.4 ], handR: [ 0.22 + 0.2 * a, 0.45, - 0.5 ], glove: false,
+	} );
+
+}
+
+// walking and pulling something behind him (the tarp's edge in both hands at his back)
+export function pullBehind( phase ) {
+
+	const p = run( phase, 0 );
+	p.handL = [ - 0.2, 0.8, 0.25 ]; p.handR = [ 0.2, 0.8, 0.25 ];
+	p.elbowL = p.elbowR = undefined;
+	p.torso = [ p.torso[ 0 ] - 0.25, p.torso[ 1 ], p.torso[ 2 ] ];
+	p.glove = false;
+	return p;
+
+}
+
+// walking, the arms swinging easily (the jog cycle at a walk)
+export function walk( phase ) {
+
+	const p = run( phase, 0 );
+	p.pelvisY -= 0.02;
+	p.glove = false;
+	return p;
+
+}
+
+// the Phanatic's dance: the belly shimmy, the hips thrown side to side, the arms up and waving
+export function phanDance( t ) {
+
+	const a = t * 7.5, b = Math.sin( a ), c = Math.sin( a * 0.5 );
+	const hop = Math.max( 0, Math.sin( t * 3.75 ) ) * 0.05;
+	return P( {
+		pelvisX: 0.08 * b, pelvisY: DIM.hip - 0.1 + hop, pelvis: [ - 0.1, 0.35 * c, 0.2 * b ], torso: [ 0.15, - 0.3 * c, - 0.25 * b ], head: [ 0.1, 0.4 * c ],
+		footL: [ - 0.3, 0.08 + hop * ( b > 0 ? 2 : 0 ), 0.0 ], footR: [ 0.3, 0.08 + hop * ( b < 0 ? 2 : 0 ), 0.0 ], footYawL: 0.5, footYawR: - 0.5,
+		handL: [ - 0.5 - 0.15 * c, 1.75 + 0.2 * b, - 0.1 ], handR: [ 0.5 - 0.15 * c, 1.75 - 0.2 * b, - 0.1 ], glove: false,
+	} );
+
+}
+
 // ---------------------------------------------------------------- celebrating
 
 // on his knees, arms up (Lidge after the last out)
