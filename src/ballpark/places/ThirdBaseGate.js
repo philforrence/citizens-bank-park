@@ -15,6 +15,8 @@ import { buildStreet, LIFT, pattisonZ, eleventhX } from './gate3b/Street.js';
 import { buildVendors } from './gate3b/Vendors.js';
 import { Horses, manure } from './gate3b/Horses.js';
 import { buildTV } from './gate3b/TV.js';
+import { Cars } from './gate3b/Cars.js';
+import { buildTailgates } from './gate3b/Tailgate.js';
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -64,6 +66,9 @@ export default class ThirdBaseGate {
 		// FOX 29 live from the plaza (gate3b/TV.js)
 		this.tv = buildTV( { group: this.group, colliders, field, cast: this.cast } );
 		this.obstacles.push( ...this.tv.obstacles );
+		// the lots filled, the streets running, the tailgaters (gate3b/Cars.js, Tailgate.js)
+		const tail = buildTailgates( { group: this.group, cast: this.cast } );
+		this.cars = new Cars( { group: this.group, field, clear: tail.spots } );
 
 	}
 
@@ -383,7 +388,12 @@ export default class ThirdBaseGate {
 			// a jump in the replay (a seek, a skip) or the other night: everyone where they'd be now
 			const speed = director?.speed ?? 1;
 			const jumped = this._lastT === undefined || Math.abs( w.t - this._lastT ) > 3 + dt * speed * 2 || w.first !== this._lastFirst;
-			if ( jumped ) A.reset( w );
+			if ( jumped ) {
+
+				A.reset( w );
+				this.cars?.reset( w.celebrate ? 0.9 : Math.min( 0.9, 0.3 + w.rate * 0.4 ) );
+
+			}
 			A.update( Math.min( dt, 0.1 ), w );
 			this._lastT = w.t;
 			this._lastFirst = w.first;
@@ -393,6 +403,7 @@ export default class ThirdBaseGate {
 		this.cast?.update( Math.min( dt, 0.1 ), w );
 		this._updatePolice( Math.min( dt, 0.1 ) );
 		this.tv?.update( Math.min( dt, 0.1 ) );
+		this.cars?.update( Math.min( dt, 0.1 ), w );
 		this._lights();
 		this._updateFlash( Math.min( dt, 0.1 ) );
 		this.openGate?.poseTripods();
