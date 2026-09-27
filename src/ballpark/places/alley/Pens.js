@@ -343,9 +343,9 @@ export class Pens {
 		const F = this.F;
 		const t = side === 'home' ? 4.5 : F.TU + 3.7;
 		const y = side === 'home' ? 0 : F.R;
-		const sR = F.L - 2.5 - 0.35;
-		const sC = sR - RUBBER_FRONT - 0.45;
-		return { t, y, rubber: F.at( sR, t ), plate: F.at( sC, t ), toPlate: Math.atan2( F.ux, F.uz ), toMound: Math.atan2( - F.ux, - F.uz ) };
+		const sR = F.S0 + 2.3 + 0.35; // the mounds at the 401 end (Field._buildBullpens)
+		const sC = sR + RUBBER_FRONT + 0.45;
+		return { t, y, rubber: F.at( sR, t ), plate: F.at( sC, t ), toPlate: Math.atan2( - F.ux, - F.uz ), toMound: Math.atan2( F.ux, F.uz ) };
 
 	}
 

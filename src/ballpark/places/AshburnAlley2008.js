@@ -11,6 +11,7 @@ import { Pens } from './alley/Pens.js';
 import { Folk } from './alley/Folk.js';
 import { Cast } from './alley/Cast.js';
 import { SIGNS } from './alley/Signs.js';
+import { Bulls } from './alley/Bulls.js';
 
 // Ashburn Alley and the bullpens on the World Series nights, October 27 and 29, 2008: the park's living
 // room. The promenade behind center field (its bricks and the All-Star Walk in them, the Wall of Fame,
@@ -23,7 +24,7 @@ import { SIGNS } from './alley/Signs.js';
 
 const STREET = LEVELS.mainConcourse;
 // the promenade's ends, along the Alley (the storefronts run from -62 to 60)
-const X0 = - 66, X1 = 64;
+const X0 = - 80, X1 = 64;
 
 export default class AshburnAlley2008 {
 
@@ -52,6 +53,8 @@ export default class AshburnAlley2008 {
 		this.folk.frameYaw = field.group.rotation.y;
 		this.folk.bounds = new Sphere( new Vector3( 0, STREET, - 136 ), 80 );
 		this._cast( L );
+		// Bull's BBQ at the left field end, its plaza, the Bull signing
+		this.bulls = new Bulls( { parent: this.group, folk: this.folk, at: [ - 71.5, - 140 ] } );
 		this._bleacherFans();
 		this.folk.build();
 
@@ -62,7 +65,7 @@ export default class AshburnAlley2008 {
 	_promenade( L ) {
 
 		const counters = ( L?.alleyStands || [] ).map( ( s ) => [ s.mid[ 0 ], s.mid[ 1 ] + 1.6 ] );
-		this.floor = promenade( this.group, { pit: this.bowl.pit, x0: X0, x1: X1, zBack: this.zFront, lamps: L?.alleyLamps || [], counters } );
+		this.floor = promenade( this.group, { pit: this.bowl.pit, x0: X0, x1: X1, zBack: this.zFront, lamps: L?.alleyLamps || [], counters, plaza: [ - 62.3, - 146.4 ] } );
 
 	}
 
@@ -243,6 +246,15 @@ export default class AshburnAlley2008 {
 		if ( this.cast ) {
 
 			this.cast.update( dt, director, w, this.penLife );
+			this.bulls?.update( dt, w, this.cast.time );
+			if ( this.bulls ) {
+
+				// the smoke goes with the flags' wind (BallparkApp._weather: the 27th a rainstorm, the 29th
+				// gusting 20-30 mph in from right)
+				const a = this.field.toField( 1.2, 0.8 ), o = this.field.toField( 0, 0 );
+				this.bulls.setWind( ( a.x ?? a[ 0 ] ) - ( o.x ?? o[ 0 ] ), ( a.z ?? a[ 1 ] ) - ( o.z ?? o[ 1 ] ), w.night === 27 ? 0.6 : 0.95, w.rain );
+
+			}
 			this.folk.update();
 
 		}

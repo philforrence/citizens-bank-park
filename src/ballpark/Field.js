@@ -638,7 +638,7 @@ export class Field {
 	// that reaches out over the back of the Phillies' pen (their bench is in the recess under it, under a
 	// teal-grey soffit with its strip lights); the visitors' pen's back wall rises to Ashburn Alley, and the
 	// fans on the Alley's rail look straight down into it. Each pen has two mounds throwing along the fence
-	// toward two plates at the 401 end. The dark green chain-link over the fence and along the upper pen's
+	// away from the batter's eye toward two plates at the 398 end. The dark green chain-link over the fence and along the upper pen's
 	// lip is drawn thin enough to see through from any distance (a coverage-dithered alpha, not a solid
 	// sheet). The gear, the flowers and the people are the Alley's (places/AshburnAlley2008.js).
 	_buildBullpens() {
@@ -732,34 +732,36 @@ export class Field {
 		box( wall, S1, S1 + 0.4, T0, TB + 0.4, 0, R + 1.4, 'bullpen-end', { solid: true } );
 		box( wall, S0 - 0.4, S1 + 0.4, TB, TB + 0.4, R - 0.1, LEVELS.mainConcourse - 0.01, 'bullpen-back', { solid: true } );
 
-		// mounds, rubbers and plates: two lanes per pen, throwing toward the 401 end
+		// mounds, rubbers and plates: two lanes per pen, the mounds at the 401 end, throwing toward the 398 corner (as the 2005 photos from the
+		// Pavilion show: the dirt of the mounds by the batter's eye)
+		const SM = S0 + 2.3;
 		const plate = slab( [ [ 0, 0 ], [ 0.216, - 0.216 ], [ 0.216, - 0.432 ], [ - 0.216, - 0.432 ], [ - 0.216, - 0.216 ] ], 0.02 );
 		// (the lanes side by side: each mound narrowed across the pen, the two sharing one wide hump)
 		for ( const [ y, lanes ] of [ [ 0, [ 2.1, 4.5 ] ], [ R, [ TU + 1.4, TU + 3.7 ] ] ] ) {
 
 			for ( const t of lanes ) {
 
-				const [ mx, mz ] = at( L - 2.5, t );
-				this.pens.push( { x: mx, z: mz, y, t, s: L - 2.5, upper: y > 0 } );
+				const [ mx, mz ] = at( SM, t );
+				this.pens.push( { x: mx, z: mz, y, t, s: SM, upper: y > 0 } );
 				const mound = new Mesh( bumpGeometry(), dirt );
 				mound.position.set( mx, y + 0.003, mz );
 				mound.rotation.y = yaw;
 				mound.scale.set( 1, 1, 0.55 );
 				mound.receiveShadow = true;
 				this.group.add( mound );
-				const [ rx, rz ] = at( L - 2.5 - 0.35, t );
+				const [ rx, rz ] = at( SM + 0.35, t );
 				const rub = new Mesh( new BoxGeometry( 0.15, 0.04, 0.61 ), white );
 				rub.position.set( rx, y + bumpHeight( rx - mx, rz - mz ) + 0.01, rz );
 				rub.rotation.y = yaw;
 				this.group.add( rub );
-				const [ px, pz ] = at( L - 2.5 - 0.35 - RUBBER_FRONT, t );
+				const [ px, pz ] = at( SM + 0.35 + RUBBER_FRONT, t );
 				const pl = new Mesh( plate, white );
 				pl.position.set( px, y, pz );
-				pl.rotation.y = yaw - Math.PI / 2; // the point toward the catcher (away from the mound)
+				pl.rotation.y = yaw + Math.PI / 2; // the point toward the catcher (away from the mound)
 				this.group.add( pl );
-				const [ dx, dz ] = at( L - 2.5 - 0.35 - RUBBER_FRONT - 1.2, t );
+				const [ dx, dz ] = at( SM + 0.35 + RUBBER_FRONT + 1.2, t );
 				const box2 = new Mesh( new BoxGeometry( 3.2, 0.01, 2.2 ), dirt );
-				box2.position.set( dx + ux * 1.1, y + 0.002, dz + uz * 1.1 );
+				box2.position.set( dx - ux * 1.1, y + 0.002, dz - uz * 1.1 );
 				box2.rotation.y = yaw;
 				this.group.add( box2 );
 

@@ -34,7 +34,7 @@ export function pitEdgeZ( pit, x ) {
 
 }
 
-export function promenade( parent, { pit, x0, x1, zBack, near = - 126, lamps = [], counters = [] } ) {
+export function promenade( parent, { pit, x0, x1, zBack, near = - 126, lamps = [], counters = [], plaza = null } ) {
 
 	// the outline: along the storefronts, then back along the field's edge (the pit's, no nearer than
 	// `near`, so it doesn't spill over the whole concourse behind the corner seats)
@@ -48,7 +48,8 @@ export function promenade( parent, { pit, x0, x1, zBack, near = - 126, lamps = [
 	for ( let x = Math.ceil( x0 ); x < x1; x += 2 ) xs.add( x );
 	const edge = ( x ) => Math.max( zBack, Math.min( pitEdgeZ( pit, x ) - 0.01, near ) );
 	const along = [ ...xs ].sort( ( a, b ) => a - b ).map( ( x ) => [ x, edge( x ) ] );
-	const contour = [ [ x0, zBack ], [ x1, zBack ], ...along.reverse() ];
+	// (plaza: [ x, z ]: at the left field end, past the storefronts, the floor runs back to z as far as x)
+	const contour = plaza ? [ [ x0, plaza[ 1 ] ], [ plaza[ 0 ], plaza[ 1 ] ], [ plaza[ 0 ], zBack ], [ x1, zBack ], ...along.reverse() ] : [ [ x0, zBack ], [ x1, zBack ], ...along.reverse() ];
 	const geo = flatPolygon( contour, [], STREET + 0.014 );
 	const L = lamps.slice( 0, 12 );
 	while ( L.length < 12 ) L.push( [ 1e4, 1e4 ] );
