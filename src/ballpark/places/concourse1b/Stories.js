@@ -67,6 +67,8 @@ export class Stories1B {
 		this._walkers();
 		this._phunZone();
 		this._photoOp();
+		this._guestServices();
+		this._homeStand();
 
 	}
 
@@ -356,6 +358,211 @@ export class Stories1B {
 
 	}
 
+	// the concourse's windows and shop fronts in this stretch (Concourse.js standSpots), by what they are
+	_spot( what ) {
+
+		for ( const st of this.spots.concourse?.standSpots || [] ) {
+
+			if ( st.what !== what ) continue;
+			const [ s ] = this.W.toSD( st.mid[ 0 ], st.mid[ 1 ] );
+			if ( s > 2 && s < 150 ) return st;
+
+		}
+
+		return null;
+
+	}
+
+	// ---- Guest Services (lost children are brought there, the 2008 guide says): every few minutes an usher
+	// walks a little boy who's lost his father up from the rail, his hand on the boy's shoulder; the woman
+	// at the window calls it in on the radio; the boy waits, sniffling; his father comes hurrying along the
+	// concourse, drops to his knees and hugs him; off they go hand in hand, and the usher back to his aisle
+	_guestServices() {
+
+		const st = this._spot( 'guest' );
+		if ( ! st ) return;
+		const q = ( x, z ) => [ st.mid[ 0 ] + st.u[ 0 ] * x + st.n[ 0 ] * z, st.mid[ 1 ] + st.u[ 1 ] * x + st.n[ 1 ] * z ];
+		this.guest = {
+			st, q,
+			clerk: this._add( { female: true, age: 0, skin: 5, hair: 0, hairStyle: 2, glasses: true, build: 1, top: TOP.staff, color: COLOR.red, sleeves: COLOR.red, chest: CHEST.staff, pants: 3, shoes: 1 } ),
+			usher: this._add( { top: TOP.usher, color: COLOR.red, sleeves: COLOR.red, hat: HAT.capRed, pants: 2, shoes: 1, age: 1, hair: 7, build: 2, skin: 0, glasses: true } ),
+			boy: this._add( { age: 2, skin: 1, hair: 3, top: TOP.jacket, color: COLOR.red, sleeves: COLOR.red, hat: HAT.capRed, pants: 0, shoes: 0 }, { scale: 0.62 } ),
+			dad: this._add( { age: 0, skin: 1, hair: 3, facial: 4, build: 1, top: TOP.homeJersey, color: COLOR.white, sleeves: COLOR.navy, back: BACK.UTLEY, chest: CHEST.script, hat: HAT.capRed, pants: 1, shoes: 0 } ),
+		};
+
+	}
+
+	_updateGuest( dt ) {
+
+		const G = this.guest;
+		if ( ! G?.clerk ) return;
+		const t = this.time, T = ( t + 40 ) % 180, st = G.st;
+		const out = Math.atan2( - st.n[ 0 ], - st.n[ 1 ] ), inn = Math.atan2( st.n[ 0 ], st.n[ 1 ] );
+		const set = ( a, xz, yaw ) => {
+
+			a.p.x = xz[ 0 ]; a.p.z = xz[ 1 ]; a.p.y = STREET;
+			[ a.s, a.d ] = this.W.toSD( xz[ 0 ], xz[ 1 ] );
+			a.p.yaw = turn( a.p.yaw, yaw, Math.min( 1, dt * 5 ) );
+			const P = a.p.pose;
+			P.walk = 0; P.lean = 0; P.twist = 0; P.drop = 0; P.hipL = P.hipR = P.kneeL = P.kneeR = 0;
+			P.propL = 0; P.propR = 0; P.mouth = 0; P.headPitch = 0; P.headYaw = 0;
+			P.armL = [ 0.05, 0.08, 0, 0.2 ]; P.armR = [ 0.05, 0.08, 0, 0.2 ];
+			P.blink = ( t * 0.3 + xz[ 0 ] ) % 1 < 0.04 ? 1 : 0;
+			return P;
+
+		};
+
+		const walkTo = ( a, from, to, k ) => {
+
+			const xz = [ from[ 0 ] + ( to[ 0 ] - from[ 0 ] ) * k, from[ 1 ] + ( to[ 1 ] - from[ 1 ] ) * k ];
+			const P = set( a, xz, Math.atan2( - ( to[ 0 ] - from[ 0 ] ), - ( to[ 1 ] - from[ 1 ] ) ) );
+			P.walk = k > 0 && k < 1 ? 1 : 0;
+			P.phase = ( P.phase + dt * 6.5 ) % TAU;
+			return P;
+
+		};
+
+		// the clerk behind her window: on the radio when the boy's there, otherwise the next one
+		const C = set( G.clerk, G.q( 0, - 0.55 ), out );
+		C.armL = [ 0.55, 0.12, 0.2, 0.95 ]; C.armR = [ 0.55, 0.12, 0.2, 0.95 ];
+		if ( T > 40 && T < 85 ) {
+
+			C.armR = GESTURE.phone[ 1 ].slice(); C.propR = PROP.phone;
+			C.mouth = Math.max( 0, 0.3 * Math.sin( t * 7 ) );
+
+		}
+
+		const rail = this.W.at( Math.max( 3, this.W.toSD( st.mid[ 0 ], st.mid[ 1 ] )[ 0 ] - 3 ), 31.5 );
+		const railXZ = [ rail.x, rail.z ], win = G.q( 0.3, 0.75 ), winU = G.q( 1.0, 0.95 ), far = G.q( - 14, 3.5 );
+		const vis = T < 125;
+		for ( const k of [ 'usher', 'boy', 'dad' ] ) G[ k ].p.visible = vis && ( k !== 'dad' || T > 72 );
+		if ( ! vis ) return;
+		if ( T < 40 ) {
+
+			// up from the rail: the usher's hand on his shoulder, the boy's head down, a hand at his eyes
+			const k = Math.min( 1, T / 36 );
+			const U = walkTo( G.usher, [ railXZ[ 0 ] + 0.5, railXZ[ 1 ] ], winU, k );
+			U.armL = [ 0.7, 0.35, 0.3, 0.6 ];
+			const B = walkTo( G.boy, railXZ, win, k );
+			B.headPitch = 0.4;
+			B.armR = [ 1.6, 0.3, 0.4, 2.2 ];
+
+		} else {
+
+			// at the window, waiting
+			const U = set( G.usher, winU, inn + 0.4 );
+			U.armL = [ - 0.35, 0.12, 0.35, 0.9 ]; U.armR = [ - 0.35, 0.12, 0.35, 0.9 ];
+			U.mouth = T < 60 ? Math.max( 0, 0.25 * Math.sin( t * 7 ) ) : 0;
+			U.headYaw = Math.sin( t * 0.3 ) * 0.5;
+			if ( T < 88 ) {
+
+				const B = set( G.boy, win, inn + 0.2 );
+				B.headPitch = 0.35;
+				B.armR = Math.sin( t * 0.7 ) > 0.4 ? [ 1.6, 0.3, 0.4, 2.2 ] : [ 0.05, 0.08, 0, 0.2 ];
+				B.drop = Math.max( 0, Math.sin( t * 2.4 ) ) * 0.01;
+
+			}
+
+			if ( T > 72 && T < 80 ) {
+
+				// his father, hurrying along the concourse from the right
+				walkTo( G.dad, far, G.q( 0.1, 1.5 ), ( T - 72 ) / 8 );
+				const B = G.boy.p.pose;
+				B.headPitch = - 0.1; B.headYaw = 0.6;
+
+			} else if ( T >= 80 && T < 92 ) {
+
+				// down on his knees, the boy in his arms
+				const D = set( G.dad, G.q( 0.1, 1.45 ), out - 0.2 );
+				D.hipL = D.hipR = 1.25; D.kneeL = D.kneeR = 2.1; D.drop = 0.47;
+				D.armL = [ 1.3, 0.9, - 0.5, 0.9 ]; D.armR = [ 1.3, 0.9, - 0.5, 0.9 ]; D.lean = 0.25;
+				const B = set( G.boy, win, inn + 0.2 );
+				B.armL = [ 1.9, 0.9, - 0.5, 0.6 ]; B.armR = [ 1.9, 0.9, - 0.5, 0.6 ];
+				B.headPitch = - 0.1;
+
+			} else if ( T >= 92 ) {
+
+				// off together, hand in hand; the usher back toward his aisle
+				const k = Math.min( 1, ( T - 92 ) / 28 );
+				const D = walkTo( G.dad, G.q( 0.1, 1.5 ), G.q( - 20, 4 ), k );
+				D.armR = GESTURE.holdHand[ 1 ].slice();
+				const B = walkTo( G.boy, G.q( 0.6, 1.5 ), G.q( - 19.5, 4.6 ), k );
+				B.armL = [ 1.1, 0.5, - 0.35, 0.3 ];
+				walkTo( G.usher, winU, [ railXZ[ 0 ] + 0.5, railXZ[ 1 ] ], Math.min( 1, ( T - 92 ) / 20 ) );
+
+			}
+
+		}
+
+	}
+
+	// ---- the Home Stand (Phillies merchandise): World Series caps and shirts on the rack, two looking them
+	// over, one off with her bag
+	_homeStand() {
+
+		const st = this._spot( 'merch' );
+		if ( ! st ) return;
+		const q = ( x, z ) => [ st.mid[ 0 ] + st.u[ 0 ] * x + st.n[ 0 ] * z, st.mid[ 1 ] + st.u[ 1 ] * x + st.n[ 1 ] * z ];
+		this.shop = { st, q, people: [
+			this._add( { age: 0, skin: 0, hair: 2, facial: 2, build: 2, top: TOP.jacket, color: COLOR.black, sleeves: COLOR.black, hat: HAT.capRed, pants: 1, shoes: 1 } ),
+			this._add( { female: true, age: 0, skin: 5, hair: 0, hairStyle: 1, top: TOP.champsTee, color: COLOR.grey, sleeves: COLOR.red, chest: CHEST.champs, hat: HAT.none, pants: 1, shoes: 2 } ),
+			this._add( { female: true, age: 1, skin: 0, hair: 6, hairStyle: 0, glasses: true, top: TOP.fleece, color: COLOR.red, sleeves: COLOR.red, hat: HAT.knitRed, pants: 2, shoes: 1 } ),
+			this._add( { age: 3, skin: 2, hair: 1, top: TOP.staff, color: COLOR.navy, sleeves: COLOR.navy, chest: CHEST.staff, hat: HAT.capNavy, pants: 2, shoes: 1 } ),
+		].filter( Boolean ) };
+
+	}
+
+	_updateShop( dt ) {
+
+		const S = this.shop;
+		if ( ! S?.people.length ) return;
+		const t = this.time, st = S.st;
+		const out = Math.atan2( - st.n[ 0 ], - st.n[ 1 ] ), inn = Math.atan2( st.n[ 0 ], st.n[ 1 ] );
+		S.people.forEach( ( a, i ) => {
+
+			const xz = [ S.q( 1.3, 1.6 ), S.q( 0.4, 1.4 ), S.q( - 1.6 - ( t * 0.08 % 1 ) * 3, 2.2 ), S.q( 0.9, - 0.5 ) ][ i ];
+			a.p.x = xz[ 0 ]; a.p.z = xz[ 1 ]; a.p.y = STREET;
+			[ a.s, a.d ] = this.W.toSD( xz[ 0 ], xz[ 1 ] );
+			const P = a.p.pose;
+			P.walk = i === 2 ? 1 : 0; P.phase = ( P.phase + dt * 6 ) % TAU;
+			P.lean = 0; P.twist = 0; P.drop = 0; P.hipL = P.hipR = P.kneeL = P.kneeR = 0; P.mouth = 0;
+			P.propL = 0; P.propR = 0; P.headYaw = 0;
+			P.blink = ( t * 0.3 + i ) % 1 < 0.04 ? 1 : 0;
+			if ( i === 0 ) {
+
+				// holding a cap up to look at it, the other hand in his pocket
+				a.p.yaw = inn;
+				P.armR = [ 1.3, 0.2, 0.3, 1.5 ]; P.headPitch = 0.1;
+				P.armL = GESTURE.pockets[ 0 ].slice(); P.propL = PROP.pocket;
+
+			} else if ( i === 1 ) {
+
+				// flicking through the shirts on the rack
+				a.p.yaw = inn + 0.4;
+				P.armR = GESTURE.reach[ 1 ].slice(); P.armR[ 3 ] += 0.1 * Math.sin( t * 3 );
+				P.headPitch = 0.3;
+				P.armL = GESTURE.fold[ 0 ].slice();
+
+			} else if ( i === 2 ) {
+
+				// off along the concourse with her bag
+				a.p.yaw = Math.atan2( st.u[ 0 ], st.u[ 1 ] );
+				P.armR = [ 0.1, 0.12, 0, 0.15 ]; P.propR = PROP.bag;
+				P.armL = [ Math.sin( P.phase ) * 0.3, 0.07, 0, 0.2 ];
+
+			} else {
+
+				// behind the counter, ringing it up
+				a.p.yaw = out;
+				P.armL = [ 0.55, 0.12, 0.2, 0.95 ]; P.armR = [ 0.7, 0.2, 0.1, 1.1 ];
+				P.headPitch = 0.3; P.mouth = Math.max( 0, 0.25 * Math.sin( t * 6 ) ) * ( Math.sin( t * 0.4 ) > 0 ? 1 : 0 );
+
+			}
+
+		} );
+
+	}
+
 	// ---- the walkers with jobs or stories: Brandon the Rays fan, a beer man
 	_walkers() {
 
@@ -396,6 +603,8 @@ export class Stories1B {
 		this._updateNguyens( dt, ns, R );
 		this._updatePhun( dt, ns );
 		this._updatePhotoOp( dt );
+		this._updateGuest( dt );
+		this._updateShop( dt );
 		// Brandon gets looked over as he goes by; his head down at a Phillies run; at the last out he claps
 		// for them
 		const b = this.brandon;

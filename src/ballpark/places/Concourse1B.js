@@ -86,7 +86,7 @@ export default class Concourse1B {
 		this.people = new People1B( { cast: this.cast, walkway: this.W, concourse, bowl, obstacles: this.obstacles, carts: this.carts, seed: 1029 } );
 		// where the Phanatic parks his four-wheeler on this concourse (A's plan: behind 111, in the 3rd)
 		this.obstacles.push( [ 95.7, 37.0, 1.2 ] );
-		this.stories = new Stories1B( this.people, { caricature: this.caricature, phun: this.phun, app } );
+		this.stories = new Stories1B( this.people, { caricature: this.caricature, phun: this.phun, app, concourse } );
 		// the fans coming in through the gate
 		if ( this.gate ) {
 
@@ -619,7 +619,7 @@ export default class Concourse1B {
 	report() {
 
 		const A = this.arrivals?.count();
-		return `gate ${ A ? JSON.stringify( A ) : 'none' } cast ${ this.cast.list.filter( ( p ) => p.visible ).length }/${ this.cast.list.length }`;
+		return `guest ${ !! this.stories.guest?.clerk } shop ${ this.stories.shop?.people.length ?? 0 } gate ${ A ? JSON.stringify( A ) : "none" } cast ${ this.cast.list.filter( ( p ) => p.visible ).length }/${ this.cast.list.length }`;
 
 	}
 

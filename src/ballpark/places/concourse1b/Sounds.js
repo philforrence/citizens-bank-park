@@ -209,6 +209,9 @@ export class Sounds1B {
 		sound.sample( 'c1b-ratchet', ratchet );
 		sound.sample( 'c1b-canopy-rain', canopyRain );
 		sound.sample( 'c1b-murmur', murmur );
+		// the lines at the TVs going up at a Phillies run, groaning at the Rays' (the park's own recordings)
+		sound.sample( 'c1b-cheer', 'audio/ballpark/cheer-small.mp3' );
+		sound.sample( 'c1b-groan', 'audio/ballpark/groan.mp3' );
 		const pl = this.place;
 		// the flat-tops: Hatfield behind 120, Cobblestone behind 108, the Hatfield cart
 		this.loops = [];
@@ -390,6 +393,29 @@ export class Sounds1B {
 				if ( d ) this.play( 'c1b-dee-2', d.x, 1.6, d.z, 0.55, 3 );
 
 			}
+
+		}
+
+		// a play's result: the concourse's lines and the rail near the camera react out loud, from the
+		// nearest stand's TV
+		const R = P.react;
+		if ( R && R.t < 0.5 && R !== this._reacted && ( R.kind === 'cheer' || R.kind === 'groan' || R.kind === 'champions' ) ) {
+
+			this._reacted = R;
+			let best = null, bd = Infinity;
+			for ( const St of P.stands ) {
+
+				const w = pl.W.at( St.s, 43 ), d = Math.hypot( w.x - ( camF?.[ 0 ] ?? 1e9 ), w.z - ( camF?.[ 1 ] ?? 1e9 ) );
+				if ( d < bd ) {
+
+					bd = d;
+					best = w;
+
+				}
+
+			}
+
+			if ( best && bd < 30 ) this.play( R.kind === 'groan' ? 'c1b-groan' : 'c1b-cheer', best.x, 1.7, best.z, R.kind === 'groan' ? 0.35 : 0.45, 8 );
 
 		}
 
