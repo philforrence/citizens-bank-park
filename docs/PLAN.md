@@ -106,6 +106,28 @@ Before any new detail, with the GPU exclusive:
 
    Target ~60 fps plugged in, back to the post-optimisation numbers from before round 1.
 
+### Status (2026-09-27)
+
+**Measured under the lock's exclusive mode** (GPU ms per frame at 1280×800, alternating runs):
+
+| View | Base (62f9449) | After the round-1 merges | Now |
+|---|---|---|---|
+| TV center | 14.3 | 22.7 | 17.4 |
+| TV high | 19.4 | 29.6 | 22.3 |
+| Overview | 17.8 | 20.4 | 18.5 |
+| Night, TV center | 16.8 | 25.4 | 20.0 |
+
+- **Last night's "2.4×" was mostly contention.** The real regression was about 1.5×.
+- **Nearly all of it was T2's crowd (+8 to +9 ms).** T7's players cost under 1 ms, and the other merges nothing measurable.
+- **Fixed: the crowd's per-fan work runs once a frame, in a compute pass.** Its share of the TV high view went from 19.6 to 8.4 ms.
+- **What remains** is mostly the price of T2's added fidelity: faces, more vertices, and fatter 112-byte vertices.
+  - The second pose (for motion vectors) costs about 1.1 ms and the pixel shader 0–0.8 ms; both are needed.
+  - **Next, if wanted: a leaner vertex format.** 16-bit normalized attributes would take the vertex from 112 bytes to 72, perhaps 0.5–1 ms. The engine needs interleaved small formats first (`vertexFormat()` excludes them).
+- **Also fixed:**
+  - an old crowd bug: the packed ids were read back from float colours with `+ 0.5`, which rounded odd values from 2²³ up, so about 1 fan in 10 didn't wear what the code intended;
+  - the engine's vertex-layout cache thrashing between the crowd's and the seats' chunks.
+- **Found:** something in the sky (cloud-shadow drift?) seems to run on the wall clock, so shots can't be fully repeated. Low priority.
+
 ## 3. QA together (you and me)
 
 Run `npm run dev`, then open http://127.0.0.1:5189/. Press C to cycle the cameras; add `?hour=21` for night.
