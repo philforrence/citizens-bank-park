@@ -68,7 +68,12 @@ E is evidence, I invention, C common sense.
 
 ## Screenshots
 
-In the worktree's `.claude/qa/desk/`: `a1-*` (first pass: the lap, the roof, the stands, Bull's), `a2-*` (the rain dance, the Gator, the little Phanatic, the banner, the stretch, the hex, the popcorn, the Alley hex, the parked four-wheeler, the 29th's ride), `a3-*` (the board, the pile on TV, the wells), `a4-*` (the full park: the rain dance, the tracks, the handler, the day roof), and the final set `a5-*`.
+In the worktree's `.claude/qa/desk/`:
+- `a1-*`: the first pass (the lap, the roof, the stands, Bull's), scoped.
+- `a2-*`: the rain dance, the Gator, the little Phanatic, the banner, the stretch, the hex, the popcorn, the Alley hex, the parked four-wheeler with Frank and Sophia, the 29th's ride; scoped, night.
+- `a3-*`: Phanavision on him (`a3-board-112`), the pile on TV (`a3-tv-cel-3362`), the wells.
+- `a4-*`: **the full park, no console errors**: the rain dance from the infield (`a4-rain-field-1926`), the tracks on the LF grass and the RF line (`a4-tracks29-2185`, `a4-gatortracks-2410`), the handler on the concourse (`a4-handler-180`), the TV shot (`a4-tv-112`), a day shot on the roof (`a4-day-roof-110`).
+- `a5-*`: **the full park, no console errors**: the rain close up with the slicker, sou'wester and the squad (`a5-rain-close-1927`), the little Phanatic (`a5-blower-2799`), the Gator by day (`a5-day-gator-2380`). (The desk keeps a shot's `hour` for the ones after it, so `a5-night-*` and `a5-banner-high` came out by day.)
 
 ## Cost
 
@@ -88,4 +93,6 @@ In the worktree's `.claude/qa/desk/`: `a1-*` (first pass: the lap, the roof, the
 
 - **Section numbers:** `Concourse.sectionAt` puts about 110 behind the Phillies' dugout and 135 behind the visitors'; the 2008 seating charts put 115–118 and 129–132 there. Every section sign in the park is some four or five off round the dugouts.
 - **The dugout sides are right** (W4 had flagged photo captions): the Phillies are on the first base side.
+- **People.js's aisle guard** stands on the bottom step of the aisle behind the middle of each dugout (the steps that come out onto the roof), so the Phanatic brushes through him on his way down to the roof and back. Moving the guard to the aisle's side (or off the dugouts' middle aisles) would clear it.
+- **The desk:** a shot's `hour` carries on to the shots after it in the same job (worth documenting in GPU.md, or resetting per shot).
 - **The dugout roofs** in the 2008 postseason photos (the research's reading of Getty 83434999 and others): a white top with painted lettering, and a navy front band with citizensbank.com / Citizens Bank Park / neweracap.com panels. Worth comparing with Details2008's roofs.
