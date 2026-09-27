@@ -24,9 +24,12 @@ const PATH = 2 * FT; // half width of the dirt path along the baselines
 const GRASS_INSET = 7 * FT; // infield grass edge inside the first-second / second-third baselines
 const ARC = 95 * FT; // infield skin radius from the front of the rubber
 const PLATE_CIRCLE = 13 * FT;
-const DUGOUT_DEPTH = 1.2; // dugout floor below the field
-const DUGOUT_WIDTH = 2.6; // front to back
-const DUGOUT_ROOF = 1.0; // top of the roof above the field
+export const DUGOUT_DEPTH = 1.2; // dugout floor below the field
+export const DUGOUT_WIDTH = 2.6; // front to back
+export const DUGOUT_ROOF = 1.75; // top of the roof above the field (its navy front 0.45 m deep)
+// along the wall from the dugout's home plate end: the low home camera well, then the dugout under its
+// roof, then (the last `far` metres) the well for the low base-line cameras and the photographers
+export const DUGOUT_ZONES = { home: 2.2, far: 6.0 };
 
 const f = ( x ) => {
 
@@ -796,7 +799,9 @@ export class Field {
 
 		const W = DUGOUT_WIDTH;
 		const pit = [ [ ax, az ], [ bx, bz ], [ bx + nx * W, bz + nz * W ], [ ax + nx * W, az + nz * W ] ];
-		return { side, a, b, len, ux, uz, nx, nz, pit };
+		// the stretch under the roof
+		const roof = [ DUGOUT_ZONES.home, len - DUGOUT_ZONES.far ];
+		return { side, a, b, len, ux, uz, nx, nz, pit, roof };
 
 	}
 
@@ -808,17 +813,21 @@ export class Field {
 
 	}
 
+	// The dugout, along the wall from its home plate end: the low TV camera well where the backstop meets
+	// it, the dugout itself under its roof, then the well for the low first / third base cameras and the
+	// photographers at its far end (their gear and the people in them: FieldLevel.js). The dugout is two
+	// steps down along its front to a concrete floor, a varnished bench along the back wall under navy
+	// padding, fluorescent strips in the ceiling (it reads lit from the field at night, as it did on TV), the
+	// padded green rail the players lean on with black netting under it.
 	_buildDugout( d ) {
 
-		const concrete = standard( { name: 'dugout-concrete', color: new Color( 0.3, 0.3, 0.29 ), roughness: 0.85 } );
-		const roofMat = standard( { name: 'dugout-roof', color: new Color( 0.018, 0.16, 0.1 ), roughness: 0.7 } );
-		const bench = standard( { name: 'dugout-bench', color: new Color( 0.05, 0.08, 0.2 ), roughness: 0.6 } );
-		for ( const m of [ concrete, roofMat, bench ] ) m.underwaterLighting = 'none';
+		const M = this._dugoutMaterials();
 		const { a, len, ux, uz, nx, nz } = d;
 		const yaw = - Math.atan2( uz, ux ); // local x along the dugout, local z away from the field
 		const worldYaw = yaw + this.group.rotation.y;
 		// a point along (s) and behind (t) the front edge, in the field frame
 		const at = ( s, t ) => [ a[ 0 ] + ux * s + nx * t, a[ 1 ] + uz * s + nz * t ];
+		const P = ( s, t, y ) => { const [ x, z ] = at( s, t ); return [ x, y, z ]; };
 		// a box from s0..s1 along, t0..t1 back, y0..y1 up: a mesh, and optionally a collider
 		const box = ( mat, s0, s1, t0, t1, y0, y1, name, collider = null ) => {
 
@@ -840,57 +849,270 @@ export class Field {
 			return m;
 
 		};
+		// a flat rectangle facing n ( up or down ), its uv in metres ( s, t )
+		const flat = ( q, s0, s1, t0, t1, y, n ) => {
 
-		const D = DUGOUT_DEPTH, W = DUGOUT_WIDTH, R = DUGOUT_ROOF;
-		const STEPS = 4, RUN = 0.35, STAIR = STEPS * RUN;
-		const LIP = 0.3;
-		box( concrete, 0, len, 0, W, - D - 0.1, - D, 'dugout-floor' );
-		box( concrete, 0, len, W, W + 0.25, - D, R, 'dugout-back', { solid: true } );
-		box( concrete, - 0.25, 0, - 0.25, W + 0.25, - D, R, 'dugout-end', { solid: true } );
-		box( concrete, len, len + 0.25, - 0.25, W + 0.25, - D, R, 'dugout-end', { solid: true } );
-		// the front lip: the field's edge, from the floor up to the field (you can drop down from it)
-		box( concrete, 0, len, 0, LIP, - D, 0, 'dugout-lip', { walkable: true } );
-		// the roof over the middle; the stairs at both ends are open to the sky. You can stand on it
-		// but walk under it (it's not solid).
-		box( roofMat, STAIR, len - STAIR, - 0.45, W + 0.25, R - 0.25, R, 'dugout-roof', { walkable: true, solid: false } );
-		box( bench, STAIR + 0.3, len - STAIR - 0.3, W - 0.5, W, - D, - D + 0.45, 'dugout-bench', { walkable: true } );
-		// stairs down from field level at each end: step k from the end wall is k risers down
-		for ( let k = 0; k < STEPS; k ++ ) {
+			q.tri( P( s0, t0, y ), P( s1, t0, y ), P( s1, t1, y ), n, [ s0, t0 ], [ s1, t0 ], [ s1, t1 ] );
+			q.tri( P( s0, t0, y ), P( s1, t1, y ), P( s0, t1, y ), n, [ s0, t0 ], [ s1, t1 ], [ s0, t1 ] );
 
-			const top = - k * D / STEPS;
-			box( concrete, k * RUN, ( k + 1 ) * RUN, LIP, W, - D, top, 'dugout-step', { walkable: true } );
-			box( concrete, len - ( k + 1 ) * RUN, len - k * RUN, LIP, W, - D, top, 'dugout-step', { walkable: true } );
+		};
+		const mesh = ( q, mat, name, shadow = true ) => {
+
+			if ( ! q.count ) return null;
+			const m = new Mesh( q.geometry(), mat );
+			m.name = name;
+			m.castShadow = shadow;
+			m.receiveShadow = true;
+			this.group.add( m );
+			return m;
+
+		};
+
+		const D = DUGOUT_DEPTH, W = DUGOUT_WIDTH, R = DUGOUT_ROOF, LIP = 0.3;
+		const [ r0, r1 ] = d.roof;
+		const wallH = FOUL_WALL_HEIGHT * FT;
+		// the floor (its own shader: seed shells, cups and spit where the players sit and stand)
+		const fq = new Quads();
+		flat( fq, 0, len, LIP, W, - D, [ 0, 1, 0 ] );
+		mesh( fq, M.floor, 'dugout-floor', false );
+		// the back wall: full height under the roof, the field wall's height behind the wells
+		box( M.concrete, r0, r1, W, W + 0.25, - D, R, 'dugout-back', { solid: true } );
+		box( M.concrete, - 0.25, r0, W, W + 0.25, - D, wallH, 'dugout-back', { solid: true } );
+		box( M.concrete, r1, len + 0.25, W, W + 0.25, - D, wallH, 'dugout-back', { solid: true } );
+		box( M.concrete, - 0.25, 0, - 0.25, W + 0.25, - D, wallH, 'dugout-end', { solid: true } );
+		box( M.concrete, len, len + 0.25, - 0.25, W + 0.25, - D, wallH, 'dugout-end', { solid: true } );
+		// the partitions between the dugout and the wells, under the roof's ends
+		box( M.concrete, r0 - 0.2, r0, LIP, W, - D, R - 0.25, 'dugout-partition', { solid: true } );
+		box( M.concrete, r1, r1 + 0.2, LIP, W, - D, R - 0.25, 'dugout-partition', { solid: true } );
+		// the front lip: the field's edge (you can drop down from it)
+		box( M.concrete, 0, len, 0, LIP, - D, 0, 'dugout-lip', { walkable: true } );
+		// two steps down along the front, a worn light nosing on each
+		box( M.step, r0, r1, LIP, 0.72, - D, - 0.4, 'dugout-step', { walkable: true } );
+		box( M.step, r0, r1, 0.72, 1.12, - D, - 0.8, 'dugout-step', { walkable: true } );
+		// the wells' raised floors: the cameras look over the field from just above it
+		box( M.concrete, 0, r0 - 0.2, LIP, W, - D, - 0.7, 'camera-well', { walkable: true } );
+		box( M.concrete, r1 + 0.2, len, LIP, W, - D, - 0.7, 'camera-well', { walkable: true } );
+		// the roof over the dugout, overhanging the front. You can stand on it but walk under it
+		box( M.roof, r0 - 0.2, r1 + 0.2, - 0.45, W + 0.25, R - 0.25, R, 'dugout-roof', { walkable: true, solid: false } );
+		const cq = new Quads();
+		flat( cq, r0, r1, - 0.45, W, R - 0.252, [ 0, - 1, 0 ] );
+		mesh( cq, M.ceiling, 'dugout-ceiling', false );
+		// the bench: two varnished planks on steel legs, a hand's width off the back wall padding
+		// (the helmet cubbies and the bat rack take its home plate end, the coolers its far end)
+		const by = - D + 0.46;
+		const [ b0, b1 ] = d.bench = [ r0 + 5.4, r1 - 2.4 ];
+		box( M.wood, b0, b1, W - 0.54, W - 0.31, by - 0.045, by, 'dugout-bench', { walkable: true } );
+		box( M.wood, b0, b1, W - 0.29, W - 0.08, by - 0.045, by, 'dugout-bench' );
+		const lq = new Quads();
+		for ( let s = b0 + 0.25; s < b1 - 0.1; s += 1.9 ) {
+
+			beam( lq, P( s, W - 0.45, - D ), P( s, W - 0.45, by - 0.045 ), 0.045 );
+			beam( lq, P( s, W - 0.15, - D ), P( s, W - 0.15, by - 0.045 ), 0.045 );
+			beam( lq, P( s, W - 0.5, by - 0.07 ), P( s, W - 0.1, by - 0.07 ), 0.04 );
 
 		}
 
-		// inside: the back wall padded in navy, a bat rack, the orange coolers and a stack of cups on the
-		// bench; along the front the dark green pipe rail the players lean on
-		const pad = standard( { name: 'dugout-padding', color: new Color( 0.012, 0.02, 0.06 ), roughness: 0.7 } );
-		const cooler = standard( { name: 'dugout-coolers', color: new Color( 0.7, 0.2, 0.02 ), roughness: 0.45 } );
-		const railMat = standard( { name: 'dugout-rail', color: new Color( 0.02, 0.07, 0.04 ), roughness: 0.4, metalness: 0.6 } );
-		const wood = standard( { name: 'bat-rack', color: new Color( 0.25, 0.14, 0.06 ), roughness: 0.6 } );
-		for ( const m of [ pad, cooler, railMat, wood ] ) m.underwaterLighting = 'none';
-		box( pad, STAIR, len - STAIR, W - 0.06, W, - D + 0.45, R - 0.3, 'dugout-back-pad' );
-		const rackAt = len * 0.3;
-		box( wood, rackAt, rackAt + 2.4, W - 0.35, W - 0.06, - D + 0.5, - D + 1.3, 'bat-rack' );
-		for ( const s0 of [ STAIR + 0.6, len - STAIR - 1.2 ] ) box( cooler, s0, s0 + 0.5, W - 0.45, W - 0.05, - D + 0.45, - D + 1.0, 'cooler' );
-		const q = new Quads();
-		const P = ( s, t, y ) => { const [ x, z ] = at( s, t ); return [ x, y, z ]; };
-		const r0 = STAIR - 0.1, r1 = len - STAIR + 0.1, tr = LIP + 0.25;
-		beam( q, P( r0, tr, 0.55 ), P( r1, tr, 0.55 ), 0.06 );
-		beam( q, P( r0, tr, 0.05 ), P( r1, tr, 0.05 ), 0.05 );
-		const nPosts = Math.max( 2, Math.round( ( r1 - r0 ) / 2.2 ) );
-		for ( let k = 0; k <= nPosts; k ++ ) {
+		mesh( lq, M.steel, 'dugout-bench-legs' );
+		// navy padding on the back wall above the bench (the ends of the wells too)
+		box( M.pad, r0, r1, W - 0.06, W, by + 0.03, R - 0.3, 'dugout-back-pad' );
+		// the rails: the dugout's over the upper step; the wells' on the lip, higher (the cameras over it)
+		const q = new Quads(), pq = new Quads(), nq = new Quads();
+		const rail = ( s0, s1, t, foot, top ) => {
 
-			const sk = r0 + ( r1 - r0 ) * k / nPosts;
-			beam( q, P( sk, tr, - 0.45 ), P( sk, tr, 0.58 ), 0.05 );
+			tube( pq, P( s0, t, top ), P( s1, t, top ), 0.055, 8 );
+			beam( q, P( s0, t, top * 0.42 ), P( s1, t, top * 0.42 ), 0.045 );
+			beam( q, P( s0, t, 0.05 ), P( s1, t, 0.05 ), 0.04 );
+			const n = Math.max( 1, Math.round( ( s1 - s0 ) / 2.2 ) );
+			for ( let k = 0; k <= n; k ++ ) {
+
+				const sk = s0 + ( s1 - s0 ) * k / n;
+				beam( q, P( sk, t, foot ), P( sk, t, top - 0.02 ), 0.05 );
+
+			}
+
+			// black netting from the field up to the top rail (uv in metres)
+			nq.tri( P( s0, t + 0.03, 0 ), P( s1, t + 0.03, 0 ), P( s1, t + 0.03, top ), [ - nx, 0, - nz ], [ s0, 0 ], [ s1, 0 ], [ s1, top ] );
+			nq.tri( P( s0, t + 0.03, 0 ), P( s1, t + 0.03, top ), P( s0, t + 0.03, top ), [ - nx, 0, - nz ], [ s0, 0 ], [ s1, top ], [ s0, top ] );
+
+		};
+		rail( r0 - 0.05, r1 + 0.05, 0.55, - 0.4, 0.95 );
+		rail( 0.12, r0 - 0.3, 0.16, 0, 1.02 );
+		rail( r1 + 0.3, len - 0.12, 0.16, 0, 1.02 );
+		// the wells' side rails, over the partitions
+		for ( const s of [ r0 - 0.25, r1 + 0.25 ] ) {
+
+			tube( pq, P( s, 0.16, 1.02 ), P( s, W - 0.1, 1.02 ), 0.05, 8 );
+			beam( q, P( s, W - 0.1, R - 0.25 ), P( s, W - 0.1, 1.02 ), 0.05 );
 
 		}
 
-		const rail = new Mesh( q.geometry(), railMat );
-		rail.name = 'dugout-rail';
-		rail.castShadow = true;
-		this.group.add( rail );
+		mesh( q, M.railSteel, 'dugout-rail' );
+		mesh( pq, M.railPad, 'dugout-rail-pad' );
+		const net = mesh( nq, M.netting, 'dugout-netting', false );
+		if ( net ) net.layers.set( 2 ); // the late (transparent) pass
+		// the rail pads: white sleeves round the top rail every 2.4 m, phillies.com in red on them
+		const sq = new Quads();
+		const sleeve = ( s, t, top ) => {
+
+			const r = 0.06, L = 0.36;
+			// front, top and back faces of a square sleeve, uv across the label
+			const f = ( y0, y1, t0, t1, nrm ) => {
+
+				sq.tri( P( s - L / 2, t0, y0 ), P( s + L / 2, t0, y0 ), P( s + L / 2, t1, y1 ), nrm, [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+				sq.tri( P( s - L / 2, t0, y0 ), P( s + L / 2, t1, y1 ), P( s - L / 2, t1, y1 ), nrm, [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+
+			};
+			f( top - r, top + r, t - r, t - r, [ - nx, 0, - nz ] );
+			f( top + r, top + r, t - r, t + r, [ 0, 1, 0 ] );
+			f( top + r, top - r, t + r, t + r, [ nx, 0, nz ] );
+
+		};
+		for ( let s = r0 + 1.2; s < r1 - 0.5; s += 2.4 ) sleeve( s, 0.55, 0.95 );
+		const sm = mesh( sq, M.railLabel( ux, uz, nx, nz ), 'dugout-rail-labels' );
+		if ( sm ) sm.castShadow = false;
+
+	}
+
+	// the dugouts' materials, shared by both. Under the roof it's dry (DRY: the rain's wetting skips
+	// them), and lit: the fluorescent strips light the inside (an emissive lift, stronger after dark)
+	_dugoutMaterials() {
+
+		if ( this._dugMats ) return this._dugMats;
+		const INSIDE = 's.emissive = s.emissive + s.albedo * mix( 0.12, 0.55, smoothstep( 0.2, 0.8, frame.night ) );';
+		const concrete = standard( { name: 'dugout-concrete', color: new Color( 0.24, 0.24, 0.23 ), roughness: 0.85, modules: [ commonModule ],
+			surface: 's.albedo = mat.color * ( 0.9 + 0.12 * mx_noise_float3( in.P * 3.0 ) ); s.emissive = s.albedo * mix( 0.05, 0.3, smoothstep( 0.2, 0.8, frame.night ) );' } );
+		const step = standard( { name: 'dugout-steps', color: new Color( 0.2, 0.2, 0.2 ), roughness: 0.8, modules: [ commonModule ],
+			surface: /* wgsl */`
+	// painted grey, scuffed by spikes; a lighter worn nosing along each edge
+	s.albedo = mat.color * ( 0.85 + 0.2 * mx_noise_float3( in.P * vec3f( 9.0, 2.0, 9.0 ) ) );
+	${ INSIDE }
+` } );
+		const roof = standard( { name: 'dugout-roof', color: new Color( 0.018, 0.16, 0.1 ), roughness: 0.7 } );
+		const ceiling = standard( { name: 'dugout-ceiling', color: new Color( 0.42, 0.42, 0.4 ), roughness: 0.8,
+			surface: /* wgsl */`
+	// painted concrete; two rows of fluorescent fixtures along the dugout, 1.2 m lamps every 2.4 m in a
+	// white housing
+	let su = in.uv.x; let tv = in.uv.y;
+	let fu = abs( fract( su / 2.4 ) - 0.5 ) * 2.4;
+	let ft = min( abs( tv - 0.55 ), abs( tv - 1.75 ) );
+	let housing = step( fu, 0.66 ) * step( ft, 0.13 );
+	let lamp = ( 1.0 - smoothstep( 0.56, 0.6, fu ) ) * ( 1.0 - smoothstep( 0.07, 0.09, ft ) );
+	let nk = smoothstep( 0.2, 0.8, frame.night );
+	s.albedo = mix( mat.color, vec3f( 0.8 ), housing );
+	s.emissive = vec3f( 0.92, 0.97, 1.0 ) * lamp * mix( 2.2, 4.0, nk ) + s.albedo * mix( 0.1, 0.35, nk );
+` } );
+		const floor = standard( { name: 'dugout-floor', color: new Color( 0.17, 0.17, 0.165 ), roughness: 0.85, modules: [ commonModule ],
+			surface: /* wgsl */`
+	// sealed concrete; where the players sit and stand it's littered: sunflower seed shells (grey and
+	// white striped, a centimetre and a half), crushed paper cups, sticky dark spit stains and gum
+	let st = in.uv; // ( along, back ) in metres
+	var c = mat.color * ( 0.88 + 0.15 * mx_noise_float2( st * 2.0 ) ) * ( 0.95 + 0.08 * mx_noise_float2( st * 23.0 ) );
+	// densest in front of the bench and along the rail, thinning toward the ends
+	let bench = 1.0 - smoothstep( 0.1, 0.55, abs( st.y - ${ ( DUGOUT_WIDTH - 0.75 ).toFixed( 2 ) } ) );
+	let rail = 1.0 - smoothstep( 0.05, 0.35, abs( st.y - 1.3 ) );
+	let dens = clamp( ( bench * 0.9 + rail * 0.7 ) * ( 0.55 + 0.6 * mx_noise_float2( st * 0.7 + 3.0 ) ), 0.0, 1.0 );
+	let fw = length( fwidth( st ) );
+	// stains
+	c = c * ( 1.0 - 0.35 * smoothstep( 0.5, 0.75, mx_noise_float2( st * 3.1 + 9.0 ) ) * dens );
+	// seed shells: one chance per 3 cm cell
+	let cell = floor( st / 0.03 );
+	let h = fract( sin( dot( cell, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	let h2 = fract( h * 91.7 );
+	let o = fract( vec2f( h * 7.1, h * 13.3 ) ) * 0.02 + 0.005;
+	let ang = h2 * 6.283;
+	let dp = st - cell * 0.03 - o;
+	let lp = vec2f( dp.x * cos( ang ) - dp.y * sin( ang ), dp.x * sin( ang ) + dp.y * cos( ang ) );
+	let shell = 1.0 - smoothstep( 0.8, 1.0, length( lp / vec2f( 0.008, 0.0035 ) ) );
+	let stripe = step( 0.5, fract( lp.y / 0.0025 ) );
+	let near = 1.0 - smoothstep( 0.004, 0.02, fw );
+	let seedK = shell * step( h, dens * 0.7 ) * near;
+	c = mix( c, mix( vec3f( 0.05, 0.05, 0.05 ), vec3f( 0.55, 0.53, 0.5 ), stripe ), seedK );
+	// far off the shells average into a speckled grey
+	c = mix( c, c * 0.8 + vec3f( 0.06 ) * dens, ( 1.0 - near ) * dens * 0.5 );
+	// crushed cups: one chance per 40 cm cell
+	let cc = floor( st / 0.4 );
+	let ch = fract( sin( dot( cc, vec2f( 39.3468, 11.135 ) ) ) * 43758.5453 );
+	let cp = ( st - cc * 0.4 - vec2f( 0.2 ) - ( fract( vec2f( ch * 3.7, ch * 5.3 ) ) - 0.5 ) * 0.2 ) / vec2f( 0.045, 0.03 );
+	let cup = ( 1.0 - smoothstep( 0.85, 1.0, length( cp ) ) ) * step( ch, dens * 0.35 );
+	c = mix( c, vec3f( 0.8, 0.79, 0.74 ) * ( 0.85 + 0.2 * fract( ch * 17.0 ) ), cup );
+	s.albedo = c;
+	s.roughness = mix( 0.85, 0.5, dens * 0.3 );
+	${ INSIDE }
+` } );
+		floor.setDefine( 'DRY', 1 );
+		const pad = standard( { name: 'dugout-padding', color: new Color( 0.012, 0.02, 0.06 ), roughness: 0.65, modules: [ commonModule ],
+			surface: /* wgsl */`
+	// vinyl panels 1.2 m wide
+	let pu = in.P.x + in.P.z;
+	let seam = smoothstep( 0.0, 0.015, abs( fract( pu / 1.2 ) - 0.5 ) * 1.2 );
+	s.albedo = mat.color * mix( 0.5, 1.0, seam ) * ( 0.9 + 0.15 * mx_noise_float3( in.P * 2.0 ) );
+	s.sheenColor = vec3f( 0.05 );
+	${ INSIDE }
+` } );
+		const wood = standard( { name: 'dugout-bench', color: new Color( 0.32, 0.15, 0.06 ), roughness: 0.4, modules: [ commonModule ],
+			surface: /* wgsl */`
+	// varnished oak worn pale where they sit, the grain along the plank
+	let g = mx_noise_float3( in.P * vec3f( 2.0, 40.0, 2.0 ) + vec3f( 0.0, 0.0, 0.0 ) );
+	s.albedo = mat.color * ( 0.85 + 0.25 * g ) * ( 0.9 + 0.2 * mx_noise_float3( in.P * 0.9 ) );
+	${ INSIDE }
+` } );
+		wood.setDefine( 'DRY', 1 );
+		const steel = standard( { name: 'dugout-steel', color: new Color( 0.1, 0.1, 0.1 ), roughness: 0.5, metalness: 0.6, surface: INSIDE } );
+		const railSteel = standard( { name: 'dugout-rail', color: new Color( 0.02, 0.07, 0.04 ), roughness: 0.4, metalness: 0.6,
+			surface: 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
+		// the fat padded top rail: dark green vinyl
+		const railPad = standard( { name: 'dugout-rail-pad', color: new Color( 0.02, 0.1, 0.06 ), roughness: 0.5,
+			surface: 's.sheenColor = vec3f( 0.06 ); s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
+		const netting = standard( { name: 'dugout-netting', color: new Color( 0.01, 0.01, 0.012 ), roughness: 0.7, side: 'double', transparent: true, depthWrite: false,
+			surface: /* wgsl */`
+	// 4 cm square mesh of thin black cord: up close the strands, farther off a dark veil (the strands'
+	// share of each cell), never a moire
+	let p = in.uv / 0.04;
+	let m = abs( fract( p ) - 0.5 );
+	let fw = max( fwidth( p.x ), fwidth( p.y ) );
+	let strand = smoothstep( 0.44 - fw, 0.44 + fw, max( m.x, m.y ) );
+	s.alpha = mix( 0.22, strand, clamp( 1.5 - fw * 6.0, 0.0, 1.0 ) ) * 0.85;
+` } );
+		const labels = new Map();
+		// the rail pads' label: phillies.com, read from the field (the texture's u runs along +s; flip where
+		// that runs right to left for a viewer on the field)
+		const railLabel = ( ux, uz, nx, nz ) => {
+
+			const flip = ( ux * - nz + uz * nx ) < 0;
+			if ( labels.has( flip ) ) return labels.get( flip );
+			const tex = canvasTexture( 256, 64, ( ctx, w, h ) => {
+
+				ctx.fillStyle = '#f1efe9';
+				ctx.fillRect( 0, 0, w, h );
+				ctx.save();
+				if ( flip ) {
+
+					ctx.translate( w, 0 );
+					ctx.scale( - 1, 1 );
+
+				}
+
+				ctx.fillStyle = '#c8102e';
+				ctx.font = '800 34px "Helvetica Neue", Arial, sans-serif';
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				ctx.fillText( 'phillies.com', w / 2, h / 2 + 2, w - 16 );
+				ctx.restore();
+
+			}, 'railLabel' + ( flip ? 'F' : '' ) );
+			const m = standard( { name: 'dugout-rail-label', roughness: 0.5, textures: { bpLabel: tex },
+				surface: 's.albedo = textureSample( bpLabel, smpAnisoClamp, in.uv ).rgb * 0.85; s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
+			m.underwaterLighting = 'none';
+			labels.set( flip, m );
+			return m;
+
+		};
+
+		const all = { concrete, step, roof, ceiling, floor, pad, wood, steel, railSteel, railPad, netting };
+		for ( const m of Object.values( all ) ) m.underwaterLighting = 'none';
+		for ( const m of [ step, ceiling, pad, steel ] ) m.setDefine( 'DRY', 1 );
+		this._dugMats = { ...all, railLabel };
+		return this._dugMats;
 
 	}
 
@@ -950,6 +1172,29 @@ function bumpGeometry() {
 	g.computeBoundingSphere();
 	_bump = g;
 	return g;
+
+}
+
+// a round bar of radius r from a to b ([ x, y, z ]) with n flat sides (a padded rail, a pipe), added to
+// a Quads
+export function tube( q, a, b, r, n = 8 ) {
+
+	const d = [ b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ], b[ 2 ] - a[ 2 ] ];
+	const l = Math.hypot( ...d ) || 1;
+	d[ 0 ] /= l; d[ 1 ] /= l; d[ 2 ] /= l;
+	const ref = Math.abs( d[ 1 ] ) > 0.9 ? [ 1, 0, 0 ] : [ 0, 1, 0 ];
+	let e1 = [ d[ 1 ] * ref[ 2 ] - d[ 2 ] * ref[ 1 ], d[ 2 ] * ref[ 0 ] - d[ 0 ] * ref[ 2 ], d[ 0 ] * ref[ 1 ] - d[ 1 ] * ref[ 0 ] ];
+	const l1 = Math.hypot( ...e1 );
+	e1 = e1.map( ( v ) => v / l1 );
+	const e2 = [ e1[ 1 ] * d[ 2 ] - e1[ 2 ] * d[ 1 ], e1[ 2 ] * d[ 0 ] - e1[ 0 ] * d[ 2 ], e1[ 0 ] * d[ 1 ] - e1[ 1 ] * d[ 0 ] ];
+	const at = ( p, ang ) => [ 0, 1, 2 ].map( ( k ) => p[ k ] + ( e1[ k ] * Math.cos( ang ) + e2[ k ] * Math.sin( ang ) ) * r );
+	for ( let i = 0; i < n; i ++ ) {
+
+		const a0 = i / n * Math.PI * 2, a1 = ( i + 1 ) / n * Math.PI * 2, am = ( a0 + a1 ) / 2;
+		const nrm = [ 0, 1, 2 ].map( ( k ) => e1[ k ] * Math.cos( am ) + e2[ k ] * Math.sin( am ) );
+		q.add( at( a, a0 ), at( b, a0 ), at( b, a1 ), at( a, a1 ), nrm, 0, l );
+
+	}
 
 }
 

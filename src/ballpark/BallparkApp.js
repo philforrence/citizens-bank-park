@@ -780,6 +780,7 @@ export class BallparkApp {
 		// FOX's cameras pan with the play (the one you're looking through isn't drawn)
 		const cf = this.field.toField( this.camera.position.x, this.camera.position.z );
 		this.bowl.updateCameras( this.director ? this.director.ballAt : null, dt, [ cf[ 0 ], this.camera.position.y - this.field.y0, cf[ 1 ] ] );
+		this.details.update( dt, this.director );
 
 		this.players.update();
 		if ( this.gameHUD ) this.gameHUD.refresh();

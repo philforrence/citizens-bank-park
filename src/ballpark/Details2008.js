@@ -1,5 +1,5 @@
 import { Group, Mesh, InstancedMesh, CylinderGeometry, BoxGeometry, SphereGeometry, BufferGeometry, Float32BufferAttribute, Color, Matrix4, Quaternion, Vector3 } from '../engine/index.js';
-import { moundHeight } from './Field.js';
+import { moundHeight, DUGOUT_ROOF, DUGOUT_ZONES } from './Field.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
@@ -7,6 +7,7 @@ import { canvasTexture, beam, refreshCanvasTexture } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, LEVELS, BULLPENS, fencePoint } from './layout.js';
 import { ON_DECK } from './game/Plays.js';
+import { FieldLevel } from './FieldLevel.js';
 
 // How the ballpark looked for the 2008 World Series (from photos of Games 3-5): the World Series logos
 // painted on the grass by the dugouts and the "Phillies" script behind home plate, the on-deck circles,
@@ -30,6 +31,14 @@ export class Details2008 {
 		this._cfRail();
 		this._planters();
 		this._wallOfFame();
+		// the dugouts' gear and benches, the people at field level (FieldLevel.js)
+		this.fieldLevel = new FieldLevel( { field, parent: this.group } );
+
+	}
+
+	update( dt, director ) {
+
+		this.fieldLevel.update( dt, director );
 
 	}
 
@@ -118,38 +127,76 @@ export class Details2008 {
 
 	// ---------------------------------------------------------------- dugouts
 
-	// white roofs lettered PHILADELPHIA PHILLIES, a navy band along the front
+	// White roofs (the first base one lettered PHILADELPHIA PHILLIES in red edged in blue with a red
+	// pinstripe along its field edge and MLB's logo at each end, the visitors' Citizens Bank Park in green)
+	// over a navy front: a light strip of little Citizens Bank Park and neweracap.com logos along its top,
+	// then the ballpark's name with its emblem and New Era's flag in white (hesb/2987302474.jpg)
 	_dugoutRoofs() {
 
-		const tex = canvasTexture( 2048, 160, ( ctx, w, h ) => {
+		const tex = canvasTexture( 2048, 200, ( ctx, w, h ) => {
 
 			ctx.fillStyle = '#eeece6';
 			ctx.fillRect( 0, 0, w, h );
+			// the pinstripe along the field edge (the bottom of the texture is the field side)
+			ctx.fillStyle = '#c8102e';
+			ctx.fillRect( 0, h - 16, w, 5 );
 			ctx.font = '800 118px "Helvetica Neue", Arial, sans-serif';
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
 			ctx.lineWidth = 10;
 			ctx.strokeStyle = '#1d3f8f';
-			ctx.strokeText( 'PHILADELPHIA PHILLIES', w / 2, h / 2 + 6, w - 120 );
+			ctx.strokeText( 'PHILADELPHIA PHILLIES', w / 2, h / 2 + 4, w - 420 );
 			ctx.fillStyle = '#c8102e';
-			ctx.fillText( 'PHILADELPHIA PHILLIES', w / 2, h / 2 + 6, w - 120 );
+			ctx.fillText( 'PHILADELPHIA PHILLIES', w / 2, h / 2 + 4, w - 420 );
+			for ( const x of [ 90, w - 90 ] ) mlbLogo( ctx, x - 62, h / 2 - 34, 124, 64 );
 
 		}, 'dugoutRoof' );
-		const band = canvasTexture( 2048, 96, ( ctx, w, h ) => {
+		const band = canvasTexture( 2048, 128, ( ctx, w, h ) => {
 
 			ctx.fillStyle = '#0c1b44';
 			ctx.fillRect( 0, 0, w, h );
-			ctx.font = '700 60px "Helvetica Neue", Arial, sans-serif';
-			ctx.textAlign = 'center';
+			// the light strip along the top, repeating the two small logos
+			const sh = 20;
+			ctx.fillStyle = '#dfe5ee';
+			ctx.fillRect( 0, 0, w, sh );
+			ctx.fillStyle = '#1d3f8f';
+			ctx.fillRect( 0, sh, w, 3 );
+			ctx.font = '700 14px "Helvetica Neue", Arial, sans-serif';
 			ctx.textBaseline = 'middle';
-			ctx.fillStyle = '#e9edf4';
-			ctx.fillText( 'CITIZENS BANK PARK', w * 0.28, h / 2 + 3 );
-			ctx.fillText( 'neweracap.com', w * 0.72, h / 2 + 3 );
+			ctx.textAlign = 'center';
+			for ( let x = 60, k = 0; x < w; x += 118, k ++ ) {
+
+				ctx.fillStyle = '#1d3f8f';
+				ctx.fillText( k % 2 ? 'neweracap.com' : '\u2733 Citizens Bank Park', x, sh / 2 + 1 );
+
+			}
+
+			ctx.textAlign = 'left';
+			ctx.textBaseline = 'middle';
+			for ( const x0 of [ w * 0.06, w * 0.56 ] ) {
+
+				daisy( ctx, x0 + 26, h * 0.6, 22, '#e9edf4' );
+				ctx.fillStyle = '#e9edf4';
+				ctx.font = '600 58px "Gill Sans", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif';
+				ctx.fillText( 'Citizens Bank Park', x0 + 60, h * 0.6 + 2 );
+				// New Era's flag: a white box, the name in navy, the little flag in red
+				const bx = x0 + 600;
+				ctx.fillStyle = '#e9edf4';
+				ctx.fillRect( bx, h * 0.33, 150, h * 0.56 );
+				ctx.fillStyle = '#0c1b44';
+				ctx.font = '800 34px "Helvetica Neue", Arial, sans-serif';
+				ctx.fillText( 'NEW', bx + 12, h * 0.5 );
+				ctx.fillText( 'ERA', bx + 12, h * 0.76 );
+				ctx.fillStyle = '#c8102e';
+				ctx.fillRect( bx + 100, h * 0.4, 36, 22 );
+
+			}
 
 		}, 'dugoutBand' );
 		const top = standard( { name: 'dugout-roof-2008', roughness: 0.6, textures: { bpRoof: tex }, surface: 's.albedo = textureSample( bpRoof, smpAnisoClamp, in.uv ).rgb * 0.85; s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.3;' } );
 		const front = standard( { name: 'dugout-band', roughness: 0.6, textures: { bpBand: band }, surface: 's.albedo = textureSample( bpBand, smpAnisoClamp, in.uv ).rgb * 0.85; s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
 		for ( const m of [ top, front ] ) m.underwaterLighting = 'none';
+		const R = DUGOUT_ROOF, BAND = 0.45;
 		for ( const [ a, b ] of Object.values( DUGOUTS ) ) {
 
 			const len = Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] );
@@ -161,25 +208,25 @@ export class Details2008 {
 
 			}
 
-			// over the dugout roof (Field.js: roof top at 1.0 m, from 0.45 m in front to 0.25 m behind)
-			const s0 = 4 * 0.35, s1 = len - 4 * 0.35;
+			// over the dugout roof (Field.js: from 0.45 m in front of the wall line to 0.25 m behind the pit)
+			const s0 = DUGOUT_ZONES.home - 0.2, s1 = len - DUGOUT_ZONES.far + 0.2;
 			const at = ( s, t, y ) => [ a[ 0 ] + ux * s + nx * t, y, a[ 1 ] + uz * s + nz * t ];
 			// read from the field: the reading direction along the dugout as seen from home plate
 			const flip = ( a[ 0 ] + b[ 0 ] ) < 0;
-			const [ L, R ] = flip ? [ s1, s0 ] : [ s0, s1 ];
+			const [ L, Rr ] = flip ? [ s1, s0 ] : [ s0, s1 ];
 			const q = new Quads();
-			q.add( at( L, - 0.45, 1.005 ), at( R, - 0.45, 1.005 ), at( R, 2.85, 1.005 ), at( L, 2.85, 1.005 ), [ 0, 1, 0 ] );
+			q.add( at( L, - 0.45, R + 0.005 ), at( Rr, - 0.45, R + 0.005 ), at( Rr, 2.85, R + 0.005 ), at( L, 2.85, R + 0.005 ), [ 0, 1, 0 ] );
 			const g = q.geometry();
-			setUV( g, ( p ) => [ ( ( p[ 0 ] - a[ 0 ] ) * ux + ( p[ 2 ] - a[ 1 ] ) * uz - L ) / ( R - L ), ( ( p[ 0 ] - a[ 0 ] ) * nx + ( p[ 2 ] - a[ 1 ] ) * nz + 0.45 ) / 3.3 ] );
+			setUV( g, ( p ) => [ ( ( p[ 0 ] - a[ 0 ] ) * ux + ( p[ 2 ] - a[ 1 ] ) * uz - L ) / ( Rr - L ), ( ( p[ 0 ] - a[ 0 ] ) * nx + ( p[ 2 ] - a[ 1 ] ) * nz + 0.45 ) / 3.3 ] );
 			// the visitors' (third base) roof read Citizens Bank Park, in the ballpark's green
 			this.group.add( new Mesh( g, flip ? this._cbpRoof() : top ) );
 			// the front band faces the field: read left to right from there (the viewer's right is ( -nz, nx ))
 			const rightIsU = ( ux * - nz + uz * nx ) > 0;
 			const [ FL, FR ] = rightIsU ? [ s0, s1 ] : [ s1, s0 ];
 			const f = new Quads();
-			f.add( at( FL, - 0.46, 0.75 ), at( FR, - 0.46, 0.75 ), at( FR, - 0.46, 1.0 ), at( FL, - 0.46, 1.0 ), [ - nx, 0, - nz ] );
+			f.add( at( FL, - 0.46, R - BAND ), at( FR, - 0.46, R - BAND ), at( FR, - 0.46, R ), at( FL, - 0.46, R ), [ - nx, 0, - nz ] );
 			const fg = f.geometry();
-			setUV( fg, ( p ) => [ ( ( p[ 0 ] - a[ 0 ] ) * ux + ( p[ 2 ] - a[ 1 ] ) * uz - FL ) / ( FR - FL ), 1 - ( p[ 1 ] - 0.75 ) / 0.25 ] );
+			setUV( fg, ( p ) => [ ( ( p[ 0 ] - a[ 0 ] ) * ux + ( p[ 2 ] - a[ 1 ] ) * uz - FL ) / ( FR - FL ), 1 - ( p[ 1 ] - ( R - BAND ) ) / BAND ] );
 			this.group.add( new Mesh( fg, front ) );
 
 		}
@@ -632,6 +679,46 @@ function setUV( g, f ) {
 		uv[ i * 2 + 1 ] = v;
 
 	}
+
+}
+
+// MLB's batter logo: a white silhouette between a blue and a red field, in a white keyline
+function mlbLogo( ctx, x, y, w, h ) {
+
+	ctx.save();
+	ctx.fillStyle = '#f4f2ec';
+	ctx.beginPath(); ctx.roundRect( x, y, w, h, h * 0.12 ); ctx.fill();
+	ctx.fillStyle = '#1d3f8f';
+	ctx.beginPath(); ctx.roundRect( x + 3, y + 3, w * 0.5 - 3, h - 6, h * 0.1 ); ctx.fill();
+	ctx.fillStyle = '#c8102e';
+	ctx.beginPath(); ctx.roundRect( x + w * 0.5, y + 3, w * 0.5 - 3, h - 6, h * 0.1 ); ctx.fill();
+	ctx.fillStyle = '#f4f2ec';
+	ctx.beginPath(); ctx.ellipse( x + w * 0.56, y + h * 0.3, w * 0.07, h * 0.12, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.beginPath();
+	ctx.moveTo( x + w * 0.3, y + h - 3 ); ctx.quadraticCurveTo( x + w * 0.42, y + h * 0.45, x + w * 0.62, y + h * 0.46 ); ctx.lineTo( x + w * 0.74, y + h - 3 );
+	ctx.fill();
+	ctx.lineWidth = Math.max( 2, h * 0.04 ); ctx.strokeStyle = '#f4f2ec';
+	ctx.beginPath(); ctx.moveTo( x + w * 0.62, y + h * 0.46 ); ctx.lineTo( x + w * 0.18, y + h * 0.18 ); ctx.stroke();
+	ctx.beginPath(); ctx.arc( x + w * 0.22, y + h * 0.72, h * 0.06, 0, Math.PI * 2 ); ctx.fill();
+	ctx.restore();
+
+}
+
+// Citizens Bank's 2006 daisy-wheel emblem: petals round a ring
+function daisy( ctx, cx, cy, r, color ) {
+
+	ctx.save();
+	ctx.fillStyle = color;
+	for ( let i = 0; i < 12; i ++ ) {
+
+		const a = i / 12 * Math.PI * 2;
+		ctx.beginPath();
+		ctx.ellipse( cx + Math.cos( a ) * r * 0.62, cy + Math.sin( a ) * r * 0.62, r * 0.36, r * 0.13, a, 0, Math.PI * 2 );
+		ctx.fill();
+
+	}
+
+	ctx.restore();
 
 }
 
