@@ -955,9 +955,13 @@ export class Landmarks {
 			surface: 'if ( in.N.y < - 0.5 ) { s.emissive = vec3f( 1.0, 0.85, 0.6 ) * mix( 0.2, 3.0, smoothstep( 0.1, 0.7, frame.night ) ); }' } );
 		this._discMat.underwaterLighting = 'none';
 		const zl = zFront + 6.5;
+		const [ belx, belz ] = fencePoint( 21, 488 );
+		this.alleyLamps = [];
 		for ( let x = - 58; x <= 58; x += 12 ) {
 
-			if ( Math.abs( x + 2 ) < 5 ) continue;
+			// none by the statue, nor against the Liberty Bell's tower (it has its own lights)
+			if ( Math.abs( x + 2 ) < 5 || Math.hypot( x - belx, zl - belz ) < 6 ) continue;
+			this.alleyLamps.push( [ x, zl ] );
 			beam( greyPole, [ x, STREET, zl ], [ x, STREET + 7.5, zl ], 0.16 );
 			beam( greyPole, [ x - 0.6, STREET + 7.4, zl ], [ x + 0.6, STREET + 7.4, zl ], 0.08 );
 			// a PA horn and the three-tier disc lamp on top
@@ -998,32 +1002,18 @@ export class Landmarks {
 
 		}
 
-		// the Alley's floor: concrete banded in brick pavers
-		const floor = standard( { name: 'alley-floor', color: new Color( 0.3, 0.13, 0.08 ), roughness: 0.75, modules: [ commonModule ],
-			surface: /* wgsl */`
-	let p = in.P.xz;
-	let band = abs( fract( p.x / 8.0 ) - 0.5 ) * 8.0 > 3.3;
-	var c = vec3f( 0.44, 0.42, 0.38 ) * ( 0.92 + 0.1 * fract( sin( dot( floor( p / 1.5 ), vec2f( 41.3, 17.7 ) ) ) * 7543.21 ) );
-	if ( band ) {
-		let f = fract( vec2f( p.x / 0.2, p.y / 0.1 + 0.5 * floor( p.x / 0.2 ) ) );
-		let fw = clamp( fwidth( p.x ) * 30.0 - 0.3, 0.0, 1.0 );
-		c = mix( mat.color * ( 0.85 + 0.25 * mx_noise_float2( floor( p / 0.2 ) ) ), vec3f( 0.3, 0.28, 0.26 ), mix( clamp( step( 0.9, f.x ) + step( 0.85, f.y ), 0.0, 1.0 ), 0.2, fw ) * 0.6 );
-	}
-	s.albedo = c * ( 0.9 + 0.12 * mx_noise_float2( p * 0.3 ) );
-` } );
-		const fl = new Quads();
-		const fx0 = blocks[ 0 ][ 0 ] - 2, fx1 = blocks[ blocks.length - 1 ][ 1 ] + 2;
-		fl.add( [ fx0, STREET + 0.012, zFront ], [ fx1, STREET + 0.012, zFront ], [ fx1, STREET + 0.012, zFront + 8.5 ], [ fx0, STREET + 0.012, zFront + 8.5 ], [ 0, 1, 0 ] );
+		// (the Alley's floor, the brick promenade out to the rail, is the place's: places/alley/Promenade.js)
+		this.alleyFront = zFront;
 
 		const woodMat = this._alleyWood || ( this._alleyWood = standard( { name: 'picnic-wood', color: new Color( 0.3, 0.18, 0.09 ), roughness: 0.8 } ) );
 		const greyMat = standard( { name: 'alley-poles', color: new Color( 0.26, 0.28, 0.3 ), roughness: 0.45, metalness: 0.7 } );
 		const blackMat = standard( { name: 'alley-speakers', color: new Color( 0.02, 0.02, 0.022 ), roughness: 0.6 } );
-		for ( const [ g, m, name ] of [ [ greyPole, greyMat, 'alley-poles' ], [ speakers, blackMat, 'alley-speakers' ], [ q, signMat, 'alley-signs' ], [ aw, awning, 'alley-awnings' ], [ glow, kitchen, 'alley-kitchens' ], [ metal, steel, 'alley-steel' ], [ bq, bannerMat, 'alley-banners' ], [ wood, woodMat, 'picnic-tables' ], [ fl, floor, 'alley-floor' ] ] ) {
+		for ( const [ g, m, name ] of [ [ greyPole, greyMat, 'alley-poles' ], [ speakers, blackMat, 'alley-speakers' ], [ q, signMat, 'alley-signs' ], [ aw, awning, 'alley-awnings' ], [ glow, kitchen, 'alley-kitchens' ], [ metal, steel, 'alley-steel' ], [ bq, bannerMat, 'alley-banners' ], [ wood, woodMat, 'picnic-tables' ] ] ) {
 
 			m.underwaterLighting = 'none';
 			const mesh = new Mesh( g.geometry(), m );
 			mesh.name = name;
-			mesh.castShadow = m !== floor && m !== kitchen;
+			mesh.castShadow = m !== kitchen;
 			mesh.receiveShadow = true;
 			this.group.add( mesh );
 
