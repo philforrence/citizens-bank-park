@@ -331,7 +331,7 @@ function grow( x, y0, z, seed, bark, leaves, o = {} ) {
 
 // The trees: [ [ x, z, seed?, opts? ], ... ] in the field frame, on the street. Returns the meshes
 // (added to `group`) and the grates.
-export function plantTrees( group, spots, { grates = true, fallen = true } = {} ) {
+export function plantTrees( group, spots, { grates = true, fallen = true, shadows = true } = {} ) {
 
 	const M = materials();
 	const bark = new Mesher(), leaves = new Mesher(), grate = new Mesher(), ground = new Mesher();
@@ -370,7 +370,7 @@ export function plantTrees( group, spots, { grates = true, fallen = true } = {} 
 	} );
 
 	const out = [];
-	for ( const [ m, mat, name, cast ] of [ [ bark, M.bark, 'w1-trees-bark', true ], [ leaves, M.leaves, 'w1-trees-leaves', true ], [ grate, M.grate, 'w1-tree-grates', false ], [ ground, M.leaves, 'w1-fallen-leaves', false ] ] ) {
+	for ( const [ m, mat, name, cast ] of [ [ bark, M.bark, 'w1-trees-bark', shadows ], [ leaves, M.leaves, 'w1-trees-leaves', shadows ], [ grate, M.grate, 'w1-tree-grates', false ], [ ground, M.leaves, 'w1-fallen-leaves', false ] ] ) {
 
 		if ( ! m.count ) continue;
 		const mesh = new Mesh( m.geometry(), mat );

@@ -415,7 +415,9 @@ export default class ThirdBaseGate {
 		}
 
 		// the plaza's own are in grates; out on the sidewalks too
-		this.treeMeshes = plantTrees( this.group, spots );
+		// the plaza's and the near sidewalks' cast their shadows; those across the streets don't bother
+		const nearPlaza = ( [ x, z ] ) => x > - 150 && x < - 60 && z > 0 && z < 112;
+		this.treeMeshes = [ ...plantTrees( this.group, spots.filter( nearPlaza ) ), ...plantTrees( this.group, spots.filter( ( p ) => ! nearPlaza( p ) ), { shadows: false } ) ];
 		this.treeCount = { plaza: nPlaza, street: spots.length - nPlaza };
 		for ( const [ x, z ] of spots ) this.obstacles.push( [ x, z, 0.9 ] );
 		for ( const [ x, z, r ] of PLANTERS ) this.obstacles.push( [ x, z, r ] );

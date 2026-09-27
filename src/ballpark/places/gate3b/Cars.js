@@ -90,6 +90,9 @@ function body( type ) {
 
 	};
 
+	// the dark under the car: a soft-edged patch on the ground (its shadow, without the shadow pass)
+	const L = type === 'bus' ? 6.3 : type === 'pickup' ? 2.9 : 2.7, W = type === 'bus' ? 1.3 : 1.05;
+	m.face( [ - W, 0.015, - L ], [ W, 0.015, - L ], [ W, 0.015, L ], [ - W, 0.015, L ], [ 0, 1, 0 ], [ part( 8 ), part( 8 ), part( 8 ), part( 8 ) ] );
 	if ( type === 'sedan' || type === 'police' ) {
 
 		// a Crown Victoria / Camry: 5.2 m, low hood and trunk
@@ -179,6 +182,7 @@ function carMaterial( info ) {
 		case 4: { c = vec3f( 0.3, 0.01, 0.01 ); rough = 0.2; e = vec3f( 1.0, 0.02, 0.01 ) * ( inf.x * mix( 0.2, 1.5, night ) + inf.y * mix( 2.0, 8.0, night ) ); }
 		case 5: { c = vec3f( 0.02 ); rough = 0.6; metal = 0.0; }
 		case 6: { c = vec3f( 0.5 ); rough = 0.2; metal = 0.9; }
+		case 8: { c = vec3f( 0.004 ); rough = 1.0; metal = 0.0; }
 		case 7: {
 			// the light bar: red one end, blue the other, turning
 			let side = step( 0.0, in.vs.vLoc.x );
@@ -267,7 +271,7 @@ export class Cars {
 			info[ t ] = { buf: new StorageBuffer( { label: 'carInfo-' + t, count: n, type: 'vec4f' } ), data: new Float32Array( n * 4 ) };
 			const mesh = new InstancedMesh( body( t ), carMaterial( info[ t ].buf ), n );
 			mesh.name = 'w1-cars-' + t;
-			mesh.castShadow = true;
+			mesh.castShadow = false; // (a dark patch under each instead: a lot's worth of cars in every cascade)
 			mesh.receiveShadow = true;
 			mesh.frustumCulled = false;
 			mesh.userData.dynamic = true;
