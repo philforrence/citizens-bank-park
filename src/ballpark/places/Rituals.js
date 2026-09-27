@@ -6,6 +6,7 @@ import { Seats } from './rituals/Seats.js';
 import { Press } from './rituals/Press.js';
 import { Fireworks } from './rituals/Fireworks.js';
 import { Motors } from './rituals/Motors.js';
+import { FireworksSound } from './rituals/FireworksSound.js';
 
 // The night's rituals and the celebration, on the replay's timeline. The people on the field (the
 // grounds crew, the umpires, the players, the coaches) are the players' rig, posed by the Director from
@@ -52,6 +53,9 @@ export default class Rituals {
 		const cel = seg.kind === 'celebrate' ? t - seg.t0 : null;
 		this.press.update( cel, director.actors, jumped ? 0 : dt );
 		this.fireworks.update( cel );
+		// (the sound's made once the app has it: it's built after the places)
+		if ( ! this.fwSound && this.app?.sound ) this.fwSound = new FireworksSound( { sound: this.app.sound, field: this.field, plan: this.fireworks.plan } );
+		this.fwSound?.update( cel, director.playing && ! jumped, this.app?.camera?.position );
 		this.motors.update( cel );
 
 	}
