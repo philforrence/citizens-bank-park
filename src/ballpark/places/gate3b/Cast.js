@@ -360,8 +360,8 @@ export class Cast {
 
 			}
 
-			if ( c.custom ) c.custom( c, dt, w, p );
 			f.props = props;
+			if ( c.custom ) c.custom( c, dt, w, p );
 
 		}
 

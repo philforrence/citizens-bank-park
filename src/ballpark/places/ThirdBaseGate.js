@@ -14,6 +14,7 @@ import { Cast } from './gate3b/Cast.js';
 import { buildStreet, LIFT, pattisonZ, eleventhX } from './gate3b/Street.js';
 import { buildVendors } from './gate3b/Vendors.js';
 import { Horses, manure } from './gate3b/Horses.js';
+import { buildTV } from './gate3b/TV.js';
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -60,6 +61,9 @@ export default class ThirdBaseGate {
 		this.vendors = buildVendors( { group: this.group, cast: this.cast, colliders, field } );
 		for ( const [ x, z ] of this.vendors.carts ) this.obstacles.push( [ x, z, 1.4 ] );
 		this._police();
+		// FOX 29 live from the plaza (gate3b/TV.js)
+		this.tv = buildTV( { group: this.group, colliders, field, cast: this.cast } );
+		this.obstacles.push( ...this.tv.obstacles );
 
 	}
 
@@ -150,6 +154,23 @@ export default class ThirdBaseGate {
 
 			const p = at( 2.0, o );
 			C.add( { at: p, face: at( 6, o ), act: 'sit', y: 0.08, noRainGear: true, dry: true, when: ( w ) => ! w.first && ! w.celebrate } );
+
+		}
+
+	}
+
+	// the TV light as a real light on the reporter (the app's local lights are made after the places)
+	_lights() {
+
+		if ( this._lit || ! this.app.localLights || ! this.tv ) return;
+		this._lit = true;
+		const F = this.field;
+		for ( const L of this.tv.lights.slice( 0, 1 ) ) {
+
+			const w = F.toWorld( L.at[ 0 ], L.at[ 2 ] ), w2 = F.toWorld( L.at[ 0 ] + L.dir[ 0 ], L.at[ 2 ] + L.dir[ 2 ] );
+			const dir = new Vector3( w2.x - w.x, L.dir[ 1 ], w2.z - w.z ).normalize();
+			this.app.localLights.add( { position: new Vector3( w.x, F.y0 + L.at[ 1 ], w.z ), dir, color: new Color( 1.0, 0.96, 0.9 ), intensity: 90, range: 14,
+				cosInner: Math.cos( 0.45 ), cosOuter: Math.cos( 0.95 ), kind: 'lamp' } );
 
 		}
 
@@ -371,6 +392,8 @@ export default class ThirdBaseGate {
 
 		this.cast?.update( Math.min( dt, 0.1 ), w );
 		this._updatePolice( Math.min( dt, 0.1 ) );
+		this.tv?.update( Math.min( dt, 0.1 ) );
+		this._lights();
 		this._updateFlash( Math.min( dt, 0.1 ) );
 		this.openGate?.poseTripods();
 		this.folk?.update();
