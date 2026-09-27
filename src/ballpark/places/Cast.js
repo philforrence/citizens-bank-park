@@ -104,7 +104,7 @@ const UPRIGHT = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.bag, PROP.co
 // which props each hand can hold (the geometry is built once per hand)
 const HAND_PROPS = [
 	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.glove, PROP.bag, PROP.scorebook, PROP.peanuts, PROP.programs, PROP.money, PROP.hotdog, PROP.ticket, PROP.cottonCandy,
-		PROP.towel, PROP.program, PROP.sandwich, PROP.flashlight, PROP.photo, PROP.radio, PROP.thermos ], // left
+		PROP.towel, PROP.program, PROP.sandwich, PROP.flashlight, PROP.photo, PROP.radio, PROP.thermos, PROP.phone ], // left
 	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.program, PROP.phone, PROP.towel, PROP.sandwich, PROP.waterIce, PROP.cottonCandy, PROP.hotdog, PROP.money, PROP.beers, PROP.ticket, PROP.pencil, PROP.camera,
 		PROP.peanuts, PROP.bag, PROP.umbrella, PROP.furled, PROP.sign, PROP.scanner, PROP.mic, PROP.tickets, PROP.cowbell, PROP.tongs, PROP.pennant, PROP.photo, PROP.cigarette, PROP.thermos ], // right
 ];
@@ -129,7 +129,8 @@ export const POSE = 8;
 //      the black stripe, 7 camo) | shoes <<3 (0 white sneakers, 1 black, 2 tan boots, 3 brown, 4 grey) |
 //      hat <<6 (HAT) | poncho <<11 (0 none, 1 clear, 2 red, 3 white, 4 yellow, 5 orange, 6 a grey trash
 //      bag, 7 a clear one shared with the one on the left) | scarf <<14 (0 none, 1 red and white, 2 grey,
-//      3 black) | gloves <<16 | (bit 18: B's ticket lanyard, look.lanyard) | gear <<19 (GEAR bits)
+//      3 black) | gloves <<16 | badge <<17 (a gold shield on the left breast: the police) | (bit 18: B's ticket
+//      lanyard, look.lanyard) | gear <<19 (GEAR bits)
 //   w: a seed (0..65535) for the small things
 export const TOP = {
 	jacket: 0, hoodie: 1, homeJersey: 2, nameTee: 3, fleece: 4, puffer: 5, leather: 6, work: 7, powder: 8, rays: 9,
@@ -1081,6 +1082,8 @@ function castMaterial( pool ) {
 			if ( L.z < 0.0 && abs( L.x - 0.03 ) < 0.008 && abs( fract( L.y / 0.1 ) - 0.5 ) < 0.08 && L.y < 1.2 ) { c = vec3f( 0.02 ); }
 		}
 		if ( top == ${ TOP.polo }u && part == ${ PART.torso }u && L.y > 1.41 ) { c *= 0.85; }
+		// a police officer's shield over the left breast
+		if ( ( ( lk.z >> 17u ) & 1u ) == 1u && part == ${ PART.torso }u && L.z < 0.0 && abs( L.x + 0.09 ) < 0.02 && abs( L.y - 1.29 ) < 0.026 ) { c = vec3f( 0.62, 0.5, 0.22 ); metal = 0.8; rough = 0.3; }
 		if ( top == ${ TOP.raincoat }u ) {
 			// the silver reflective bands round the body and the sleeves, bright in the lights
 			if ( ( part == ${ PART.torso }u && abs( L.y - 1.05 ) < 0.02 ) || ( part == ${ PART.sleeve }u && abs( L.y - 1.0 ) < 0.02 ) ) { c = vec3f( 0.75, 0.75, 0.7 ); e = vec3f( 0.3, 0.3, 0.25 ) * nk; }
@@ -1627,7 +1630,7 @@ export function packLook( o ) {
 	const x = ( o.skin & 7 ) | ( ( o.hair & 7 ) << 3 ) | ( ( o.hairStyle & 3 ) << 6 ) | ( ( o.facial & 7 ) << 8 ) | ( ( o.glasses ? 1 : 0 ) << 11 )
 		| ( ( o.female ? 1 : 0 ) << 12 ) | ( ( o.age & 3 ) << 13 ) | ( ( o.build & 3 ) << 15 );
 	const y = ( o.top & 31 ) | ( ( o.color & 31 ) << 5 ) | ( ( o.sleeves & 31 ) << 10 ) | ( ( o.back & 127 ) << 15 ) | ( ( o.chest & 15 ) << 22 );
-	const z = ( o.pants & 7 ) | ( ( o.shoes & 7 ) << 3 ) | ( ( o.hat & 31 ) << 6 ) | ( ( o.poncho & 7 ) << 11 ) | ( ( o.scarf & 3 ) << 14 ) | ( ( o.gloves ? 1 : 0 ) << 16 ) | ( ( o.lanyard ? 1 : 0 ) << 18 ) | ( ( o.gear & 15 ) << 19 );
+	const z = ( o.pants & 7 ) | ( ( o.shoes & 7 ) << 3 ) | ( ( o.hat & 31 ) << 6 ) | ( ( o.poncho & 7 ) << 11 ) | ( ( o.scarf & 3 ) << 14 ) | ( ( o.gloves ? 1 : 0 ) << 16 ) | ( ( o.badge ? 1 : 0 ) << 17 ) | ( ( o.lanyard ? 1 : 0 ) << 18 ) | ( ( o.gear & 15 ) << 19 );
 	return [ x >>> 0, y >>> 0, z >>> 0, ( o.seed ?? Math.floor( Math.random() * 65536 ) ) & 65535 ];
 
 }

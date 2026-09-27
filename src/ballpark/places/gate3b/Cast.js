@@ -94,6 +94,8 @@ export class Cast {
 			p.lean = 0; p.twist = 0; p.pitch = 0;
 			p.yaw = 0.35 * Math.sin( t * 0.23 + f.seed * 9 ) * Math.sin( t * 0.11 );
 			f.walk = 0; f.sit = 0; f.ride = false; f.y = STREET + c.y0;
+			// (P0: the mouth, for the acts that talk and call out)
+			f.mouth = 0;
 			let props = c.base;
 			// the rain gear: umbrellas up on the 27th out in the open, down on the 29th
 			if ( c.umbrella && ! w.first ) props &= ~ ( 1 << PROP.umbrella );
@@ -116,6 +118,7 @@ export class Cast {
 
 					p.flexL = 0.2 + 0.25 * Math.max( 0, Math.sin( t * 1.7 + 1 ) ); p.elbowL = 1.1;
 					p.yaw = 0.25 * Math.sin( t * 0.5 ); p.pitch = 0.05 * Math.sin( t * 2.7 );
+					f.mouth = 0.35 * Math.max( 0, Math.sin( t * 9.1 ) * Math.sin( t * 2.3 ) );
 					break;
 				case 'listen':
 					p.pitch = - 0.05 + 0.06 * Math.max( 0, Math.sin( t * 1.3 ) );
@@ -177,6 +180,7 @@ export class Cast {
 
 					// the cigarette to the lips and away
 					const drag = Math.max( 0, Math.sin( t * 0.5 ) ) ** 6;
+					props |= 1 << PROP.cigarette;
 					p.flexR = 0.4 + 0.9 * drag; p.abductR = 0.25 + 0.2 * drag; p.elbowR = 1.9 + 0.6 * drag;
 					p.pitch = 0.1 * drag; p.flexL = - 0.3; p.elbowL = 0.9;
 					p.lean = - 0.03;
@@ -186,6 +190,7 @@ export class Cast {
 
 				case 'photo':
 					// a camera up at the face, both hands
+					props |= 1 << PROP.camera;
 					p.flexR = 1.35; p.abductR = 0.35; p.elbowR = 2.3; p.flexL = 1.35; p.abductL = 0.35; p.elbowL = 2.3;
 					p.yaw = 0; p.pitch = 0.1 + 0.05 * Math.sin( t * 0.4 );
 					break;
@@ -231,6 +236,7 @@ export class Cast {
 					// arms up, jumping
 					p.flexL = 2.8; p.abductL = - 0.3; p.elbowL = 0.2; p.flexR = 2.8; p.abductR = - 0.3; p.elbowR = 0.2; p.pitch = 0.35;
 					f.y = STREET + c.y0 + Math.max( 0, Math.sin( t * 6 ) ) * 0.28;
+					f.mouth = 0.8;
 					break;
 				case 'hug':
 					// the arms round someone
@@ -244,6 +250,7 @@ export class Cast {
 					const up = Math.sin( t * 0.35 ) > - 0.4;
 					p.flexR = up ? 2.1 + 0.15 * Math.sin( t * 2.2 ) : 0.4; p.abductR = 0.15; p.elbowR = up ? 0.9 : 1.3;
 					p.yaw = 0.7 * Math.sin( t * 0.4 ); p.pitch = 0.08 + 0.05 * Math.sin( t * 3.1 );
+					f.mouth = up ? 0.55 * Math.max( 0, Math.sin( t * 5.3 ) ) : 0;
 					if ( c.umbrella && w.first ) props &= ~ ( 1 << PROP.umbrella );
 					break;
 
@@ -294,6 +301,7 @@ export class Cast {
 					const up = Math.sin( t * 0.5 ) > - 0.2;
 					p.flexR = up ? 2.3 : 0.6; p.abductR = up ? 0.2 : 0.1; p.elbowR = up ? 0.5 : 1.2;
 					p.yaw = 0.8 * Math.sin( t * 0.33 );
+					f.mouth = up ? 0.45 * Math.max( 0, Math.sin( t * 4.1 ) ) : 0;
 					if ( c.pace ) {
 
 						const [ a, b ] = c.pace, s = ( Math.sin( t * 0.11 ) + 1 ) / 2;
@@ -373,6 +381,7 @@ export class Cast {
 					p.flexL = 2.7 * k; p.abductL = - 0.3 * k; p.elbowL = 0.25; p.flexR = 2.7 * k; p.abductR = - 0.3 * k; p.elbowR = 0.25; p.pitch = 0.3 * k;
 					f.sit = 0;
 					f.y = STREET + c.y0 + Math.max( 0, Math.sin( c.t * 6.5 + f.seed * 9 ) ) * 0.26 * k;
+					f.mouth = 0.85 * k;
 
 				} else if ( w.groan > 0 ) {
 

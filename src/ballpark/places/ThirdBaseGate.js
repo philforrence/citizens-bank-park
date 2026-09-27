@@ -5,7 +5,7 @@ import { GATES } from '../Exterior.js';
 import { ROLE } from '../People.js';
 import { STATUES } from '../data/surroundings.js';
 import { plantTrees } from './gate3b/Trees.js';
-import { Folk } from './gate3b/Folk.js';
+import { Folk, PROP } from './gate3b/Folk.js';
 import { Arrivals } from './gate3b/Arrivals.js';
 import { buildOpenGate } from './gate3b/Gate.js';
 import { night } from './gate3b/Night.js';
@@ -137,7 +137,18 @@ export default class ThirdBaseGate {
 		const S = this.store, n = S.nFront, d = S.along, dr = S.doors;
 		const at = ( a, o ) => [ dr[ 0 ] + d[ 0 ] * a + n[ 0 ] * o, dr[ 1 ] + d[ 1 ] * a + n[ 1 ] * o ];
 		const ring = at( - 1.8, 2.2 );
-		C.group( ring, 5, 0.75, { acts: [ 'phone', 'listen', 'listen', 'drink', 'listen' ], noRainGear: true, reacts: true, when: always } );
+		const radio = C.group( ring, 5, 0.75, { acts: [ 'phone', 'listen', 'listen', 'drink', 'listen' ], noRainGear: true, reacts: true, when: always } );
+		// (P0: the radio itself, a transistor held up at the chest, the head bent to it: Harry Kalas on it)
+		if ( radio[ 1 ] ) {
+
+			radio[ 1 ].base |= 1 << PROP.transistor;
+			radio[ 1 ].custom = ( c, dt, w, p ) => {
+
+				p.flexL = 0.75; p.abductL = 0.1; p.elbowL = 1.35; p.pitch = - 0.25;
+
+			};
+
+		}
 		// the Will Call line at the ticket windows on Pattison (windows 1-3), before the game
 		for ( let k = 0; k < 9; k ++ ) {
 
