@@ -1,12 +1,16 @@
-import { Group, Mesh, Color, Vector3 } from '../../engine/index.js';
+import { Group, Mesh, Color, Vector3, Sphere, Matrix4, Quaternion } from '../../engine/index.js';
 import { standard } from '../../materials/Materials.js';
 import { Quads } from '../Stands.js';
 import { beam } from '../geo.js';
 import { LEVELS } from '../layout.js';
+import { BLEACHERS } from '../Landmarks.js';
 import { when } from './alley/Night.js';
 import { promenade, pitEdgeZ } from './alley/Promenade.js';
 import { flowerBoxes } from './alley/Flowers.js';
 import { Pens } from './alley/Pens.js';
+import { Folk } from './alley/Folk.js';
+import { Cast } from './alley/Cast.js';
+import { SIGNS } from './alley/Signs.js';
 
 // Ashburn Alley and the bullpens on the World Series nights, October 27 and 29, 2008: the park's living
 // room. The promenade behind center field (its bricks and the All-Star Walk in them, the Wall of Fame,
@@ -43,6 +47,13 @@ export default class AshburnAlley2008 {
 		this._railOverPens();
 		// the pens' gear and people (the warm-ups in step with the replay's pitching changes)
 		if ( this.pens ) this.penLife = new Pens( { parent: this.group, frame: this.pens } );
+		// the people: one figure system for all of them (built once they're all added)
+		this.folk = new Folk( this.group, { signs: SIGNS } );
+		this.folk.frameYaw = field.group.rotation.y;
+		this.folk.bounds = new Sphere( new Vector3( 0, STREET, - 136 ), 80 );
+		this._cast( L );
+		this._bleacherFans();
+		this.folk.build();
 
 	}
 
@@ -52,6 +63,64 @@ export default class AshburnAlley2008 {
 
 		const counters = ( L?.alleyStands || [] ).map( ( s ) => [ s.mid[ 0 ], s.mid[ 1 ] + 1.6 ] );
 		this.floor = promenade( this.group, { pit: this.bowl.pit, x0: X0, x1: X1, zBack: this.zFront, lamps: L?.alleyLamps || [], counters } );
+
+	}
+
+	// ---------------------------------------------------------------- the rooftop bleachers' fans
+
+	// The rooftop bleachers over the Alley in right-center were sold like every other seat: a fan on each
+	// backless bench seat, seated by the park's crowd (Crowd.js dresses them, moves them with the game
+	// and swaps their detail with distance). Their seats follow Landmarks' benches: 7 rows, 0.85 m deep,
+	// 0.4 m risers, three spans between two aisles, 0.5 m a seat.
+	_bleacherFans() {
+
+		const crowd = this.bowl.crowd;
+		if ( ! crowd || crowd.off ) return;
+		const RD = 0.85, RR = 0.4, rows = 7, y0 = STREET + 4.5, zf = this.zFront - 0.2;
+		const mats = [], m = new Matrix4(), q = new Quaternion().setFromAxisAngle( new Vector3( 0, 1, 0 ), Math.PI ), p = new Vector3(), one = new Vector3( 1, 1, 1 );
+		for ( const [ x0, x1 ] of BLEACHERS ) {
+
+			const a0 = x0 + ( x1 - x0 ) / 3, a1 = x0 + 2 * ( x1 - x0 ) / 3;
+			for ( let r = 0; r < rows; r ++ ) {
+
+				const yT = y0 + RR * ( r + 1 ), za = zf - r * RD;
+				for ( const [ a, b ] of [ [ x0 + 0.4, a0 - 0.6 ], [ a0 + 0.6, a1 - 0.6 ], [ a1 + 0.6, x1 - 0.4 ] ] ) {
+
+					const n = Math.floor( ( b - a ) / 0.5 );
+					for ( let i = 0; i < n; i ++ ) {
+
+						m.compose( p.set( a + ( b - a - n * 0.5 ) / 2 + 0.25 + i * 0.5, yT, za - 0.28 ), q, one );
+						if ( crowd.occupied( m ) ) mats.push( m.clone() );
+
+					}
+
+				}
+
+			}
+
+		}
+
+		crowd.addChunk( this.group, mats, 'rooftop-bleachers' );
+		this.bleacherFans = mats.length;
+
+	}
+
+	// ---------------------------------------------------------------- the people
+
+	_cast( L ) {
+
+		if ( ! this.railPath ) return;
+		const pit = this.bowl.pit;
+		// Memory Lane's panels are on the tall middle wall behind the batter's eye: readers 1.6 m off it
+		const memoryLane = [ - 8.2, - 6.0, - 3.6, - 0.9 ].map( ( x ) => ( { x, z: pitEdgeZ( pit, x ) - 2.1, yaw: Math.PI } ) );
+		const zRoofRail = - 143.05, yRoof = STREET + 4.5 + 0.15;
+		this.cast = new Cast( {
+			parent: this.group, folk: this.folk, rail: this.railPath, zFront: this.zFront,
+			statue: [ - 2, this.zFront + 3.5 ], memoryLane,
+			picnic: [ [ - 56, this.zFront + 3.2 ], [ - 50, this.zFront + 3.2 ], [ - 44, this.zFront + 3.2 ] ],
+			roof: { y: yRoof, z: zRoofRail, spans: [ [ - 61.6, - 40.4 ], [ - 33.6, - 30.6 ], [ - 17.4, - 8.4 ] ] },
+		} );
+		void L;
 
 	}
 
@@ -168,6 +237,13 @@ export default class AshburnAlley2008 {
 
 			this.penLife.setGame( director.game );
 			this.penLife.update( dt, director, this.app.players, w );
+
+		}
+
+		if ( this.cast ) {
+
+			this.cast.update( dt, director, w, this.penLife );
+			this.folk.update();
 
 		}
 

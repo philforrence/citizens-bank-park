@@ -1,4 +1,4 @@
-import { InstancedMesh, BufferGeometry, Float32BufferAttribute, InstancedBufferAttribute, PlaneGeometry, Matrix4, Quaternion, Vector3, Color } from '../../../engine/index.js';
+import { InstancedMesh, BufferGeometry, Float32BufferAttribute, InstancedBufferAttribute, InterleavedBuffer, InterleavedBufferAttribute, PlaneGeometry, Matrix4, Quaternion, Vector3, Color, Box3, Sphere } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
 import { canvasTexture } from '../../geo.js';
 
@@ -463,32 +463,38 @@ function build( pose ) {
 
 }
 
-// a pair's geometry: pose A's positions and normals, the offsets to pose B, where each vertex sits on the
-// body at rest (for the shirts' lettering and the faces), its part
+// a pair's geometry, in one interleaved buffer (a pipeline takes at most 8 vertex buffers): pose A's
+// positions and normals, the offsets to pose B and B's normals, where each vertex sits on the body at rest
+// (for the shirts' lettering and the faces; the head's from its centre: it moves rigidly) and its part
+const STRIDE = 16;
 function pairGeometry( a, b ) {
 
 	const A = build( a ), B = build( b ), R = build( 'stand' );
 	const n = A.pos.length / 3;
-	const delta = new Float32Array( n * 3 ), nb = new Float32Array( B.nrm ), rest = new Float32Array( n * 4 );
+	const data = new Float32Array( n * STRIDE );
 	for ( let i = 0; i < n; i ++ ) {
 
-		for ( let k = 0; k < 3; k ++ ) delta[ i * 3 + k ] = B.pos[ i * 3 + k ] - A.pos[ i * 3 + k ];
-		// head vertices: their offset from the head's centre (it moves rigidly); the rest: the standing pose
+		const o = i * STRIDE, i3 = i * 3;
 		const head = A.part[ i ] === PART.head || A.part[ i ] === PART.brim || A.part[ i ] === PART.pom || A.part[ i ] === PART.hair;
-		const hc = head ? A.head : [ 0, 0, 0 ];
-		rest.set( [ R.pos[ i * 3 ] - ( head ? HEAD_REST[ 0 ] : 0 ) + ( head ? 0 : 0 ), R.pos[ i * 3 + 1 ] - ( head ? HEAD_REST[ 1 ] : 0 ), R.pos[ i * 3 + 2 ] - ( head ? HEAD_REST[ 2 ] : 0 ), A.part[ i ] ], i * 4 );
-		void hc;
+		const hr = head ? HEAD_REST : [ 0, 0, 0 ];
+		data.set( [ A.pos[ i3 ], A.pos[ i3 + 1 ], A.pos[ i3 + 2 ], A.nrm[ i3 ], A.nrm[ i3 + 1 ], A.nrm[ i3 + 2 ] ], o );
+		data.set( [ B.pos[ i3 ] - A.pos[ i3 ], B.pos[ i3 + 1 ] - A.pos[ i3 + 1 ], B.pos[ i3 + 2 ] - A.pos[ i3 + 2 ], B.nrm[ i3 ], B.nrm[ i3 + 1 ], B.nrm[ i3 + 2 ] ], o + 6 );
+		data.set( [ R.pos[ i3 ] - hr[ 0 ], R.pos[ i3 + 1 ] - hr[ 1 ], R.pos[ i3 + 2 ] - hr[ 2 ], A.part[ i ] ], o + 12 );
 
 	}
 
+	const buf = new InterleavedBuffer( data, STRIDE );
 	const g = new BufferGeometry();
-	g.setAttribute( 'position', new Float32BufferAttribute( A.pos, 3 ) );
-	g.setAttribute( 'normal', new Float32BufferAttribute( A.nrm, 3 ) );
-	g.setAttribute( 'aDelta', new Float32BufferAttribute( delta, 3 ) );
-	g.setAttribute( 'aNormB', new Float32BufferAttribute( nb, 3 ) );
-	g.setAttribute( 'aRest', new Float32BufferAttribute( rest, 4 ) );
+	[ [ 'position', 3 ], [ 'normal', 3 ], [ 'aDelta', 3 ], [ 'aNormB', 3 ], [ 'aRest', 4 ] ].reduce( ( o, [ name, k ] ) => {
+
+		g.setAttribute( name, new InterleavedBufferAttribute( buf, k, o ) );
+		return o + k;
+
+	}, 0 );
 	g.setIndex( A.index );
-	g.computeBoundingSphere();
+	// every pose, arms up, a kid up on the shoulders
+	g.boundingBox = new Box3( new Vector3( - 0.9, - 0.1, - 1.0 ), new Vector3( 0.9, 2.2, 0.8 ) );
+	g.boundingSphere = new Sphere( new Vector3( 0, 1.0, 0 ), 1.5 );
 	return g;
 
 }
@@ -627,7 +633,7 @@ function folkMaterial( atlas ) {
 
 	const m = standard( {
 		name: 'alley-folk', roughness: 0.8, side: 'double', textures: { bpFolk: atlas },
-		attributes: { aDelta: 'vec3f', aNormB: 'vec3f', aRest: 'vec4f', aWho: 'vec4f', aAnim: 'vec4f' },
+		attributes: { aDelta: 'vec3f', aNormB: 'vec3f', aRest: 'vec4f', aWho: 'vec4f', aAnim: 'vec4f', aMove: 'vec4f' },
 		varyings: { vRest: 'vec4f', vWho: 'vec4f', vLocal: 'vec3f' },
 		vertex: /* wgsl */`
 	let who = v.aWho;
@@ -665,6 +671,9 @@ function folkMaterial( atlas ) {
 	p.x += sw * 0.012 * max( p.y - 0.5, 0.0 );
 	v.position = p;
 	v.normal = n;
+	// how he moved since the last frame, for the motion vectors (the TAA): his step, his gesture
+	let pPrev = p + v.aDelta * ( v.aAnim.z - k );
+	v.prevWorldOffset = ( v.model * vec4f( pPrev - p, 0.0 ) ).xyz - v.aMove.xyz;
 	o.vRest = v.aRest;
 	o.vWho = who;
 	o.vLocal = p;
@@ -842,7 +851,7 @@ function propMaterial( signs ) {
 
 	const m = standard( {
 		name: 'alley-folk-props', roughness: 0.6, side: 'double', textures: { bpSigns: signs },
-		attributes: { aKind: 'f32', aProp: 'vec4f' },
+		attributes: { aKind: 'f32', aProp: 'vec4f', aMove: 'vec4f' },
 		varyings: { vKind: 'f32', vProp: 'vec4f', vUV: 'vec2f' },
 		vertex: /* wgsl */`
 	// prop: x its kind, y its variant (the sign's cell, the umbrella's colours), z how open (the umbrella),
@@ -859,6 +868,8 @@ function propMaterial( signs ) {
 	o.vKind = v.aKind;
 	o.vProp = pr;
 	o.vUV = v.uv;
+	// carried along with the hand since the last frame (the motion vectors)
+	v.prevWorldOffset = - v.aMove.xyz;
 `,
 		surface: /* wgsl */`
 	let k = u32( in.vs.vProp.x + 0.5 );
@@ -996,7 +1007,7 @@ export class Folk {
 
 			const [ a, b ] = PAIRS[ pair ];
 			const g = pairGeometry( a, b );
-			const who = new Float32Array( list.length * 4 ), anim = new Float32Array( list.length * 4 );
+			const who = new Float32Array( list.length * 4 ), anim = new Float32Array( list.length * 4 ), move = new Float32Array( list.length * 4 );
 			list.forEach( ( p, i ) => {
 
 				who.set( this._whoOf( p ), i * 4 );
@@ -1005,6 +1016,7 @@ export class Folk {
 			} );
 			g.setAttribute( 'aWho', new InstancedBufferAttribute( who, 4 ) );
 			g.setAttribute( 'aAnim', new InstancedBufferAttribute( anim, 4 ) );
+			g.setAttribute( 'aMove', new InstancedBufferAttribute( move, 4 ) );
 			const mesh = new InstancedMesh( g, this.material, list.length );
 			mesh.name = 'alley-folk-' + pair;
 			mesh.castShadow = false;
@@ -1012,7 +1024,7 @@ export class Folk {
 			mesh.frustumCulled = false;
 			mesh.userData.dynamic = true;
 			this.parent.add( mesh );
-			this.meshes.set( pair, { mesh, list, anim, poses: [ POSES[ a ], POSES[ b ] ] } );
+			this.meshes.set( pair, { mesh, list, anim, move, poses: [ POSES[ a ], POSES[ b ] ] } );
 
 		}
 
@@ -1021,6 +1033,8 @@ export class Folk {
 		const n = Math.max( 1, this.props.length );
 		const data = new Float32Array( n * 4 );
 		pg.setAttribute( 'aProp', new InstancedBufferAttribute( data, 4 ) );
+		this.propMove = new Float32Array( n * 4 );
+		pg.setAttribute( 'aMove', new InstancedBufferAttribute( this.propMove, 4 ) );
 		this.propMesh = new InstancedMesh( pg, this.propMat, n );
 		this.propMesh.name = 'alley-folk-props';
 		this.propMesh.castShadow = false;
@@ -1066,7 +1080,19 @@ export class Folk {
 	update() {
 
 		let blobs = 0;
-		for ( const { mesh, list, anim } of this.meshes.values() ) {
+		// the move since the last frame, turned from the field frame into the world's (motion vectors);
+		// someone who has just appeared hasn't moved
+		const cy = Math.cos( this.frameYaw || 0 ), sy = Math.sin( this.frameYaw || 0 );
+		const moved = ( o, x, y, z, out, i ) => {
+
+			const fresh = o.px === undefined;
+			const dx = fresh ? 0 : x - o.px, dy = fresh ? 0 : y - o.py, dz = fresh ? 0 : z - o.pz;
+			out[ i * 4 ] = dx * cy + dz * sy; out[ i * 4 + 1 ] = dy; out[ i * 4 + 2 ] = - dx * sy + dz * cy;
+			o.px = x; o.py = y; o.pz = z;
+
+		};
+
+		for ( const { mesh, list, anim, move } of this.meshes.values() ) {
 
 			list.forEach( ( p, i ) => {
 
@@ -1074,8 +1100,12 @@ export class Folk {
 				_q.setFromAxisAngle( _up, p.yaw );
 				_m.compose( _v.set( p.x, p.y, p.z ), _q, _s.setScalar( on ? p.scale : 0 ) );
 				mesh.setMatrixAt( i, _m );
+				if ( ! on ) p.px = undefined;
+				else moved( p, p.x, p.y, p.z, move, i );
 				anim[ i * 4 ] = p.k;
 				anim[ i * 4 + 1 ] = p.sway;
+				anim[ i * 4 + 2 ] = on && p.kPrev !== undefined ? p.kPrev : p.k;
+				p.kPrev = on ? p.k : undefined;
 				if ( on && ! p.noBlob && p.pair !== 'ride' ) {
 
 					_m.compose( _v.set( p.x, p.y + 0.015, p.z ), _q, _s.set( 0.75 * p.scale, 1, 0.55 * p.scale ) );
@@ -1086,6 +1116,7 @@ export class Folk {
 			} );
 			mesh.instanceMatrix.needsUpdate = true;
 			mesh.geometry.getAttribute( 'aAnim' ).needsUpdate = true;
+			mesh.geometry.getAttribute( 'aMove' ).needsUpdate = true;
 
 		}
 
@@ -1109,10 +1140,13 @@ export class Folk {
 			_m.compose( _v.set( p.x + _h.x, p.y + _h.y, p.z + _h.z ), _q, _s.setScalar( on ? p.scale / ( p.look.kid ? 0.8 : 1 ) : 0 ) );
 			this.propMesh.setMatrixAt( i, _m );
 			this.propData.set( [ pr.kind, pr.variant, pr.open, 0 ], i * 4 );
+			if ( ! on ) pr.px = undefined;
+			else moved( pr, _v.x, _v.y, _v.z, this.propMove, i );
 
 		} );
 		this.propMesh.instanceMatrix.needsUpdate = true;
 		this.propMesh.geometry.getAttribute( 'aProp' ).needsUpdate = true;
+		this.propMesh.geometry.getAttribute( 'aMove' ).needsUpdate = true;
 
 	}
 

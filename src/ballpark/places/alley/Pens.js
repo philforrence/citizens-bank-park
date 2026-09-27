@@ -251,6 +251,8 @@ export class Pens {
 		if ( ! this.rig ) this._takeSlots( director, players );
 		const t = director.t;
 		const cel = w.celebrate;
+		this.warming = { home: false, away: false };
+		this.tossFrom = null;
 		for ( const side of [ 'home', 'away' ] ) {
 
 			const S = this.rig[ side ];
@@ -269,11 +271,15 @@ export class Pens {
 
 				if ( S.pitcherId !== warm.id ) this._dress( S, side, warm.id, players );
 				this._warm( S, side, warm, t - warm.from );
+				this.warming[ side ] = true;
 
 			} else {
 
 				if ( S.pitcher ) S.pitcher.visible = false;
-				this._idleCatcher( S, side, t, empty );
+				// the visitors' catcher comes over under the rail and lobs a ball up to a kid (Cast.js asks)
+				const toss = side === 'away' && this.toss && t > this.toss.t - 3 && t < this.toss.t + 1.5 ? this.toss : null;
+				if ( toss ) this._toss( S, toss, t );
+				else this._idleCatcher( S, side, t, empty );
 
 			}
 
@@ -394,6 +400,23 @@ export class Pens {
 		else if ( u < 6.6 ) c.pose = M.throwBall( ( u - 5.6 ) * 0.7 );
 		else if ( u < 7.4 ) c.pose = M.blend( M.stand( u ), M.catcherCrouch( u ), ( u - 6.6 ) / 0.8 );
 		else c.pose = M.catcherCrouch( u );
+
+	}
+
+	// under the rail, facing up at it: stands, then the throw (released at toss.t)
+	_toss( S, toss, t ) {
+
+		const F = this.F, c = S.catcher;
+		const [ ax, az ] = F.at( 0, 0 );
+		const s = ( toss.to[ 0 ] - ax ) * F.ux + ( toss.to[ 1 ] - az ) * F.uz;
+		const [ x, z ] = F.at( s, F.TB - 1.6 );
+		c.visible = true;
+		c.x = x; c.z = z; c.y = F.R;
+		c.yaw = Math.atan2( - F.nx, - F.nz );
+		c.role = ROLE.ccap | ROLE.mittC;
+		const u = t - ( toss.t - M.THROW_REL );
+		c.pose = u < 0 ? M.stand( t ) : M.throwBall( Math.min( u, 1.2 ) );
+		this.tossFrom = [ x + F.nx * 0.35, F.R + 2.05, z + F.nz * 0.35 ];
 
 	}
 

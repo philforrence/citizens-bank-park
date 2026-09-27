@@ -18,6 +18,9 @@ import { Phanavision, FACE_W, FACE_H, LAMPS, VIDEO } from './Phanavision.js';
 // the ivy-covered batter's eye. Field frame, in the Field's group.
 
 const STREET = LEVELS.mainConcourse;
+// the rooftop bleachers' spans along the roofs in right-center (x, field frame): clear of the retired numbers'
+// house on the roof left of them (x 4 to 16); the Alley puts their fans in them (AshburnAlley2008.js)
+export const BLEACHERS = [ [ 17, 30 ], [ 36, 60 ] ];
 
 export class Landmarks {
 
@@ -495,7 +498,8 @@ export class Landmarks {
 			const ry = STREET + Hb + 0.15, rz = zBack + D - 0.05;
 			for ( const yy of [ ry + 1.07, ry + 0.12 ] ) beam( railQ, [ x0, yy, rz ], [ x1, yy, rz ], 0.05 );
 			for ( let xx = x0; xx <= x1; xx += 0.12 ) beam( railQ, [ xx, ry + 0.12, rz ], [ xx, ry + 1.07, rz ], 0.018 );
-			for ( let xx = x0 + 3; xx < x1 - 2; xx += 5.5 ) umbrellas.push( [ xx, ry, zBack + D - 2.6 ] );
+			// (not on the rooftop bleachers: BLEACHERS below)
+			for ( let xx = x0 + 3; xx < x1 - 2; xx += 5.5 ) if ( ! BLEACHERS.some( ( [ a, b ] ) => xx > a - 1 && xx < b + 1 ) ) umbrellas.push( [ xx, ry, zBack + D - 2.6 ] );
 			const wpos = this.field.toWorld( cx, cz );
 			this.colliders.addBox( new Vector3( wpos.x, this.field.y0 + STREET + Hb / 2, wpos.z ), new Vector3( w / 2, Hb / 2, D / 2 ), this.field.group.rotation.y, { tag: 'ashburn-alley', walkable: true } );
 
@@ -637,7 +641,7 @@ export class Landmarks {
 		for ( const m of [ concrete, plank, alum, blueRail ] ) m.underwaterLighting = 'none';
 		const cq = new Quads(), pq = new Quads(), aq = new Quads(), rq = new Quads();
 		const RD = 0.85, RR = 0.4, rows = 7;
-		for ( const [ x0, x1 ] of [ [ 2, 30 ], [ 36, 60 ] ] ) {
+		for ( const [ x0, x1 ] of BLEACHERS ) {
 
 			const y0 = STREET + Hb, zf = zBack + D - 0.2;
 			const aisles = [ x0 + ( x1 - x0 ) / 3, x0 + 2 * ( x1 - x0 ) / 3 ];
