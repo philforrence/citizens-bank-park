@@ -683,7 +683,8 @@ function setUV( g, f ) {
 }
 
 // MLB's batter logo: a white silhouette between a blue and a red field, in a white keyline
-function mlbLogo( ctx, x, y, w, h ) {
+// ---- W4 (rail): exported (the rail draws it on its wall panels)
+export function mlbLogo( ctx, x, y, w, h ) {
 
 	ctx.save();
 	ctx.fillStyle = '#f4f2ec';
@@ -741,7 +742,8 @@ function star( ctx, cx, cy, r, color ) {
 // The 2008 World Series logo as it was painted on the grass (hesb/2986447135.jpg): WORLD SERIES in cream
 // serif letters, each on a navy field that follows the letters, a white outline round the whole shape,
 // the MLB batter logo in a white frame on top and 2008 in gold on a navy pill below. Grass all round.
-function drawWorldSeriesLogo( ctx, w, h, { clear = true } = {} ) {
+// ---- W4 (rail): exported (the rail draws it on its on-deck mats and wall panels)
+export function drawWorldSeriesLogo( ctx, w, h, { clear = true } = {} ) {
 
 	ctx.save();
 	if ( clear ) ctx.clearRect( 0, 0, w, h );

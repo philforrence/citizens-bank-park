@@ -46,6 +46,7 @@ export const FLAG = {
 	vest: 128, // a photographer's numbered World Series vest
 	helmet: 256, // riot helmet (police), batting helmet
 	onAir: 512, // a TV camera's tally light lit
+	noBall: 1024, // the ball in the hand gone (handed over)
 };
 
 // joints for the right side (+x); the left mirrors x unless the pose gives it its own ( 'L:' prefix).
@@ -167,18 +168,17 @@ export const POSES = {
 		shoulder: [ 0.2, 1.39, 0.0 ], elbow: [ 0.22, 1.63, - 0.14 ], wrist: [ 0.17, 1.86, - 0.28 ], hand: [ 0.15, 1.93, - 0.33 ],
 		'L:elbow': [ - 0.23, 1.1, 0.02 ], 'L:wrist': [ - 0.2, 0.9, - 0.06 ], 'L:hand': [ - 0.19, 0.82, - 0.08 ],
 	},
-	// a kid at the front of the stands, leaning on the wall ...
+	// a kid at the front of the stands, his hands on the rail over the wall (its top at his chest) ...
 	kidLean: {
-		chest: [ 0, 1.34, - 0.08 ], neck: [ 0, 1.41, - 0.12 ], head: [ 0, 1.53, - 0.15 ],
-		shoulder: [ 0.2, 1.33, - 0.08 ], elbow: [ 0.24, 1.16, - 0.24 ], wrist: [ 0.13, 1.1, - 0.4 ], hand: [ 0.1, 1.1, - 0.46 ],
-		'L:elbow': [ - 0.24, 1.16, - 0.24 ], 'L:wrist': [ - 0.13, 1.1, - 0.4 ], 'L:hand': [ - 0.1, 1.1, - 0.46 ],
+		chest: [ 0, 1.37, - 0.05 ], neck: [ 0, 1.44, - 0.08 ], head: [ 0, 1.56, - 0.1 ],
+		shoulder: [ 0.2, 1.36, - 0.05 ], elbow: [ 0.25, 1.26, - 0.25 ], wrist: [ 0.15, 1.38, - 0.44 ], hand: [ 0.12, 1.42, - 0.5 ],
+		'L:elbow': [ - 0.25, 1.26, - 0.25 ], 'L:wrist': [ - 0.15, 1.38, - 0.44 ], 'L:hand': [ - 0.12, 1.42, - 0.5 ],
 	},
-	// ... reaching down over it with his glove
+	// ... and his glove up over it for the ball
 	kidReach: {
-		pelvis: [ 0, 0.86, 0.08 ], hip: [ 0.1, 0.88, 0.07 ],
-		chest: [ 0, 1.26, - 0.24 ], neck: [ 0, 1.31, - 0.31 ], head: [ 0, 1.41, - 0.38 ],
-		shoulder: [ 0.2, 1.26, - 0.24 ], elbow: [ 0.24, 1.14, - 0.32 ], wrist: [ 0.13, 1.1, - 0.42 ], hand: [ 0.1, 1.1, - 0.46 ],
-		'L:elbow': [ - 0.2, 1.08, - 0.46 ], 'L:wrist': [ - 0.15, 0.94, - 0.64 ], 'L:hand': [ - 0.13, 0.88, - 0.7 ],
+		chest: [ 0, 1.39, - 0.08 ], neck: [ 0, 1.46, - 0.11 ], head: [ 0, 1.59, - 0.12 ],
+		shoulder: [ 0.2, 1.38, - 0.08 ], elbow: [ 0.25, 1.26, - 0.26 ], wrist: [ 0.15, 1.38, - 0.44 ], hand: [ 0.12, 1.42, - 0.5 ],
+		'L:elbow': [ - 0.24, 1.62, - 0.2 ], 'L:wrist': [ - 0.16, 1.86, - 0.32 ], 'L:hand': [ - 0.14, 1.95, - 0.36 ],
 	},
 	// bent down to the ground (the bat boy picking up the bat)
 	bend: {
@@ -240,7 +240,7 @@ export const KINDS = {
 	ballGirl: [ 'stool', 'stoolReady', [ 'glove' ] ],
 	ballGirlUp: [ 'ball', 'ballUp', [ 'glove', 'ball' ] ],
 	ballGirlWalk: [ 'stand', 'stride', [ 'glove' ] ],
-	kid: [ 'kidLean', 'kidReach', [ 'kidGlove' ] ],
+	kid: [ 'kidLean', 'kidReach', [ 'kidGlove', 'ballGlove' ] ],
 	walk: [ 'stand', 'stride', [] ],
 	batBoyWalk: [ 'stand', 'stride', [ 'bat' ] ],
 	batBoyBend: [ 'stand', 'bend', [ 'bat' ] ],
@@ -521,6 +521,13 @@ const GEAR = {
 		blob( add( h, mul( d, 0.04 ) ), [ 0.06, 0.085, 0.045 ], PART.leather, 7, 4 );
 
 	} },
+	// a baseball in the glove (the kid's, once he has it)
+	ballGlove: { build( { J, blob } ) {
+
+		const h = J( 'hand', - 1 ), w = J( 'wrist', - 1 ), d = norm( sub( h, w ) );
+		blob( add( add( h, mul( d, 0.06 ) ), [ 0.03, 0.0, - 0.03 ] ), [ 0.037, 0.037, 0.037 ], PART.white, 6, 4 );
+
+	} },
 	// a baseball in the right hand
 	ball: { build( { J, blob } ) {
 
@@ -678,6 +685,7 @@ function railMaterial() {
 	if ( pt == 13 && ( flags & 8u ) == 0u ) { gone = true; }
 	if ( pt >= 8 && pt != 13 && ( flags & 32u ) != 0u ) { gone = true; }
 	if ( pt == 7 && ( flags & 4u ) == 0u ) { gone = true; }
+	if ( pt == 11 && ( flags & 1024u ) != 0u ) { gone = true; }
 	// the head turns (about the neck) and nods on its own
 	o.vHead = v.position - v.aHead;
 	if ( v.aMorphN.w > 0.5 ) {

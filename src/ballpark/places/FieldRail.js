@@ -4,6 +4,7 @@ import { buildPlate } from './rail/Plate.js';
 import { RailFigures } from './rail/RailFigures.js';
 import { railMaterials } from './rail/Props.js';
 import { Wells } from './rail/Wells.js';
+import { OnDeck } from './rail/OnDeck.js';
 
 // The rail: field level round home plate and the dugouts, the strip every TV shot sees. The backstop,
 // the camera wells, the front rows and the dugout surrounds, the on-deck circles and foul territory down
@@ -33,6 +34,8 @@ export default class FieldRail {
 		this.plate = buildPlate( this.group );
 		// the wells at the dugouts' ends: TV cameras, the parabolic mics, the photographers
 		this.wells = new Wells( ctx );
+		// the on-deck mats and the hitters' things on them, the bat boys
+		this.onDeck = new OnDeck( ctx );
 		this.figs.build();
 		this.state = {};
 
@@ -91,6 +94,7 @@ export default class FieldRail {
 		const since = Math.max( 0, S.t - S.halfStart - 20 );
 		this.plate.uniforms.dirt.value = ( 1 - Math.exp( - since / ( S.first ? 90 : 200 ) ) ) * ( S.first ? 1 : 0.7 );
 		this.wells.update( S, dt );
+		this.onDeck.update( S, dt, director );
 		this.figs.update();
 
 	}
