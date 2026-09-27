@@ -251,18 +251,20 @@ export async function acquire( { owner = 'unnamed', pid = process.pid, max, excl
 
 						// profiling: the other renderers on this machine must have finished too (at most 2 min: an idle
 						// one, like the render desk's pages in still mode, draws nothing)
+						const w0 = Date.now();
 						for ( let k = 0; ; k ++ ) {
 
 							const f = foreignChromes();
 							if ( ! f.length ) break;
-							if ( k >= 240 ) {
+							// by the clock: a pass of foreignChromes() can take a while (a ps per ancestor)
+							if ( Date.now() - w0 > 120e3 ) {
 
 								say( `exclusive: going ahead with headless Chrome(s) still open outside the lock (pids ${ f.join( ' ' ) }): check they're idle` );
 								break;
 
 							}
 
-							if ( k % 40 === 0 ) say( `exclusive: waiting for ${ f.length } headless Chrome(s) outside the lock to finish (pids ${ f.join( ' ' ) })` );
+							if ( k % 20 === 0 ) say( `exclusive: waiting for ${ f.length } headless Chrome(s) outside the lock to finish (pids ${ f.join( ' ' ) })` );
 							await sleep( 500 );
 							const o = readJSON( join( LOCK, 'owner.json' ) );
 							if ( o ) writeFileSync( join( LOCK, 'owner.json' ), JSON.stringify( { ...o, started: Date.now() } ) );
