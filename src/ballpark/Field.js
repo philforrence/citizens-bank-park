@@ -1615,13 +1615,49 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		let k = select( 0.2, 0.42, dirt || track );
 		col *= 1.0 - k * wet;
 		rough = mix( rough, rough * select( 0.45, 0.28, dirt || track ), wet );
+		// ---- W4 (rail): the water stands on the track too: along the foot of the wall, where the track
+		// runs down to its drains, and in its low spots; in the dirt round the plate and second. Where it
+		// stands it's a dark mirror, and while it's raining the drops ring it
+		var pud = 0.0;
 		if ( dirt ) {
 			let second = vec2f( 0.0, ${ f( - BASE * Math.SQRT2 ) } );
 			let low = 1.0 - smoothstep( 0.0, 7.0, min( length( p - plate ), length( p - second ) ) );
-			let pud = smoothstep( 0.66, 0.74, 0.35 + 0.35 * mx_noise_float2( p * 0.22 + 3.1 ) + 0.1 * mx_noise_float2( p * 1.3 ) + low * 0.55 - ( 1.0 - wet ) * 0.9 );
+			pud = smoothstep( 0.66, 0.74, 0.35 + 0.35 * mx_noise_float2( p * 0.22 + 3.1 ) + 0.1 * mx_noise_float2( p * 1.3 ) + low * 0.55 - ( 1.0 - wet ) * 0.9 );
+		}
+		if ( track && ! dirt ) {
+			let foot = 1.0 - smoothstep( 0.15, 1.3, - sd );
+			let lowSpot = smoothstep( 0.35, 0.75, mx_noise_float2( p * 0.3 + 11.0 ) * 0.5 + 0.5 );
+			pud = smoothstep( 0.62, 0.72, foot * 0.45 + lowSpot * 0.45 + 0.12 * mx_noise_float2( p * 2.1 ) - ( 1.0 - wet ) * 0.95 );
+		}
+		if ( pud > 0.0 ) {
 			col = mix( col, col * 0.3, pud );
 			rough = mix( rough, 0.03, pud );
+			// the rim of the puddle: wet sheen, a hint darker
+			col = col * ( 1.0 - 0.15 * smoothstep( 0.0, 0.5, pud ) * ( 1.0 - smoothstep( 0.5, 1.0, pud ) ) );
+			// its surface: flat, then ringed by the drops (the 27th: the rain's still falling)
+			var nrm = vec3f( 0.0, 1.0, 0.0 );
+			if ( wet > 0.45 && fw < 0.02 ) {
+				let rcp = p / 0.22;
+				let rbase = floor( rcp - 0.5 );
+				var d2 = vec2f( 0.0 );
+				for ( var ox = 0.0; ox <= 1.0; ox += 1.0 ) {
+					for ( var oz = 0.0; oz <= 1.0; oz += 1.0 ) {
+						let rcell = rbase + vec2f( ox, oz );
+						let hh = fract( sin( vec2f( dot( rcell, vec2f( 127.1, 311.7 ) ), dot( rcell, vec2f( 269.5, 183.3 ) ) ) ) * 43758.5453 );
+						let cen = ( rcell + 0.25 + hh * 0.5 ) * 0.22;
+						let life = fract( frame.time * ( 0.9 + 0.8 * hh.x ) + hh.y );
+						let dv = p - cen;
+						let dd = length( dv ) + 1e-4;
+						let rr = life * 0.1;
+						let ring = exp( - ( dd - rr ) * ( dd - rr ) / 0.00012 ) * ( 1.0 - life ) * ( 1.0 - life );
+						d2 += dv / dd * ring * cos( ( dd - rr ) * 180.0 );
+					}
+				}
+				nrm = normalize( vec3f( d2.x * 0.35, 1.0, d2.y * 0.35 ) );
+			}
+			s.normal = normalize( mix( s.normal, vec3f( nrm.x * cy + nrm.z * sy, nrm.y, - nrm.x * sy + nrm.z * cy ), pud ) );
 		}
+		// ---- end W4
 	}
 
 	// ---- outside the fence: the concrete apron (the stands go here)
