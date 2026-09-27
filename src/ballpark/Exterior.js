@@ -25,8 +25,15 @@ export const GATES = [
 	{ name: 'FIRST BASE GATE', at: [ 73.5, 25.48 ], width: 30, open: 56, frame: true },
 	{ name: 'LEFT FIELD GATE', at: [ - 103.86, - 135.3 ], width: 28 },
 	// behind home plate, the private entrance to the suites and the clubs (there was no Home Plate Gate)
-	{ name: 'SUITE & CLUB ENTRANCE', at: [ 0, 91.53 ], width: 12 },
+	{ name: 'SUITE & CLUB ENTRANCE', at: [ 0, 91.53 ], width: 12, suite: true },
 	{ name: 'RIGHT FIELD GATE', at: [ 112, - 153.03 ], width: 24 },
+];
+
+// The other two Suite & Club Entrances (the 2004 and 2007 guides: "Pattison Avenue (Home Plate),
+// Citizens Bank Way (West) and Darien Street (East)"): doors in the facade, not gates
+export const SUITE_ENTRANCES = [
+	{ name: 'SUITE & CLUB ENTRANCE ★ WEST', at: [ - 126.05, - 12 ], width: 10, suite: true },
+	{ name: 'SUITE & CLUB ENTRANCE ★ EAST', at: [ 126.94, 22 ], width: 10, suite: true },
 ];
 
 // the paved plaza in the notch at the south-west corner, in front of the Third Base Gate
@@ -51,7 +58,8 @@ export class Exterior {
 		this._materials();
 		this._buildSidewalks();
 		this._buildFacade();
-		for ( const g of GATES ) this._buildGate( g );
+		for ( const g of [ ...GATES, ...SUITE_ENTRANCES ] ) if ( g.suite ) this._suiteEntrance( g );
+		else this._buildGate( g );
 		this._buildPlaza();
 		this._buildStatues();
 		this._writeReflections();
@@ -578,7 +586,7 @@ export class Exterior {
 			const nx = sgn * uz, nz = - sgn * ux; // outward
 			// the gates on this edge cut it into pieces
 			const cuts = [];
-			for ( const g of GATES ) {
+			for ( const g of [ ...GATES, ...SUITE_ENTRANCES ] ) {
 
 				const t = ( ( g.at[ 0 ] - a[ 0 ] ) * ux + ( g.at[ 1 ] - a[ 1 ] ) * uz );
 				const off = Math.abs( ( g.at[ 0 ] - a[ 0 ] ) * nx + ( g.at[ 1 ] - a[ 1 ] ) * nz );
@@ -586,7 +594,7 @@ export class Exterior {
 
 					const hw = ( g.open || g.width ) / 2;
 					cuts.push( [ Math.max( 0, t - hw ), Math.min( len, t + hw ) ] );
-					g.edge = { a, ux, uz, nx, nz, t };
+					g.edge = { a, ux, uz, nx, nz, t, H: heightOf( g.at, g.at ), u: u + t };
 
 				}
 
@@ -907,6 +915,234 @@ export class Exterior {
 		}
 
 		if ( balls.length ) this.group.add( new Mesh( bb.geometry(), bmat ) );
+
+	}
+
+	// A Suite & Club Entrance as in the Commons photo of 29 Mar 2008 (the West one): a glass wall in the
+	// brick, glass doors between rose granite piers, a lit lobby behind (terrazzo, wood panelling, the
+	// elevators), and over the doors a glass canopy on cream steel outriggers carrying the name in channel
+	// letters: cream-pink faces, navy returns, lit after dark.
+	_suiteEntrance( g ) {
+
+		if ( ! g.edge ) return;
+		const { a, ux, uz, nx, nz, t, H } = g.edge;
+		const W = g.width, y0 = STREET, half = W / 2;
+		// s along the wall, o out from it; u runs along the wall's own tangent (for the lobby's parallax)
+		const P = ( s, o, y ) => [ a[ 0 ] + ux * ( t + s ) + nx * o, y, a[ 1 ] + uz * ( t + s ) + nz * o ];
+		const tu = nz * ux - nx * uz; // +1 if s runs along the tangent cross( up, n ), -1 if against it
+		const glass = standard( {
+			name: 'suite-glass', color: new Color( 0.03, 0.04, 0.05 ), roughness: 0.05, modules: [ commonModule ],
+			uniforms: { half: [ 'f32', half ] },
+			surface: /* wgsl */`
+	// uv: x along the glass from its middle (m), y up from the street (m). The lobby (two storeys, to
+	// 5.4 m) behind the doors, the suite level's corridors above it, traced into depth
+	let u = in.uv.x; let v = in.uv.y;
+	let hw = mat.half;
+	let N = normalize( in.N );
+	let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), N ) );
+	let Vd = normalize( in.P - frame.cameraPos );
+	let night = smoothstep( 0.1, 0.7, frame.night );
+	let lobby = v < 5.4;
+	let k = floor( max( v - 6.2, 0.0 ) / 3.6 );
+	let f0 = select( 6.2 + k * 3.6, 0.0, lobby );
+	let f1 = select( f0 + 3.0, 5.4, lobby );
+	let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - N ), 0.05 ) );
+	let ro = vec3f( u, clamp( v, f0 + 0.01, f1 - 0.01 ), 0.0 );
+	let D = select( 4.0, 8.0, lobby );
+	let tx = ( select( - hw, hw, rd.x > 0.0 ) - ro.x ) / rd.x;
+	let ty = ( select( f0, f1, rd.y > 0.0 ) - ro.y ) / rd.y;
+	let tz = D / rd.z;
+	let tt = min( tx, min( ty, tz ) );
+	let hit = ro + rd * tt;
+	var room = vec3f( 0.6, 0.55, 0.47 );
+	if ( tt == tz ) {
+		if ( lobby ) {
+			// cherry panelling, two pairs of stainless elevator doors, a reception desk in front
+			room = vec3f( 0.3, 0.13, 0.07 ) * ( 0.85 + 0.15 * step( 0.5, fract( hit.x / 0.9 ) ) );
+			let ex = abs( fract( hit.x / 3.4 ) - 0.5 ) * 3.4;
+			if ( ex < 0.55 && hit.y < 2.3 ) { room = vec3f( 0.5, 0.51, 0.53 ) * ( 0.75 + 0.25 * step( 0.015, ex ) ); }
+			if ( hit.y > 3.2 && hit.y < 3.9 && abs( hit.x ) < 1.6 ) { room = vec3f( 0.75, 0.62, 0.3 ); }
+		} else { room = room * 0.8; }
+	}
+	if ( tt == ty && rd.y < 0.0 ) {
+		room = select( vec3f( 0.22, 0.07, 0.06 ) * ( 0.9 + 0.1 * mx_noise_float2( hit.xz * 3.0 ) ), vec3f( 0.52, 0.48, 0.42 ) * ( 0.92 + 0.12 * mx_noise_float2( hit.xz * 30.0 ) ), lobby );
+	}
+	var lamp = 0.0;
+	if ( tt == ty && rd.y > 0.0 ) {
+		let gc = abs( fract( hit.xz / 1.8 ) - 0.5 ) * 1.8;
+		lamp = 1.0 - smoothstep( 0.07, 0.1, length( gc ) );
+		room = vec3f( 0.8, 0.78, 0.74 );
+	}
+	// the desk
+	let deskT = ( 4.5 - ro.z ) / rd.z;
+	let deskP = ro + rd * deskT;
+	if ( lobby && deskT < tt && abs( deskP.x ) < 2.2 && deskP.y < 1.1 && deskP.y > 0.0 ) { room = vec3f( 0.25, 0.1, 0.05 ); }
+	// the light falls off away from the glass
+	let inside = ( room + vec3f( 5.0, 4.4, 3.4 ) * lamp ) * vec3f( 1.0, 0.88, 0.72 ) * ( 1.0 - 0.4 * clamp( hit.z / D, 0.0, 1.0 ) );
+	// the frame: bronze mullions every 1.5 m, the transom over the doors, spandrels at each slab
+	let mu = abs( fract( u / 1.5 + 0.5 ) - 0.5 ) * 1.5;
+	var frameK = step( mu, 0.045 ) + step( abs( v - 2.75 ), 0.06 ) + step( abs( v - 5.8 ), 0.4 );
+	if ( ! lobby ) { frameK += step( 3.0, v - 6.2 - k * 3.6 ); }
+	// the doors: stainless stiles and push bars
+	let door = v < 2.7 && abs( u ) < 3.0;
+	if ( door ) { let du = abs( fract( u / 1.5 ) - 0.5 ) * 1.5; frameK += step( 0.68, du ) + step( abs( v - 1.05 ), 0.03 ) * step( du, 0.62 ) * step( 0.1, du ); }
+	let fk = clamp( frameK, 0.0, 1.0 );
+	s.albedo = mix( vec3f( 0.03, 0.04, 0.05 ) + inside * 0.05 * ( 1.0 - night ), select( vec3f( 0.045, 0.018, 0.02 ), vec3f( 0.45, 0.46, 0.47 ), door ), fk );
+	s.roughness = mix( 0.04, 0.4, fk );
+	s.metalness = select( 0.0, 0.8, door && fk > 0.5 );
+	s.emissive = inside * ( 1.0 - fk ) * mix( 0.05, 0.22, night );
+`,
+		} );
+		glass.underwaterLighting = 'none';
+		glass.setDefine( 'DRY', 1 );
+		const gq = new Quads();
+		const o0 = - 0.35;
+		gq.tri( P( - half, o0, y0 ), P( half, o0, y0 ), P( half, o0, y0 + H ), [ nx, 0, nz ], [ - half * tu, 0 ], [ half * tu, 0 ], [ half * tu, H ] );
+		gq.tri( P( - half, o0, y0 ), P( half, o0, y0 + H ), P( - half, o0, y0 + H ), [ nx, 0, nz ], [ - half * tu, 0 ], [ half * tu, H ], [ - half * tu, H ] );
+		const gm = new Mesh( gq.geometry(), glass );
+		gm.name = 'suite-glass';
+		gm.receiveShadow = true;
+		this.group.add( gm );
+		const c = P( 0, o0 - 0.1, 0 ), w = this.field.toWorld( c[ 0 ], c[ 2 ] );
+		this.colliders.addBox( new Vector3( w.x, this.field.y0 + y0 + H / 2, w.z ), new Vector3( half, H / 2, 0.15 ), this.field.group.rotation.y - Math.atan2( uz, ux ), { tag: 'facade' } );
+
+		// rose granite piers either side of the glass, to the precast band
+		const gran = this.suiteGranite || ( this.suiteGranite = standard( { name: 'rose-granite', color: new Color( 0.52, 0.33, 0.26 ), roughness: 0.7, modules: [ commonModule ],
+			surface: /* wgsl */`
+	// flamed ashlar, 1.2 x 0.6 m blocks with fine reveals, flecked
+	let p = in.P;
+	let hh = select( p.x, p.z, abs( in.N.x ) > abs( in.N.z ) );
+	let r = floor( p.y / 0.6 );
+	let rv = min( fract( p.y / 0.6 ), 1.0 - fract( p.y / 0.6 ) ) * 0.6;
+	let cv = min( fract( hh / 1.2 + 0.5 * ( r % 2.0 ) ), 1.0 - fract( hh / 1.2 + 0.5 * ( r % 2.0 ) ) ) * 1.2;
+	let joint = mix( 0.55, 1.0, smoothstep( 0.006, 0.016, min( rv, cv ) ) );
+	s.albedo = mat.color * joint * ( 0.9 + 0.12 * mx_noise_float3( p * 7.0 ) ) * ( 0.93 + 0.1 * fract( sin( dot( vec2f( floor( hh / 1.2 ), r ), vec2f( 12.9, 78.2 ) ) ) * 43758.5 ) );
+` } ) );
+		gran.underwaterLighting = 'none';
+		const pq = new Quads();
+		for ( const e of [ - 1, 1 ] ) {
+
+			const s0 = e * ( half + 0.05 ), s1 = e * ( half + 1.25 );
+			for ( const [ A, B, n ] of [
+				[ P( s0, 0.45, y0 ), P( s1, 0.45, y0 ), [ nx, 0, nz ] ],
+				[ P( s0, - 0.4, y0 ), P( s0, 0.45, y0 ), [ - ux * e, 0, - uz * e ] ],
+				[ P( s1, 0.45, y0 ), P( s1, - 0.2, y0 ), [ ux * e, 0, uz * e ] ],
+			] ) pq.add( A, B, [ B[ 0 ], y0 + 5.35, B[ 2 ] ], [ A[ 0 ], y0 + 5.35, A[ 2 ] ], n );
+			pq.add( P( s0, 0.45, y0 + 5.35 ), P( s1, 0.45, y0 + 5.35 ), P( s1, - 0.4, y0 + 5.35 ), P( s0, - 0.4, y0 + 5.35 ), [ 0, 1, 0 ] );
+
+		}
+
+		const pm = new Mesh( pq.geometry(), gran );
+		pm.name = 'suite-piers';
+		pm.castShadow = true;
+		pm.receiveShadow = true;
+		this.group.add( pm );
+
+		// the canopy: a header on the wall, tapered outriggers every 1.5 m cantilevered 3.8 m, purlins
+		// across them and laminated glass on top
+		const cream = this.creamSteel || ( this.creamSteel = standard( { name: 'canopy-cream', color: new Color( 0.66, 0.6, 0.47 ), roughness: 0.55, metalness: 0.0 } ) );
+		cream.underwaterLighting = 'none';
+		const q = new Quads(), yc = y0 + 4.5, reach = 3.8, cw = half + 1.6;
+		beam( q, P( - cw, 0.2, yc + 0.1 ), P( cw, 0.2, yc + 0.1 ), 0.5 );
+		for ( let s = - cw + 0.3; s <= cw - 0.29; s += ( 2 * cw - 0.6 ) / Math.round( ( 2 * cw - 0.6 ) / 1.5 ) ) {
+
+			// a tapered I-section: deep at the wall, shallow at the tip (two webs' faces and the flanges)
+			const d0 = 0.6, d1 = 0.28, bw = 0.09;
+			const pt = ( o, dy, e ) => P( s + e * bw, o, yc + 0.35 - dy );
+			for ( const e of [ - 1, 1 ] ) q.add( pt( 0.3, d0, e ), pt( reach, d1, e ), pt( reach, 0, e ), pt( 0.3, 0, e ), [ ux * e, 0, uz * e ] );
+			q.add( pt( 0.3, d0, - 1 ), pt( reach, d1, - 1 ), pt( reach, d1, 1 ), pt( 0.3, d0, 1 ), [ 0, - 1, 0 ] );
+			q.add( pt( reach, d1, - 1 ), pt( reach, 0, - 1 ), pt( reach, 0, 1 ), pt( reach, d1, 1 ), [ nx, 0, nz ] );
+
+		}
+
+		for ( const o of [ 0.9, 1.6, 2.3, 3.0, 3.7 ] ) beam( q, P( - cw - 0.2, o, yc + 0.41 ), P( cw + 0.2, o, yc + 0.41 ), 0.12 );
+		const cm = new Mesh( q.geometry(), cream );
+		cm.name = 'suite-canopy';
+		cm.castShadow = true;
+		cm.receiveShadow = true;
+		this.group.add( cm );
+		const gl = this.canopyGlass || ( this.canopyGlass = standard( { name: 'canopy-glass', color: new Color( 0.55, 0.62, 0.6 ), roughness: 0.08, transparent: true, depthWrite: false, side: 'double', modules: [ commonModule ],
+			surface: /* wgsl */`
+	// laminated glass, a greenish edge, the rain beading on it
+	let drops = smoothstep( 0.55, 0.8, mx_noise_float2( in.P.xz * 9.0 ) ) * frame.wet;
+	s.alpha = 0.22 + 0.25 * drops;
+	s.roughness = mix( 0.06, 0.3, drops );
+` } ) );
+		gl.underwaterLighting = 'none';
+		const lq = new Quads();
+		lq.add( P( - cw - 0.3, 0.3, yc + 0.48 ), P( cw + 0.3, 0.3, yc + 0.48 ), P( cw + 0.3, reach + 0.25, yc + 0.48 ), P( - cw - 0.3, reach + 0.25, yc + 0.48 ), [ 0, 1, 0 ] );
+		const lm = new Mesh( lq.geometry(), gl );
+		lm.name = 'suite-canopy-glass';
+		lm.layers.set( 2 );
+		this.group.add( lm );
+
+		// downlights under the header
+		const dl = new Quads();
+		for ( let s = - half + 1; s <= half - 0.9; s += 2 ) {
+
+			const cc = P( s, 0.2, yc - 0.16 );
+			for ( let k = 0; k < 10; k ++ ) {
+
+				const a0 = k / 10 * Math.PI * 2, a1 = ( k + 1 ) / 10 * Math.PI * 2;
+				dl.tri( cc, [ cc[ 0 ] + Math.cos( a0 ) * 0.1, cc[ 1 ], cc[ 2 ] + Math.sin( a0 ) * 0.1 ], [ cc[ 0 ] + Math.cos( a1 ) * 0.1, cc[ 1 ], cc[ 2 ] + Math.sin( a1 ) * 0.1 ], [ 0, - 1, 0 ] );
+
+			}
+
+		}
+
+		this.group.add( new Mesh( dl.geometry(), this.lampLens || ( this.lampLens = standard( { name: 'downlight', color: new Color( 0.9, 0.87, 0.8 ), roughness: 0.3,
+			surface: 's.emissive = vec3f( 1.0, 0.85, 0.62 ) * mix( 0.3, 12.0, smoothstep( 0.1, 0.7, frame.night ) );' } ) ) ) );
+
+		// the name in channel letters standing on the canopy's front edge
+		this._channelLetters( P, g.name, reach - 0.2, yc + 0.5, [ nx, nz ], tu );
+		// a doorman either side of the doors
+		for ( const e of [ - 1, 1 ] ) ( this.gateGuards ||= [] ).push( { at: P( e * 3.6, 1.4, y0 ), face: [ nx, nz ] } );
+
+	}
+
+	// Channel letters: cream-pink faces (lit after dark) over navy returns, built as the face and a stack
+	// of copies behind it, so seen at an angle the letters have depth. P( s, o, y ) the wall's frame,
+	// centred at s = 0, standing at y, o out from the wall.
+	_channelLetters( P, text, o, y, n, tu ) {
+
+		const H = 128;
+		const font = '700 104px "Arial Narrow", "Helvetica Neue", Helvetica, Arial, sans-serif';
+		const probe = new OffscreenCanvas( 8, 8 ).getContext( '2d' );
+		probe.font = font;
+		const tw = Math.ceil( probe.measureText( text ).width * 0.8 ) + 24;
+		const tex = canvasTexture( Math.min( 4096, tw ), H, ( ctx, w, h ) => {
+
+			ctx.clearRect( 0, 0, w, h );
+			ctx.font = font;
+			ctx.textBaseline = 'middle';
+			ctx.fillStyle = '#ffffff';
+			ctx.save();
+			ctx.scale( 0.8, 1 );
+			ctx.fillText( text, 12 / 0.8, h / 2 + 6 );
+			ctx.restore();
+
+		}, 'channelLetters' );
+		const face = standard( { name: 'letters-face', roughness: 0.4, alphaTest: 0.5, side: 'double', textures: { chTex: tex },
+			surface: 'let t = textureSample( chTex, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = vec3f( 0.86, 0.5, 0.47 ); s.emissive = vec3f( 1.0, 0.72, 0.68 ) * smoothstep( 0.1, 0.7, frame.night ) * 1.2;' } );
+		const ret = standard( { name: 'letters-return', roughness: 0.5, alphaTest: 0.5, side: 'double', textures: { chTex: tex },
+			surface: 'let t = textureSample( chTex, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = vec3f( 0.02, 0.035, 0.1 );' } );
+		for ( const m of [ face, ret ] ) m.underwaterLighting = 'none';
+		const lh = 0.62, lw = lh * tex.width / H;
+		const [ sL, sR ] = tu > 0 ? [ - lw / 2, lw / 2 ] : [ lw / 2, - lw / 2 ];
+		const fq = new Quads(), rq = new Quads();
+		const card = ( q, d ) => {
+
+			q.tri( P( sL, o + d, y ), P( sR, o + d, y ), P( sR, o + d, y + lh ), [ n[ 0 ], 0, n[ 1 ] ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+			q.tri( P( sL, o + d, y ), P( sR, o + d, y + lh ), P( sL, o + d, y + lh ), [ n[ 0 ], 0, n[ 1 ] ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+
+		};
+
+		card( fq, 0 );
+		for ( let d = 0.02; d <= 0.13; d += 0.022 ) card( rq, - d );
+		const fm = new Mesh( fq.geometry(), face ), rm = new Mesh( rq.geometry(), ret );
+		fm.name = 'channel-letters';
+		rm.castShadow = true;
+		this.group.add( fm, rm );
 
 	}
 
