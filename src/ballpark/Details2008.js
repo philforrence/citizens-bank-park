@@ -7,6 +7,7 @@ import { canvasTexture, beam, refreshCanvasTexture } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, LEVELS, BULLPENS, fencePoint } from './layout.js';
 import { ON_DECK } from './game/Plays.js';
+import { FieldLevel } from './FieldLevel.js';
 
 // How the ballpark looked for the 2008 World Series (from photos of Games 3-5): the World Series logos
 // painted on the grass by the dugouts and the "Phillies" script behind home plate, the on-deck circles,
@@ -30,6 +31,14 @@ export class Details2008 {
 		this._cfRail();
 		this._planters();
 		this._wallOfFame();
+		// the dugouts' gear and benches, the people at field level (FieldLevel.js)
+		this.fieldLevel = new FieldLevel( { field, parent: this.group } );
+
+	}
+
+	update( dt, director ) {
+
+		this.fieldLevel.update( dt, director );
 
 	}
 
