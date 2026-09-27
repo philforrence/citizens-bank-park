@@ -247,7 +247,19 @@ export class Bowl {
 
 			const [ ax, az ] = run[ i ], [ bx, bz ] = run[ i + 1 ];
 			const len = Math.hypot( bx - ax, bz - az );
-			q.add( [ ax, 0, az ], [ bx, 0, bz ], [ bx, H, bz ], [ ax, H, az ], [ - ( bz - az ) / len, 0, ( bx - ax ) / len ], u, u + len );
+			// ---- W4 (rail): the net rises from the top of the backstop's cushions, just in from their
+			// back edge (from the ground it lay on the brick's face, drawn over the wall)
+			let ox = - ( bz - az ) / len, oz = ( bx - ax ) / len;
+			if ( ox * ( 0 - ( ax + bx ) / 2 ) + oz * ( - 40 - ( az + bz ) / 2 ) > 0 ) {
+
+				ox = - ox; oz = - oz;
+
+			}
+
+			const y0 = 4.5 * FT + 0.02, back = 0.3; // the wall is 4.5 ft (layout.js FOUL_WALL_HEIGHT)
+			const A = [ ax + ox * back, az + oz * back ], B = [ bx + ox * back, bz + oz * back ];
+			q.add( [ A[ 0 ], y0, A[ 1 ] ], [ B[ 0 ], y0, B[ 1 ] ], [ B[ 0 ], H, B[ 1 ] ], [ A[ 0 ], H, A[ 1 ] ], [ - ( bz - az ) / len, 0, ( bx - ax ) / len ], u, u + len );
+			// ---- end W4
 			u += len;
 
 		}
