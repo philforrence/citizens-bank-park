@@ -121,6 +121,7 @@ The vendors', staff's and fans' calls in `public/audio/places/concourse1b/` are 
 mike and kathleen (CC0) and norman, bryce, john, kristin and ljspeech (public domain), per their model
 cards. The sizzle, register, scanner, turnstile, rain-on-steel and murmur sounds there are synthesized
 in code (`src/ballpark/places/concourse1b/Sounds.js`).
+
 ## Behind home plate's sounds: `public/audio/places/home/`
 
 The vendors' calls and the fans' voices behind home plate are Piper TTS (MIT), made only with the CC0 and
