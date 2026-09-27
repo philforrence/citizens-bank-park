@@ -1,5 +1,8 @@
-import { InstancedMesh, BufferGeometry, InterleavedBuffer, InterleavedBufferAttribute, InstancedBufferAttribute, Vector3, Vector4, Sphere, Box3 } from '../engine/index.js';
+import { InstancedMesh, BufferGeometry, InterleavedBuffer, InterleavedBufferAttribute, Vector3, Vector4, Sphere, Box3, Matrix4 } from '../engine/index.js';
 import { ShaderModule } from '../engine/gpu/Shader.js';
+import { ComputeKernel } from '../engine/gpu/Compute.js';
+import { UniformBlock } from '../engine/gpu/Uniforms.js';
+import { StorageBuffer } from '../engine/gpu/Texture.js';
 import { standard } from '../materials/Materials.js';
 
 // The crowd: Game 5 was a sellout (45,940 on October 27, the same again for the resumption on the 29th),
@@ -321,10 +324,21 @@ function fanGeometry( lod ) {
 
 const f3 = ( a ) => `vec3f( ${ a.map( ( x ) => x.toFixed( 3 ) ).join( ', ' ) } )`;
 
-// The pose: where this vertex of this fan is at time t. A function so the previous frame's pose (for
-// the motion vectors) is the same code.
-const crowdModule = new ShaderModule( {
-	name: 'crowd',
+// the most fans (the seats' chunks come to ~42,000)
+const MAX_FANS = 49152;
+
+// Everything about a fan that's the same for all his vertices and all his pixels is worked out once a
+// frame, for each fan, by a compute pass (Crowd._kernel): how far up he is, each arm raised or at his
+// face, the towel's turn, his head turned to talk, the jump and the sway, his build, what he's wearing
+// and holding, and the colours of it all. Per fan: 8 vec4s of pose (this frame's, then last frame's for
+// the motion vectors) in cwPoseBuf, and 6 of look in cwLookBuf. The vertex shader keeps only what
+// differs vertex to vertex (the morph, the towel's spin, the head, the build), the fragment shader only
+// what differs pixel to pixel (the face, the hair, the hat): each of his ~200 vertices and every pixel
+// of him no longer works the rest out again (it was most of the crowd's cost).
+
+// the hash (the CPU has the same, pcg(), to pick the cast's seeds)
+const cwHashModule = new ShaderModule( {
+	name: 'crowd-hash',
 	code: /* wgsl */`
 fn cwHash( n: u32 ) -> u32 {
 	var x = n * 747796405u + 2891336453u;
@@ -332,7 +346,7 @@ fn cwHash( n: u32 ) -> u32 {
 	return ( x >> 22u ) ^ x;
 }
 
-// four numbers in [ 0, 1 ) from a fan's seed (the CPU has the same hash, to pick the cast's)
+// four numbers in [ 0, 1 ) from a fan's seed
 fn cwRand4( s: u32 ) -> vec4f {
 	return vec4f( f32( cwHash( s ) ), f32( cwHash( s + 101u ) ), f32( cwHash( s + 202u ) ), f32( cwHash( s + 303u ) ) ) / 4294967296.0;
 }
@@ -341,19 +355,19 @@ fn cwRand4( s: u32 ) -> vec4f {
 fn cwWin( x: f32, a: f32, b: f32 ) -> f32 {
 	return smoothstep( a, a + 0.02, x ) * ( 1.0 - smoothstep( b - 0.02, b, x ) );
 }
+`,
+} );
 
-struct CwPose {
-	p: vec3f,
-	n: vec3f,
-	local: vec3f,
-	fx: vec4f,
-};
+// the flags in a fan's pose (r3.w): a bit per part he has on him (parts 0-11), then his hood up, a knit
+// hat's peak, a ponytail, a poncho
+const PONCHO_BIT = 15;
 
-fn cwPose( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, standUp: vec3f, sitFace: vec3f, standFace: vec3f, info: vec4f, ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwPose {
-	var o: CwPose;
-	let code = u32( info.x + 0.5 );
-	let part = code & 15u;
-	let side = f32( code >> 4u ) - 1.0;
+// The compute pass: one thread per fan
+const kernelCode = /* wgsl */`
+struct CwFanPose { r0: vec4f, r1: vec4f, r2: vec4f, r3: vec4f };
+
+// his pose at time t
+fn cwFanPose( ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwFanPose {
 	let look = ids.y;
 	let act = ids.z;
 	let build = ( ids.x >> 22u ) & 3u;
@@ -366,192 +380,79 @@ fn cwPose( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, standUp
 	let prop = act & 15u;
 	let sg = ( act >> 4u ) & 63u;
 	let towel = ( act >> 10u ) & 1u;
-	let rider = ( act >> 11u ) & 3u;
-	let carrier = ( act >> 13u ) & 1u;
-	let away = ( act >> 14u ) & 3u;
-	let aisle = ( act >> 16u ) & 3u;
 	let isRays = ( ( act >> 18u ) & 1u ) == 1u;
-	let beh = ( act >> 20u ) & 15u;
-	let rain = mat.misc.z;
+	let rain = cw.misc.z;
 	let poncho = ( ( act >> 19u ) & 1u ) == 1u || fract( h.z * 9.3 ) < rain * 0.28;
 	let capped = hat == 1u || hat == 2u || hat == 5u || hat == 6u;
 	let hoodie = outfit == 0u || outfit == 3u || outfit == 15u || outfit == 16u;
 	let hood = hat == 4u || poncho || ( ! capped && hoodie && fract( h.w * 5.3 ) < 0.45 * rain );
 
 	// the reaction reaches each fan in turn, spreading out from where it happened
-	let rip = mat.ripple;
+	let rip = cw.ripple;
 	let tau = rip.w - length( seat.xz - rip.xy ) * rip.z - h.y * 0.45;
-	let M = mix( mat.moodA, mat.moodB, smoothstep( 0.0, 0.7 + h.z * 0.8, tau ) );
-	let A1 = mat.act1;
-	let A3 = mat.act3;
+	let M = mix( cw.moodA, cw.moodB, smoothstep( 0.0, 0.7 + h.z * 0.8, tau ) );
+	let A1 = cw.act1;
+	let A3 = cw.act3;
 	let calm = ( 1.0 - M.x ) * ( 1.0 - A1.z );
 
 	// up, arms up (the Rays fans have their own moments), clapping, towels, a jump
-	var st = smoothstep( h.x * 0.92, h.x * 0.92 + 0.08, select( M.x, A3.x, isRays ) );
+	let st = smoothstep( h.x * 0.92, h.x * 0.92 + 0.08, select( M.x, A3.x, isRays ) );
 	let upAll = smoothstep( h.y * 0.9, h.y * 0.9 + 0.1, select( M.y, A3.y, isRays ) );
-	var upL = upAll;
-	var upR = upAll;
 	let clap = select( A1.x * step( h.z, 0.8 ), 0.0, isRays ) * ( 1.0 - upAll );
-	var faceL = clap * ( 0.5 + 0.13 * sin( t * 15.0 + h.w * 40.0 ) );
-	var faceR = faceL;
+	let face = clap * ( 0.5 + 0.13 * sin( t * 15.0 + h.w * 40.0 ) );
 	// the rally towels twirled over their heads: each at his own pace (1.4 to 2.3 turns a second), the
 	// phase rippling across the stands so neighbours are close but never together
 	let tw = select( 0.0, smoothstep( fract( h.z * 13.0 ) * 0.9, fract( h.z * 13.0 ) * 0.9 + 0.1, M.z ), towel == 1u && ! isRays );
-	upR = max( upR, tw );
-	var yaw = 0.0;
-	var pitch = 0.0;
+	let upR = max( upAll, tw );
 	// talking to the neighbours now and then
-	yaw += select( - 0.6, 0.6, h.w > 0.5 ) * cwWin( fract( t / ( 28.0 + h.y * 25.0 ) + h.z * 9.0 ), 0.0, 0.16 ) * calm;
+	let yaw = select( - 0.6, 0.6, h.w > 0.5 ) * cwWin( fract( t / ( 28.0 + h.y * 25.0 ) + h.z * 9.0 ), 0.0, 0.16 ) * calm;
 	let jump = M.w * st;
-
-	// the morph: each arm raised or at the face, standing or sitting
-	let isL = side < - 0.5;
-	let isR = side > 0.5;
+	// each arm raised or at the face (left, right), pumping when they're up
 	let pump = mix( 1.0, 0.88 + 0.12 * sin( t * 6.0 + h.w * 30.0 ), upAll );
-	let aU = select( select( 0.0, upR, isR ), upL, isL ) * pump;
-	let aF = select( select( 0.0, faceR, isR ), faceL, isL ) * ( 1.0 - aU );
-	var p = mix( pos + sitUp * aU + sitFace * aF, stp + standUp * aU + standFace * aF, st );
-	var n = normalize( mix( nrm, stn, st ) );
+	let aUL = upAll * pump;
+	let aUR = upR * pump;
+	// the towel's turn, and its tip flapping held still
+	let th = t * ( 9.0 + 5.5 * fract( h.w * 17.0 ) ) + dot( seat.xz, vec2f( 0.31, 0.23 ) ) + h.x * 1.2;
 
-	// the towel: spun round over the head, flapping a little held still
-	if ( part == 5u ) {
-		let hand = mix( ${ f3( SIT_UP.hand ) }, ${ f3( STAND_UP.hand ) }, st );
-		let th = t * ( 9.0 + 5.5 * fract( h.w * 17.0 ) ) + dot( seat.xz, vec2f( 0.31, 0.23 ) ) + h.x * 1.2;
-		let rad = vec3f( cos( th ), 0.0, sin( th ) );
-		let tan = vec3f( - sin( th ), 0.0, cos( th ) );
-		let sd = select( 1.0, - 1.0, info.z > 0.5 );
-		let tip = info.y > 0.5;
-		let spin = hand + select( tan * sd * 0.07 + vec3f( 0.0, 0.03, 0.0 ), rad * 0.36 + tan * sd * 0.1 + vec3f( 0.0, 0.1 + 0.05 * sin( th * 2.0 ), 0.0 ), tip );
-		if ( tip ) { p.x += sin( t * 9.0 + h.w * 50.0 ) * 0.16 * aU; p.z += cos( t * 7.0 + h.z * 20.0 ) * 0.06 * aU; }
-		p = mix( p, spin, tw );
-	}
-
-	// the head: a hood or a poncho's hood round it, a knit hat's peak, turned to talk or look down
-	let headC = mix( ${ f3( SIT.head ) }, ${ f3( STAND.head ) }, st );
-	var local = info.zyw;
-	if ( part == 3u || part == 4u || part == 10u ) {
-		local = p - headC;
-		if ( part == 3u ) {
-			if ( hood ) { p = headC + local * 1.16; }
-			if ( info.y > 0.5 && ( hat == 3u || hat == 7u ) ) { p.y += 0.045; }
-		}
-		// a ponytail: the long hair narrowed
-		if ( part == 10u && hairStyle == 3u ) { p.x = headC.x + ( p.x - headC.x ) * 0.32; p.y -= 0.03; }
-		let piv = mix( ${ f3( SIT.neck ) }, ${ f3( STAND.neck ) }, st );
-		let cy = cos( yaw ); let sy = sin( yaw ); let cp = cos( pitch ); let sp = sin( pitch );
-		var q = p - piv;
-		q = vec3f( q.x * cy + q.z * sy, q.y, - q.x * sy + q.z * cy );
-		q = vec3f( q.x, q.y * cp + q.z * sp, - q.y * sp + q.z * cp );
-		p = piv + q;
-		n = vec3f( n.x * cy + n.z * sy, n.y, - n.x * sy + n.z * cy );
-	}
-
-	// his build (broad, a belly), a kid's size (still sat on the seat, feet off the tread)
+	// his build (broad, a belly), a kid's size
 	var WIDE = array<f32, 4>( 0.92, 1.0, 1.12, 1.26 );
 	let wide = select( WIDE[ build ], 0.93, female == 1u );
-	if ( part != 3u && part != 4u && part != 10u ) {
-		p.x *= wide;
-		if ( part == 0u && info.w < 0.0 ) { p.z += info.w * ( wide - 1.0 ) * 1.4; }
-	}
 	let sc = select( select( 0.97 + h.y * 0.08, 0.92, age == 3u ), 0.64 + h.z * 0.1, age == 2u );
-	p = p * sc;
-	p.y += ( 1.0 - sc ) * 0.47 * ( 1.0 - st );
 
-	// up and down with the jumping, a little sway
-	p.y += max( 0.0, sin( t * 8.0 + h.w * 30.0 ) ) * 0.14 * jump;
-	p.x += sin( t * 0.6 + h.z * 20.0 ) * 0.012 * ( p.y - 0.45 );
+	// what he's wearing and holding (the trunk, legs, hands, head, sleeves and neck always)
+	var keep = 207u;
+	if ( capped && ! hood ) { keep |= 1u << 4u; }
+	if ( towel == 1u && ! isRays ) { keep |= 1u << 5u; }
+	if ( prop != 0u ) { keep |= 1u << 8u; }
+	if ( sg != 0u ) { keep |= 1u << 9u; }
+	if ( ( hairStyle == 1u || hairStyle == 3u ) && ! hood && ! capped ) { keep |= 1u << 10u; }
+	if ( blanket == 1u ) { keep |= 1u << 11u; }
+	let flags = keep | select( 0u, 1u << 12u, hood ) | select( 0u, 1u << 13u, hat == 3u || hat == 7u ) | select( 0u, 1u << 14u, hairStyle == 3u ) | select( 0u, 1u << ${ PONCHO_BIT }u, poncho );
 
-	// nothing of what he isn't wearing or holding
-	var keep = true;
-	if ( part == 4u ) { keep = capped && ! hood; }
-	if ( part == 5u ) { keep = towel == 1u && ! isRays; }
-	if ( part == 8u ) { keep = prop != 0u; }
-	if ( part == 9u ) { keep = sg != 0u; }
-	if ( part == 10u ) { keep = ( hairStyle == 1u || hairStyle == 3u ) && ! hood && ! capped; }
-	if ( part == 11u ) { keep = blanket == 1u; }
-	o.p = select( vec3f( 0.0 ), p, keep );
-	o.n = n;
-	o.local = local;
-	o.fx = vec4f( max( upAll, jump ), select( 0.0, 1.0, poncho ), select( 0.0, 1.0, hood ), 0.0 );
+	var o: CwFanPose;
+	o.r0 = vec4f( st, aUL, aUR, face * ( 1.0 - aUL ) );
+	o.r1 = vec4f( face * ( 1.0 - aUR ), tw, th, yaw );
+	o.r2 = vec4f( max( 0.0, sin( t * 8.0 + h.w * 30.0 ) ) * 0.14 * jump, sin( t * 0.6 + h.z * 20.0 ) * 0.012, sin( t * 9.0 + h.w * 50.0 ) * 0.16, cos( t * 7.0 + h.z * 20.0 ) * 0.06 );
+	o.r3 = vec4f( wide, sc, max( upAll, jump ), f32( flags ) );
 	return o;
 }
-`,
-} );
 
-function crowdMaterial( lod ) {
+struct CwFanLook { c0: vec4f, c1: vec4f, c2: vec4f, c3: vec4f, c4: vec4f, c5: vec4f };
 
-	const call = ( t ) => `cwPose( v.position, v.normal, v.aStand, v.aStandN, v.aSitUp, v.aStandUp, v.aSitFace, v.aStandFace, v.aInfo, ids, h, seat, ${ t } )`;
-	const mat = standard( {
-		name: 'crowd-' + [ 'near', 'mid', 'far' ][ lod ], roughness: 0.8, side: 'double',
-		modules: [ crowdModule ],
-		defines: { CROWD_LOD: lod },
-		uniforms: {
-			// the reaction: its mood before (A) and after (B) (stand, arms up, towels, jumping), where it
-			// started (x, z) and how fast it spreads (1 / speed), and how long ago
-			moodA: [ 'vec4f', new Vector4() ], moodB: [ 'vec4f', new Vector4() ], ripple: [ 'vec4f', new Vector4( 0, 0, 0.02, 99 ) ],
-			// clapping, the chant, tension, camera flashes
-			act1: [ 'vec4f', new Vector4() ],
-			// gone for beer, sheltering from the rain, gone home, stepped out into the aisle
-			act2: [ 'vec4f', new Vector4() ],
-			// the Rays fans standing and cheering, signs shown, the late innings
-			act3: [ 'vec4f', new Vector4() ],
-			// hugging, the stretch, looking up at a fly ball, the second night
-			act4: [ 'vec4f', new Vector4() ],
-			// time, dt, rain
-			misc: [ 'vec4f', new Vector4( 0, 0.016, 0, 0 ) ],
-		},
-		attributes: { aStand: 'vec3f', aStandN: 'vec3f', aSitUp: 'vec3f', aStandUp: 'vec3f', aSitFace: 'vec3f', aStandFace: 'vec3f', aInfo: 'vec4f' },
-		varyings: { vPart: 'u32', vIds: 'vec3u', vH: 'vec4f', vLocal: 'vec3f', vFx: 'vec4f' },
-		vertex: /* wgsl */`
-	// who sits here: three integers from the CPU (Crowd._dress) in the instance colour
-	let ids = vec3u( v.color.rgb + vec3f( 0.5 ) );
-	v.color = vec4f( 1.0 );
-	let h = cwRand4( ids.x & 0xffffu );
-	let seat = ( v.model * vec4f( 0.0, 0.0, 0.0, 1.0 ) ).xyz;
-	let cur = ${ call( 'mat.misc.x' ) };
-#if CROWD_LOD == 0
-	let prev = ${ call( 'mat.misc.x - mat.misc.y' ) };
-	v.prevWorldPos = select( ( v.prevModel * vec4f( prev.p, 1.0 ) ).xyz, ( v.prevModel * vec4f( 0.0, 0.0, 0.0, 1.0 ) ).xyz, all( cur.p == vec3f( 0.0 ) ) );
-#else
-	v.prevWorldPos = ( v.prevModel * vec4f( cur.p, 1.0 ) ).xyz;
-#endif
-	v.useWorld = true;
-	v.worldPos = ( v.model * vec4f( cur.p, 1.0 ) ).xyz;
-	v.worldNormal = normalize( ( v.model * vec4f( cur.n, 0.0 ) ).xyz );
-	o.vPart = u32( v.aInfo.x + 0.5 ) & 15u;
-	o.vIds = ids;
-	o.vH = h;
-	o.vLocal = cur.local;
-	o.vFx = cur.fx;
-`,
-		surface: /* wgsl */`
-	let part = in.vs.vPart;
-	let ids = in.vs.vIds;
-	let h = in.vs.vH;
-	let L = in.vs.vLocal;
-	let fx = in.vs.vFx;
+// his colours: skin (and the base roughness), hair (and a number for his stubble), the jacket or
+// jersey (and his look's bits), the trousers, the cap, the knit hat
+fn cwFanLook( ids: vec3u, h: vec4f, poncho: bool ) -> CwFanLook {
 	let look = ids.y;
 	let act = ids.z;
-	let outfit = look & 31u;
 	let hat = ( look >> 10u ) & 7u;
-	let hairStyle = ( look >> 13u ) & 3u;
-	let facial = ( look >> 15u ) & 3u;
-	let glasses = ( ( look >> 17u ) & 1u ) == 1u;
-	let age = ( look >> 21u ) & 3u;
-	let female = ( ( look >> 23u ) & 1u ) == 1u;
 	let skinI = ( ids.x >> 16u ) & 7u;
 	let hairI = ( ids.x >> 19u ) & 7u;
 	let isRays = ( ( act >> 18u ) & 1u ) == 1u;
-	let poncho = fx.y > 0.5;
-	let hood = fx.z > 0.5;
 	let g = fract( h * vec4f( 3.1, 5.7, 7.3, 11.9 ) + h.yzwx );
-	let nk = smoothstep( 0.15, 0.7, frame.night );
 
 	// skin: pale to dark; hair: black, browns, blond, red, grey, white
 	var SKIN = array<vec3f, 8>( vec3f( 0.62, 0.42, 0.32 ), vec3f( 0.56, 0.36, 0.25 ), vec3f( 0.5, 0.31, 0.2 ), vec3f( 0.42, 0.25, 0.15 ), vec3f( 0.3, 0.17, 0.1 ), vec3f( 0.2, 0.11, 0.06 ), vec3f( 0.12, 0.065, 0.04 ), vec3f( 0.5, 0.34, 0.2 ) );
 	var HAIR = array<vec3f, 8>( vec3f( 0.016, 0.012, 0.01 ), vec3f( 0.04, 0.024, 0.014 ), vec3f( 0.1, 0.058, 0.03 ), vec3f( 0.19, 0.12, 0.06 ), vec3f( 0.4, 0.29, 0.14 ), vec3f( 0.28, 0.08, 0.03 ), vec3f( 0.26, 0.25, 0.24 ), vec3f( 0.58, 0.57, 0.55 ) );
-	let skin = SKIN[ skinI ];
-	let hairC = HAIR[ hairI ] * mix( 1.0, 0.7, frame.wet );
 
 	// the jacket or jersey: mostly Phillies red, then white, black, grey, navy, maroon, powder blue
 	var shirt = mix( vec3f( 0.22, 0.012, 0.016 ), vec3f( 0.36, 0.022, 0.028 ), g.x );
@@ -574,9 +475,186 @@ function crowdMaterial( lod ) {
 	// knit hats: Phillies red with a white band, or grey, black, cream, navy
 	let knit = select( select( select( vec3f( 0.09 ), vec3f( 0.012 ), g.z > 0.5 ), vec3f( 0.5, 0.47, 0.4 ), g.z > 0.8 ), vec3f( 0.36, 0.02, 0.03 ), hat == 3u );
 
+	var o: CwFanLook;
+	o.c0 = vec4f( SKIN[ skinI ], rough );
+	o.c1 = vec4f( HAIR[ hairI ], g.w );
+	o.c2 = vec4f( shirt, f32( look ) );
+	o.c3 = vec4f( pants, 0.0 );
+	o.c4 = vec4f( capC, 0.0 );
+	o.c5 = vec4f( knit, 0.0 );
+	return o;
+}
+
+@compute @workgroup_size( WG_X, 1, 1 )
+fn main( @builtin( global_invocation_id ) gid: vec3u ) {
+	let i = gid.x;
+	if ( i >= u32( cw.misc.w + 0.5 ) ) { return; }
+	let ids = cwIds[ i ].xyz;
+	let seat = cwSeats[ i ].xyz;
+	let h = cwRand4( ids.x & 0xffffu );
+	let cur = cwFanPose( ids, h, seat, cw.misc.x );
+	let prev = cwFanPose( ids, h, seat, cw.misc.x - cw.misc.y );
+	let b = i * 8u;
+	cwPoseBuf[ b ] = cur.r0;
+	cwPoseBuf[ b + 1u ] = cur.r1;
+	cwPoseBuf[ b + 2u ] = cur.r2;
+	cwPoseBuf[ b + 3u ] = cur.r3;
+	cwPoseBuf[ b + 4u ] = prev.r0;
+	cwPoseBuf[ b + 5u ] = prev.r1;
+	cwPoseBuf[ b + 6u ] = prev.r2;
+	cwPoseBuf[ b + 7u ] = prev.r3;
+	let lk = cwFanLook( ids, h, ( ( u32( cur.r3.w + 0.5 ) >> ${ PONCHO_BIT }u ) & 1u ) == 1u );
+	let c = i * 6u;
+	cwLookBuf[ c ] = lk.c0;
+	cwLookBuf[ c + 1u ] = lk.c1;
+	cwLookBuf[ c + 2u ] = lk.c2;
+	cwLookBuf[ c + 3u ] = lk.c3;
+	cwLookBuf[ c + 4u ] = lk.c4;
+	cwLookBuf[ c + 5u ] = lk.c5;
+}
+`;
+
+// The vertex: where this vertex of fan `fan` is, from the pose the compute pass worked out for him (prev:
+// last frame's, for the motion vectors)
+const crowdModule = new ShaderModule( {
+	name: 'crowd',
+	code: /* wgsl */`
+struct CwPose {
+	p: vec3f,
+	n: vec3f,
+	local: vec3f,
+};
+
+fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, standUp: vec3f, sitFace: vec3f, standFace: vec3f, info: vec4f, fan: u32, prev: bool ) -> CwPose {
+	let b = fan * 8u + select( 0u, 4u, prev );
+	let r0 = cwPoseBuf[ b ];
+	let r1 = cwPoseBuf[ b + 1u ];
+	let r2 = cwPoseBuf[ b + 2u ];
+	let r3 = cwPoseBuf[ b + 3u ];
+	let st = r0.x;
+	let flags = u32( r3.w + 0.5 );
+	var o: CwPose;
+	let code = u32( info.x + 0.5 );
+	let part = code & 15u;
+	let side = f32( code >> 4u ) - 1.0;
+
+	// the morph: each arm raised or at the face, standing or sitting
+	let isL = side < - 0.5;
+	let isR = side > 0.5;
+	let aU = select( select( 0.0, r0.z, isR ), r0.y, isL );
+	let aF = select( select( 0.0, r1.x, isR ), r0.w, isL );
+	var p = mix( pos + sitUp * aU + sitFace * aF, stp + standUp * aU + standFace * aF, st );
+	var n = normalize( mix( nrm, stn, st ) );
+
+	// the towel: spun round over the head, flapping a little held still
+	if ( part == 5u ) {
+		let hand = mix( ${ f3( SIT_UP.hand ) }, ${ f3( STAND_UP.hand ) }, st );
+		let th = r1.z;
+		let rad = vec3f( cos( th ), 0.0, sin( th ) );
+		let tan = vec3f( - sin( th ), 0.0, cos( th ) );
+		let sd = select( 1.0, - 1.0, info.z > 0.5 );
+		let tip = info.y > 0.5;
+		let spin = hand + select( tan * sd * 0.07 + vec3f( 0.0, 0.03, 0.0 ), rad * 0.36 + tan * sd * 0.1 + vec3f( 0.0, 0.1 + 0.05 * sin( th * 2.0 ), 0.0 ), tip );
+		if ( tip ) { p.x += r2.z * aU; p.z += r2.w * aU; }
+		p = mix( p, spin, r1.y );
+	}
+
+	// the head: a hood or a poncho's hood round it, a knit hat's peak, turned to talk
+	let headC = mix( ${ f3( SIT.head ) }, ${ f3( STAND.head ) }, st );
+	var local = info.zyw;
+	if ( part == 3u || part == 4u || part == 10u ) {
+		local = p - headC;
+		if ( part == 3u ) {
+			if ( ( flags & ( 1u << 12u ) ) != 0u ) { p = headC + local * 1.16; }
+			if ( info.y > 0.5 && ( flags & ( 1u << 13u ) ) != 0u ) { p.y += 0.045; }
+		}
+		// a ponytail: the long hair narrowed
+		if ( part == 10u && ( flags & ( 1u << 14u ) ) != 0u ) { p.x = headC.x + ( p.x - headC.x ) * 0.32; p.y -= 0.03; }
+		let piv = mix( ${ f3( SIT.neck ) }, ${ f3( STAND.neck ) }, st );
+		let cy = cos( r1.w );
+		let sy = sin( r1.w );
+		let q = p - piv;
+		p = piv + vec3f( q.x * cy + q.z * sy, q.y, - q.x * sy + q.z * cy );
+		n = vec3f( n.x * cy + n.z * sy, n.y, - n.x * sy + n.z * cy );
+	}
+
+	// his build (broad, a belly), a kid's size (still sat on the seat, feet off the tread)
+	if ( part != 3u && part != 4u && part != 10u ) {
+		p.x *= r3.x;
+		if ( part == 0u && info.w < 0.0 ) { p.z += info.w * ( r3.x - 1.0 ) * 1.4; }
+	}
+	p = p * r3.y;
+	p.y += ( 1.0 - r3.y ) * 0.47 * ( 1.0 - st );
+
+	// up and down with the jumping, a little sway
+	p.y += r2.x;
+	p.x += r2.y * ( p.y - 0.45 );
+
+	// nothing of what he isn't wearing or holding
+	o.p = select( vec3f( 0.0 ), p, ( ( flags >> part ) & 1u ) == 1u );
+	o.n = n;
+	o.local = local;
+	return o;
+}
+`,
+} );
+
+function crowdMaterial( lod, poseBuf, lookBuf ) {
+
+	const call = ( prev ) => `cwVertex( v.position, v.normal, v.aStand, v.aStandN, v.aSitUp, v.aStandUp, v.aSitFace, v.aStandFace, v.aInfo, fan, ${ prev } )`;
+	const mat = standard( {
+		name: 'crowd-' + [ 'near', 'mid', 'far' ][ lod ], roughness: 0.8, side: 'double',
+		modules: [ crowdModule ],
+		defines: { CROWD_LOD: lod },
+		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf },
+		attributes: { aStand: 'vec3f', aStandN: 'vec3f', aSitUp: 'vec3f', aStandUp: 'vec3f', aSitFace: 'vec3f', aStandFace: 'vec3f', aInfo: 'vec4f' },
+		varyings: { vPart: 'u32', vFan: 'u32', vLocal: 'vec3f' },
+		vertex: /* wgsl */`
+	// which fan: the chunk's first (Crowd.addChunk) and his seat in it
+	let fan = u32( draw.params.y + 0.5 ) + v.instance;
+	let cur = ${ call( 'false' ) };
+#if CROWD_LOD == 0
+	let prev = ${ call( 'true' ) };
+	v.prevWorldPos = select( ( v.prevModel * vec4f( prev.p, 1.0 ) ).xyz, ( v.prevModel * vec4f( 0.0, 0.0, 0.0, 1.0 ) ).xyz, all( cur.p == vec3f( 0.0 ) ) );
+#else
+	v.prevWorldPos = ( v.prevModel * vec4f( cur.p, 1.0 ) ).xyz;
+#endif
+	v.useWorld = true;
+	v.worldPos = ( v.model * vec4f( cur.p, 1.0 ) ).xyz;
+	v.worldNormal = normalize( ( v.model * vec4f( cur.n, 0.0 ) ).xyz );
+	o.vPart = u32( v.aInfo.x + 0.5 ) & 15u;
+	o.vFan = fan;
+	o.vLocal = cur.local;
+`,
+		surface: /* wgsl */`
+	let part = in.vs.vPart;
+	let fan = in.vs.vFan;
+	let L = in.vs.vLocal;
+	// his colours and his pose's flags (the compute pass)
+	let k = fan * 6u;
+	let c0 = cwLookBuf[ k ];
+	let c1 = cwLookBuf[ k + 1u ];
+	let c2 = cwLookBuf[ k + 2u ];
+	let r3 = cwPoseBuf[ fan * 8u + 3u ];
+	let flags = u32( r3.w + 0.5 );
+	let poncho = ( flags & ( 1u << ${ PONCHO_BIT }u ) ) != 0u;
+	let hood = ( flags & ( 1u << 12u ) ) != 0u;
+	let look = u32( c2.w + 0.5 );
+	let hat = ( look >> 10u ) & 7u;
+	let hairStyle = ( look >> 13u ) & 3u;
+	let facial = ( look >> 15u ) & 3u;
+	let glasses = ( ( look >> 17u ) & 1u ) == 1u;
+	let age = ( look >> 21u ) & 3u;
+	let female = ( ( look >> 23u ) & 1u ) == 1u;
+	let nk = smoothstep( 0.15, 0.7, frame.night );
+	let skin = c0.rgb;
+	let hairC = c1.rgb * mix( 1.0, 0.7, frame.wet );
+	let shirt = c2.rgb;
+	var rough = c0.w;
+
 	var c = shirt;
 	var e = vec3f( 0.0 );
-	if ( part == 1u ) { c = pants; rough = 0.9; }
+	if ( part == 1u ) { c = cwLookBuf[ k + 3u ].rgb; rough = 0.9; }
 	if ( part == 2u ) { c = skin; rough = 0.6; }
 	if ( part == 7u ) { c = select( skin, shirt, L.y < 0.35 ); }
 	if ( part == 3u ) {
@@ -605,7 +683,7 @@ function crowdMaterial( lod ) {
 		c *= 1.0 + 0.1 * smoothstep( 0.1, 0.03, ax ) * step( - 0.18, d.y ) * step( d.y, 0.22 ) * front;
 		c *= mix( 1.0, 0.72, smoothstep( 0.1, 0.03, length( vec2f( d.x * 0.8, d.y + 0.24 ) ) ) * front );
 		// the mouth: lips (redder on the women), open when he shouts
-		let open = fx.x;
+		let open = r3.z;
 		let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / ( 0.05 + 0.13 * open ) ) );
 		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), female );
 		c = mix( c, mix( lip, vec3f( 0.06, 0.02, 0.02 ), smoothstep( 0.3, 0.7, open ) ), smoothstep( 1.0, 0.7, mo ) * front );
@@ -613,7 +691,7 @@ function crowdMaterial( lod ) {
 		if ( facial == 1u || facial == 3u ) { c = mix( c, hairC, smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.3 ) * front ); }
 		if ( facial == 2u ) { c = mix( c, hairC, ( smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.28 ) + step( d.y, - 0.5 ) * step( ax, 0.24 ) ) * front ); }
 		if ( facial == 3u ) { c = mix( c, hairC, step( d.y, - 0.2 ) * step( d.z, 0.4 ) * step( 0.55, mo ) * smoothstep( 0.95, 0.8, ax + max( 0.0, d.y + 0.2 ) ) ); }
-		if ( facial == 0u && ! female && age != 2u && g.w < 0.35 ) { c *= mix( vec3f( 1.0 ), vec3f( 0.82, 0.84, 0.88 ), step( d.y, - 0.2 ) * step( d.z, 0.3 ) * step( 0.8, mo ) ); }
+		if ( facial == 0u && ! female && age != 2u && c1.w < 0.35 ) { c *= mix( vec3f( 1.0 ), vec3f( 0.82, 0.84, 0.88 ), step( d.y, - 0.2 ) * step( d.z, 0.3 ) * step( 0.8, mo ) ); }
 		// glasses: thin dark frames round the eyes and over the nose
 		if ( glasses ) {
 			let ring = abs( length( ey * vec2f( 1.0, 1.25 ) ) - 0.17 );
@@ -632,9 +710,10 @@ function crowdMaterial( lod ) {
 		if ( hairStyle == 2u ) { hairy = d.y > - 0.35 && d.y < 0.2 + 0.15 * smoothstep( 0.2, 0.8, d.z ) && d.z > - 0.15; rough = select( rough, 0.3, d.y > 0.2 ); }
 		if ( hairy ) { c = hairC; rough = 0.7; }
 		// a cap (a logo panel in front), a knit hat (a folded cuff, ribs, a pom-pom), a hood round the face
-		if ( ( hat == 1u || hat == 2u || hat == 5u || hat == 6u ) && d.y > 0.26 - 0.12 * smoothstep( - 0.2, 0.6, d.z ) ) { c = capC; rough = 0.8; }
+		if ( ( hat == 1u || hat == 2u || hat == 5u || hat == 6u ) && d.y > 0.26 - 0.12 * smoothstep( - 0.2, 0.6, d.z ) ) { c = cwLookBuf[ k + 4u ].rgb; rough = 0.8; }
 		if ( hat == 3u || hat == 7u ) {
 			if ( d.y > 0.14 ) {
+				let knit = cwLookBuf[ k + 5u ].rgb;
 				c = knit * ( 0.9 + 0.1 * sin( atan2( d.x, d.z ) * 36.0 ) );
 				if ( d.y < 0.34 ) { c = knit * 0.8; }
 				if ( hat == 3u && abs( d.y - 0.55 ) < 0.07 ) { c = vec3f( 0.6, 0.58, 0.54 ); }
@@ -647,7 +726,7 @@ function crowdMaterial( lod ) {
 			if ( d.z > - 0.35 || oval > 0.72 ) { c = shirt * select( 1.0, 0.55, oval < 0.85 && d.z < - 0.2 ); rough = select( 0.85, 0.22, poncho ); }
 		}
 	}
-	if ( part == 4u ) { c = capC; }
+	if ( part == 4u ) { c = cwLookBuf[ k + 4u ].rgb; }
 	if ( part == 5u ) { c = vec3f( 0.8, 0.79, 0.76 ); rough = 0.9; }
 	if ( part == 10u ) { c = hairC; rough = 0.7; }
 	// lit by the stands' fill after dark, as the seats are
@@ -749,7 +828,20 @@ export class Crowd {
 	constructor() {
 
 		this.geometries = [ 0, 1, 2 ].map( ( k ) => fanGeometry( k ) );
-		this.materials = [ 0, 1, 2 ].map( ( k ) => crowdMaterial( k ) );
+		// who each fan is and where he sits (written once, when the stands are done), and what the compute
+		// pass works out for him each frame (see cwHashModule)
+		this.idsBuf = new StorageBuffer( { label: 'crowd ids', count: MAX_FANS, type: 'vec4u' } );
+		this.seatsBuf = new StorageBuffer( { label: 'crowd seats', count: MAX_FANS, type: 'vec4f' } );
+		this.poseBuf = new StorageBuffer( { label: 'crowd pose', count: MAX_FANS * 8, type: 'vec4f' } );
+		this.lookBuf = new StorageBuffer( { label: 'crowd look', count: MAX_FANS * 6, type: 'vec4f' } );
+		// the reaction: its mood before (A) and after (B) (stand, arms up, towels, jumping), where it started
+		// (x, z) and how fast it spreads (1 / speed), and how long ago; clapping, the chant, tension; the
+		// Rays fans standing and cheering; time, dt, rain and how many fans
+		this.params = new UniformBlock( 'CrowdParams', {
+			moodA: [ 'vec4f', new Vector4() ], moodB: [ 'vec4f', new Vector4() ], ripple: [ 'vec4f', new Vector4( 0, 0, 0.02, 99 ) ],
+			act1: [ 'vec4f', new Vector4() ], act3: [ 'vec4f', new Vector4() ], misc: [ 'vec4f', new Vector4( 0, 0.016, 0, 0 ) ],
+		} );
+		this.materials = [ 0, 1, 2 ].map( ( k ) => crowdMaterial( k, this.poseBuf, this.lookBuf ) );
 		this.geometry = this.geometries[ 0 ];
 		this.material = this.materials[ 0 ];
 		this.chunks = [];
@@ -803,14 +895,17 @@ export class Crowd {
 	addChunk( group, mats, name, info = [] ) {
 
 		if ( this.off || ! mats.length ) return;
-		const ids = new InstancedBufferAttribute( this._dress( mats, name, info ), 3 );
+		if ( this.count + mats.length > MAX_FANS ) throw new Error( `Crowd: more than ${ MAX_FANS } fans (raise MAX_FANS)` );
+		const ids = this._dress( mats, name, info );
+		// the chunk's first fan in the crowd's buffers (draw.params.y)
+		const base = this.count;
 		let first = null;
 		const make = ( k, suffix ) => {
 
 			const mesh = new InstancedMesh( this.geometries[ k ], this.materials[ k ], mats.length );
 			if ( first ) mesh.instanceMatrix = first.instanceMatrix;
 			else mats.forEach( ( m, i ) => mesh.setMatrixAt( i, m ) );
-			mesh.instanceColor = ids;
+			mesh.drawParams = [ base, 0, 0 ];
 			mesh.computeBoundingBox();
 			mesh.computeBoundingSphere();
 			mesh.name = name + suffix;
@@ -824,7 +919,7 @@ export class Crowd {
 
 		};
 
-		this.chunks.push( { near: make( 0, '-crowd' ), mid: make( 1, '-crowd-mid' ), far: make( 2, '-crowd-far' ) } );
+		this.chunks.push( { near: make( 0, '-crowd' ), mid: make( 1, '-crowd-mid' ), far: make( 2, '-crowd-far' ), ids, base } );
 		this.count += mats.length;
 
 	}
@@ -919,15 +1014,48 @@ export class Crowd {
 		const k = 1 - Math.exp( - dt * 2.5 );
 		for ( const key of [ 'stand', 'cheer', 'clap', 'jump', 'towel' ] ) this._mood[ key ] += ( target[ key ] - this._mood[ key ] ) * k;
 		const M = this._mood;
-		for ( const mat of this.materials ) {
+		const U = this.params.fields;
+		U.moodA.value.set( M.stand, M.cheer, M.towel, M.jump );
+		U.moodB.value.set( M.stand, M.cheer, M.towel, M.jump );
+		U.act1.value.set( M.clap, 0, 0, 0 );
+		U.misc.value.set( this.time, dt, rain, this.count );
+		if ( ! this.count ) return;
+		if ( ! this._kernel ) this._seat();
+		this._kernel.dispatch( Math.ceil( this.count / 64 ) );
 
-			const U = mat.uniforms;
-			U.moodA.value.set( M.stand, M.cheer, M.towel, M.jump );
-			U.moodB.value.set( M.stand, M.cheer, M.towel, M.jump );
-			U.act1.value.set( M.clap, 0, 0, 0 );
-			U.misc.value.set( this.time, dt, rain, 0 );
+	}
+
+	// once the stands are built (the first frame): who each fan is and where he sits, into the buffers
+	// the compute pass reads, and the pass itself
+	_seat() {
+
+		const ids = new Uint32Array( this.count * 4 ), seats = new Float32Array( this.count * 4 );
+		const m = new Matrix4(), w = new Matrix4();
+		for ( const ch of this.chunks ) {
+
+			const mesh = ch.near, im = mesh.instanceMatrix.array;
+			mesh.updateWorldMatrix( true, false );
+			for ( let i = 0; i < mesh.count; i ++ ) {
+
+				const f = ch.base + i;
+				for ( let k = 0; k < 3; k ++ ) ids[ f * 4 + k ] = ch.ids[ i * 3 + k ];
+				w.multiplyMatrices( mesh.matrixWorld, m.fromArray( im, i * 16 ) );
+				seats.set( [ w.elements[ 12 ], w.elements[ 13 ], w.elements[ 14 ], 0 ], f * 4 );
+
+			}
 
 		}
+
+		this.idsBuf.write( ids );
+		this.seatsBuf.write( seats );
+		this._kernel = new ComputeKernel( {
+			label: 'crowd', modules: [ cwHashModule ], workgroupSize: [ 64, 1, 1 ],
+			bindings: {
+				cw: { uniform: this.params }, cwIds: { storage: this.idsBuf }, cwSeats: { storage: this.seatsBuf },
+				cwPoseBuf: { storage: this.poseBuf, access: 'read_write' }, cwLookBuf: { storage: this.lookBuf, access: 'read_write' },
+			},
+			code: kernelCode,
+		} );
 
 	}
 
