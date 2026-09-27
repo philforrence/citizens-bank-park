@@ -11,7 +11,7 @@ import { BONE, J, pose, boneXf, apply, unapply, unrotate, FOLK_FK } from './Folk
 // shoes, a jacket over the belt) posed by eleven rigid bones in the vertex shader (FolkRig.js), dressed
 // in the fragment shader from a 24-bit look (what he wears, his skin, hair, beard, glasses, a kid, a
 // woman), and carrying what his props bits say: an umbrella, a poncho and its hood, a ticket, a beer, a
-// flip phone, a program, a rally towel, a glove, a vendor's tray, a scanner, a wand, a microphone...
+// flip phone, a program, a rally towel, a glove, a vendor's tray, a scanner, a bag of peanuts, a microphone...
 // Each prop is built into its bone's rest frame (at the pose it's held in), so it stays in the hand.
 //
 //   const folk = new Folk( parent );
@@ -24,7 +24,7 @@ const K = 4; // vec4s per figure
 // the props: which bit shows them
 export const PROP = {
 	brim: 0, pom: 1, hood: 2, poncho: 3, bag: 4, backpack: 5, umbrella: 6, cup: 7, phone: 8, ticket: 9,
-	program: 10, towel: 11, scanner: 12, wand: 13, flash: 14, sign: 15, tray: 16, mic: 17, glove: 18, hair: 19,
+	program: 10, towel: 11, scanner: 12, sack: 13, flash: 14, sign: 15, tray: 16, mic: 17, glove: 18, hair: 19,
 	shopbag: 20, fan: 21, radio: 22, badge: 23,
 };
 // what each vertex is (the fragment shader colours by it)
@@ -378,15 +378,17 @@ function props( m, rig ) {
 		s.box( [ hS[ 0 ], hS[ 1 ] - 0.04, hS[ 2 ] + 0.0 ], [ 0.04, 0.09, 0.045 ] );
 
 	} );
-	// security's wand, and a flashlight in the other hand
-	const qW = pose( { flexR: 0.3, abductR: 0.1, elbowR: 0.9 } );
+	// a brown paper bag of peanuts held out by its rolled top (the bit once meant for a wand: there were
+	// none in 2008)
+	const qW = pose( { flexR: 0.75, abductR: 0.1, elbowR: 0.7 } );
 	const hW = handR( qW );
-	held( B.foreR, qW, T.wand, P.wand, ( s ) => {
+	held( B.foreR, qW, T.wand, P.sack, ( s ) => {
 
-		s.box( [ hW[ 0 ], hW[ 1 ], hW[ 2 ] - 0.02 ], [ 0.035, 0.035, 0.16 ] );
-		s.box( [ hW[ 0 ], hW[ 1 ], hW[ 2 ] - 0.24 ], [ 0.018, 0.075, 0.28 ] );
+		s.box( [ hW[ 0 ], hW[ 1 ] - 0.13, hW[ 2 ] ], [ 0.13, 0.2, 0.08 ] );
+		s.box( [ hW[ 0 ], hW[ 1 ] - 0.015, hW[ 2 ] ], [ 0.12, 0.05, 0.035 ] );
 
 	} );
+	// a flashlight in the other hand
 	const qF = pose( { flexL: 0.4, abductL: 0.1, elbowL: 1.0 } );
 	const hF = handL( qF );
 	held( B.foreL, qF, T.flash, P.flash, ( s ) => s.tube( [ [ hF[ 0 ], hF[ 1 ], hF[ 2 ] + 0.05 ], [ hF[ 0 ], hF[ 1 ] + 0.01, hF[ 2 ] - 0.14 ], [ hF[ 0 ], hF[ 1 ] + 0.012, hF[ 2 ] - 0.16 ] ], [ 0.018, 0.02, 0.026 ], 6, { capA: true, capB: true } ) );
@@ -821,7 +823,7 @@ function folkMaterial( info, moved, backs ) {
 		case 17: { c = mix( vec3f( 0.7, 0.68, 0.62 ), vec3f( 0.08, 0.1, 0.3 ), step( 0.5, fract( in.uv.x * 3.0 ) ) ); }
 		case 18: { c = select( vec3f( 0.8, 0.79, 0.76 ), red, fract( seed * 3.3 ) < 0.35 ); rough = 0.95; }
 		case 19: { c = vec3f( 0.02 ); if ( in.uv.y > 0.8 ) { c = vec3f( 0.5, 0.02, 0.02 ); e = vec3f( 0.8, 0.02, 0.02 ) * night; } }
-		case 20: { c = vec3f( 0.02 ); rough = 0.4; }
+		case 20: { c = vec3f( 0.36, 0.24, 0.13 ) * ( 0.85 + 0.25 * fract( L.y * 37.0 ) ); rough = 0.95; } // brown paper
 		case 21: { c = vec3f( 0.04 ); metal = 0.7; rough = 0.3; }
 		case 22: {
 			// cardboard, marker: NEED TIX

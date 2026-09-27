@@ -237,6 +237,91 @@ export class Cast {
 					p.flexL = 1.2; p.abductL = - 0.5; p.elbowL = 1.3; p.flexR = 1.2; p.abductR = - 0.5; p.elbowR = 1.3; p.lean = 0.12;
 					f.y = STREET + c.y0 + Math.max( 0, Math.sin( t * 4 ) ) * 0.06;
 					break;
+				case 'hawk': {
+
+					// the goods held up high, calling out, the head going from face to face
+					props |= 1 << PROP[ c.item || 'program' ];
+					const up = Math.sin( t * 0.35 ) > - 0.4;
+					p.flexR = up ? 2.1 + 0.15 * Math.sin( t * 2.2 ) : 0.4; p.abductR = 0.15; p.elbowR = up ? 0.9 : 1.3;
+					p.yaw = 0.7 * Math.sin( t * 0.4 ); p.pitch = 0.08 + 0.05 * Math.sin( t * 3.1 );
+					if ( c.umbrella && w.first ) props &= ~ ( 1 << PROP.umbrella );
+					break;
+
+				}
+
+				case 'sell': case 'buy': {
+
+					// a sale, on a shared clock (c.t starts together for the pair): the bag handed over, the
+					// money out of the pocket, counted, the change back, a word; then a lull
+					const k = t % 14;
+					const sell = c.act === 'sell';
+					if ( k < 2 ) {
+
+						// the bag across the cart
+						if ( sell ) { props |= 1 << PROP.sack; p.flexR = 0.75 * Math.min( 1, k * 2 ); p.elbowR = 0.7; p.lean = 0.1; }
+						else { p.flexR = 0.7 * Math.min( 1, ( k - 0.8 ) * 3 ); p.elbowR = 0.6; }
+
+					} else if ( k < 5 ) {
+
+						// money: out of the pocket, a bill held out
+						if ( sell ) { p.flexL = 0.5; p.elbowL = 1.5; p.pitch = - 0.3; }
+						else { props |= 1 << PROP.sack; p.flexR = 0.3; p.elbowR = 1.4; p.flexL = k < 3.5 ? - 0.3 : 0.8; p.elbowL = k < 3.5 ? 1.2 : 0.4; p.pitch = - 0.2; }
+
+					} else if ( k < 7.5 ) {
+
+						// counting it, the change out of the apron, back across
+						if ( sell ) { p.flexL = 0.5; p.elbowL = 1.6; p.flexR = k > 6.5 ? 0.8 : 0.5; p.elbowR = k > 6.5 ? 0.4 : 1.5; p.pitch = - 0.35; }
+						else { props |= 1 << PROP.sack; p.flexR = 0.3; p.elbowR = 1.4; p.flexL = k > 6.5 ? 0.7 : 0; p.elbowL = 0.4; }
+
+					} else {
+
+						// a word, the head going; the buyer off with his peanuts
+						p.yaw = 0.4 * Math.sin( t * 0.5 );
+						if ( ! sell ) { props |= 1 << PROP.sack; p.flexR = 0.3; p.elbowR = 1.4; }
+						else if ( k > 10 ) { props |= 1 << PROP.sack; p.flexR = 2.0; p.elbowR = 0.9; p.pitch = 0.1; }
+
+					}
+
+					break;
+
+				}
+
+				case 'scalp': {
+
+					// "Who needs tickets? Who's selling?": the tickets fanned and held up, walking the curb,
+					// a quick turn to anyone who looks
+					props |= 1 << PROP.fan;
+					const up = Math.sin( t * 0.5 ) > - 0.2;
+					p.flexR = up ? 2.3 : 0.6; p.abductR = up ? 0.2 : 0.1; p.elbowR = up ? 0.5 : 1.2;
+					p.yaw = 0.8 * Math.sin( t * 0.33 );
+					if ( c.pace ) {
+
+						const [ a, b ] = c.pace, s = ( Math.sin( t * 0.11 ) + 1 ) / 2;
+						const x = a[ 0 ] + ( b[ 0 ] - a[ 0 ] ) * s, z = a[ 1 ] + ( b[ 1 ] - a[ 1 ] ) * s;
+						const dx = x - f.x, dz = z - f.z, d = Math.hypot( dx, dz );
+						if ( d > 1e-4 ) {
+
+							const dd = Math.atan2( - dx, - dz ) - f.yaw;
+							f.yaw += Math.atan2( Math.sin( dd ), Math.cos( dd ) ) * Math.min( 1, 5 * dt );
+							f.walk = Math.min( 1, d / dt / 1.2 );
+							f.phase += d * 3.6;
+
+						}
+
+						f.x = x; f.z = z;
+
+					}
+
+					break;
+
+				}
+
+				case 'sign':
+					// a cardboard sign held at the chest, turned to the crowd
+					props |= 1 << PROP.sign;
+					p.flexL = 0.95; p.abductL = 0.05; p.elbowL = 0.85; p.flexR = 0.95; p.abductR = 0.05; p.elbowR = 0.85;
+					p.twist = 0.3 * Math.sin( t * 0.25 ); p.yaw = 0.3 * Math.sin( t * 0.4 );
+					break;
 				default:
 					if ( ! w.first && ! busyR ) {
 

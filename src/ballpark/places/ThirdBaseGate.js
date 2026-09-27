@@ -12,6 +12,7 @@ import { night } from './gate3b/Night.js';
 import { buildStore } from './gate3b/Store.js';
 import { Cast } from './gate3b/Cast.js';
 import { buildStreet, LIFT, pattisonZ, eleventhX } from './gate3b/Street.js';
+import { buildVendors } from './gate3b/Vendors.js';
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -54,6 +55,9 @@ export default class ThirdBaseGate {
 		this.cast = new Cast( this.folk, 41 );
 		this._storeCrowd();
 		this._statueCrowd();
+		// the street's economy: peanut carts, the shirt man, the scalpers, the poncho man (gate3b/Vendors.js)
+		this.vendors = buildVendors( { group: this.group, cast: this.cast, colliders, field } );
+		for ( const [ x, z ] of this.vendors.carts ) this.obstacles.push( [ x, z, 1.4 ] );
 
 	}
 
