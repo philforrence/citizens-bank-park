@@ -10,6 +10,7 @@ import { buildOpenGate } from './gate3b/Gate.js';
 import { night } from './gate3b/Night.js';
 import { buildStore } from './gate3b/Store.js';
 import { Cast } from './gate3b/Cast.js';
+import { buildStreet, LIFT, pattisonZ, eleventhX } from './gate3b/Street.js';
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -37,6 +38,9 @@ export default class ThirdBaseGate {
 		field.group.add( this.group );
 		this.gate = GATES[ 0 ];
 		this.obstacles = [];
+		// the plaza and the sidewalks a curb above the street (gate3b/Street.js)
+		this._lift( app );
+		this.street = buildStreet( this.group, colliders, field );
 		this._trees( app );
 		// the spot where you start: the crowd goes round you, not through you
 		this.obstacles.push( [ - 112, 78, 1.8 ] );
@@ -74,6 +78,78 @@ export default class ThirdBaseGate {
 			C.add( { at: p, face: [ p[ 0 ] + n[ 0 ] * 5, p[ 1 ] + n[ 1 ] * 5 ], act, noRainGear: true, when: till( 0.05 ) } );
 
 		}
+
+	}
+
+	// ---------------------------------------------------------------- the plaza's height
+
+	// The plaza stood a curb above the street, level with the sidewalks: its paving and what stands on
+	// it (Exterior's planters, benches, bollards, lamps, the statue) come up LIFT; the lamps' lights too
+	_lift( app ) {
+
+		const ex = app.exterior;
+		if ( ! ex ) return;
+		const skip = /^(facade|sidewalks|stair|channel|blade|suite|mcfaddens)/;
+		ex.group.updateMatrixWorld( true );
+		const box = { min: new Vector3(), max: new Vector3() };
+		for ( const o of ex.group.children ) {
+
+			if ( skip.test( o.name || '' ) ) continue;
+			// where it is: a mesh's box, a group's position
+			let x, z;
+			if ( o.isMesh ) {
+
+				o.geometry.computeBoundingBox?.();
+				const b = o.geometry.boundingBox;
+				if ( ! b ) continue;
+				x = ( b.min.x + b.max.x ) / 2 + o.position.x; z = ( b.min.z + b.max.z ) / 2 + o.position.z;
+				if ( b.max.x - b.min.x > 90 || b.max.z - b.min.z > 110 ) continue;
+
+			} else {
+
+				x = o.position.x; z = o.position.z;
+
+			}
+
+			if ( x > - 134 && x < - 60 && z > 10 && z < 99 ) o.position.y += LIFT;
+
+		}
+
+		for ( const l of ex.lamps || [] ) if ( l[ 0 ] > - 134 && l[ 0 ] < - 60 && l[ 2 ] > 10 && l[ 2 ] < 99 ) l[ 1 ] += LIFT;
+		// the sports complex's street lamps that OpenStreetMap put on the plaza are its own pole lights
+		// (Exterior's): no sodium cobra heads there
+		const zero = new Matrix4().makeScale( 0, 0, 0 ), m = new Matrix4(), p = new Vector3();
+		for ( const mesh of app.complex?.group.children.filter( ( c ) => c.name === 'poles' || c.name === 'pole-heads' ) || [] ) {
+
+			for ( let i = 0; i < mesh.count; i ++ ) {
+
+				mesh.getMatrixAt( i, m );
+				p.setFromMatrixPosition( m );
+				if ( p.x > - 134 && p.x < - 60 && p.z > 10 && p.z < 99 ) mesh.setMatrixAt( i, zero );
+
+			}
+
+			mesh.instanceMatrix.needsUpdate = true;
+
+		}
+
+	}
+
+	// the ground under a person: the road, the raised plaza and sidewalks, the ramp down inside the gate
+	groundAt( x, z ) {
+
+		if ( Math.abs( z - pattisonZ( x ) ) < 9 && x > - 175 ) return 0.012;
+		if ( Math.abs( x - eleventhX( z ) ) < 5 && z > - 40 ) return 0.012;
+		const E = this.gate.edge;
+		if ( E ) {
+
+			const dx = x - E.a[ 0 ], dz = z - E.a[ 1 ];
+			const s = dx * E.ux + dz * E.uz - E.t, o = dx * E.nx + dz * E.nz;
+			if ( o < 0 && Math.abs( s ) < 16 ) return o > - 9.5 ? LIFT : Math.max( 0, LIFT * ( 1 - ( - 9.5 - o ) / 3 ) );
+
+		}
+
+		return LIFT;
 
 	}
 
@@ -148,7 +224,7 @@ export default class ThirdBaseGate {
 		this.openGate = buildOpenGate( { group: this.group, exterior: app.exterior, gate: this.gate, colliders: this.colliders, field: this.field } );
 		if ( ! this.openGate ) return;
 		for ( const [ x, , z ] of this.openGate.bins ) this.obstacles.push( [ x, z, 0.5 ] );
-		this.arrivals = new Arrivals( { folk: this.folk, gate: this.openGate, obstacles: this.obstacles, seed: 27 } );
+		this.arrivals = new Arrivals( { folk: this.folk, gate: this.openGate, obstacles: this.obstacles, seed: 27, ground: ( x, z ) => this.groundAt( x, z ) } );
 
 	}
 

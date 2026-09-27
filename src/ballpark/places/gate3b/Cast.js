@@ -2,6 +2,7 @@ import { LEVELS } from '../../layout.js';
 import { rng } from './Mesher.js';
 import { PROP } from './Folk.js';
 import { dress, uniform } from './Dress.js';
+import { LIFT } from './Street.js';
 
 // The plaza's characters who aren't going anywhere yet: people waiting for a friend by the statue, a
 // crowd at the store's windows, fans sitting on a planter's wall, the smokers outside McFadden's, the
@@ -44,9 +45,9 @@ export class Cast {
 		}
 
 		const [ x, z ] = o.at;
-		const f = this.folk.add( { x, z, y: STREET + ( o.y || 0 ), yaw: 0, look: d.look, props: d.props, scale: d.scale, seed: r() } );
+		const f = this.folk.add( { x, z, y: STREET + ( o.y || 0 ) + ( o.onRoad ? 0.012 : LIFT ), yaw: 0, look: d.look, props: d.props, scale: d.scale, seed: r() } );
 		if ( ! f ) return null;
-		const c = { f, act: o.act || 'stand', face: o.face, t: r() * 30, when: o.when, y0: o.y || 0, base: d.props, umbrella: ( d.props & ( 1 << PROP.umbrella ) ) !== 0, rate: 0.7 + r() * 0.6, ...o.extra };
+		const c = { f, act: o.act || 'stand', face: o.face, t: r() * 30, when: o.when, y0: ( o.y || 0 ) + ( o.onRoad ? 0.012 : LIFT ), base: d.props, umbrella: ( d.props & ( 1 << PROP.umbrella ) ) !== 0, rate: 0.7 + r() * 0.6, ...o.extra };
 		this._aim( c );
 		this.list.push( c );
 		return c;
@@ -224,17 +225,17 @@ export class Cast {
 					props |= 1 << PROP.towel;
 					p.flexL = 2.6 + 0.25 * Math.sin( t * 8 ); p.abductL = - 0.25 + 0.25 * Math.cos( t * 8 ); p.elbowL = 0.3;
 					p.flexR = 2.0; p.abductR = - 0.3; p.elbowR = 0.6; p.pitch = 0.3;
-					f.y = STREET + Math.max( 0, Math.sin( t * 5 ) ) * 0.12;
+					f.y = STREET + c.y0 + Math.max( 0, Math.sin( t * 5 ) ) * 0.12;
 					break;
 				case 'jump':
 					// arms up, jumping
 					p.flexL = 2.8; p.abductL = - 0.3; p.elbowL = 0.2; p.flexR = 2.8; p.abductR = - 0.3; p.elbowR = 0.2; p.pitch = 0.35;
-					f.y = STREET + Math.max( 0, Math.sin( t * 6 ) ) * 0.28;
+					f.y = STREET + c.y0 + Math.max( 0, Math.sin( t * 6 ) ) * 0.28;
 					break;
 				case 'hug':
 					// the arms round someone
 					p.flexL = 1.2; p.abductL = - 0.5; p.elbowL = 1.3; p.flexR = 1.2; p.abductR = - 0.5; p.elbowR = 1.3; p.lean = 0.12;
-					f.y = STREET + Math.max( 0, Math.sin( t * 4 ) ) * 0.06;
+					f.y = STREET + c.y0 + Math.max( 0, Math.sin( t * 4 ) ) * 0.06;
 					break;
 				default:
 					if ( ! w.first && ! busyR ) {

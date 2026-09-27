@@ -4,6 +4,7 @@ import { standard } from '../../../materials/Materials.js';
 import { canvasTexture } from '../../geo.js';
 import { LEVELS } from '../../layout.js';
 import { Mesher, rng } from './Mesher.js';
+import { LIFT } from './Street.js';
 
 // The street trees round the Third Base plaza, grown branch by branch instead of the spheres and blobs
 // they were: the honey locusts planted with the park in 2004, four seasons on (about 6-7 m, a 10-12 cm
@@ -334,7 +335,7 @@ export function plantTrees( group, spots, { grates = true, fallen = true } = {} 
 
 	const M = materials();
 	const bark = new Mesher(), leaves = new Mesher(), grate = new Mesher(), ground = new Mesher();
-	const y0 = STREET;
+	const y0 = STREET + LIFT; // on the raised plaza and sidewalks
 	spots.forEach( ( [ x, z, seed, o ], i ) => {
 
 		const s = seed ?? Math.round( Math.abs( x * 13.1 + z * 7.7 ) ) + i;

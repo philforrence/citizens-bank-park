@@ -40,9 +40,10 @@ export class Arrivals {
 
 	// folk: the Folk; gate: gate3b/Gate.js's open gate (its lanes, frame, turnstiles, towel boxes);
 	// obstacles: [ x, z, r ]
-	constructor( { folk, gate, obstacles, seed = 1 } ) {
+	constructor( { folk, gate, obstacles, seed = 1, ground = () => 0 } ) {
 
 		this.folk = folk;
+		this.ground = ground;
 		this.gate = gate;
 		this.obstacles = obstacles;
 		this.r = rng( seed );
@@ -54,6 +55,7 @@ export class Arrivals {
 		this.inside = [];
 		this.carry = 0;
 		this._staff();
+		for ( const s of this.staff ) s.f.y = STREET + this.ground( s.f.x, s.f.z );
 
 	}
 
@@ -288,7 +290,7 @@ export class Arrivals {
 				a.lane = L;
 				a.slot = k;
 				const p = this._slotPos( L, k );
-				a.f.x = p[ 0 ]; a.f.z = p[ 1 ]; a.f.y = STREET;
+				a.f.x = p[ 0 ]; a.f.z = p[ 1 ]; a.f.y = STREET + this.ground( p[ 0 ], p[ 1 ] );
 				a.f.yaw = Math.atan2( L.n[ 0 ], L.n[ 1 ] );
 				L.queue.push( a );
 
@@ -371,7 +373,7 @@ export class Arrivals {
 		const dx = B[ 0 ] - A[ 0 ], dz = B[ 1 ] - A[ 1 ];
 		f.x = A[ 0 ] + dx * t;
 		f.z = A[ 1 ] + dz * t;
-		f.y = STREET;
+		f.y = STREET + this.ground( f.x, f.z );
 		this._face( f, dx, dz, dt );
 		f.walk = 1;
 		f.phase += dt * a.speed * 4.6;
@@ -451,6 +453,7 @@ export class Arrivals {
 				// shuffle up
 				const step = Math.min( d, 1.1 * dt );
 				f.x += dx / d * step; f.z += dz / d * step;
+				f.y = STREET + this.ground( f.x, f.z );
 				f.walk = Math.min( 1, d * 3 );
 				f.phase += dt * 4.2;
 				this._face( f, dx, dz, dt, 5 );
@@ -579,6 +582,7 @@ export class Arrivals {
 		const p = this._P( s, o );
 		this._face( f, p[ 0 ] - f.x, p[ 1 ] - f.z, dt, 8 );
 		f.x = p[ 0 ]; f.z = p[ 1 ];
+		f.y = STREET + this.ground( f.x, f.z );
 		f.walk = 1;
 		f.phase += dt * 5.5;
 		this._carry( a, true, true );

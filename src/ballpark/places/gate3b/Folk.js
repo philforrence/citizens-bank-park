@@ -1,4 +1,4 @@
-import { InstancedMesh, PlaneGeometry, Matrix4, Quaternion, Vector3, Color } from '../../../engine/index.js';
+import { InstancedMesh, PlaneGeometry, Matrix4, Quaternion, Vector3, Color, Sphere } from '../../../engine/index.js';
 import { StorageBuffer } from '../../../engine/gpu/Texture.js';
 import { ShaderModule } from '../../../engine/gpu/Shader.js';
 import { commonModule } from '../../../engine/render/wgsl/common.js';
@@ -891,6 +891,8 @@ export class Folk {
 		this.blobs.frustumCulled = false;
 		this.blobs.layers.set( 2 );
 		this.blobs.userData.dynamic = true;
+		// where they are (for ?focus=: an instanced mesh's own box is taken from its matrices at the build, all at the origin)
+		for ( const m of [ this.mesh, this.blobs ] ) m.boundingSphere = new Sphere( new Vector3( - 100, 7, 60 ), 130 );
 		parent.add( this.blobs );
 		this.list = [];
 		this._m = new Matrix4();

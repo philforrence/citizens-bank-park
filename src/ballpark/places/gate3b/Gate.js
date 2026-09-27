@@ -1,9 +1,10 @@
-import { Mesh, InstancedMesh, Matrix4, Quaternion, Vector3, Color } from '../../../engine/index.js';
+import { Mesh, InstancedMesh, Matrix4, Quaternion, Vector3, Color, Sphere } from '../../../engine/index.js';
 import { commonModule } from '../../../engine/render/wgsl/common.js';
 import { standard } from '../../../materials/Materials.js';
 import { canvasTexture } from '../../geo.js';
 import { LEVELS } from '../../layout.js';
 import { Mesher } from './Mesher.js';
+import { LIFT } from './Street.js';
 
 // The Third Base Gate open for the game, as in Getty's photo of the NLDS on 2 Oct 2008 and the closed
 // gate the day after Game 5's suspension (UPI, 28 Oct): the white grid leaves folded out from their
@@ -15,7 +16,7 @@ import { Mesher } from './Mesher.js';
 //
 // Built in the gate's own frame: P( s, o ) is s along the gate line (Exterior's edge) and o out from it.
 
-const STREET = LEVELS.mainConcourse;
+const STREET = LEVELS.mainConcourse + LIFT; // the raised plaza (Street.js)
 export const TURNSTILE_O = - 4.8; // the turnstiles' row, inside the gate line
 export const TABLE = { ds: - 0.95, o0: - 0.35, o1: - 2.15 }; // each lane's bag table: beside the lane, just inside
 const H = 3.5; // the leaves' height (Exterior's)
@@ -91,6 +92,36 @@ export function buildOpenGate( { group, exterior, gate, colliders, field } ) {
 
 	}
 
+	// ---- inside the gate line the floor stays at the plaza's height through the turnstiles, then ramps
+	// down to the concourse's (the plaza and the sidewalks stand a curb above the street: Street.js)
+	{
+
+		const apron = new Mesher(), s0 = posts[ 0 ] - 0.6, s1 = posts[ posts.length - 1 ] + 0.6;
+		const Q = ( s, o, h ) => [ P( s, o )[ 0 ], LEVELS.mainConcourse + h, P( s, o )[ 2 ] ];
+		const uvq = ( s, o ) => [ s, o ];
+		apron.face( Q( s0, 0.05, LIFT ), Q( s1, 0.05, LIFT ), Q( s1, - 9.5, LIFT ), Q( s0, - 9.5, LIFT ), [ 0, 1, 0 ], [ uvq( s0, 0.05 ), uvq( s1, 0.05 ), uvq( s1, - 9.5 ), uvq( s0, - 9.5 ) ] );
+		apron.face( Q( s0, - 9.5, LIFT ), Q( s1, - 9.5, LIFT ), Q( s1, - 12.5, 0.005 ), Q( s0, - 12.5, 0.005 ), [ 0, 1, 0 ], [ uvq( s0, - 9.5 ), uvq( s1, - 9.5 ), uvq( s1, - 12.5 ), uvq( s0, - 12.5 ) ] );
+		const floor = standard( { name: 'w1-gate-floor', color: new Color( 0.36, 0.35, 0.33 ), roughness: 0.75, modules: [ commonModule ],
+			surface: /* wgsl */`
+	// sealed concrete under the stands' overhang: scored every 3 m, scuffed where the lines run, the rain
+	// walked in on a thousand shoes near the gate
+	let p = in.uv;
+	let j = abs( fract( p / 3.0 ) - 0.5 ) * 3.0;
+	var c = mat.color * ( 0.85 + 0.15 * mx_noise_float2( in.P.xz * 0.7 ) ) * ( 1.0 - ( 1.0 - smoothstep( 0.005, 0.015, min( j.x, j.y ) ) ) * 0.4 );
+	let tracked = smoothstep( - 6.0, 0.0, p.y ) * frame.wet;
+	c = c * mix( 1.0, 0.7, tracked * ( 0.6 + 0.4 * mx_noise_float2( in.P.xz * 3.0 ) ) );
+	s.albedo = c;
+	s.roughness = mix( 0.75, 0.3, tracked );
+` } );
+		floor.setDefine( 'DRY', 1 );
+		floor.underwaterLighting = 'none';
+		const fm = new Mesh( apron.geometry(), floor );
+		fm.name = 'w1-gate-apron';
+		fm.receiveShadow = true;
+		group.add( fm );
+
+	}
+
 	// ---- red: the bins, the bag tables, the turnstile cabinets
 	const red = standard( { name: 'w1-gate-red', color: new Color( 0.42, 0.02, 0.03 ), roughness: 0.45, modules: [ commonModule ],
 		surface: 's.albedo = mat.color * ( 0.9 + 0.12 * mx_noise_float3( in.P * 3.0 ) );' } );
@@ -139,7 +170,7 @@ export function buildOpenGate( { group, exterior, gate, colliders, field } ) {
 		for ( const side of [ - 1, 1 ] ) darkM.box( P( s + side * 0.2, o - 0.26, 0.08 ), [ 0.07, 0.16, 0.16 ] );
 		// the logo on the face toward the plaza
 		const f = 0.2, lo = o + 0.285, ly = 0.5;
-		logoM.face( P( s - f, lo, ly - f ), P( s + f, lo, ly - f ), P( s + f, lo, ly + f ), P( s - f, lo, ly + f ), [ nx, 0, nz ], ux * nz - uz * nx > 0 ? [ [ 1, 1 ], [ 0, 1 ], [ 0, 0 ], [ 1, 0 ] ] : [ [ 0, 1 ], [ 1, 1 ], [ 1, 0 ], [ 0, 0 ] ] );
+		logoM.face( P( s - f, lo, ly - f ), P( s + f, lo, ly - f ), P( s + f, lo, ly + f ), P( s - f, lo, ly + f ), [ nx, 0, nz ], ux * nz - uz * nx < 0 ? [ [ 1, 1 ], [ 0, 1 ], [ 0, 0 ], [ 1, 0 ] ] : [ [ 0, 1 ], [ 1, 1 ], [ 1, 0 ], [ 0, 0 ] ] );
 		bins.push( c );
 		const wp = field.toWorld( c[ 0 ], c[ 2 ] );
 		colliders.addCylinder( wp.x, wp.z, 0.32, field.y0 + STREET, field.y0 + STREET + 0.9 );
@@ -282,6 +313,7 @@ export function buildOpenGate( { group, exterior, gate, colliders, field } ) {
 	tri.name = 'w1-tripods';
 	tri.frustumCulled = false;
 	tri.userData.dynamic = true;
+	tri.boundingSphere = new Sphere( new Vector3( P( 0, 0 )[ 0 ], STREET, P( 0, 0 )[ 2 ] ), 30 );
 	group.add( tri );
 	// the hub's axis leans up and in along the passage (so the arm across it is level and the other two
 	// hang below): x across the passage, z the axis

@@ -4,6 +4,7 @@ import { standard } from '../../../materials/Materials.js';
 import { canvasTexture } from '../../geo.js';
 import { LEVELS } from '../../layout.js';
 import { Mesher, rng } from './Mesher.js';
+import { LIFT } from './Street.js';
 
 // The Majestic Clubhouse Store as it stood in October 2008 (Getty, 27 Oct: "fans stand outside the team
 // store prior to Game Five"): the glass corner pavilion just left of the Third Base Gate (its two storeys
@@ -16,7 +17,7 @@ import { Mesher, rng } from './Mesher.js';
 // The block: the footprint's corner just north-west of the gate (A at the gate's end, B the glass corner,
 // C, D back to the brick).
 
-const STREET = LEVELS.mainConcourse;
+const STREET = LEVELS.mainConcourse + LIFT; // the raised plaza (Street.js)
 export const STORE = { A: [ - 92.68, 20.48 ], B: [ - 98.62, 26.33 ], C: [ - 103.51, 21.94 ], D: [ - 97.57, 16.08 ] };
 
 const sub = ( a, b ) => [ a[ 0 ] - b[ 0 ], a[ 1 ] - b[ 1 ] ];
@@ -146,7 +147,7 @@ export function buildStore( group, colliders, field ) {
 			const u0 = ( bi ++ % 2 ) * 0.5, w = 0.45, top = edgeY - 0.2 - ( lift * 0.35 ), bot = top - 2.7;
 			const P0 = add( m, mul( d, - w ) ), P1 = add( m, mul( d, w ) );
 			// seen from outside (along -n) the banner reads left to right along +d or -d: pick by handedness
-			const flip = d[ 0 ] * n[ 1 ] - d[ 1 ] * n[ 0 ] > 0;
+			const flip = d[ 0 ] * n[ 1 ] - d[ 1 ] * n[ 0 ] < 0; // (the text reads along d when d points to the viewer's right)
 			const [ ua, ub ] = flip ? [ u0 + 0.5, u0 ] : [ u0, u0 + 0.5 ];
 			banners.face( y3( P0, bot ), y3( P1, bot ), y3( P1, top ), y3( P0, top ), [ n[ 0 ], 0, n[ 1 ] ], [ [ ua, 1 ], [ ub, 1 ], [ ub, 0 ], [ ua, 0 ] ] );
 			banners.face( y3( P1, bot ), y3( P0, bot ), y3( P0, top ), y3( P1, top ), [ - n[ 0 ], 0, - n[ 1 ] ], [ [ ua, 1 ], [ ub, 1 ], [ ub, 0 ], [ ua, 0 ] ] );
@@ -228,7 +229,7 @@ export function buildStore( group, colliders, field ) {
 	{
 
 		const d = unit( sub( C, B ) ), p = add( add( B, mul( d, 5.1 ) ), mul( nBC, 0.12 ) ), w = 0.55;
-		const flip = d[ 0 ] * nBC[ 1 ] - d[ 1 ] * nBC[ 0 ] > 0;
+		const flip = d[ 0 ] * nBC[ 1 ] - d[ 1 ] * nBC[ 0 ] < 0;
 		const [ ua, ub ] = flip ? [ 1, 0 ] : [ 0, 1 ];
 		poster.face( y3( add( p, mul( d, - w ) ), 0.5 ), y3( add( p, mul( d, w ) ), 0.5 ), y3( add( p, mul( d, w ) ), 2.15 ), y3( add( p, mul( d, - w ) ), 2.15 ), [ nBC[ 0 ], 0, nBC[ 1 ] ], [ [ ua, 1 ], [ ub, 1 ], [ ub, 0 ], [ ua, 0 ] ] );
 		steel.box( [ p[ 0 ], STREET + 1.32, p[ 1 ] ], [ 0.08, 1.75, 0.08 ] );
