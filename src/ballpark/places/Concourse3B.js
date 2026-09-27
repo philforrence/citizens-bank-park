@@ -74,10 +74,26 @@ export default class Concourse3B {
 	// is ( x, z ) in this stretch of the concourse (from the top of the seats out to the stands' backs)?
 	covers( x, z ) {
 
-		// a quick box first: the stretch is behind home plate and down the third base side
-		if ( x > 1.5 || z < - 30 ) return false;
-		const [ s, d ] = this.W.toSD( x, z );
-		return s > - 0.5 && s < S_END + 0.5 && d > RAIL_D - 0.6 && d < 62;
+		// a grid of the answer, half a metre a cell, over the box round the stretch (worked out once)
+		const G = this._coverGrid || ( this._coverGrid = this._makeCoverGrid() );
+		const i = Math.floor( ( x - G.x0 ) / 0.5 ), j = Math.floor( ( z - G.z0 ) / 0.5 );
+		if ( i < 0 || j < 0 || i >= G.nx || j >= G.nz ) return false;
+		return G.cells[ i + j * G.nx ] === 1;
+
+	}
+
+	_makeCoverGrid() {
+
+		const x0 = - 105, x1 = 2, z0 = - 35, z1 = 72, nx = Math.ceil( ( x1 - x0 ) / 0.5 ), nz = Math.ceil( ( z1 - z0 ) / 0.5 );
+		const cells = new Uint8Array( nx * nz );
+		for ( let j = 0; j < nz; j ++ ) for ( let i = 0; i < nx; i ++ ) {
+
+			const [ s, d ] = this.W.toSD( x0 + ( i + 0.5 ) * 0.5, z0 + ( j + 0.5 ) * 0.5 );
+			cells[ i + j * nx ] = s > - 0.5 && s < S_END + 0.5 && d > RAIL_D - 0.6 && d < 62 ? 1 : 0;
+
+		}
+
+		return { x0, z0, nx, nz, cells };
 
 	}
 
@@ -480,7 +496,9 @@ export default class Concourse3B {
 		const t = director ? director.t : 0;
 		if ( ! this._warm || Math.abs( t - this._lastT ) > 30 ) {
 
+			this.people.warming = true;
 			for ( let i = 0; i < 240; i ++ ) this.people.update( 0.25, ns );
+			this.people.warming = false;
 			this.steam.warm( G.time.value );
 			this._warm = true;
 			for ( const p of this.cast.list ) p.fresh = true;
@@ -488,6 +506,8 @@ export default class Concourse3B {
 		}
 
 		this._lastT = t;
+		const camF = this.app?.camera ? this.field.toField( this.app.camera.position.x, this.app.camera.position.z ) : null;
+		this.people.cam = camF;
 		this.people.update( dt, ns );
 		this.stories.update( dt, ns );
 		// the steam and the breath (the cold: 47 and raining on the 27th, 44 and windy on the 29th)

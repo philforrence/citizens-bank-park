@@ -103,7 +103,8 @@ export class ConcoursePeople {
 		this._carts( carts );
 		this._railSpots( concourse );
 		this._restrooms( concourse );
-		this._fans( 190 );
+		this._standing();
+		this._fans( 250 );
 
 	}
 
@@ -287,6 +288,33 @@ export class ConcoursePeople {
 
 	}
 
+	// ---- standing behind home plate, rows deep behind the rail under the suite level's overhang: in the
+	// rain on the 27th (the AP: fans 'huddled in their Phillies sweaters, garbage bags and rain coats six or
+	// seven deep behind home plate'), the most in the rain delay; a few on the 29th, more at the end
+	_standing() {
+
+		this.stand = [];
+		for ( let d = 31.35; d < 36.2; d += 0.72 ) for ( let s = 0.5; s < 23; s += 0.66 ) {
+
+			// staggered, a little ragged
+			const js = s + ( ( Math.round( d * 7 ) % 2 ) ? 0.33 : 0 ) + ( Math.sin( s * 12.9 + d * 7.1 ) * 0.12 );
+			if ( this.obstacles.some( ( [ os, od, orad ] ) => Math.hypot( js - os, d - od ) < orad + 0.5 ) ) continue;
+			this.stand.push( { s: js, d: d + Math.sin( s * 3.7 ) * 0.1, who: null, row: Math.round( ( d - 31.35 ) / 0.72 ) } );
+
+		}
+
+		// the front rows first
+		this.stand.sort( ( a, b ) => a.d - b.d || a.s - b.s );
+
+	}
+
+	_standWant( ns ) {
+
+		const k = ns.suspended ? 0.55 : ns.celebrate ? 0.45 : ns.first ? ( ns.inning >= 5 ? 0.35 : 0.15 ) : ns.inning >= 9 ? 0.25 : 0.06;
+		return Math.round( this.stand.length * k );
+
+	}
+
 	// ---- the restrooms: the women's line out the door and along the wall; the men in and out
 	_restrooms( concourse ) {
 
@@ -450,8 +478,23 @@ export class ConcoursePeople {
 
 		}
 
+		// behind home plate, to stand under the overhang out of the rain (the front rows first)
+		if ( ! f.stand && ! f.loo && this.stand.filter( ( q ) => q.who ).length < this._standWant( ns ) && ( r() < 0.5 || forNeed ) ) {
+
+			const q = this.stand.find( ( x ) => ! x.who );
+			if ( q ) {
+
+				f.spot = q;
+				q.who = f;
+				f.standing = true;
+				f.to = null;
+
+			}
+
+		}
+
 		// the rail, to stand and watch (the standing-room tickets, and the ones who'd rather)
-		if ( ! f.stand && ! f.loo && this.rail.length ) {
+		if ( ! f.stand && ! f.loo && ! f.spot && this.rail.length ) {
 
 			const taken = this.rail.filter( ( q ) => q.who ).length;
 			const wantRail = this.rail.length * ( ns.celebrate ? 0.9 : ns.suspended ? 0.25 : ns.inning >= 9 && ! ns.first ? 0.8 : 0.5 );
@@ -500,6 +543,7 @@ export class ConcoursePeople {
 		f.loo = null;
 		if ( f.spot ) f.spot.who = null;
 		f.spot = null;
+		f.standing = false;
 		f.to = this._pickPortal( null, kinds, f.s );
 		this._lane( f, f.to.s );
 
@@ -520,9 +564,10 @@ export class ConcoursePeople {
 		// the ones in a line or at the rail don't count against the walkers
 		const want = this.fans.length * clamp( ns.busy / 1.45, 0.12, 1 ) * 0.5;
 		let walking = 0;
-		for ( const f of this.fans ) if ( f.mode === 'walk' ) walking ++;
+		for ( const f of this.fans ) if ( f.mode === 'walk' && ! f.spot && ! f.stand && ! f.loo ) walking ++;
 		const needs = this.stands.some( ( S ) => S.line.length + S.coming < Math.round( S.base * ( 0.35 + ns.busy ) * 3.5 ) )
 			|| this.loos.some( ( R ) => R.line.length + R.coming < Math.round( R.base * ( 0.2 + ns.busy ) * 4 ) )
+			|| this.stand.filter( ( q ) => q.who ).length < this._standWant( ns )
 			|| this.rail.filter( ( q ) => q.who ).length < this.rail.length * ( ns.celebrate ? 0.9 : ns.suspended ? 0.25 : ns.inning >= 9 && ! ns.first ? 0.8 : 0.5 );
 		// the lines and the rail fill a few people a second, whatever the walkers are doing
 		this._needT = ( this._needT || 0 ) + dt * 3;
@@ -565,12 +610,28 @@ export class ConcoursePeople {
 		for ( const S of this.stands ) this._serve( S, dt, ns );
 		for ( const R of this.loos ) this._loo( R, dt, ns );
 		this._reactions( dt, ns );
+		// the ones far from the camera are moved every third frame (by three frames' time): nobody sees
+		// the difference 35 m off, and it saves the CPU a good part of its work
+		this._frame = ( this._frame || 0 ) + 1;
+		const cam = this.cam;
 		for ( const f of this.fans ) {
 
-			if ( f.mode === 'walk' ) this._walk( f, dt, ns );
-			else if ( f.mode === 'queue' || f.mode === 'counter' ) this._inLine( f, dt, ns );
-			else if ( f.mode === 'rail' ) this._atRail( f, dt, ns );
-			else if ( f.mode === 'loo' ) this._inLoo( f, dt, ns );
+			if ( f.mode === 'off' ) continue;
+			let fdt = dt;
+			if ( cam && ! this.warming ) {
+
+				const dx = f.p.x - cam[ 0 ], dz = f.p.z - cam[ 1 ];
+				f._acc = ( f._acc || 0 ) + dt;
+				if ( dx * dx + dz * dz > 35 * 35 && ( this._frame + f.p.slot ) % 3 ) continue;
+				fdt = f._acc;
+				f._acc = 0;
+
+			}
+
+			if ( f.mode === 'walk' ) this._walk( f, fdt, ns );
+			else if ( f.mode === 'queue' || f.mode === 'counter' ) this._inLine( f, fdt, ns );
+			else if ( f.mode === 'rail' ) this._atRail( f, fdt, ns );
+			else if ( f.mode === 'loo' ) this._inLoo( f, fdt, ns );
 
 		}
 
@@ -693,7 +754,7 @@ export class ConcoursePeople {
 				f.mode = 'rail';
 				f.railT = 0;
 				f.stay = 40 + this.r() * 160;
-				f.railPose = this._railPoseFor( f );
+				f.railPose = f.standing ? this._standPoseFor( f ) : this._railPoseFor( f );
 				return;
 
 			}
@@ -947,12 +1008,23 @@ export class ConcoursePeople {
 
 	}
 
+	_standPoseFor( f ) {
+
+		const r = this.r;
+		const kind = f.p.looks.dry.age === 2 ? 'pockets' : pick( r, { fold: 3, pockets: 3, drink: f.carry !== 'none' && f.carry !== 'tray' ? 4 : 0, cocoa: 2 } );
+		if ( kind === 'cocoa' ) f.carry = 'cocoa';
+		return { kind: kind === 'cocoa' ? 'drink' : kind, lean: 0, arms: [ GESTURE.warm[ 0 ], GESTURE.carry[ 1 ] ], weight: r() < 0.5 ? 'L' : 'R', stand: true };
+
+	}
+
 	_atRail( f, dt, ns ) {
 
 		const p = f.p, a = p.pose, t = this.time, R = f.railPose, spot = f.spot;
 		f.railT += dt;
-		// back to the seats (or for another beer) after a while; not while it's the last out
-		if ( f.railT > f.stay && ! ns.celebrate ) {
+		// back to the seats (or for another beer) after a while; not while it's the last out; the crowd
+		// behind home thins when the rain lets up
+		const tooMany = f.standing && this.stand.filter( ( q ) => q.who ).length > this._standWant( ns ) + 4 && this.r() < dt * 0.3;
+		if ( ( f.railT > f.stay && ! ns.celebrate ) || tooMany ) {
 
 			this._leave( f, [ 'aisle', 'aisle', 'door', 'end' ] );
 			return;
@@ -962,6 +1034,7 @@ export class ConcoursePeople {
 		f.s = spot.s; f.d = spot.d;
 		const w = this.W.at( spot.s, spot.d );
 		p.x = w.x; p.z = w.z; p.y = STREET;
+		if ( spot.face === undefined ) spot.face = Walkway.yaw( w.nx, w.nz ) + Math.sin( spot.s * 5.3 ) * 0.25;
 		p.yaw = turn( p.yaw, spot.face, Math.min( 1, dt * 4 ) );
 		a.walk = lerp( a.walk, 0, Math.min( 1, dt * 5 ) );
 		a.twist = 0; a.roll = 0; a.drop = 0; a.mouth = 0; a.propL = 0; a.propR = 0;
@@ -980,8 +1053,9 @@ export class ConcoursePeople {
 
 		} else if ( R.kind === 'drink' ) {
 
-			a.armL = R.arms[ 0 ].slice();
-			a.armR = R.arms[ 1 ].slice();
+			a.armL = R.stand && f.carry === 'cocoa' ? GESTURE.warm[ 0 ].slice() : R.stand ? GESTURE.pockets[ 0 ].slice() : R.arms[ 0 ].slice();
+			a.armR = R.stand ? GESTURE.carry[ 1 ].slice() : R.arms[ 1 ].slice();
+			if ( R.stand && f.carry !== 'cocoa' ) a.propL = PROP.pocket;
 			a.propR = CARRY_PROP[ f.carry ] || 0;
 			// a sip now and then
 			const sip = Math.max( 0, Math.sin( t * 0.3 + f.order * 40 ) - 0.9 ) / 0.1;
