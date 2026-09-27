@@ -359,7 +359,7 @@ export class Bulls {
 		const F = folk;
 		// the Bull: 57, big, the white hair cropped short, a red Phillies polo over a turtleneck
 		const [ sx, sz ] = this.signing;
-		this.bull = F.add( 'autograph', { x: sx, y: Y, z: sz, yaw: Math.PI, look: { top: TOP.bull, hat: HAT.bald, pants: PANTS.khaki }, scale: 1.1, nights: 3 } );
+		this.bull = F.add( 'autograph', { x: sx, y: Y, z: sz, yaw: Math.PI, look: { top: TOP.bull, hat: HAT.bald, pants: PANTS.khaki, build: 3, glasses: false }, scale: 1.1, nights: 3 } );
 		this.bull.noBlob = true;
 		F.hold( this.bull, 'photo', { hand: 'left', variant: 15 } );
 		// his line, out across the plaza: a dad and his boy with a ball, a man with his 1980 program, two

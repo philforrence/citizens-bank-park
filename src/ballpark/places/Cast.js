@@ -131,7 +131,7 @@ export const POSE = 8;
 //      bag, 7 a clear one shared with the one on the left) | scarf <<14 (0 none, 1 red and white, 2 grey,
 //      3 black) | gloves <<16 | badge <<17 (a gold shield on the left breast: the police) | (bit 18: B's ticket
 //      lanyard, look.lanyard) | gear <<19 (GEAR bits)
-//   w: a seed (0..65535) for the small things
+//   w: a seed (0..65535) for the small things | dry <<16 (under cover: the rain's not on them)
 export const TOP = {
 	jacket: 0, hoodie: 1, homeJersey: 2, nameTee: 3, fleece: 4, puffer: 5, leather: 6, work: 7, powder: 8, rays: 9,
 	eagles: 10, staff: 11, usher: 12, security: 13, hawker: 14, seller: 15, satin: 16, roadJersey: 17, champsTee: 18, cook: 19,
@@ -976,7 +976,8 @@ function castMaterial( pool ) {
 	o.vLocal = q;
 	o.vPart = part;
 	o.vLook = lk;
-	o.vPose = vec4f( a3.y, a7.y, a7.z, P0.p[ 1 ].z );
+	// ( the mouth, the breath, the blink, an umbrella up over them )
+	o.vPose = vec4f( a3.y, a7.y, a7.z, select( 0.0, 1.0, u32( a3.w + 0.5 ) == ${ PROP.umbrella }u ) );
 	o.vVar = f32( select( vars >> 8u, vars & 255u, right ) );
 `,
 		surface: /* wgsl */`
@@ -1392,12 +1393,13 @@ function castMaterial( pool ) {
 			var face = false;
 			if ( id == ${ PROP.sign }u ) {
 				let o = vec3f( ${ ( J.hand[ 0 ] - 0.27 ).toFixed( 3 ) }, ${ ( J.hand[ 1 ] + 0.14 ).toFixed( 3 ) }, ${ ( J.hand[ 2 ] - 0.06 ).toFixed( 3 ) } );
-				uv = vec2f( 0.5 + ( pl.x - o.x ) / 0.72, 0.5 - ( pl.y - o.y ) / 0.5 );
+				// (read from in front: the figure's right is the reader's left)
+				uv = vec2f( 0.5 - ( pl.x - o.x ) / 0.72, 0.5 - ( pl.y - o.y ) / 0.5 );
 				face = pl.z < o.z - 0.004;
 			} else {
 				// (in either hand)
 				let o = vec3f( select( - 1.0, 1.0, pl.x > 0.0 ) * ${ ( J.hand[ 0 ] - 0.02 ).toFixed( 3 ) }, ${ J.hand[ 1 ].toFixed( 3 ) }, ${ ( J.hand[ 2 ] - 0.14 ).toFixed( 3 ) } );
-				uv = vec2f( 0.5 + ( pl.x - o.x ) / 0.2, 0.5 + ( pl.z - o.z ) / 0.25 );
+				uv = vec2f( 0.5 - ( pl.x - o.x ) / 0.2, 0.5 + ( pl.z - o.z ) / 0.25 );
 				face = pl.y > o.y + 0.002;
 				rough = 0.2;
 			}
@@ -1420,7 +1422,7 @@ function castMaterial( pool ) {
 		if ( id == ${ PROP.radio }u ) { c = select( vec3f( 0.3, 0.02, 0.03 ), vec3f( 0.6 ), pl.y > ${ ( J.hand[ 1 ] + 0.02 ).toFixed( 3 ) } ); metal = 0.3; rough = 0.4; }
 	}
 	// the rain on them: shoulders, caps and hoods darker and glossy on the 27th
-	let wetK = frame.wet * smoothstep( 0.2, 0.8, normalize( in.N ).y ) * select( 0.6, 1.0, part == ${ PART.poncho }u || part == 32u + ${ PROP.umbrella }u );
+	let wetK = frame.wet * smoothstep( 0.2, 0.8, normalize( in.N ).y ) * select( 0.6, 1.0, part == ${ PART.poncho }u || part == 32u + ${ PROP.umbrella }u ) * select( 1.0, 0.0, ( ( lk.w >> 16u ) & 1u ) == 1u ) * select( 1.0 - 0.75 * in.vs.vPose.w, 1.0, part == 32u + ${ PROP.umbrella }u );
 	c *= mix( 1.0, 0.8, wetK * step( 0.5, rough ) );
 	rough = mix( rough, 0.25, wetK * 0.6 );
 	s.albedo = c;
@@ -1631,7 +1633,7 @@ export function packLook( o ) {
 		| ( ( o.female ? 1 : 0 ) << 12 ) | ( ( o.age & 3 ) << 13 ) | ( ( o.build & 3 ) << 15 );
 	const y = ( o.top & 31 ) | ( ( o.color & 31 ) << 5 ) | ( ( o.sleeves & 31 ) << 10 ) | ( ( o.back & 127 ) << 15 ) | ( ( o.chest & 15 ) << 22 );
 	const z = ( o.pants & 7 ) | ( ( o.shoes & 7 ) << 3 ) | ( ( o.hat & 31 ) << 6 ) | ( ( o.poncho & 7 ) << 11 ) | ( ( o.scarf & 3 ) << 14 ) | ( ( o.gloves ? 1 : 0 ) << 16 ) | ( ( o.badge ? 1 : 0 ) << 17 ) | ( ( o.lanyard ? 1 : 0 ) << 18 ) | ( ( o.gear & 15 ) << 19 );
-	return [ x >>> 0, y >>> 0, z >>> 0, ( o.seed ?? Math.floor( Math.random() * 65536 ) ) & 65535 ];
+	return [ x >>> 0, y >>> 0, z >>> 0, ( ( ( o.seed ?? Math.floor( Math.random() * 65536 ) ) & 65535 ) | ( ( o.dry ? 1 : 0 ) << 16 ) ) >>> 0 ];
 
 }
 
