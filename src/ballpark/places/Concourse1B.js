@@ -17,6 +17,7 @@ import { Prints } from './concourse1b/Prints.js';
 import { Stories1B } from './concourse1b/Stories.js';
 import { Sounds1B } from './concourse1b/Sounds.js';
 import { buildPlaza, buildPhunZone } from './concourse1b/Plaza.js';
+import { Scenes1B } from './concourse1b/Scenes.js';
 import { programKiosk, caricatureCorner, cartSigns, cartTop } from './concourse1b/Things.js';
 
 // The main concourse on the first base side, behind home plate round to the right field corner (sections
@@ -85,6 +86,7 @@ export default class Concourse1B {
 			this._takeOverGate( people );
 			const plaza = [ ...( this.plaza?.obstacles || [] ), ...( this.gate.bins || [] ).map( ( b ) => [ b[ 0 ], b[ 2 ], 0.45 ] ) ];
 			this.arrivals = new Arrivals1B( { cast: this.cast, gate: this.gate, people: this.people, obstacles: plaza, seed: 1101 } );
+			this.scenes = new Scenes1B( { arrivals: this.arrivals, plaza: this.plaza, gate: this.gate } );
 
 		}
 
@@ -559,6 +561,7 @@ export default class Concourse1B {
 			for ( let i = 0; i < 240; i ++ ) this.people.update( 0.25, ns );
 			this.people.warming = false;
 			this.arrivals?.reset( ns, t );
+			this.scenes?.reset();
 			this.steam.warm( G.time.value );
 			this._warm = true;
 			for ( const p of this.cast.list ) p.fresh = true;
@@ -571,6 +574,7 @@ export default class Concourse1B {
 		this.people.cam = camF;
 		this.people.update( dt, ns );
 		this.stories.update( dt, ns );
+		this.scenes?.update( dt, ns, t );
 		this.arrivals?.update( dt, ns, t );
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
 		this.cast.update( cam );

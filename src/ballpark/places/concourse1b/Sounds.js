@@ -234,7 +234,13 @@ export class Sounds1B {
 		}
 
 		// the gate's events
-		if ( pl.arrivals ) pl.arrivals.onScan = ( L, a ) => this._scanned( L, a );
+		if ( pl.arrivals ) {
+
+			pl.arrivals.onScan = ( L, a ) => this._scanned( L, a );
+			// Bernie's thermos at the bag table: Terrell's "it's gotta go", Bernie's "it's coffee!"
+			pl.arrivals.onEvent = ( k, p ) => this.play( k === 'thermos' ? 'c1b-bags-2' : 'c1b-bernie-1', p.x, 1.6, p.z, 0.65, 3 );
+
+		}
 		this.ready = true;
 
 	}
@@ -278,7 +284,7 @@ export class Sounds1B {
 		if ( ! p ) return;
 		this.play( 'c1b-beep', p.x, 1.2, p.z, 0.35, 3 );
 		this.later.push( [ this.time + 0.6, () => this.play( 'c1b-ratchet', L.tripod?.at[ 0 ] ?? p.x, 0.9, L.tripod?.at[ 2 ] ?? p.z, 0.45, 3 ) ] );
-		if ( L.taker.name === 'Dee' && Math.random() < 0.6 ) this.later.push( [ this.time + 0.9, () => this.play( this.place.night?.first ? 'c1b-dee-1' : ( Math.random() < 0.5 ? 'c1b-dee-3' : 'c1b-dee-1' ), p.x, 1.6, p.z, 0.55, 3 ) ] );
+		if ( L.taker.name === 'Dee' && Math.random() < 0.35 && this._every( 'dee1', 10 ) ) this.later.push( [ this.time + 0.9, () => this.play( this.place.night?.first ? 'c1b-dee-1' : ( Math.random() < 0.5 ? 'c1b-dee-3' : 'c1b-dee-1' ), p.x, 1.6, p.z, 0.55, 3 ) ] );
 
 	}
 
@@ -346,7 +352,13 @@ export class Sounds1B {
 		for ( const u of S?.ushers || [] ) {
 
 			const on = u.checkT > 0 && u.checkT < 0.2;
-			if ( on && ! u._said && Math.random() < 0.35 ) this.play( 'c1b-usher-1', u.p.x, 1.6, u.p.z, 0.5, 3 );
+			if ( on && ! u._said && Math.random() < 0.2 && this.time - ( u._saidT || - 99 ) > 45 ) {
+
+				this.play( 'c1b-usher-1', u.p.x, 1.6, u.p.z, 0.5, 3 );
+				u._saidT = this.time;
+
+			}
+
 			u._said = u.checkT > 0;
 
 		}

@@ -57,7 +57,7 @@ export class Arrivals1B {
 
 	// cast: the place's Cast; gate: buildGate1B's; people: the concourse's People1B (admit); obstacles:
 	// [ x, z, r ] on the plaza
-	constructor( { cast, gate, people, obstacles = [], seed = 7, max = 110 } ) {
+	constructor( { cast, gate, people, obstacles = [], seed = 7, max = 118 } ) {
 
 		this.cast = cast;
 		this.gate = gate;
@@ -163,6 +163,8 @@ export class Arrivals1B {
 
 	_fan( ns ) {
 
+		// (a few slots kept for the scenes' people: Scenes.js)
+		if ( this.pool.length <= ( this.reserve || 0 ) ) return null;
 		const p = this.pool.pop();
 		if ( ! p ) return null;
 		const r = this.r;
@@ -192,6 +194,49 @@ export class Arrivals1B {
 		a.p.visible = false;
 		a.mode = 'free';
 		this.pool.push( a.p );
+
+	}
+
+	// someone particular (the scenes' people: Scenes.js): a slot from the pool dressed as given ({ dry,
+	// wet }), standing at ( x, z )
+	take( looks, ns, x, z, o = {} ) {
+
+		const p = this.pool.pop();
+		if ( ! p ) return null;
+		p.looks = { dry: looks.dry, wet: looks.wet || looks.dry };
+		this.cast.setLook( p, ns.first ? p.looks.wet : p.looks.dry );
+		p.scale = o.scale ?? 1;
+		p.x = x; p.z = z; p.y = STREET;
+		p.visible = true;
+		p.fresh = true;
+		return { p, mode: 'scene', lane: null, slot: - 1, s: 0, path: null, lens: null, total: 0, speed: o.speed ?? 1.25, bag: !! o.bag, thermos: !! o.thermos,
+			habit: o.habit ?? 2, order: this.r(), towel: false, checked: false, bagT: 0, name: o.name };
+
+	}
+
+	// off from where they stand to the back of a lane's line (the scenes' people when they go in)
+	sendFrom( a, L ) {
+
+		const k = L.queue.length + L.coming + 1;
+		const tail = this._slotPos( L, Math.min( k, SLOTS - 1 ) );
+		const approach = this._P( L.sc, Math.max( SLOT0 + k * SLOT, 2.6 ) + 2.4 );
+		const from = [ a.p.x, a.p.z ];
+		a.path = [ ...this._route( from, approach ), tail ];
+		a.lens = [];
+		a.total = 0;
+		for ( let i = 0; i < a.path.length - 1; i ++ ) {
+
+			const l = Math.hypot( a.path[ i + 1 ][ 0 ] - a.path[ i ][ 0 ], a.path[ i + 1 ][ 1 ] - a.path[ i ][ 1 ] );
+			a.lens.push( l );
+			a.total += l;
+
+		}
+
+		a.s = 0;
+		a.lane = L;
+		a.mode = 'walk';
+		L.coming ++;
+		this.walkers.push( a );
 
 	}
 
@@ -307,9 +352,10 @@ export class Arrivals1B {
 	// everyone where they'd be at this moment (after a jump in the replay)
 	reset( ns, t ) {
 
-		for ( const a of [ ...this.walkers, ...this.through, ...this.lanes.flatMap( ( L ) => L.queue ) ] ) this._free( a );
+		for ( const a of [ ...this.walkers, ...this.through, ...( this.aside || [] ), ...this.lanes.flatMap( ( L ) => L.queue ) ] ) this._free( a );
 		this.walkers = [];
 		this.through = [];
+		this.aside = [];
 		const rate = arrivalRate( ns, t );
 		for ( const L of this.lanes ) {
 
@@ -367,6 +413,8 @@ export class Arrivals1B {
 		for ( const a of this.walkers ) this._walk( a, dt, ns );
 		this.walkers = this.walkers.filter( ( a ) => a.mode === 'walk' );
 		for ( const L of this.lanes ) this._lane( L, dt, ns );
+		for ( const a of this.aside || [] ) this._asideStep( a, dt, ns );
+		if ( this.aside ) this.aside = this.aside.filter( ( a ) => a.mode === 'aside' );
 		for ( const a of this.through ) this._goIn( a, dt, ns );
 		this.through = this.through.filter( ( a ) => a.mode === 'through' || a.mode === 'in' );
 		for ( const s of this.staff ) this._staffPose( s, dt, ns );
@@ -525,13 +573,125 @@ export class Arrivals1B {
 		L.bagFan = B || null;
 		if ( B ) {
 
+			const was = B.bagT;
 			B.bagT += dt;
-			if ( B.bagT > 3.2 + B.order * 2 ) {
+			if ( B.thermos ) {
+
+				// a thermos in it (thermoses weren't allowed in, 2008's rules): held up out of the bag, "sorry,
+				// sir, it's gotta go", the argument, and out he goes to the bin with it
+				if ( was < 2.2 && B.bagT >= 2.2 ) this.onEvent?.( 'thermos', L.bags.p );
+				if ( was < 5.8 && B.bagT >= 5.8 ) this.onEvent?.( 'argue', B.p );
+				if ( B.bagT > 9 ) {
+
+					B.checked = true;
+					B.thermos = false;
+					L.bagFan = null;
+					L.queue.splice( L.queue.indexOf( B ), 1 );
+					this._toBin( B, L );
+
+				}
+
+			} else if ( B.bagT > 3.2 + B.order * 2 ) {
 
 				B.checked = true;
 				L.bagFan = null;
 
 			}
+
+		}
+
+	}
+
+	// out of the line to the bin in front of the fin with the thermos, and back to the front of it
+	_toBin( a, L ) {
+
+		const bins = this.gate.bins || [];
+		let best = null, bd = Infinity;
+		for ( const b of bins ) {
+
+			const d = Math.hypot( b[ 0 ] - L.mouth[ 0 ], b[ 2 ] - L.mouth[ 1 ] );
+			if ( d < bd ) {
+
+				bd = d;
+				best = b;
+
+			}
+
+		}
+
+		if ( ! best ) {
+
+			L.queue.unshift( a );
+			return;
+
+		}
+
+		// stand on the lane's side of the bin, a step out from it
+		const dx = L.mouth[ 0 ] - best[ 0 ], dz = L.mouth[ 1 ] - best[ 2 ], l = Math.hypot( dx, dz ) || 1;
+		a.aside = { stage: 'out', t: 0, at: [ best[ 0 ] + dx / l * 0.75 + this.n[ 0 ] * 0.3, best[ 2 ] + dz / l * 0.75 + this.n[ 1 ] * 0.3 ], bin: [ best[ 0 ], best[ 2 ] ] };
+		a.mode = 'aside';
+		a.lane = L;
+		( this.aside ||= [] ).push( a );
+
+	}
+
+	_asideStep( a, dt, ns ) {
+
+		const A = a.aside, p = a.p, P = p.pose, L = a.lane;
+		A.t += dt;
+		const goal = A.stage === 'back' ? this._slotPos( L, 0 ) : A.at;
+		const dx = goal[ 0 ] - p.x, dz = goal[ 1 ] - p.z, e = Math.hypot( dx, dz );
+		if ( A.stage !== 'drop' ) {
+
+			if ( e > 0.08 ) {
+
+				const v = Math.min( 1.1, e * 2 );
+				p.x += dx / e * v * dt;
+				p.z += dz / e * v * dt;
+				this._turnTo( p, this._yaw( dx, dz ), dt );
+				this._stride( a, v, dt, ns );
+				// the thermos still in his hand on the way out
+				if ( A.stage === 'out' ) {
+
+					P.armR = GESTURE.carry[ 1 ].slice(); P.propR = PROP.cocoa;
+					P.mouth = Math.max( 0, 0.3 * Math.sin( this.time * 6 ) );
+
+				}
+
+				return;
+
+			}
+
+			if ( A.stage === 'out' ) {
+
+				A.stage = 'drop';
+				A.t = 0;
+
+			} else {
+
+				// back at the front of the line; in he goes next
+				a.mode = 'queue';
+				a.aside = null;
+				a.arrived = false;
+				L.queue.unshift( a );
+				return;
+
+			}
+
+		}
+
+		// at the bin: a last look at it, and in it goes
+		this._turnTo( p, this._yaw( A.bin[ 0 ] - p.x, A.bin[ 1 ] - p.z ), dt );
+		P.walk = 0; P.lean = 0.25; P.headPitch = 0.5; P.headYaw = 0;
+		P.armL = [ 0.05, 0.08, 0, 0.2 ]; P.propL = 0;
+		P.armR = GESTURE.reach[ 1 ].slice();
+		P.armR[ 0 ] -= 0.35;
+		P.propR = A.t < 1.3 ? PROP.cocoa : 0;
+		P.mouth = A.t > 1.3 ? Math.max( 0, 0.25 * Math.sin( this.time * 7 ) ) : 0;
+		if ( A.t > 2.4 ) {
+
+			A.stage = 'back';
+			A.t = 0;
 
 		}
 
@@ -594,6 +754,16 @@ export class Arrivals1B {
 			P.armR = GESTURE.reach[ 1 ].slice(); P.propR = 0;
 			P.headPitch = 0.4;
 			P.headYaw = - 0.6;
+			// the thermos found: both hands out, palms up, "it's coffee!"
+			if ( a.thermos && a.bagT > 2.2 ) {
+
+				const k = Math.sin( this.time * 3 ) * 0.15;
+				P.armL = [ 0.7 + k, 0.45, 0.35, 1.1 ]; P.armR = [ 0.7 - k, 0.45, 0.35, 1.1 ];
+				P.propL = PROP.bag;
+				P.headPitch = 0.05;
+				P.mouth = Math.max( 0, 0.5 * Math.sin( this.time * 8 ) );
+
+			}
 
 		}
 
@@ -688,6 +858,16 @@ export class Arrivals1B {
 				P.armR = GESTURE.reach[ 1 ].slice(); P.propR = PROP.phone;
 				P.armL = GESTURE.reachL[ 0 ].slice();
 				P.mouth = B.bagT > 3 ? Math.max( 0, 0.3 * Math.sin( t * 7 ) ) : 0;
+				if ( B.thermos && B.bagT > 2.2 ) {
+
+					// the thermos held up out of the bag; shaking his head
+					P.lean = 0.05;
+					P.headPitch = 0.05;
+					P.armR = GESTURE.holdUp[ 1 ].map( ( v, k ) => v * ( k === 0 ? 0.75 : 1 ) ); P.propR = PROP.cocoa;
+					P.headYaw = 0.25 * Math.sin( t * 6 );
+					P.mouth = Math.max( 0, 0.35 * Math.sin( t * 7 ) );
+
+				}
 
 			} else {
 
