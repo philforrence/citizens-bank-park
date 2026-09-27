@@ -54,13 +54,13 @@ export default class Concourse3B {
 		this.group.add( this.floor );
 		// the people: the cast (drawn here), and People.js's own figures handed over to it in this stretch
 		this.cast = new Cast( { parent: this.group, max: 440 } );
-		// where the cast is (for ?focus=, which drops what's wholly outside its circle)
+		// where the cast is (the pool skips the whole troupe when the view's elsewhere)
 		const mid = this.W.at( S_END / 2, 40 );
-		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
+		this.cast.bounds = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
 		this.people = new ConcoursePeople( { cast: this.cast, walkway: this.W, concourse, bowl, sEnd: S_END, obstacles: this.obstacles, carts: this.carts, seed: 1027 } );
 		this.stories = new Stories( this.people );
 		// steam off the grills and the urns and the cups, and people's breath
-		this.steam = new Steam( { parent: this.group, bounds: this.cast.mesh.boundingSphere } );
+		this.steam = new Steam( { parent: this.group, bounds: this.cast.bounds } );
 		this._steamers();
 		people?.hiders?.push( ( x, z ) => this.covers( x, z ) );
 		// the rain's cover: built now, before the static batching takes the bowl's meshes apart

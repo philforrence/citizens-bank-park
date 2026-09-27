@@ -1,32 +1,64 @@
-import { InstancedMesh, BufferGeometry, Float32BufferAttribute, Matrix4, PlaneGeometry, Color } from '../../engine/index.js';
+import { Mesh, BufferGeometry, Float32BufferAttribute, PlaneGeometry, Color, Matrix4, Vector3, Frustum } from '../../engine/index.js';
 import { StorageBuffer } from '../../engine/gpu/Texture.js';
 import { ShaderModule } from '../../engine/gpu/Shader.js';
+import { GPU } from '../../engine/gpu/GPU.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
 import { standard } from '../../materials/Materials.js';
 import { canvasTexture } from '../geo.js';
 
-// A cast of standing and walking people seen up close: the concourse's fans, staff and vendors. People.js
-// has the far-off figures (a tube body, three morphs); these are built to be looked at from a metre or
-// two: a lofted trunk with a build (slim, broad, a belly), shoulders, hands and shoes, a head with a
-// nose and a painted face (the eyes, brows, lips, the cold in the cheeks and ears, beards, glasses), hair
-// (short, long, a ponytail, a bald crown), a cap, a knit hat with its pom-pom or a hood up, and what
-// they wear: a Phillies jacket, a hoodie, the home whites with a name and number on the back, a red
-// name-and-number tee over a thermal, a puffer, a work jacket, the 1980 powder blues, a poncho over it
-// all. Whatever's in their hands: a beer, a hot chocolate, a cardboard tray with a cheesesteak and fries,
-// a program, a flip phone, a kid's glove, a rally towel, a bag from the team store.
+// The park's people seen up close: one figure system for every place (the concourse's fans, the gate's
+// arrivals and scalpers, the Alley's hecklers, whoever the next places bring). People.js has the far-off
+// figures (a tube body, three morphs); these are built to be looked at from a metre or two: a lofted trunk
+// with a build (slim, broad, a belly), shoulders, hands and shoes, a head with a nose and a painted face
+// (the eyes that blink, brows, lips, the cold in the cheeks and ears, beards, glasses), hair (short, long,
+// a ponytail, a bald crown), a cap, a knit hat with its pom-pom, a hood up, a trooper's campaign hat, and
+// what they wear: a Phillies jacket, a hoodie, the home whites with a name and number on the back, a red
+// name-and-number tee over a thermal, a puffer, a work jacket, the 1980 powder blues, a long coat, a
+// poncho over it all, a bag on a strap, a radio on the shoulder. Whatever's in their hands: a beer, a hot
+// chocolate, a cardboard tray with a cheesesteak and fries, a program, a flip phone, a kid's glove, a
+// rally towel, an umbrella, a homemade sign, a scalper's fan of tickets, a cowbell.
 //
-// One instanced draw. Each person is a slot with a pose (8 vec4s: where, which way, the walk, the lean,
-// the head, each arm's shoulder and elbow, the legs, what's in each hand) written every frame by the
-// CPU, and a look (a vec4 of packed numbers) written once. The vertex shader rigs the figure: every
-// vertex belongs to a bone (the pelvis, the spine, the head, each upper arm, forearm, thigh and shin,
-// and the things held in each hand) and is turned about the joints in the chain above it; it runs
-// twice (this frame's pose and last frame's) for the motion vectors. A soft contact shadow sits under
-// everyone (a second instanced draw on the transparent pass).
+// ---- The API (stable: the places build on it; additions only)
 //
-//   const cast = new Cast( { parent, max } )
-//   const p = cast.add( look )          p.x, p.y, p.z (field frame), p.yaw (0: facing -z); p.pose
-//                                       (the angles, see POSE); p.visible
-//   cast.update()                       writes the slots (call once a frame, after posing)
+//   import { Cast, TOP, COLOR, HAT, CHEST, BACK, GEAR, PROP, restPose, seat, sign } from './Cast.js';
+//   const cast = new Cast( { parent, max } )   a troupe: parent is the place's group (the field frame);
+//                                              max: at most this many people in it
+//   const p = cast.add( look )                 someone new (look: packLook's fields, below), or null past max
+//     p.x, p.y, p.z                            where (the field frame: metres, y up from the field)
+//     p.yaw                                    which way they face (0: facing -z)
+//     p.scale                                  their size (the figure is built ~1.75 m tall)
+//     p.visible                                drawn or not
+//     p.pose                                   the angles (restPose(): see below)
+//     p.fresh = true                           no motion blur from where they were (after a jump)
+//   cast.setLook( p, look )                    re-dressed (a poncho on for the rain, off on the 29th)
+//   cast.update( [ camX, 0, camZ ] )           once a frame, after posing (the camera in the field
+//                                              frame; optional: the pool finds the camera itself)
+//   cast.list                                  the troupe's people
+//   cast.bounds = sphere                       optional: where the troupe is (a Sphere in the field frame),
+//                                              to skip it wholesale when the camera looks elsewhere
+//   sign( draw, name )                         a homemade sign ( draw( ctx, w, h ) on a 256 x 256 card):
+//                                              returns its cell, the variant of PROP.sign / PROP.photo
+//   seat( pose, h )                            the legs folded to sit on a seat h metres up
+//
+// The pose (restPose(); angles in radians): phase and walk (the stride: walk 0..1, phase advancing ~4.5 rad
+// a metre), drop (the pelvis lowered, m), lean (forward +), twist (left +), roll, headYaw (left +),
+// headPitch (down +), mouth (0 shut .. 1 open), propL / propR (a PROP id in each hand), varL / varR
+// (that prop's variant: a sign's cell, an umbrella's colours), armL / armR = [ shoulder pitch (forward +),
+// roll (out to the side +), yaw (across the body +), elbow (bent +) ], hipL / hipR (thigh forward +),
+// kneeL / kneeR (bent +), spread (the legs apart), breath (0..1), blink (0..1).
+// Concourse3BKit.js solves arms to a point (armIK) and has the common gestures (GESTURE) and dress().
+//
+// ---- Underneath: one pool for the whole park
+//
+// Every troupe's people are slots in one pool, drawn by one pipeline: three meshes (the near figure, the
+// far one, the distant one) with the same material, and the contact shadows. Each person is a slot with a
+// pose (8 vec4s, written every frame) and a look (a vec4u of packed numbers, written when it changes); the
+// vertex shader rigs the figure (every vertex belongs to a bone and turns about the joints above it) and
+// runs twice for the near ones (this frame's pose and last frame's, for the motion vectors). Once a
+// frame, as the pool is about to be drawn, it culls everyone outside the view, picks each one's figure by
+// how tall they stand on the screen (a TV camera's long lens sees the backdrop close), sorts the near ones
+// front to back, and uploads. The parts a person hasn't got (a brim without a cap, the props not in hand)
+// fold to a point before any rigging, so the forty-odd props cost next to nothing on those not holding them.
 
 // the joints standing (origin on the ground between the feet, facing -z, the right side +x)
 export const J = {
@@ -39,68 +71,143 @@ const HEAD_R = [ 0.079, 0.104, 0.096 ];
 // bones
 const B = { pelvis: 0, spine: 1, head: 2, uarm: [ 3, 4 ], farm: [ 5, 6 ], thigh: [ 7, 8 ], shin: [ 9, 10 ], prop: [ 11, 12 ] };
 // parts (what the shaders dress), then the props at 32 + id
-export const PART = { torso: 0, pants: 1, hand: 2, head: 3, brim: 4, pompom: 5, neck: 6, sleeve: 7, shoe: 8, poncho: 9, hairCard: 10, nose: 11, apron: 12, vest: 13 };
+export const PART = {
+	torso: 0, pants: 1, hand: 2, head: 3, brim: 4, pompom: 5, neck: 6, sleeve: 7, shoe: 8, poncho: 9, hairCard: 10, nose: 11, apron: 12, vest: 13,
+	// ---- P0: worn gear and a hat with its own shape
+	bag: 14, pack: 15, radio: 16, lanyard: 17, campaign: 18,
+};
 
-// What's in a hand (pose.propL / propR). Upright ones stay level whatever the arm does (a cup, a tray);
-// the others turn with the hand (a program held up, a phone to the ear).
+// What's in a hand (pose.propL / propR). Upright ones stay level whatever the arm does (a cup, a tray, an
+// umbrella over the head, a sign held up); the others turn with the hand (a program held up, a phone to
+// the ear).
 export const PROP = {
 	none: 0, beer: 1, soda: 2, cocoa: 3, tray: 4, program: 5, phone: 6, glove: 7, towel: 8, bag: 9, sandwich: 10,
 	scorebook: 11, cottonCandy: 12, waterIce: 13, peanuts: 14, pocket: 15, programs: 16, hotdog: 17, money: 18, beers: 19, ticket: 20, pencil: 21, camera: 22,
+	// ---- P0 (23-59): the gate's and the Alley's things
+	umbrella: 23, // open over the head, the shaft through the fist (varR: 0 black, 1 Phillies red, 2 red and white golf, 3 navy, 4 plaid, 5 grey)
+	furled: 24, // an umbrella rolled up, hanging from the hand
+	sign: 25, // a homemade sign held up in both hands (the right carries it; var: its cell, sign())
+	scanner: 26, // a ticket taker's scanner
+	flashlight: 27, // a bag checker's, a bouncer's (left hand)
+	mic: 28, // a reporter's microphone with the station's flag
+	tickets: 29, // a scalper's tickets, fanned and held up
+	cowbell: 30, // a Rays fan's
+	tongs: 31, // the pitmaster's
+	pennant: 32, // a Phillies pennant on its stick
+	photo: 33, // a glossy 8 x 10 held flat (var: its cell, sign())
+	cigarette: 34, // between the fingers, the tip lit
+	radio: 35, // a transistor radio with its aerial up (left hand)
 };
-const UPRIGHT = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.bag, PROP.cottonCandy, PROP.waterIce, PROP.peanuts, PROP.beers ];
+const UPRIGHT = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.bag, PROP.cottonCandy, PROP.waterIce, PROP.peanuts, PROP.beers,
+	PROP.umbrella, PROP.sign, PROP.scanner, PROP.flashlight, PROP.mic, PROP.tickets, PROP.cowbell, PROP.tongs, PROP.pennant, PROP.photo, PROP.radio ];
 // which props each hand can hold (the geometry is built once per hand)
 const HAND_PROPS = [
-	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.glove, PROP.bag, PROP.scorebook, PROP.peanuts, PROP.programs, PROP.money, PROP.hotdog, PROP.ticket, PROP.cottonCandy ], // left
-	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.program, PROP.phone, PROP.towel, PROP.sandwich, PROP.waterIce, PROP.cottonCandy, PROP.hotdog, PROP.money, PROP.beers, PROP.ticket, PROP.pencil, PROP.camera ], // right
+	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.glove, PROP.bag, PROP.scorebook, PROP.peanuts, PROP.programs, PROP.money, PROP.hotdog, PROP.ticket, PROP.cottonCandy,
+		PROP.towel, PROP.program, PROP.sandwich, PROP.flashlight, PROP.photo, PROP.radio ], // left
+	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.program, PROP.phone, PROP.towel, PROP.sandwich, PROP.waterIce, PROP.cottonCandy, PROP.hotdog, PROP.money, PROP.beers, PROP.ticket, PROP.pencil, PROP.camera,
+		PROP.peanuts, PROP.bag, PROP.umbrella, PROP.furled, PROP.sign, PROP.scanner, PROP.mic, PROP.tickets, PROP.cowbell, PROP.tongs, PROP.pennant, PROP.photo, PROP.cigarette ], // right
 ];
+// the props that show past the near figure (the rest are too small to read there)
+const FAR_PROPS = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove,
+	PROP.umbrella, PROP.sign, PROP.beers, PROP.tickets ];
+const TINY_PROPS = [ PROP.umbrella, PROP.sign ];
 
 // the pose: 8 vec4s per person
 export const POSE = 8;
 // [ x, y, z, yaw ], [ scale, walk phase, walk, pelvis drop ], [ lean, twist, side lean, head yaw ],
 // [ head pitch, mouth, prop left, prop right ], [ left shoulder pitch, roll, yaw, elbow ], [ right ... ],
-// [ left hip pitch, knee, right hip pitch, knee ], [ legs apart, breath, blink, - ]
+// [ left hip pitch, knee, right hip pitch, knee ], [ legs apart, breath, blink, the props' variants ]
 
-// The looks: numbers packed into a vec4 (exact in a float up to 2^24).
+// The looks: numbers packed into a vec4u.
 //   x: skin 0-7 | hair colour <<3 | hair style <<6 (0 short, 1 long, 2 ponytail, 3 bald) | facial <<8
 //      (0 none, 1 moustache, 2 goatee, 3 beard, 4 stubble) | glasses <<11 | female <<12 | age <<13
 //      (0 adult, 1 old, 2 kid, 3 teen) | build <<15 (0 slim, 1 average, 2 broad, 3 belly)
 //   y: top <<0 (TOP) | its colour <<5 (COLOR) | sleeves' colour <<10 | the print on the back <<15 (the
-//      atlas cell, 0 none) | the print on the chest <<21 (CHEST)
-//   z: pants <<0 (0 jeans, 1 dark jeans, 2 khakis, 3 black, 4 grey sweats, 5 navy) | shoes <<3 (0 white
-//      sneakers, 1 black, 2 tan boots, 3 brown, 4 grey) | hat <<6 (HAT) | poncho <<10 (0 none, 1 clear,
-//      2 red, 3 white, 4 yellow, 5 orange, 6 a grey trash bag, 7 a clear one shared with the one on the left) | scarf <<13 (0 none, 1 red and white, 2 grey, 3 black) | gloves <<15
-//      | hat colour <<16
+//      atlas cell, 0 none: BACK) | the print on the chest <<22 (CHEST)
+//   z: pants <<0 (0 jeans, 1 dark jeans, 2 khakis, 3 black, 4 grey sweats, 5 navy, 6 a trooper's grey with
+//      the black stripe, 7 camo) | shoes <<3 (0 white sneakers, 1 black, 2 tan boots, 3 brown, 4 grey) |
+//      hat <<6 (HAT) | poncho <<11 (0 none, 1 clear, 2 red, 3 white, 4 yellow, 5 orange, 6 a grey trash
+//      bag, 7 a clear one shared with the one on the left) | scarf <<14 (0 none, 1 red and white, 2 grey,
+//      3 black) | gloves <<16 | gear <<17 (GEAR bits)
 //   w: a seed (0..65535) for the small things
 export const TOP = {
 	jacket: 0, hoodie: 1, homeJersey: 2, nameTee: 3, fleece: 4, puffer: 5, leather: 6, work: 7, powder: 8, rays: 9,
 	eagles: 10, staff: 11, usher: 12, security: 13, hawker: 14, seller: 15, satin: 16, roadJersey: 17, champsTee: 18, cook: 19,
+	// ---- P0 (20-26)
+	camo: 20, // a hunting jacket (a South Philly dad)
+	flyers: 21, // a Flyers jacket: orange, the sleeves and yoke black, the winged P
+	trooper: 22, // the Pennsylvania State Police's grey, the black placket and epaulettes, the badge
+	coat: 23, // a long wool overcoat to the knees (a reporter, the man in the camel coat)
+	polo: 24, // a polo shirt (the store staff; the Bull's red one over a white turtleneck: sleeves white)
+	vendor: 25, // a street vendor's work coat under a canvas money apron
+	raincoat: 26, // a police raincoat: long, yellow, the silver bands (POLICE on the back: BACK.POLICE)
 };
 // the colours a top can be (the order is COLOR's)
-export const COLOR = { red: 0, maroon: 1, black: 2, navy: 3, grey: 4, white: 5, charcoal: 6, royal: 7, green: 8, tan: 9, brown: 10, cream: 11, lightGrey: 12, powder: 13, yellow: 14, pink: 15, raysNavy: 16, olive: 17, purple: 18, orange: 19 };
+export const COLOR = { red: 0, maroon: 1, black: 2, navy: 3, grey: 4, white: 5, charcoal: 6, royal: 7, green: 8, tan: 9, brown: 10, cream: 11, lightGrey: 12, powder: 13, yellow: 14, pink: 15, raysNavy: 16, olive: 17, purple: 18, orange: 19,
+	// ---- P0
+	camel: 20, policeYellow: 21, trooperGrey: 22, midnight: 23 };
 const COLORS = [
 	[ 0.34, 0.018, 0.024 ], [ 0.13, 0.02, 0.028 ], [ 0.013, 0.013, 0.015 ], [ 0.014, 0.02, 0.058 ], [ 0.2, 0.2, 0.2 ],
 	[ 0.72, 0.71, 0.68 ], [ 0.07, 0.07, 0.075 ], [ 0.03, 0.07, 0.3 ], [ 0.02, 0.1, 0.07 ], [ 0.3, 0.22, 0.12 ],
 	[ 0.1, 0.055, 0.03 ], [ 0.55, 0.5, 0.4 ], [ 0.42, 0.42, 0.41 ], [ 0.33, 0.5, 0.7 ], [ 0.62, 0.48, 0.03 ],
 	[ 0.62, 0.25, 0.35 ], [ 0.012, 0.03, 0.09 ], [ 0.1, 0.11, 0.05 ], [ 0.12, 0.04, 0.2 ], [ 0.6, 0.18, 0.02 ],
+	[ 0.3, 0.2, 0.12 ], [ 0.6, 0.52, 0.02 ], [ 0.22, 0.22, 0.23 ], [ 0.0, 0.065, 0.075 ],
 ];
-export const HAT = { none: 0, capRed: 1, capNavy: 2, knitRed: 3, knitGrey: 4, knitBlack: 5, cap1980: 6, capRays: 7, hood: 8, capBack: 9, knitPlain: 10, visor: 11, capBlack: 12, earmuffs: 13 };
-export const CHEST = { none: 0, script: 1, block: 2, champs: 3, rays: 4, staff: 5, security: 6, eagles: 7, redOct: 8 };
+export const HAT = { none: 0, capRed: 1, capNavy: 2, knitRed: 3, knitGrey: 4, knitBlack: 5, cap1980: 6, capRays: 7, hood: 8, capBack: 9, knitPlain: 10, visor: 11, capBlack: 12, earmuffs: 13,
+	// ---- P0 (14-20)
+	capWhite: 14, // a white cap, the red P
+	police: 15, // a Philadelphia police officer's peaked cap
+	campaign: 16, // a State Trooper's campaign hat
+	cabbie: 17, // a tweed flat cap (the old-timers)
+	capWS: 18, // a black cap with the 2008 World Series mark in gold
+};
+export const CHEST = { none: 0, script: 1, block: 2, champs: 3, rays: 4, staff: 5, security: 6, eagles: 7, redOct: 8,
+	// ---- P0 (9-12)
+	ws: 9, // WORLD SERIES 2008 over the trophy's flags
+	flyers: 10, // the Flyers' winged P
+	bulls: 11, // Bull's BBQ, the pit crew's shirts
+	fox: 12, // FOX 29
+};
+// worn gear (look.gear: these bits OR'd)
+export const GEAR = { messenger: 1, backpack: 2, radio: 4, lanyard: 8 };
 
-// the backs: [ name, number ] cells in the atlas (1..), then the chest prints
+// the backs: [ name, number ] cells in the atlas (1..), the words across a back (40..), then the chest prints (64..)
 export const BACKS = [
 	null, [ 'UTLEY', '26' ], [ 'HOWARD', '6' ], [ 'ROLLINS', '11' ], [ 'HAMELS', '35' ], [ 'VICTORINO', '8' ], [ 'BURRELL', '5' ],
 	[ 'WERTH', '28' ], [ 'LIDGE', '54' ], [ 'MYERS', '39' ], [ 'FELIZ', '7' ], [ 'RUIZ', '51' ], [ 'MOYER', '50' ],
 	[ 'SCHMIDT', '20' ], [ 'CARLTON', '32' ], [ 'ROSE', '14' ], [ 'BOWA', '10' ], [ 'KRUK', '29' ], [ 'DYKSTRA', '4' ],
 	[ 'DAULTON', '10' ], [ 'ASHBURN', '1' ], [ 'THOME', '25' ], [ 'CRAWFORD', '13' ], [ 'LONGORIA', '3' ], [ 'MADSON', '46' ],
 	[ 'BLANTON', '56' ], [ 'DOBBS', '19' ], [ 'STAIRS', '12' ], [ 'KALAS', '' ], [ 'WESTBROOK', '36' ], [ 'DAWKINS', '20' ],
+	// ---- P0 (31-47): more players (31-39), then the words across a back (40-47)
+	[ 'LUZINSKI', '19' ], [ 'McNABB', '5' ], [ 'UPTON', '2' ], [ 'JENKINS', '23' ], [ 'COSTE', '27' ], null, null, null, null,
+	[ '=STAFF' ], [ '=SECURITY' ], [ '=POLICE' ], [ '=FOX 29' ],
+	// (48-51: B's; 52-55: C's)
 ];
-export const BACK = Object.fromEntries( BACKS.map( ( b, i ) => [ b ? b[ 0 ] : 'NONE', i ] ) );
-const CHEST_CELL = 40; // the chest prints start at this atlas cell
+export const BACK = Object.fromEntries( BACKS.map( ( b, i ) => [ b ? b[ 0 ].replace( /^=/, '' ).replace( ' ', '' ).toUpperCase() : 'NONE', i ] ).filter( ( [ k ] ) => k !== 'NONE' ) );
+BACK.NONE = 0;
+const CHEST_CELL = 64; // the chest prints start at this atlas cell (8 x 10 cells of 128 px)
+const ATLAS_ROWS = 10;
+
+// ---------------------------------------------------------------- homemade signs
+
+// The park's signs, one atlas of 8 x 4 cards (256 px each): each place registers its own (drawn when the
+// pool first draws; a card drawn later redraws the atlas). Returns the card's cell (a sign's variant).
+const SIGNS = [];
+export function sign( draw, name = '' ) {
+
+	const known = name ? SIGNS.findIndex( ( s ) => s.name === name ) : - 1;
+	if ( known >= 0 ) return known;
+	if ( SIGNS.length >= 32 ) return 0;
+	SIGNS.push( { draw, name } );
+	if ( POOL ) POOL._signsDirty = true;
+	return SIGNS.length - 1;
+
+}
 
 // ---------------------------------------------------------------- the figure's geometry
 
 // lod 0: the near figure; lod 1: the far one (fewer sides, no joints' rounds, a plain hand, no nose);
-// lod 2: the distant one (a few pixels tall: the fewest sides, nothing in hand)
+// lod 2: the distant one (a few pixels tall: the fewest sides, next to nothing in hand)
 function figureGeometry( lod = 0 ) {
 
 	const fine = lod === 0, tiny = lod === 2, N8 = fine ? 8 : tiny ? 3 : 5, N6 = fine ? 6 : tiny ? 3 : 4;
@@ -246,6 +353,15 @@ function figureGeometry( lod = 0 ) {
 
 	};
 
+	// a flat quad a b c d (both sides show: the material is double sided)
+	const quad = ( bone, part, a, b, c, d ) => {
+
+		const n = norm( cross( sub( b, a ), sub( d, a ) ) );
+		const q = [ a, b, c, d ].map( ( p ) => vert( p, n, bone, part ) );
+		index.push( q[ 0 ], q[ 1 ], q[ 2 ], q[ 0 ], q[ 2 ], q[ 3 ] );
+
+	};
+
 	// an upright cylinder (a cup), centre of its base c
 	const cyl = ( bone, part, c, rB, rT, h, n = 8, top = true ) => {
 
@@ -258,7 +374,7 @@ function figureGeometry( lod = 0 ) {
 	loft( B.spine, PART.torso, [
 		[ 0.83, 0.172, 0.118, 0.012 ], [ 0.95, 0.168, 0.112, 0.01 ], [ 1.06, 0.164, 0.11, 0.008 ], [ 1.17, 0.172, 0.114, 0.006 ],
 		[ 1.28, 0.186, 0.118, 0.012 ], [ 1.36, 0.196, 0.108, 0.022 ], [ 1.42, 0.17, 0.085, 0.028 ], [ 1.465, 0.09, 0.062, 0.03 ],
-	], fine ? 12 : tiny ? 5 : 7, true, true );
+	], fine ? 12 : tiny ? 5 : 8, true, true );
 	// the hips and seat (the pelvis), under the trunk's hem
 	loft( B.pelvis, PART.pants, [ [ 0.74, 0.16, 0.1, 0.012 ], [ 0.86, 0.168, 0.11, 0.012 ], [ 0.97, 0.16, 0.105, 0.012 ] ], fine ? 10 : tiny ? 4 : 6, true, false );
 	// the neck
@@ -285,6 +401,29 @@ function figureGeometry( lod = 0 ) {
 		const top = hc.map( ( x ) => vert( add( h, [ x, 0.05, 0.075 - x * x * 3 ] ), [ x, 0, 1 ], B.head, PART.hairCard ) );
 		const bot = hc.map( ( x ) => vert( add( h, [ x * 1.1, - 0.2, 0.09 - x * x * 3 ] ), [ x, 0, 1 ], B.head, PART.hairCard ) );
 		for ( let k = 0; k < hc.length - 1; k ++ ) index.push( top[ k ], bot[ k ], top[ k + 1 ], top[ k + 1 ], bot[ k ], bot[ k + 1 ] );
+		// ---- P0: a State Trooper's campaign hat: the wide flat brim, the crown with the four pinches of its
+		// peak (W1's, from the Inquirer's troopers at the park)
+		if ( ! tiny ) {
+
+			const n = fine ? 16 : 8, y0 = h[ 1 ] + 0.065;
+			const ring = ( r, y, pinch = 0 ) => Array.from( { length: n }, ( _, i ) => {
+
+				const q = i / n * Math.PI * 2, k = 1 - pinch * Math.pow( Math.abs( Math.cos( q * 2 ) ), 6 );
+				return vert( [ h[ 0 ] + Math.cos( q ) * r * k, y, h[ 2 ] + Math.sin( q ) * r * k ], [ Math.cos( q ), 0.5, Math.sin( q ) ], B.head, PART.campaign );
+
+			} );
+			const rings = [ ring( 0.205, y0 - 0.005 ), ring( 0.104, y0 ), ring( 0.1, y0 + 0.09, 0.12 ), ring( 0.04, y0 + 0.155, 0.3 ) ];
+			for ( let r = 0; r < rings.length - 1; r ++ ) for ( let i = 0; i < n; i ++ ) {
+
+				const a0 = rings[ r ][ i ], a1 = rings[ r ][ ( i + 1 ) % n ], b0 = rings[ r + 1 ][ i ], b1 = rings[ r + 1 ][ ( i + 1 ) % n ];
+				index.push( a0, b0, a1, a1, b0, b1 );
+
+			}
+
+			const apex = vert( [ h[ 0 ], y0 + 0.17, h[ 2 ] ], [ 0, 1, 0 ], B.head, PART.campaign );
+			for ( let i = 0; i < n; i ++ ) index.push( apex, rings[ 3 ][ ( i + 1 ) % n ], rings[ 3 ][ i ] );
+
+		}
 
 	}
 
@@ -310,11 +449,38 @@ function figureGeometry( lod = 0 ) {
 
 	}
 
-	// a poncho: a bell of plastic from the shoulders to the knees, over everything (the spine bone)
+	// a poncho: a bell of plastic from the shoulders to the knees, over everything (the spine bone); the
+	// long coats wear it too, as their skirts
 	loft( B.spine, PART.poncho, [ [ 0.6, 0.29, 0.22, 0.02 ], [ 0.85, 0.27, 0.2, 0.02 ], [ 1.12, 0.262, 0.175, 0.015 ], [ 1.36, 0.245, 0.14, 0.025 ], [ 1.44, 0.17, 0.105, 0.03 ], [ 1.49, 0.07, 0.068, 0.03 ] ], fine ? 14 : tiny ? 5 : 8, false, false );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
-	loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], fine ? 12 : 7, false, false );
-	loft( B.spine, PART.vest, [ [ 0.98, 0.178, 0.122, 0.01 ], [ 1.17, 0.18, 0.124, 0.006 ], [ 1.3, 0.194, 0.128, 0.012 ], [ 1.4, 0.18, 0.1, 0.024 ] ], fine ? 12 : 7, false, false );
+	if ( ! tiny ) loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], fine ? 12 : 7, false, false );
+	loft( B.spine, PART.vest, [ [ 0.98, 0.178, 0.122, 0.01 ], [ 1.17, 0.18, 0.124, 0.006 ], [ 1.3, 0.194, 0.128, 0.012 ], [ 1.4, 0.18, 0.1, 0.024 ] ], fine ? 12 : tiny ? 5 : 7, false, false );
+
+	// ---- P0: worn gear (GEAR), on the trunk
+	if ( ! tiny ) {
+
+		// a messenger bag at the left hip on a strap across the chest
+		boxAt( B.spine, PART.bag, [ - 0.215, 1.0, 0.02 ], [ 0.035, 0.12, 0.15 ] );
+		quad( B.spine, PART.bag, [ 0.13, 1.44, - 0.118 ], [ 0.17, 1.42, - 0.112 ], [ - 0.17, 1.08, - 0.126 ], [ - 0.2, 1.1, - 0.12 ] );
+		quad( B.spine, PART.bag, [ 0.13, 1.44, 0.138 ], [ 0.17, 1.42, 0.132 ], [ - 0.17, 1.08, 0.132 ], [ - 0.2, 1.1, 0.13 ] );
+		// a backpack and its straps
+		boxAt( B.spine, PART.pack, [ 0, 1.2, 0.2 ], [ 0.15, 0.2, 0.07 ] );
+		if ( fine ) boxAt( B.spine, PART.pack, [ 0, 1.1, 0.28 ], [ 0.11, 0.08, 0.025 ] );
+		for ( const x of [ - 0.1, 0.1 ] ) quad( B.spine, PART.pack, [ x - 0.02, 1.45, - 0.1 ], [ x + 0.02, 1.45, - 0.1 ], [ x + 0.03, 1.1, - 0.123 ], [ x - 0.01, 1.1, - 0.123 ] );
+
+	}
+
+	if ( fine ) {
+
+		// a radio clipped at the left shoulder, its aerial
+		boxAt( B.spine, PART.radio, [ - 0.12, 1.34, - 0.118 ], [ 0.027, 0.05, 0.017 ] );
+		boxAt( B.spine, PART.radio, [ - 0.105, 1.42, - 0.118 ], [ 0.004, 0.035, 0.004 ] );
+		// a lanyard round the neck and the credential on it
+		quad( B.spine, PART.lanyard, [ - 0.06, 1.445, - 0.07 ], [ - 0.045, 1.45, - 0.075 ], [ 0.006, 1.25, - 0.121 ], [ - 0.008, 1.25, - 0.121 ] );
+		quad( B.spine, PART.lanyard, [ 0.045, 1.45, - 0.075 ], [ 0.06, 1.445, - 0.07 ], [ 0.008, 1.25, - 0.121 ], [ - 0.006, 1.25, - 0.121 ] );
+		boxAt( B.spine, PART.lanyard, [ 0, 1.2, - 0.123 ], [ 0.045, 0.055, 0.003 ] );
+
+	}
 
 	// ---- what's held: each hand's set, built at its hand (the rig carries it)
 	for ( const s of [ - 1, 1 ] ) {
@@ -326,13 +492,14 @@ function figureGeometry( lod = 0 ) {
 		for ( const id of HAND_PROPS[ L ] ) {
 
 			// far off only the things that show at a distance
-			if ( tiny || ( ! fine && ! [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove ].includes( id ) ) ) continue;
+			if ( tiny && ! TINY_PROPS.includes( id ) ) continue;
+			if ( ! fine && ! FAR_PROPS.includes( id ) ) continue;
 
 			const part = 32 + id;
 			if ( id === PROP.beer || id === PROP.soda ) {
 
 				cyl( bone, part, g, 0.034, 0.045, 0.15, 8 );
-				if ( id === PROP.soda ) tube( bone, part, add( g, [ 0.01, 0.14, 0 ] ), add( g, [ 0.018, 0.22, 0.004 ] ), [ 0.004, 0.004 ], [ 0.004, 0.004 ], 4 );
+				if ( id === PROP.soda && fine ) tube( bone, part, add( g, [ 0.01, 0.14, 0 ] ), add( g, [ 0.018, 0.22, 0.004 ] ), [ 0.004, 0.004 ], [ 0.004, 0.004 ], 4 );
 
 			} else if ( id === PROP.beers ) {
 
@@ -348,12 +515,12 @@ function figureGeometry( lod = 0 ) {
 			} else if ( id === PROP.waterIce ) {
 
 				cyl( bone, part, add( g, [ 0, 0.01, 0 ] ), 0.032, 0.042, 0.1, 8, false );
-				ellipsoid( bone, part, add( g, [ 0, 0.11, 0 ] ), [ 0.04, 0.025, 0.04 ], 6, 3 );
+				ellipsoid( bone, part, add( g, [ 0, 0.11, 0 ] ), [ 0.04, 0.025, 0.04 ], fine ? 6 : 4, 3 );
 
 			} else if ( id === PROP.cottonCandy ) {
 
-				tube( bone, part, add( g, [ 0, 0.02, 0 ] ), add( g, [ 0, 0.2, 0 ] ), [ 0.008, 0.008 ], [ 0.012, 0.012 ], 5 );
-				ellipsoid( bone, part, add( g, [ 0, 0.3, 0 ] ), [ 0.11, 0.13, 0.11 ], 7, 4 );
+				tube( bone, part, add( g, [ 0, 0.02, 0 ] ), add( g, [ 0, 0.2, 0 ] ), [ 0.008, 0.008 ], [ 0.012, 0.012 ], fine ? 5 : 3 );
+				ellipsoid( bone, part, add( g, [ 0, 0.3, 0 ] ), [ 0.11, 0.13, 0.11 ], fine ? 7 : 5, fine ? 4 : 3 );
 
 			} else if ( id === PROP.tray ) {
 
@@ -369,12 +536,18 @@ function figureGeometry( lod = 0 ) {
 			} else if ( id === PROP.bag ) {
 
 				boxAt( bone, part, add( h, [ 0, - 0.22, 0 ] ), [ 0.03, 0.17, 0.15 ] );
-				tube( bone, part, add( h, [ 0, - 0.06, - 0.05 ] ), add( h, [ 0, 0.01, 0 ] ), [ 0.006, 0.006 ], [ 0.006, 0.006 ], 4 );
-				tube( bone, part, add( h, [ 0, - 0.06, 0.05 ] ), add( h, [ 0, 0.01, 0 ] ), [ 0.006, 0.006 ], [ 0.006, 0.006 ], 4 );
+				if ( fine ) {
+
+					tube( bone, part, add( h, [ 0, - 0.06, - 0.05 ] ), add( h, [ 0, 0.01, 0 ] ), [ 0.006, 0.006 ], [ 0.006, 0.006 ], 4 );
+					tube( bone, part, add( h, [ 0, - 0.06, 0.05 ] ), add( h, [ 0, 0.01, 0 ] ), [ 0.006, 0.006 ], [ 0.006, 0.006 ], 4 );
+
+				}
 
 			} else if ( id === PROP.peanuts ) {
 
+				// a brown paper bag, the top rolled over
 				boxAt( bone, part, add( g, [ 0, 0.06, 0 ] ), [ 0.07, 0.1, 0.03 ] );
+				if ( fine ) boxAt( bone, part, add( g, [ 0, 0.17, 0 ] ), [ 0.066, 0.018, 0.022 ] );
 
 			} else if ( id === PROP.program || id === PROP.scorebook || id === PROP.programs ) {
 
@@ -389,11 +562,11 @@ function figureGeometry( lod = 0 ) {
 			} else if ( id === PROP.glove ) {
 
 				boxAt( bone, part, add( h, [ 0.0, - 0.045, - 0.01 ] ), [ 0.045, 0.1, 0.085 ] );
-				boxAt( bone, part, add( h, [ - 0.01 * s, - 0.03, - 0.09 ] ), [ 0.03, 0.06, 0.03 ] );
+				if ( fine ) boxAt( bone, part, add( h, [ - 0.01 * s, - 0.03, - 0.09 ] ), [ 0.03, 0.06, 0.03 ] );
 
 			} else if ( id === PROP.towel ) {
 
-				const top = [ - 0.02, 0, 0 ], w = 0.22, len = 0.4;
+				const top = [ - 0.02 * s, 0, 0 ], w = 0.22, len = 0.4;
 				const a = vert( add( h, add( top, [ 0, 0, - w ] ) ), [ s, 0, 0 ], bone, part ), b = vert( add( h, add( top, [ 0, 0, w * 0.3 ] ) ), [ s, 0, 0 ], bone, part );
 				const c = vert( add( h, [ 0.02 * s, - len, w * 0.35 ] ), [ s, 0, 0 ], bone, part ), d = vert( add( h, [ 0.03 * s, - len, - w ] ), [ s, 0, 0 ], bone, part );
 				index.push( a, d, b, b, d, c );
@@ -409,7 +582,7 @@ function figureGeometry( lod = 0 ) {
 
 			} else if ( id === PROP.camera ) {
 
-				// a silver point-and-shoot held up in the fingertips, its screen toward the face
+				// a point-and-shoot held up in the fingertips, its screen toward the face
 				boxAt( bone, part, add( h, [ - 0.04 * s, - 0.06, - 0.03 ] ), [ 0.05, 0.03, 0.013 ], Math.PI / 2 );
 
 			} else if ( id === PROP.pencil ) {
@@ -420,19 +593,114 @@ function figureGeometry( lod = 0 ) {
 
 				boxAt( bone, part, add( h, [ - 0.03 * s, - 0.07, - 0.02 ] ), [ 0.003, 0.035, 0.07 ] );
 
+			// ---- P0's props (upright ones are built as they're held, level; the others hanging from the
+			// hand at rest)
+			} else if ( id === PROP.umbrella ) {
+
+				// the shaft up through the fist, the crook below it, eight panels over the head
+				tube( bone, part, add( h, [ 0, - 0.13, 0 ] ), add( h, [ 0, 0.93, 0 ] ), [ 0.011, 0.011 ], [ 0.008, 0.008 ], fine ? 4 : 3, fine );
+				if ( fine ) tube( bone, part, add( h, [ 0, - 0.13, 0 ] ), add( h, [ 0, - 0.19, 0.04 ] ), [ 0.013, 0.013 ], [ 0.012, 0.012 ], 4, false, true );
+				const c = add( h, [ 0, 0.78, 0 ] ), R = 0.56, n = 8;
+				for ( let k = 0; k < n; k ++ ) {
+
+					// each panel its own vertices, so its colour holds to the tip; the rim sags between the ribs
+					const a0 = k / n * Math.PI * 2, a1 = ( k + 1 ) / n * Math.PI * 2;
+					const P = ( a, r, y ) => add( c, [ Math.cos( a ) * r, y, Math.sin( a ) * r ] );
+					const N = ( a, up ) => [ Math.cos( a ) * 0.6, up, Math.sin( a ) * 0.6 ];
+					const ap = vert( add( c, [ 0, 0.14, 0 ] ), [ 0, 1, 0 ], bone, part );
+					const m0 = vert( P( a0, R * 0.55, 0.07 ), N( a0, 1 ), bone, part ), m1 = vert( P( a1, R * 0.55, 0.07 ), N( a1, 1 ), bone, part );
+					const r0 = vert( P( a0, R, - 0.1 ), N( a0, 0.6 ), bone, part ), r1 = vert( P( a1, R, - 0.1 ), N( a1, 0.6 ), bone, part );
+					index.push( ap, m1, m0, m0, m1, r1, m0, r1, r0 );
+
+				}
+
+			} else if ( id === PROP.furled ) {
+
+				// rolled up and hanging from the crook in the fingers, the ferrule near the ground
+				tube( bone, part, add( h, [ 0, - 0.02, 0 ] ), add( h, [ 0, - 0.7, - 0.02 ] ), [ 0.022, 0.022 ], [ 0.007, 0.007 ], 5 );
+				tube( bone, part, add( h, [ 0, 0.03, 0.03 ] ), add( h, [ 0, - 0.02, 0 ] ), [ 0.01, 0.01 ], [ 0.01, 0.01 ], 4 );
+
+			} else if ( id === PROP.sign ) {
+
+				// a board 0.72 x 0.5, held along its bottom edge in both hands (the right carries it): its
+				// face toward the crowd, the card from the sign atlas; the back plain cardboard
+				boxAt( bone, part, add( h, [ - 0.27, 0.14, - 0.06 ] ), [ 0.36, 0.25, 0.005 ] );
+
+			} else if ( id === PROP.scanner ) {
+
+				// the reader pointing out of the fist, its grip
+				boxAt( bone, part, add( h, [ - 0.02 * s, 0.01, - 0.09 ] ), [ 0.034, 0.022, 0.1 ] );
+				boxAt( bone, part, add( h, [ - 0.02 * s, - 0.035, - 0.02 ] ), [ 0.02, 0.045, 0.022 ] );
+
+			} else if ( id === PROP.flashlight ) {
+
+				tube( bone, part, add( h, [ - 0.01 * s, 0.0, 0.05 ] ), add( h, [ - 0.01 * s, 0.01, - 0.14 ] ), [ 0.017, 0.017 ], [ 0.024, 0.024 ], 6, true, true );
+
+			} else if ( id === PROP.mic ) {
+
+				// the handle up from the fist, the station's flag, the ball of the head
+				tube( bone, part, add( h, [ - 0.01 * s, - 0.07, 0.0 ] ), add( h, [ - 0.01 * s, 0.14, - 0.03 ] ), [ 0.016, 0.016 ], [ 0.02, 0.02 ], 6, true );
+				boxAt( bone, part, add( h, [ - 0.01 * s, 0.09, - 0.02 ] ), [ 0.035, 0.03, 0.035 ] );
+				tube( bone, part, add( h, [ - 0.01 * s, 0.14, - 0.03 ] ), add( h, [ - 0.01 * s, 0.2, - 0.04 ] ), [ 0.03, 0.03 ], [ 0.018, 0.018 ], 6, false, true );
+
+			} else if ( id === PROP.tickets ) {
+
+				// four tickets fanned out over the hand, held up to be seen
+				for ( let k = 0; k < 4; k ++ ) {
+
+					const a = - 0.5 + k * 0.33, dx = Math.sin( a ) * 0.17, dy = Math.cos( a ) * 0.17;
+					const o = add( h, [ - 0.03 * s + k * 0.004, 0.03, - 0.04 - k * 0.003 ] );
+					quad( bone, part, [ o[ 0 ] - 0.028, o[ 1 ], o[ 2 ] ], [ o[ 0 ] + 0.028, o[ 1 ], o[ 2 ] ], [ o[ 0 ] + 0.028 + dx, o[ 1 ] + dy, o[ 2 ] ], [ o[ 0 ] - 0.028 + dx, o[ 1 ] + dy, o[ 2 ] ] );
+
+				}
+
+			} else if ( id === PROP.cowbell ) {
+
+				tube( bone, part, add( g, [ 0, 0.06, - 0.01 ] ), add( g, [ 0, - 0.08, - 0.02 ] ), [ 0.03, 0.022 ], [ 0.055, 0.04 ], 6, true, false );
+				tube( bone, part, add( g, [ 0, 0.06, - 0.01 ] ), add( g, [ 0, 0.14, - 0.01 ] ), [ 0.01, 0.01 ], [ 0.01, 0.01 ], 4 );
+
+			} else if ( id === PROP.tongs ) {
+
+				boxAt( bone, part, add( h, [ - 0.015 * s, 0.0, - 0.2 ] ), [ 0.012, 0.008, 0.2 ] );
+
+			} else if ( id === PROP.pennant ) {
+
+				// the stick up from the fist, the felt flag off it
+				tube( bone, part, add( h, [ 0, - 0.05, 0 ] ), add( h, [ 0, 0.45, 0 ] ), [ 0.006, 0.006 ], [ 0.005, 0.005 ], 4 );
+				const p0 = vert( add( h, [ 0, 0.44, 0 ] ), [ 1, 0, 0 ], bone, part ), p1 = vert( add( h, [ 0, 0.24, 0 ] ), [ 1, 0, 0 ], bone, part ), p2 = vert( add( h, [ 0.02, 0.33, - 0.45 ] ), [ 1, 0, 0 ], bone, part );
+				index.push( p0, p1, p2 );
+
+			} else if ( id === PROP.photo ) {
+
+				// a glossy 8 x 10 held flat, out in front (to be signed)
+				boxAt( bone, part, add( h, [ - 0.02 * s, 0.0, - 0.14 ] ), [ 0.1, 0.003, 0.125 ] );
+
+			} else if ( id === PROP.cigarette ) {
+
+				// between the first two fingers (it points back along the hand at rest: out from the lips when
+				// the hand is up at the mouth)
+				tube( bone, part, add( h, [ - 0.025 * s, - 0.06, - 0.01 ] ), add( h, [ - 0.025 * s, - 0.06, 0.07 ] ), [ 0.004, 0.004 ], [ 0.004, 0.004 ], 4, false, true );
+
+			} else if ( id === PROP.radio ) {
+
+				// a transistor radio held at the chest, the aerial up
+				boxAt( bone, part, add( g, [ 0, 0.05, 0 ] ), [ 0.07, 0.045, 0.022 ] );
+				tube( bone, part, add( g, [ 0.05 * s, 0.09, 0 ] ), add( g, [ 0.07 * s, 0.33, 0 ] ), [ 0.003, 0.003 ], [ 0.002, 0.002 ], 3 );
+
 			}
 
 		}
 
 	}
 
-	const g = new BufferGeometry();
-	g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
-	g.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
-	g.setAttribute( 'aInfo', new Float32BufferAttribute( info, 2 ) );
-	g.setIndex( index );
-	g.computeBoundingSphere();
-	return g;
+	const geo = new BufferGeometry();
+	geo.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+	geo.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
+	geo.setAttribute( 'aInfo', new Float32BufferAttribute( info, 2 ) );
+	geo.setIndex( index );
+	geo.computeBoundingSphere();
+	geo.instanceCount = 0;
+	return geo;
 
 }
 
@@ -456,13 +724,12 @@ fn c3Upright( id: u32 ) -> bool {
 }
 
 // A vertex of the figure (q, its normal n, rest pose) posed: turned about each joint in its bone's chain,
-// then placed (the person's spot, yaw and scale), in the field frame. part: what it is (the props
-// collapse unless they're what the hand holds).
+// then placed (the person's spot, yaw and scale), in the field frame. (The props not in hand never get
+// here: they're folded away before the rig.)
 fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, P: C3Pose ) -> C3Out {
 	let at = P.p[ 0 ];
 	let a1 = P.p[ 1 ];
 	let a2 = P.p[ 2 ];
-	let a3 = P.p[ 3 ];
 	var q = q0;
 	var n = n0;
 	let walk = a1.z;
@@ -490,7 +757,6 @@ fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, P: C3Pose ) -> C3Out {
 	// the upper body: the arms (and what they hold), the head, turned with the spine
 	let spine = ${ f3( J.spine ) };
 	let Rs = c3Ry( a2.y ) * c3Rz( a2.z ) * c3Rx( - a2.x );
-	var hide = false;
 	if ( ( bone >= 3u && bone <= 6u ) || bone >= 11u ) {
 		let right = bone == 4u || bone == 6u || bone == 12u;
 		let s = select( - 1.0, 1.0, right );
@@ -499,11 +765,9 @@ fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, P: C3Pose ) -> C3Out {
 		let el = vec3f( ${ J.elbow[ 0 ].toFixed( 3 ) } * s, ${ J.elbow[ 1 ].toFixed( 3 ) }, ${ J.elbow[ 2 ].toFixed( 3 ) } );
 		let Re = c3Rx( arm.w );
 		let Ra = c3Ry( s * arm.z ) * c3Rz( s * arm.y ) * c3Rx( arm.x );
-		let held = u32( select( a3.z, a3.w, right ) + 0.5 );
 		if ( bone >= 11u ) {
-			// a prop: only what's in this hand; upright ones stay level (only the anchor moves)
+			// a prop: upright ones stay level (only the anchor moves)
 			let id = part - 32u;
-			hide = id != held;
 			let hand = vec3f( ${ J.hand[ 0 ].toFixed( 3 ) } * s, ${ J.hand[ 1 ].toFixed( 3 ) }, ${ J.hand[ 2 ].toFixed( 3 ) } );
 			let anchor = Rs * ( Ra * ( Re * ( hand - el ) + el - sh ) + sh - spine ) + spine;
 			if ( c3Upright( id ) ) {
@@ -516,8 +780,6 @@ fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, P: C3Pose ) -> C3Out {
 				n = Rs * Ra * Re * n;
 			}
 		} else {
-			// a hand in a pocket isn't seen
-			if ( part == ${ PART.hand }u && held == ${ PROP.pocket }u ) { hide = true; }
 			if ( bone >= 5u ) {
 				q = Re * ( q - el ) + el;
 				n = Re * n;
@@ -530,7 +792,7 @@ fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, P: C3Pose ) -> C3Out {
 	} else if ( bone == 1u || bone == 2u ) {
 		if ( bone == 2u ) {
 			let neck = ${ f3( J.neck ) };
-			let Rh = c3Ry( a2.w ) * c3Rx( - a3.x );
+			let Rh = c3Ry( a2.w ) * c3Rx( - P.p[ 3 ].x );
 			q = Rh * ( q - neck ) + neck;
 			n = Rh * n;
 		}
@@ -539,7 +801,6 @@ fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, P: C3Pose ) -> C3Out {
 	}
 	// the pelvis carries it all: the bob of the stride, the drop into a crouch
 	q.y += walk * 0.018 * cos( 2.0 * ph ) - a1.w;
-	if ( hide ) { q = ${ f3( J.spine ) }; }
 	// placed: the spot, the yaw, the size
 	let Ry = c3Ry( at.w );
 	var o: C3Out;
@@ -550,33 +811,95 @@ fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, P: C3Pose ) -> C3Out {
 `,
 } );
 
-function castMaterial( pose, prev, looks, order, atlas ) {
+// the palette (the shaders read it from a buffer, not an array in every invocation)
+const PAL = { colors: 0, skin: 32, hair: 40, pants: 48, shoes: 56, size: 64 };
+function palette() {
+
+	const a = new Float32Array( PAL.size * 4 );
+	const put = ( i, c ) => a.set( [ c[ 0 ], c[ 1 ], c[ 2 ], 1 ], i * 4 );
+	COLORS.forEach( ( c, i ) => put( PAL.colors + i, c ) );
+	[ [ 0.62, 0.42, 0.32 ], [ 0.56, 0.36, 0.25 ], [ 0.5, 0.31, 0.2 ], [ 0.42, 0.25, 0.15 ], [ 0.3, 0.17, 0.1 ], [ 0.2, 0.11, 0.06 ], [ 0.12, 0.065, 0.04 ], [ 0.5, 0.34, 0.2 ] ].forEach( ( c, i ) => put( PAL.skin + i, c ) );
+	[ [ 0.016, 0.012, 0.01 ], [ 0.04, 0.024, 0.014 ], [ 0.1, 0.058, 0.03 ], [ 0.19, 0.12, 0.06 ], [ 0.4, 0.29, 0.14 ], [ 0.28, 0.08, 0.03 ], [ 0.26, 0.25, 0.24 ], [ 0.58, 0.57, 0.55 ] ].forEach( ( c, i ) => put( PAL.hair + i, c ) );
+	[ [ 0.05, 0.075, 0.14 ], [ 0.02, 0.03, 0.06 ], [ 0.3, 0.25, 0.16 ], [ 0.015, 0.015, 0.015 ], [ 0.2, 0.2, 0.2 ], [ 0.015, 0.02, 0.05 ], [ 0.14, 0.14, 0.15 ], [ 0.09, 0.1, 0.05 ] ].forEach( ( c, i ) => put( PAL.pants + i, c ) );
+	[ [ 0.62, 0.61, 0.58 ], [ 0.015, 0.015, 0.015 ], [ 0.3, 0.19, 0.08 ], [ 0.08, 0.04, 0.02 ], [ 0.2, 0.2, 0.2 ] ].forEach( ( c, i ) => put( PAL.shoes + i, c ) );
+	return a;
+
+}
+
+// the parts only some have: shown or folded away, by the look
+const brimHats = [ HAT.capRed, HAT.capNavy, HAT.cap1980, HAT.capRays, HAT.capBack, HAT.visor, HAT.capBlack, HAT.capWhite, HAT.police, HAT.cabbie, HAT.capWS ];
+const capHats = [ HAT.capRed, HAT.capNavy, HAT.cap1980, HAT.capRays, HAT.capBack, HAT.capBlack, HAT.capWhite, HAT.police, HAT.capWS ];
+const knitHats = [ HAT.knitRed, HAT.knitGrey, HAT.knitBlack, HAT.knitPlain ];
+const any = ( v, list ) => list.map( ( x ) => `${ v } == ${ x }u` ).join( ' || ' );
+
+function castMaterial( pool ) {
 
 	const mat = standard( {
 		name: 'cast', roughness: 0.8, side: 'double', modules: [ castModule ],
-		storage: { c3Pose: pose, c3Prev: prev, c3Look: looks, c3Order: order },
-		textures: { c3Atlas: atlas },
+		storage: { c3Pose: { storage: () => pool.poseBuf, access: 'read' }, c3Prev: { storage: () => pool.prevBuf, access: 'read' }, c3Look: { storage: () => pool.lookBuf, access: 'read' },
+			c3Order: { storage: () => pool.orderBuf, access: 'read' }, c3Pal: { storage: () => pool.palBuf, access: 'read' } },
+		textures: { c3Atlas: () => pool.atlas, c3Signs: () => pool.signTex },
 		attributes: { aInfo: 'vec2f' },
-		varyings: { vLocal: 'vec3f', vPart: 'u32', vLook: 'vec4u', vPose: 'vec4f' },
+		varyings: { vLocal: 'vec3f', vPart: 'u32', vLook: 'vec4u', vPose: 'vec4f', vVar: 'f32' },
 		vertex: /* wgsl */`
 	let bone = u32( v.aInfo.x + 0.5 );
 	let part = u32( v.aInfo.y + 0.5 );
-	// the visible ones are packed at the front: this instance draws that slot
-	let slot = c3Order[ v.instance ];
+	// this draw's figure (0 near, 1 far, 2 distant) and its stretch of the order: the visible ones packed
+	// at the front, this instance draws that slot
+	let lod = u32( draw.params.z + 0.5 );
+	let slot = c3Order[ u32( draw.params.y + 0.5 ) + v.instance ];
 	let lk = c3Look[ slot ];
-	let lx = u32( lk.x );
-	let lz = u32( lk.z );
+	let lx = lk.x;
+	let lz = lk.z;
+	let top = lk.y & 31u;
+	let hat = ( lz >> 6u ) & 31u;
+	let poncho = ( lz >> 11u ) & 7u;
+	let gear = ( lz >> 17u ) & 15u;
+	let hairStyle = ( lx >> 6u ) & 3u;
+	let k = slot * ${ POSE }u;
+	let a3 = c3Pose[ k + 3u ];
+	let a7 = c3Pose[ k + 7u ];
+	let right = bone == 12u;
+	let vars = u32( a7.w + 0.5 );
+	// what isn't there costs nothing: the props not in hand and the parts this one hasn't got fold to a
+	// point before any rigging
+	var gone = false;
+	let longCoat = top == ${ TOP.coat }u || top == ${ TOP.raincoat }u;
+	if ( part >= 32u ) {
+		gone = part - 32u != u32( select( a3.z, a3.w, right ) + 0.5 );
+	} else if ( part == ${ PART.brim }u ) { gone = !( ${ any( 'hat', brimHats ) } );
+	} else if ( part == ${ PART.pompom }u ) { gone = !( hat == ${ HAT.knitRed }u || hat == ${ HAT.knitGrey }u );
+	} else if ( part == ${ PART.hairCard }u ) { gone = hairStyle != 1u || hat == ${ HAT.hood }u || poncho > 0u;
+	} else if ( part == ${ PART.poncho }u ) { gone = poncho == 0u && ! longCoat;
+	} else if ( part == ${ PART.apron }u ) { gone = !( top == ${ TOP.staff }u || top == ${ TOP.cook }u || top == ${ TOP.seller }u || top == ${ TOP.vendor }u );
+	} else if ( part == ${ PART.vest }u ) { gone = top != ${ TOP.security }u;
+	} else if ( part == ${ PART.bag }u ) { gone = ( gear & ${ GEAR.messenger }u ) == 0u || poncho > 0u;
+	} else if ( part == ${ PART.pack }u ) { gone = ( gear & ${ GEAR.backpack }u ) == 0u;
+	} else if ( part == ${ PART.radio }u ) { gone = ( gear & ${ GEAR.radio }u ) == 0u;
+	} else if ( part == ${ PART.lanyard }u ) { gone = ( gear & ${ GEAR.lanyard }u ) == 0u || poncho > 0u;
+	} else if ( part == ${ PART.campaign }u ) { gone = hat != ${ HAT.campaign }u;
+	}
+	if ( gone ) {
+		v.useWorld = true;
+		v.worldPos = vec3f( 0.0 );
+		v.worldNormal = vec3f( 0.0, 1.0, 0.0 );
+		v.prevWorldPos = vec3f( 0.0 );
+		o.vLocal = vec3f( 0.0 );
+		o.vPart = part;
+		o.vLook = vec4u( 0u );
+		o.vPose = vec4f( 0.0 );
+		o.vVar = 0.0;
+		return;
+	}
 	let age = ( lx >> 13u ) & 3u;
 	let female = ( ( lx >> 12u ) & 1u ) == 1u;
 	let build = ( lx >> 15u ) & 3u;
-	let hairStyle = ( lx >> 6u ) & 3u;
-	let hat = ( lz >> 6u ) & 15u;
-	let poncho = ( lz >> 10u ) & 7u;
-	let top = u32( lk.y ) & 31u;
 	var q = v.position;
 	var n = v.normal;
 	// the build: a belly, broad shoulders, a woman's narrower shoulders and fuller hips; a kid's big head
-	if ( part == ${ PART.torso }u || part == ${ PART.pants }u || part == ${ PART.apron }u || part == ${ PART.vest }u || part == ${ PART.poncho }u ) {
+	let onTrunk = part == ${ PART.torso }u || part == ${ PART.pants }u || part == ${ PART.apron }u || part == ${ PART.vest }u || part == ${ PART.poncho }u
+		|| part == ${ PART.bag }u || part == ${ PART.pack }u || part == ${ PART.radio }u || part == ${ PART.lanyard }u;
+	if ( onTrunk ) {
 		let belly = select( select( select( 0.0, 0.3, build == 1u ), 0.55, build == 2u ), 1.0, build == 3u );
 		let bump = smoothstep( 0.86, 1.08, q.y ) * smoothstep( 1.36, 1.14, q.y );
 		q.z -= belly * 0.07 * bump * smoothstep( 0.02, - 0.08, q.z );
@@ -588,11 +911,20 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		}
 	}
 	if ( female && ( part == ${ PART.sleeve }u || part == ${ PART.hand }u ) ) { q.x *= 0.95; }
-	// one poncho for two (poncho 7): it hangs from his shoulders and spreads out over the one on his left
-	if ( part == ${ PART.poncho }u && poncho == 7u ) {
-		let spread = 1.0 - smoothstep( 1.18, 1.44, q.y );
-		q.x = q.x * ( 1.0 + 0.95 * spread ) - 0.27 * spread;
-		q.z = q.z * ( 1.0 + 0.25 * spread );
+	if ( part == ${ PART.poncho }u ) {
+		// one poncho for two (poncho 7): it hangs from his shoulders and spreads out over the one on his left
+		if ( poncho == 7u ) {
+			let spread = 1.0 - smoothstep( 1.18, 1.44, q.y );
+			q.x = q.x * ( 1.0 + 0.95 * spread ) - 0.27 * spread;
+			q.z = q.z * ( 1.0 + 0.25 * spread );
+		}
+		// a long coat hangs straighter than a poncho, and stops at the knee
+		if ( poncho == 0u ) {
+			let hang = 1.0 - smoothstep( 0.95, 1.3, q.y );
+			q.x *= 1.0 - 0.3 * hang;
+			q.z = ( q.z - 0.015 ) * ( 1.0 - 0.3 * hang ) + 0.015;
+			q.y = max( q.y, 0.55 + ( q.y - 0.6 ) * 0.9 );
+		}
 	}
 	let headC = ${ f3( J.head ) };
 	if ( bone == 2u && part != ${ PART.neck }u ) {
@@ -603,38 +935,41 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 			let face = smoothstep( - 0.55, - 0.85, d.z ) * smoothstep( 0.75, 0.45, length( d.xy - vec2f( 0.0, - 0.05 ) ) );
 			q = headC + ( q - headC ) * mix( 1.16, 1.0, face );
 		}
-		if ( ( hat == ${ HAT.knitRed }u || hat == ${ HAT.knitGrey }u || hat == ${ HAT.knitBlack }u || hat == ${ HAT.knitPlain }u ) && part == ${ PART.head }u ) {
+		if ( ( ${ any( 'hat', knitHats ) } ) && part == ${ PART.head }u ) {
 			q = q + ( q - headC ) * 0.06 * smoothstep( 0.1, 0.5, d.y );
 			q.y += 0.018 * smoothstep( 0.7, 1.0, d.y );
 		}
+		// a peaked police cap: the crown wider and flat on top; a flat cap sits low and short
+		if ( hat == ${ HAT.police }u && part == ${ PART.head }u && d.y > 0.45 ) {
+			let t = smoothstep( 0.45, 0.8, d.y );
+			q = vec3f( headC.x + ( q.x - headC.x ) * ( 1.0 + 0.18 * t ), mix( q.y, headC.y + ${ ( HEAD_R[ 1 ] * 0.95 ).toFixed( 3 ) }, t * 0.7 ), headC.z + ( q.z - headC.z ) * ( 1.0 + 0.12 * t ) );
+		}
+		if ( part == ${ PART.brim }u && hat == ${ HAT.cabbie }u ) { q = vec3f( q.x, q.y - 0.012, headC.z + ( q.z - headC.z ) * 0.7 ); }
+		if ( part == ${ PART.brim }u && hat == ${ HAT.police }u ) { q = vec3f( q.x, q.y + 0.004, headC.z + ( q.z - headC.z ) * 0.85 ); }
 	}
-	// the parts only some have: collapsed (zero area) on the rest
-	var gone = false;
-	if ( part == ${ PART.brim }u ) { gone = !( hat == ${ HAT.capRed }u || hat == ${ HAT.capNavy }u || hat == ${ HAT.cap1980 }u || hat == ${ HAT.capRays }u || hat == ${ HAT.capBack }u || hat == ${ HAT.visor }u || hat == ${ HAT.capBlack }u ); }
 	if ( part == ${ PART.brim }u && hat == ${ HAT.capBack }u ) { q = vec3f( - ( q.x - headC.x ), q.y, - ( q.z - headC.z ) ) + headC; n = vec3f( - n.x, n.y, - n.z ); }
-	if ( part == ${ PART.pompom }u ) { gone = !( hat == ${ HAT.knitRed }u || hat == ${ HAT.knitGrey }u ); }
-	if ( part == ${ PART.hairCard }u ) { gone = hairStyle != 1u || hat == ${ HAT.hood }u || poncho > 0u; }
-	if ( part == ${ PART.poncho }u ) { gone = poncho == 0u; }
-	if ( part == ${ PART.apron }u ) { gone = !( top == ${ TOP.staff }u || top == ${ TOP.cook }u || top == ${ TOP.seller }u ); }
-	if ( part == ${ PART.vest }u ) { gone = top != ${ TOP.security }u; }
-	if ( gone ) { q = ${ f3( J.spine ) }; }
 	var P0: C3Pose;
-	var P1: C3Pose;
-	let k = slot * ${ POSE }u;
-	for ( var i = 0u; i < ${ POSE }u; i ++ ) {
-		P0.p[ i ] = c3Pose[ k + i ];
-		P1.p[ i ] = c3Prev[ k + i ];
-	}
+	for ( var i = 0u; i < ${ POSE }u; i ++ ) { P0.p[ i ] = c3Pose[ k + i ]; }
 	let r0 = c3Rig( q, n, bone, part, P0 );
-	let r1 = c3Rig( q, n, bone, part, P1 );
 	v.useWorld = true;
 	v.worldPos = ( v.model * vec4f( r0.p, 1.0 ) ).xyz;
 	v.worldNormal = normalize( ( v.model * vec4f( r0.n, 0.0 ) ).xyz );
-	v.prevWorldPos = ( v.prevModel * vec4f( r1.p, 1.0 ) ).xyz;
+	if ( lod == 0u ) {
+		// the near ones rigged again in last frame's pose: the arms' and legs' own motion for the TAA
+		var P1: C3Pose;
+		for ( var i = 0u; i < ${ POSE }u; i ++ ) { P1.p[ i ] = c3Prev[ k + i ]; }
+		let r1 = c3Rig( q, n, bone, part, P1 );
+		v.prevWorldPos = ( v.prevModel * vec4f( r1.p, 1.0 ) ).xyz;
+	} else {
+		// further off, only where they've walked
+		let moved = P0.p[ 0 ].xyz - c3Prev[ k ].xyz;
+		v.prevWorldPos = ( v.prevModel * vec4f( r0.p - moved, 1.0 ) ).xyz;
+	}
 	o.vLocal = q;
 	o.vPart = part;
-	o.vLook = vec4u( lx, u32( lk.y ), lz, u32( lk.w ) );
-	o.vPose = vec4f( P0.p[ 3 ].y, P0.p[ 7 ].y, P0.p[ 7 ].z, P0.p[ 1 ].z );
+	o.vLook = lk;
+	o.vPose = vec4f( a3.y, a7.y, a7.z, P0.p[ 1 ].z );
+	o.vVar = f32( select( vars >> 8u, vars & 255u, right ) );
 `,
 		surface: /* wgsl */`
 	let part = in.vs.vPart;
@@ -646,42 +981,41 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 	let facial = ( lk.x >> 8u ) & 7u;
 	let glasses = ( ( lk.x >> 11u ) & 1u ) == 1u;
 	let female = ( ( lk.x >> 12u ) & 1u ) == 1u;
-	let age = ( lk.x >> 13u ) & 3u;
 	let top = lk.y & 31u;
 	let topCI = ( lk.y >> 5u ) & 31u;
 	let sleeveCI = ( lk.y >> 10u ) & 31u;
-	let back = ( lk.y >> 15u ) & 63u;
-	let chest = ( lk.y >> 21u ) & 7u;
+	let back = ( lk.y >> 15u ) & 127u;
+	let chest = ( lk.y >> 22u ) & 15u;
 	let pantsI = lk.z & 7u;
 	let shoesI = ( lk.z >> 3u ) & 7u;
-	let hat = ( lk.z >> 6u ) & 15u;
-	let poncho = ( lk.z >> 10u ) & 7u;
-	let scarf = ( lk.z >> 13u ) & 3u;
-	let gloves = ( ( lk.z >> 15u ) & 1u ) == 1u;
-	let seed = f32( lk.w ) / 65536.0;
+	let hat = ( lk.z >> 6u ) & 31u;
+	let poncho = ( lk.z >> 11u ) & 7u;
+	let scarf = ( lk.z >> 14u ) & 3u;
+	let gloves = ( ( lk.z >> 16u ) & 1u ) == 1u;
+	let seed = f32( lk.w & 65535u ) / 65536.0;
 	let g = fract( vec4f( seed * 13.1, seed * 71.7, seed * 191.3, seed * 7.37 ) );
 	let nk = smoothstep( 0.15, 0.7, frame.night );
-	var COLS = array<vec3f, ${ COLORS.length }>( ${ COLORS.map( f3 ).join( ', ' ) } );
-	var SKIN = array<vec3f, 8>( vec3f( 0.62, 0.42, 0.32 ), vec3f( 0.56, 0.36, 0.25 ), vec3f( 0.5, 0.31, 0.2 ), vec3f( 0.42, 0.25, 0.15 ), vec3f( 0.3, 0.17, 0.1 ), vec3f( 0.2, 0.11, 0.06 ), vec3f( 0.12, 0.065, 0.04 ), vec3f( 0.5, 0.34, 0.2 ) );
-	var HAIR = array<vec3f, 8>( vec3f( 0.016, 0.012, 0.01 ), vec3f( 0.04, 0.024, 0.014 ), vec3f( 0.1, 0.058, 0.03 ), vec3f( 0.19, 0.12, 0.06 ), vec3f( 0.4, 0.29, 0.14 ), vec3f( 0.28, 0.08, 0.03 ), vec3f( 0.26, 0.25, 0.24 ), vec3f( 0.58, 0.57, 0.55 ) );
-	let skin = SKIN[ skinI ];
-	let hairC = HAIR[ hairI ];
-	var topC = COLS[ min( topCI, ${ COLORS.length - 1 }u ) ];
-	var sleeveC = COLS[ min( sleeveCI, ${ COLORS.length - 1 }u ) ];
+	let skin = c3Pal[ ${ PAL.skin }u + skinI ].xyz;
+	let hairC = c3Pal[ ${ PAL.hair }u + hairI ].xyz;
+	let topC = c3Pal[ ${ PAL.colors }u + min( topCI, ${ COLORS.length - 1 }u ) ].xyz;
+	let sleeveC = c3Pal[ ${ PAL.colors }u + min( sleeveCI, ${ COLORS.length - 1 }u ) ].xyz;
+	let longCoat = top == ${ TOP.coat }u || top == ${ TOP.raincoat }u;
 	var c = topC;
 	var rough = 0.85;
 	var metal = 0.0;
 	var e = vec3f( 0.0 );
-	// the print on a jersey's back (the name over the number) or its chest, from the atlas: 8 x 8 cells
+	// the print on a jersey's back (the name over the number, or a word) or its chest, from the atlas: 8 x 10 cells
 	var printA = 0.0;
 	var printC = vec3f( 0.72, 0.71, 0.68 );
 	if ( part == ${ PART.torso }u || part == ${ PART.sleeve }u ) {
 		// what he wears: the top's cloth, its sheen, its seams
-		let shiny = top == ${ TOP.jacket }u || top == ${ TOP.puffer }u || top == ${ TOP.leather }u || top == ${ TOP.satin }u || top == ${ TOP.usher }u;
+		let shiny = top == ${ TOP.jacket }u || top == ${ TOP.puffer }u || top == ${ TOP.leather }u || top == ${ TOP.satin }u || top == ${ TOP.usher }u || top == ${ TOP.flyers }u || top == ${ TOP.raincoat }u;
 		rough = select( 0.88, 0.45, shiny );
 		if ( top == ${ TOP.leather }u ) { rough = 0.38; }
+		if ( top == ${ TOP.raincoat }u ) { rough = 0.25; }
+		if ( top == ${ TOP.coat }u ) { rough = 0.95; }
 		// a jersey or a tee: the sleeves are the thermal or hoodie underneath, below the short sleeve
-		let shortSleeve = top == ${ TOP.homeJersey }u || top == ${ TOP.nameTee }u || top == ${ TOP.powder }u || top == ${ TOP.rays }u || top == ${ TOP.roadJersey }u || top == ${ TOP.champsTee }u || top == ${ TOP.staff }u || top == ${ TOP.cook }u;
+		let shortSleeve = top == ${ TOP.homeJersey }u || top == ${ TOP.nameTee }u || top == ${ TOP.powder }u || top == ${ TOP.rays }u || top == ${ TOP.roadJersey }u || top == ${ TOP.champsTee }u || top == ${ TOP.staff }u || top == ${ TOP.cook }u || top == ${ TOP.polo }u;
 		if ( part == ${ PART.sleeve }u && shortSleeve && L.y < 1.26 ) { c = sleeveC; rough = 0.9; }
 		// the home whites: red pinstripes (a pale stripe on the powder blues' placket)
 		let jersey = top == ${ TOP.homeJersey }u || top == ${ TOP.roadJersey }u;
@@ -694,7 +1028,7 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		}
 		// the puffer's quilted bands, a zip down the front of the jackets and fleeces
 		if ( top == ${ TOP.puffer }u && part == ${ PART.torso }u ) { c *= 0.8 + 0.2 * smoothstep( 0.0, 0.4, abs( fract( L.y / 0.09 ) - 0.5 ) ); }
-		let zipped = top == ${ TOP.jacket }u || top == ${ TOP.fleece }u || top == ${ TOP.puffer }u || top == ${ TOP.leather }u || top == ${ TOP.work }u || top == ${ TOP.satin }u || top == ${ TOP.usher }u || top == ${ TOP.eagles }u;
+		let zipped = top == ${ TOP.jacket }u || top == ${ TOP.fleece }u || top == ${ TOP.puffer }u || top == ${ TOP.leather }u || top == ${ TOP.work }u || top == ${ TOP.satin }u || top == ${ TOP.usher }u || top == ${ TOP.eagles }u || top == ${ TOP.camo }u || top == ${ TOP.flyers }u || top == ${ TOP.raincoat }u;
 		if ( zipped && part == ${ PART.torso }u && L.z < 0.0 && abs( L.x ) < 0.006 && L.y > 0.86 ) { c = mix( c, vec3f( 0.3 ), 0.7 ); metal = 0.6; }
 		// a work jacket's corduroy collar, a satin jacket's striped cuffs and waistband
 		if ( top == ${ TOP.work }u && part == ${ PART.torso }u && L.y > 1.41 ) { c = vec3f( 0.08, 0.045, 0.02 ); }
@@ -719,6 +1053,31 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		}
 		// the hawkers' yellow shirts, a number badge on the chest
 		if ( top == ${ TOP.hawker }u && part == ${ PART.torso }u && L.z < 0.0 && abs( L.x - 0.08 ) < 0.035 && abs( L.y - 1.28 ) < 0.03 ) { c = vec3f( 0.8 ); }
+		// ---- P0's tops
+		if ( top == ${ TOP.camo }u ) {
+			// a hunting jacket's blotches: olive, brown, khaki
+			let cell = floor( vec3f( L.x * 14.0 + L.z * 5.0, L.y * 11.0, L.z * 14.0 - L.x * 3.0 ) );
+			let hsh = fract( sin( dot( cell, vec3f( 12.9898, 78.233, 37.719 ) ) ) * 43758.5453 );
+			c = select( select( vec3f( 0.1, 0.11, 0.05 ), vec3f( 0.16, 0.1, 0.05 ), hsh > 0.45 ), vec3f( 0.24, 0.21, 0.12 ), hsh > 0.78 );
+			rough = 0.9;
+		}
+		if ( top == ${ TOP.flyers }u && ( part == ${ PART.sleeve }u || L.y > 1.33 ) ) { c = vec3f( 0.012 ); }
+		if ( top == ${ TOP.trooper }u ) {
+			// the black placket stripe and epaulettes; the badge over the left breast
+			if ( part == ${ PART.torso }u && L.z < 0.0 && abs( L.x ) < 0.01 && L.y > 0.9 ) { c = vec3f( 0.012 ); }
+			if ( part == ${ PART.torso }u && L.y > 1.38 && abs( L.x ) > 0.1 ) { c = vec3f( 0.015 ); }
+			if ( part == ${ PART.torso }u && L.z < 0.0 && abs( L.x + 0.09 ) < 0.022 && abs( L.y - 1.29 ) < 0.028 ) { c = vec3f( 0.62, 0.5, 0.22 ); metal = 0.8; rough = 0.3; }
+		}
+		if ( top == ${ TOP.coat }u && part == ${ PART.torso }u ) {
+			// the lapels' shade and the buttons down the front
+			if ( L.z < 0.0 && L.y > 1.22 && abs( L.x ) < 0.05 + ( L.y - 1.22 ) * 0.6 ) { c *= 0.75; }
+			if ( L.z < 0.0 && abs( L.x - 0.03 ) < 0.008 && abs( fract( L.y / 0.1 ) - 0.5 ) < 0.08 && L.y < 1.2 ) { c = vec3f( 0.02 ); }
+		}
+		if ( top == ${ TOP.polo }u && part == ${ PART.torso }u && L.y > 1.41 ) { c *= 0.85; }
+		if ( top == ${ TOP.raincoat }u ) {
+			// the silver reflective bands round the body and the sleeves, bright in the lights
+			if ( ( part == ${ PART.torso }u && abs( L.y - 1.05 ) < 0.02 ) || ( part == ${ PART.sleeve }u && abs( L.y - 1.0 ) < 0.02 ) ) { c = vec3f( 0.75, 0.75, 0.7 ); e = vec3f( 0.3, 0.3, 0.25 ) * nk; }
+		}
 		// the prints: the name and number on the back, the chest's script
 		let onBack = L.z > 0.03 && part == ${ PART.torso }u;
 		let onFront = L.z < - 0.03 && part == ${ PART.torso }u;
@@ -726,7 +1085,7 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 			let uv = vec2f( 0.5 + L.x / 0.34, ( 1.4 - L.y ) / 0.42 );
 			if ( all( uv > vec2f( 0.0 ) ) && all( uv < vec2f( 1.0 ) ) ) {
 				let cell = vec2f( f32( back % 8u ), f32( back / 8u ) );
-				printA = textureSample( c3Atlas, smpAnisoClamp, ( cell + uv ) / 8.0 ).r;
+				printA = textureSample( c3Atlas, smpAnisoClamp, ( cell + uv ) / vec2f( 8.0, ${ ATLAS_ROWS }.0 ) ).r;
 			}
 		}
 		if ( chest > 0u && onFront && L.y > 1.08 && L.y < 1.36 ) {
@@ -734,7 +1093,7 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 			if ( all( uv > vec2f( 0.0 ) ) && all( uv < vec2f( 1.0 ) ) ) {
 				let ci = ${ CHEST_CELL }u + chest;
 				let cell = vec2f( f32( ci % 8u ), f32( ci / 8u ) );
-				printA = textureSample( c3Atlas, smpAnisoClamp, ( cell + uv ) / 8.0 ).r;
+				printA = textureSample( c3Atlas, smpAnisoClamp, ( cell + uv ) / vec2f( 8.0, ${ ATLAS_ROWS }.0 ) ).r;
 			}
 		}
 		// the print's colour: red on white, white on red, maroon on powder blue, navy on the Rays' white
@@ -743,6 +1102,10 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		if ( top == ${ TOP.rays }u ) { printC = select( vec3f( 0.8 ), vec3f( 0.02, 0.04, 0.12 ), dot( topC, vec3f( 0.33 ) ) > 0.35 ); }
 		if ( top == ${ TOP.security }u || top == ${ TOP.staff }u ) { printC = vec3f( 0.75 ); }
 		if ( top == ${ TOP.champsTee }u ) { printC = select( vec3f( 0.3, 0.02, 0.03 ), vec3f( 0.7 ), dot( topC, vec3f( 0.33 ) ) < 0.2 ); }
+		if ( top == ${ TOP.flyers }u ) { printC = vec3f( 0.012 ); }
+		if ( top == ${ TOP.raincoat }u ) { printC = vec3f( 0.02 ); }
+		if ( chest == ${ CHEST.ws }u && onFront ) { printC = select( vec3f( 0.75, 0.6, 0.2 ), vec3f( 0.72, 0.71, 0.68 ), dot( topC, vec3f( 0.33 ) ) < 0.2 ); }
+		if ( chest == ${ CHEST.bulls }u && onFront ) { printC = vec3f( 0.75, 0.55, 0.15 ); }
 		c = mix( c, printC, printA );
 		// a scarf round the neck
 		if ( scarf > 0u && part == ${ PART.torso }u && L.y > 1.38 ) {
@@ -751,21 +1114,31 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		}
 	}
 	if ( part == ${ PART.pants }u ) {
-		var PANTS = array<vec3f, 6>( vec3f( 0.05, 0.075, 0.14 ), vec3f( 0.02, 0.03, 0.06 ), vec3f( 0.3, 0.25, 0.16 ), vec3f( 0.015 ), vec3f( 0.2 ), vec3f( 0.015, 0.02, 0.05 ) );
-		c = PANTS[ min( pantsI, 5u ) ] * ( 0.9 + 0.2 * g.z );
-		// jeans fade at the thighs and knees
+		c = c3Pal[ ${ PAL.pants }u + pantsI ].xyz * ( 0.9 + 0.2 * g.z );
+		// jeans fade at the thighs and knees; a trooper's black stripe down the leg
 		if ( pantsI < 2u ) { c *= 1.0 + 0.25 * smoothstep( 0.3, 0.0, abs( L.y - 0.62 ) ) * smoothstep( - 0.02, - 0.06, L.z ); }
+		if ( pantsI == 6u && abs( abs( L.x ) - 0.19 ) < 0.012 ) { c = vec3f( 0.012 ); }
+		if ( pantsI == 7u ) {
+			let cell = floor( vec3f( L.x * 12.0, L.y * 9.0, L.z * 12.0 ) );
+			let hsh = fract( sin( dot( cell, vec3f( 12.9898, 78.233, 37.719 ) ) ) * 43758.5453 );
+			c = select( vec3f( 0.1, 0.11, 0.05 ), vec3f( 0.18, 0.15, 0.08 ), hsh > 0.5 );
+		}
 		rough = 0.9;
 	}
 	if ( part == ${ PART.shoe }u ) {
-		var SHOES = array<vec3f, 5>( vec3f( 0.62, 0.61, 0.58 ), vec3f( 0.015 ), vec3f( 0.3, 0.19, 0.08 ), vec3f( 0.08, 0.04, 0.02 ), vec3f( 0.2 ) );
-		c = SHOES[ min( shoesI, 4u ) ];
+		c = c3Pal[ ${ PAL.shoes }u + min( shoesI, 4u ) ].xyz;
 		if ( L.y < 0.012 ) { c = select( c * 0.5, vec3f( 0.5 ), shoesI == 0u ); }
 		// the soles wet from the floor
 		rough = 0.6;
 	}
 	if ( part == ${ PART.hand }u ) { c = select( skin, select( vec3f( 0.012 ), vec3f( 0.3, 0.02, 0.03 ), g.y > 0.6 ), gloves ); rough = select( 0.6, 0.9, gloves ); }
-	if ( part == ${ PART.neck }u ) { c = skin; rough = 0.6; if ( L.y < 1.43 ) { c = topC; } if ( scarf > 0u ) { c = select( select( vec3f( 0.012 ), vec3f( 0.25 ), scarf == 2u ), vec3f( 0.32, 0.02, 0.03 ), scarf == 1u ); rough = 0.95; } }
+	if ( part == ${ PART.neck }u ) {
+		c = skin; rough = 0.6;
+		if ( L.y < 1.43 ) { c = topC; }
+		// a turtleneck under a polo (the Bull's)
+		if ( top == ${ TOP.polo }u && sleeveCI != topCI && L.y < 1.53 ) { c = sleeveC; rough = 0.9; }
+		if ( scarf > 0u ) { c = select( select( vec3f( 0.012 ), vec3f( 0.25 ), scarf == 2u ), vec3f( 0.32, 0.02, 0.03 ), scarf == 1u ); rough = 0.95; }
+	}
 	if ( part == ${ PART.nose }u ) { c = skin * vec3f( 1.12, 0.88, 0.86 ); rough = 0.5; }
 	if ( part == ${ PART.head }u ) {
 		// the head in its own frame, the face toward -z
@@ -817,23 +1190,36 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		// band), a hood round the face
 		var capC = select( select( vec3f( 0.014, 0.02, 0.06 ), vec3f( 0.33, 0.015, 0.02 ), hat == ${ HAT.capRed }u || hat == ${ HAT.capBack }u ), vec3f( 0.12, 0.018, 0.026 ), hat == ${ HAT.cap1980 }u );
 		if ( hat == ${ HAT.capRays }u ) { capC = vec3f( 0.012, 0.025, 0.08 ); }
-		if ( hat == ${ HAT.capBlack }u ) { capC = vec3f( 0.012 ); }
-		let capped = hat == ${ HAT.capRed }u || hat == ${ HAT.capNavy }u || hat == ${ HAT.cap1980 }u || hat == ${ HAT.capRays }u || hat == ${ HAT.capBack }u || hat == ${ HAT.capBlack }u;
+		if ( hat == ${ HAT.capBlack }u || hat == ${ HAT.capWS }u ) { capC = vec3f( 0.012 ); }
+		if ( hat == ${ HAT.capWhite }u ) { capC = vec3f( 0.7, 0.69, 0.66 ); }
+		if ( hat == ${ HAT.police }u ) { capC = vec3f( 0.01, 0.012, 0.03 ); }
+		let capped = ${ any( 'hat', capHats ) };
 		if ( capped && d.y > 0.26 - 0.12 * smoothstep( - 0.2, 0.6, d.z ) ) {
 			c = capC; rough = 0.8;
 			// the logo on the front panel (the back, turned round)
 			let lz = select( d.z, - d.z, hat == ${ HAT.capBack }u );
 			let lp = vec2f( d.x / 0.3, ( d.y - 0.55 ) / 0.3 );
-			if ( lz < - 0.55 && length( lp ) < 1.0 ) {
-				// a letter P: its stem and bowl
+			if ( lz < - 0.55 && length( lp ) < 1.0 && hat != ${ HAT.police }u ) {
+				// a letter P: its stem and bowl (the WS cap's gold mark)
 				let stem = abs( lp.x + 0.25 ) < 0.14 && abs( lp.y ) < 0.7;
 				let bowl = abs( length( ( lp - vec2f( 0.05, 0.3 ) ) * vec2f( 1.0, 1.3 ) ) - 0.32 ) < 0.12 && lp.x > - 0.25;
-				if ( stem || bowl ) { c = select( select( vec3f( 0.75 ), vec3f( 0.32, 0.02, 0.03 ), hat == ${ HAT.capNavy }u ), vec3f( 0.6, 0.62, 0.66 ), hat == ${ HAT.capRays }u ); }
+				if ( stem || bowl ) { c = select( select( vec3f( 0.75 ), vec3f( 0.32, 0.02, 0.03 ), hat == ${ HAT.capNavy }u || hat == ${ HAT.capWhite }u ), vec3f( 0.6, 0.62, 0.66 ), hat == ${ HAT.capRays }u ); }
+				if ( hat == ${ HAT.capWS }u && ( stem || bowl || abs( lp.y + 0.55 ) < 0.08 ) ) { c = vec3f( 0.7, 0.55, 0.15 ); metal = 0.3; }
 			}
-			if ( abs( fract( atan2( d.x, d.z ) * 0.955 ) - 0.5 ) > 0.485 ) { c *= 0.7; }
+			// a police cap: the badge over the peak, the black band round the crown, its crown glossy
+			if ( hat == ${ HAT.police }u ) {
+				if ( d.z < - 0.6 && abs( d.x ) < 0.13 && abs( d.y - 0.5 ) < 0.12 ) { c = vec3f( 0.62, 0.5, 0.22 ); metal = 0.8; rough = 0.3; }
+				if ( d.y < 0.42 ) { c = vec3f( 0.006 ); rough = 0.3; }
+			}
+			if ( abs( fract( atan2( d.x, d.z ) * 0.955 ) - 0.5 ) > 0.485 && hat != ${ HAT.police }u ) { c *= 0.7; }
+		}
+		if ( hat == ${ HAT.cabbie }u && d.y > 0.3 - 0.1 * smoothstep( - 0.2, 0.6, d.z ) ) {
+			// a tweed flat cap: the herringbone's weave
+			c = mix( vec3f( 0.14, 0.11, 0.08 ), vec3f( 0.22, 0.19, 0.15 ), step( 0.5, fract( ( d.x + abs( fract( d.y * 6.0 ) - 0.5 ) * 0.3 ) * 28.0 ) ) );
+			rough = 0.95;
 		}
 		if ( hat == ${ HAT.visor }u && d.y > 0.18 && d.y < 0.34 ) { c = vec3f( 0.33, 0.015, 0.02 ); }
-		let knit = hat == ${ HAT.knitRed }u || hat == ${ HAT.knitGrey }u || hat == ${ HAT.knitBlack }u || hat == ${ HAT.knitPlain }u;
+		let knit = ${ any( 'hat', knitHats ) };
 		if ( knit && d.y > 0.12 - 0.1 * smoothstep( - 0.2, 0.6, d.z ) ) {
 			var kc = select( select( select( vec3f( 0.3, 0.29, 0.26 ), vec3f( 0.012 ), hat == ${ HAT.knitBlack }u ), vec3f( 0.32, 0.018, 0.025 ), hat == ${ HAT.knitRed }u ), mix( vec3f( 0.014, 0.02, 0.06 ), vec3f( 0.42, 0.4, 0.36 ), g.w ), hat == ${ HAT.knitPlain }u );
 			c = kc * ( 0.88 + 0.12 * sin( atan2( d.x, d.z ) * 40.0 ) );
@@ -855,14 +1241,19 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 	if ( part == ${ PART.brim }u ) {
 		c = select( select( vec3f( 0.014, 0.02, 0.06 ), vec3f( 0.33, 0.015, 0.02 ), hat == ${ HAT.capRed }u || hat == ${ HAT.capBack }u || hat == ${ HAT.visor }u ), vec3f( 0.12, 0.018, 0.026 ), hat == ${ HAT.cap1980 }u );
 		if ( hat == ${ HAT.capRays }u ) { c = vec3f( 0.012, 0.025, 0.08 ); }
-		if ( hat == ${ HAT.capBlack }u ) { c = vec3f( 0.012 ); }
+		if ( hat == ${ HAT.capBlack }u || hat == ${ HAT.capWS }u ) { c = vec3f( 0.012 ); }
+		if ( hat == ${ HAT.capWhite }u ) { c = vec3f( 0.7, 0.69, 0.66 ); }
+		if ( hat == ${ HAT.cabbie }u ) { c = vec3f( 0.16, 0.13, 0.1 ); }
 		rough = 0.8;
+		// the police cap's patent-leather peak
+		if ( hat == ${ HAT.police }u ) { c = vec3f( 0.006 ); rough = 0.12; }
 	}
 	if ( part == ${ PART.pompom }u ) { c = select( vec3f( 0.32, 0.29, 0.26 ), vec3f( 0.62, 0.6, 0.56 ), hat == ${ HAT.knitRed }u ); rough = 1.0; }
 	if ( part == ${ PART.apron }u ) {
-		// the concession staff's black apron (the cooks' white, stained)
+		// the concession staff's black apron (the cooks' white, stained; the street vendors' canvas)
 		c = select( vec3f( 0.014 ), vec3f( 0.6, 0.58, 0.54 ) * ( 0.85 + 0.15 * g.x ), top == ${ TOP.cook }u );
 		if ( top == ${ TOP.seller }u ) { c = vec3f( 0.3, 0.02, 0.03 ); }
+		if ( top == ${ TOP.vendor }u ) { c = vec3f( 0.36, 0.3, 0.19 ) * ( 0.85 + 0.2 * fract( L.y * 37.0 ) ); }
 		rough = 0.9;
 	}
 	if ( part == ${ PART.vest }u ) {
@@ -872,23 +1263,46 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		e = c * 0.06;
 	}
 	if ( part == ${ PART.poncho }u ) {
-		// the poncho: clear plastic over the jacket (glossy, the jacket dulled through it), or red, white
-		// or yellow; wet on the 27th, and creased
-		let fres = pow( 1.0 - abs( dot( normalize( in.N ), normalize( in.V ) ) ), 2.5 );
-		var pc = select( select( select( mix( topC * 0.8, vec3f( 0.42, 0.44, 0.47 ), 0.03 + 0.35 * fres ), vec3f( 0.36, 0.02, 0.03 ), poncho == 2u ), vec3f( 0.62 ), poncho == 3u ), vec3f( 0.65, 0.5, 0.03 ), poncho == 4u );
-		if ( poncho == 5u ) { pc = vec3f( 0.62, 0.2, 0.02 ); }
-		if ( poncho == 7u ) { pc = mix( topC * 0.8, vec3f( 0.42, 0.44, 0.47 ), 0.1 + 0.35 * fres ); }
-		if ( poncho == 6u ) { pc = vec3f( 0.06, 0.065, 0.07 ); }
-		let crease = 0.9 + 0.1 * sin( atan2( L.x, L.z ) * 11.0 + L.y * 7.0 ) + select( 0.0, 0.12 * sin( L.y * 31.0 + L.x * 17.0 ), poncho == 6u );
-		c = pc * crease;
-		// the clear ones catch the light like wet film: glossier where they face it
-		rough = select( 0.18, 0.06, poncho == 1u || poncho == 7u );
-		// the clear film shows the jacket's print through it
-		if ( poncho == 1u ) { c = mix( c, printC, printA * 0.6 ); }
+		if ( poncho == 0u ) {
+			// a long coat's skirt: the coat's own cloth, open down the front
+			c = topC * select( 1.0, 0.8, L.z < - 0.1 && abs( L.x ) < 0.025 );
+			rough = select( 0.95, 0.25, top == ${ TOP.raincoat }u );
+			if ( top == ${ TOP.raincoat }u && abs( L.y - 0.75 ) < 0.02 ) { c = vec3f( 0.75, 0.75, 0.7 ); e = vec3f( 0.3, 0.3, 0.25 ) * nk; }
+		} else {
+			// the poncho: clear plastic over the jacket (glossy, the jacket dulled through it), or red, white
+			// or yellow; wet on the 27th, and creased
+			let fres = pow( 1.0 - abs( dot( normalize( in.N ), normalize( in.V ) ) ), 2.5 );
+			var pc = select( select( select( mix( topC * 0.8, vec3f( 0.42, 0.44, 0.47 ), 0.03 + 0.35 * fres ), vec3f( 0.36, 0.02, 0.03 ), poncho == 2u ), vec3f( 0.62 ), poncho == 3u ), vec3f( 0.65, 0.5, 0.03 ), poncho == 4u );
+			if ( poncho == 5u ) { pc = vec3f( 0.62, 0.2, 0.02 ); }
+			if ( poncho == 7u ) { pc = mix( topC * 0.8, vec3f( 0.42, 0.44, 0.47 ), 0.1 + 0.35 * fres ); }
+			if ( poncho == 6u ) { pc = vec3f( 0.06, 0.065, 0.07 ); }
+			let crease = 0.9 + 0.1 * sin( atan2( L.x, L.z ) * 11.0 + L.y * 7.0 ) + select( 0.0, 0.12 * sin( L.y * 31.0 + L.x * 17.0 ), poncho == 6u );
+			c = pc * crease;
+			// the clear ones catch the light like wet film: glossier where they face it
+			rough = select( 0.18, 0.06, poncho == 1u || poncho == 7u );
+			// the clear film shows the jacket's print through it
+			if ( poncho == 1u ) { c = mix( c, printC, printA * 0.6 ); }
+		}
 	}
+	// ---- P0: the worn gear
+	if ( part == ${ PART.bag }u ) { c = select( select( vec3f( 0.02 ), vec3f( 0.14, 0.08, 0.04 ), g.z > 0.55 ), vec3f( 0.015, 0.02, 0.05 ), g.z > 0.85 ); rough = 0.7; if ( abs( L.x + 0.215 ) > 0.04 ) { c = vec3f( 0.015 ); } }
+	if ( part == ${ PART.pack }u ) {
+		c = select( select( vec3f( 0.015, 0.02, 0.06 ), vec3f( 0.02 ), g.w > 0.45 ), vec3f( 0.3, 0.02, 0.03 ), g.w > 0.8 );
+		if ( L.z > 0.26 ) { c *= 0.7; }
+		if ( L.z < 0.0 ) { c = vec3f( 0.015 ); }
+		rough = 0.75;
+	}
+	if ( part == ${ PART.radio }u ) { c = vec3f( 0.02 ); rough = 0.4; if ( L.y > 1.385 && L.y < 1.395 ) { c = vec3f( 0.6, 0.02, 0.02 ); e = vec3f( 0.8, 0.02, 0.02 ) * nk; } }
+	if ( part == ${ PART.lanyard }u ) {
+		c = vec3f( 0.3, 0.02, 0.03 );
+		if ( L.y < 1.26 ) { c = select( vec3f( 0.75, 0.74, 0.7 ), vec3f( 0.08, 0.1, 0.3 ), L.y > 1.235 ); if ( abs( L.x + 0.015 ) < 0.012 && abs( L.y - 1.2 ) < 0.018 ) { c = skin; } }
+		rough = 0.5;
+	}
+	if ( part == ${ PART.campaign }u ) { c = vec3f( 0.035, 0.034, 0.033 ) * ( 0.85 + 0.2 * fract( sin( dot( floor( L * 80.0 ), vec3f( 12.9, 78.2, 37.7 ) ) ) * 43758.5 ) ); rough = 0.9; if ( L.y < ${ ( J.head[ 1 ] + 0.075 ).toFixed( 3 ) } && L.y > ${ ( J.head[ 1 ] + 0.062 ).toFixed( 3 ) } ) { c = vec3f( 0.015 ); } }
 	// what's in their hands
 	if ( part >= 32u ) {
 		let id = part - 32u;
+		let pv = u32( in.vs.vVar + 0.5 );
 		rough = 0.4;
 		let pl = L;
 		if ( id == ${ PROP.beer }u || id == ${ PROP.beers }u ) {
@@ -932,26 +1346,76 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		if ( id == ${ PROP.bag }u ) { c = select( vec3f( 0.72 ), vec3f( 0.35, 0.02, 0.03 ), g.w > 0.5 ); rough = 0.35; }
 		if ( id == ${ PROP.sandwich }u ) { c = vec3f( 0.7, 0.7, 0.72 ); metal = 0.9; rough = 0.35; }
 		if ( id == ${ PROP.hotdog }u ) { c = vec3f( 0.62, 0.42, 0.2 ); }
-		if ( id == ${ PROP.peanuts }u ) { c = vec3f( 0.6, 0.5, 0.35 ); }
+		if ( id == ${ PROP.peanuts }u ) { c = vec3f( 0.36, 0.24, 0.13 ) * ( 0.85 + 0.25 * fract( pl.y * 37.0 ) ); rough = 0.95; }
 		if ( id == ${ PROP.money }u ) { c = vec3f( 0.35, 0.42, 0.3 ); rough = 0.9; }
 		// a World Series ticket: the white stock, a red band
 		if ( id == ${ PROP.ticket }u ) { c = select( vec3f( 0.75, 0.74, 0.7 ), vec3f( 0.45, 0.03, 0.04 ), fract( pl.y * 40.0 ) < 0.3 ); rough = 0.8; }
 		if ( id == ${ PROP.pencil }u ) { c = vec3f( 0.7, 0.55, 0.05 ); }
 		if ( id == ${ PROP.camera }u ) {
-			// silver, the screen lit; now and then the flash (the last out's flashbulbs)
-			c = vec3f( 0.55, 0.56, 0.58 ); metal = 0.7; rough = 0.3;
+			// silver (or black), the screen lit; now and then the flash (the last out's flashbulbs)
+			c = select( vec3f( 0.55, 0.56, 0.58 ), vec3f( 0.03 ), pv == 1u ); metal = 0.7; rough = 0.3;
 			e = vec3f( 0.3, 0.45, 0.6 ) * 0.5;
 			if ( fract( frame.time * 0.9 + g.x * 17.0 ) > 0.965 ) { e = vec3f( 30.0 ); }
 		}
+		// ---- P0's props
+		if ( id == ${ PROP.umbrella }u ) {
+			// the canopy's panels: black, Phillies red, a red and white golf umbrella, navy, a plaid, grey;
+			// the shaft and the crook black
+			let rel = pl - vec3f( ${ J.hand[ 0 ].toFixed( 3 ) }, ${ ( J.hand[ 1 ] + 0.78 ).toFixed( 3 ) }, ${ J.hand[ 2 ].toFixed( 3 ) } );
+			let panel = u32( floor( ( atan2( rel.z, rel.x ) + 3.14159 ) / 0.785398 ) ) % 2u;
+			c = vec3f( 0.012 );
+			if ( pv == 1u ) { c = vec3f( 0.33, 0.015, 0.02 ); }
+			if ( pv == 2u ) { c = select( vec3f( 0.33, 0.015, 0.02 ), vec3f( 0.72, 0.71, 0.68 ), panel == 1u ); }
+			if ( pv == 3u ) { c = vec3f( 0.01, 0.014, 0.05 ); }
+			if ( pv == 4u ) { c = mix( vec3f( 0.1, 0.01, 0.01 ), vec3f( 0.02, 0.05, 0.02 ), step( 0.5, fract( rel.x * 12.0 ) ) ) * ( 0.8 + 0.4 * step( 0.5, fract( rel.z * 12.0 ) ) ); }
+			if ( pv == 5u ) { c = vec3f( 0.25, 0.25, 0.26 ); }
+			if ( rel.y < - 0.12 ) { c = vec3f( 0.015 ); metal = 0.5; }
+			rough = 0.35;
+		}
+		if ( id == ${ PROP.furled }u ) { c = vec3f( 0.012, 0.014, 0.03 ); rough = 0.4; }
+		if ( id == ${ PROP.sign }u || id == ${ PROP.photo }u ) {
+			// the card from the sign atlas on its face; the back and the edges plain cardboard
+			c = vec3f( 0.45, 0.36, 0.22 );
+			rough = 0.9;
+			let cell = vec2f( f32( pv % 8u ), f32( pv / 8u ) );
+			var uv = vec2f( 0.0 );
+			var face = false;
+			if ( id == ${ PROP.sign }u ) {
+				let o = vec3f( ${ ( J.hand[ 0 ] - 0.27 ).toFixed( 3 ) }, ${ ( J.hand[ 1 ] + 0.14 ).toFixed( 3 ) }, ${ ( J.hand[ 2 ] - 0.06 ).toFixed( 3 ) } );
+				uv = vec2f( 0.5 + ( pl.x - o.x ) / 0.72, 0.5 - ( pl.y - o.y ) / 0.5 );
+				face = pl.z < o.z - 0.004;
+			} else {
+				// (in either hand)
+				let o = vec3f( select( - 1.0, 1.0, pl.x > 0.0 ) * ${ ( J.hand[ 0 ] - 0.02 ).toFixed( 3 ) }, ${ J.hand[ 1 ].toFixed( 3 ) }, ${ ( J.hand[ 2 ] - 0.14 ).toFixed( 3 ) } );
+				uv = vec2f( 0.5 + ( pl.x - o.x ) / 0.2, 0.5 + ( pl.z - o.z ) / 0.25 );
+				face = pl.y > o.y + 0.002;
+				rough = 0.2;
+			}
+			if ( face ) { c = textureSample( c3Signs, smpAnisoClamp, ( cell + clamp( uv, vec2f( 0.01 ), vec2f( 0.99 ) ) ) / vec2f( 8.0, 4.0 ) ).rgb; }
+		}
+		if ( id == ${ PROP.scanner }u ) { c = vec3f( 0.03 ); rough = 0.4; if ( pl.z < ${ ( J.hand[ 2 ] - 0.185 ).toFixed( 3 ) } ) { c = vec3f( 0.6, 0.05, 0.03 ); e = vec3f( 0.8, 0.05, 0.02 ) * 0.4; } }
+		if ( id == ${ PROP.flashlight }u ) { c = vec3f( 0.04 ); metal = 0.7; rough = 0.3; if ( pl.z < ${ ( J.hand[ 2 ] - 0.135 ).toFixed( 3 ) } ) { c = vec3f( 0.8 ); e = vec3f( 3.0, 2.8, 2.4 ) * nk; } }
+		if ( id == ${ PROP.mic }u ) {
+			// the grille, the station's flag in its red and blue
+			c = vec3f( 0.03 ); rough = 0.4;
+			if ( abs( pl.y - ${ ( J.hand[ 1 ] + 0.09 ).toFixed( 3 ) } ) < 0.031 ) { c = select( vec3f( 0.04, 0.08, 0.35 ), vec3f( 0.45, 0.03, 0.03 ), pl.y > ${ ( J.hand[ 1 ] + 0.1 ).toFixed( 3 ) } ); }
+			if ( pl.y > ${ ( J.hand[ 1 ] + 0.14 ).toFixed( 3 ) } ) { c = vec3f( 0.25 ); metal = 0.7; }
+		}
+		if ( id == ${ PROP.tickets }u ) { c = select( vec3f( 0.75, 0.74, 0.7 ), vec3f( 0.45, 0.03, 0.04 ), fract( ( pl.y - pl.x ) * 20.0 ) < 0.25 ); rough = 0.8; }
+		if ( id == ${ PROP.cowbell }u ) { c = vec3f( 0.45, 0.42, 0.36 ); metal = 0.8; rough = 0.35; }
+		if ( id == ${ PROP.tongs }u ) { c = vec3f( 0.5, 0.5, 0.52 ); metal = 0.9; rough = 0.3; }
+		if ( id == ${ PROP.pennant }u ) { c = select( vec3f( 0.25, 0.17, 0.08 ), vec3f( 0.36, 0.02, 0.03 ), pl.y > ${ ( J.hand[ 1 ] + 0.23 ).toFixed( 3 ) } && pl.z < ${ ( J.hand[ 2 ] - 0.03 ).toFixed( 3 ) } ); rough = 0.9; if ( abs( pl.y - ${ ( J.hand[ 1 ] + 0.33 ).toFixed( 3 ) } ) < 0.015 && pl.z < ${ ( J.hand[ 2 ] - 0.08 ).toFixed( 3 ) } ) { c = vec3f( 0.75 ); } }
+		if ( id == ${ PROP.cigarette }u ) { c = select( vec3f( 0.75 ), vec3f( 0.6, 0.35, 0.1 ), pl.z < ${ ( J.hand[ 2 ] + 0.0 ).toFixed( 3 ) } ); if ( pl.z > ${ ( J.hand[ 2 ] + 0.06 ).toFixed( 3 ) } ) { c = vec3f( 0.3, 0.05, 0.0 ); e = vec3f( 2.5, 0.5, 0.05 ) * ( 0.6 + 0.4 * sin( frame.time * 3.0 + g.y * 20.0 ) ); } rough = 0.9; }
+		if ( id == ${ PROP.radio }u ) { c = select( vec3f( 0.3, 0.02, 0.03 ), vec3f( 0.6 ), pl.y > ${ ( J.hand[ 1 ] + 0.02 ).toFixed( 3 ) } ); metal = 0.3; rough = 0.4; }
 	}
 	// the rain on them: shoulders, caps and hoods darker and glossy on the 27th
-	let wetK = frame.wet * smoothstep( 0.2, 0.8, normalize( in.N ).y ) * select( 0.6, 1.0, part == ${ PART.poncho }u );
+	let wetK = frame.wet * smoothstep( 0.2, 0.8, normalize( in.N ).y ) * select( 0.6, 1.0, part == ${ PART.poncho }u || part == 32u + ${ PROP.umbrella }u );
 	c *= mix( 1.0, 0.8, wetK * step( 0.5, rough ) );
 	rough = mix( rough, 0.25, wetK * 0.6 );
 	s.albedo = c;
 	s.roughness = rough;
 	s.metalness = metal;
-	// lit by the concourse's own lights after dark
+	// lit by the park's own lights after dark
 	s.emissive = e + c * nk * 0.12;
 `,
 	} );
@@ -961,14 +1425,36 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 
 }
 
-// The atlas: the backs (the name curved over the number, as the Phillies' are lettered), the chest prints.
-// A mask (white on black): the shader colours it.
+// the soft shadow on the floor under each (the concourse's light comes from everywhere at once)
+function blobMaterial( pool ) {
+
+	const mat = standard( { name: 'cast-contact', color: new Color( 0, 0, 0 ), transparent: true, depthWrite: false, lit: false,
+		storage: { c3Pose: { storage: () => pool.poseBuf, access: 'read' }, c3Order: { storage: () => pool.orderBuf, access: 'read' } },
+		varyings: { vK: 'f32' },
+		vertex: /* wgsl */`
+	let slot = c3Order[ u32( draw.params.y + 0.5 ) + v.instance ];
+	let at = c3Pose[ slot * ${ POSE }u ];
+	let a1 = c3Pose[ slot * ${ POSE }u + 1u ];
+	let s = a1.x * ( 0.75 + 0.35 * a1.z );
+	v.useWorld = true;
+	v.worldPos = ( v.model * vec4f( at.x + v.position.x * 0.62 * s, at.y + 0.012, at.z + v.position.z * 0.62 * s, 1.0 ) ).xyz;
+	v.worldNormal = ( v.model * vec4f( 0.0, 1.0, 0.0, 0.0 ) ).xyz;
+	o.vK = select( 0.0, 1.0, a1.x > 0.05 && a1.w < 0.2 );
+`,
+		surface: 'let r = length( in.uv - 0.5 ) * 2.0; s.albedo = vec3f( 0.0 ); s.alpha = ( 1.0 - smoothstep( 0.15, 1.0, r ) ) * 0.5 * in.vs.vK;' } );
+	mat.underwaterLighting = 'none';
+	return mat;
+
+}
+
+// The atlas: the backs (the name curved over the number, as the Phillies' are lettered; a word across the
+// shoulders), the chest prints. A mask (white on black): the shader colours it. 8 x 10 cells of 128 px.
 function drawAtlas() {
 
-	return canvasTexture( 1024, 1024, ( ctx ) => {
+	return canvasTexture( 1024, 128 * ATLAS_ROWS, ( ctx ) => {
 
 		ctx.fillStyle = '#000';
-		ctx.fillRect( 0, 0, 1024, 1024 );
+		ctx.fillRect( 0, 0, 1024, 128 * ATLAS_ROWS );
 		ctx.fillStyle = '#fff';
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'alphabetic';
@@ -978,6 +1464,16 @@ function drawAtlas() {
 			if ( ! b ) return;
 			const [ x, y ] = cell( i );
 			const [ name, num ] = b;
+			if ( name.startsWith( '=' ) ) {
+
+				// a word across the back (STAFF, SECURITY, POLICE, FOX 29)
+				const word = name.slice( 1 );
+				ctx.font = `900 ${ word.length > 6 ? 24 : 34 }px "Helvetica Neue", Arial, sans-serif`;
+				ctx.fillText( word, x + 64, y + 52, 120 );
+				return;
+
+			}
+
 			// the name in an arc over the number
 			ctx.font = `700 ${ name.length > 7 ? 14 : 17 }px "Helvetica Neue", Arial, sans-serif`;
 			const w = ctx.measureText( name ).width;
@@ -1000,8 +1496,9 @@ function drawAtlas() {
 
 		} );
 		// the chest: the script "Phillies", block PHILLIES, the NL champions' tee (they won the pennant on
-		// October 15), RAYS, EVENT STAFF, SECURITY, EAGLES
-		const chests = [ null, 'script', 'block', 'champs', 'rays', 'staff', 'security', 'eagles', 'redOct' ];
+		// October 15), RAYS, EVENT STAFF, SECURITY, EAGLES, RED OCTOBER; the World Series tee, the Flyers'
+		// winged P, Bull's BBQ, FOX 29
+		const chests = [ null, 'script', 'block', 'champs', 'rays', 'staff', 'security', 'eagles', 'redOct', 'ws', 'flyers', 'bulls', 'fox' ];
 		chests.forEach( ( k, j ) => {
 
 			if ( ! k ) return;
@@ -1055,6 +1552,34 @@ function drawAtlas() {
 				ctx.fillText( 'RED', x + 64, y + 50, 118 );
 				ctx.fillText( 'OCTOBER', x + 64, y + 76, 118 );
 
+			} else if ( k === 'ws' ) {
+
+				// the 2008 World Series logo, as the shirts had it: WORLD SERIES over 2008, the flags' bar
+				ctx.font = '900 18px "Helvetica Neue", Arial, sans-serif';
+				ctx.fillText( 'WORLD SERIES', x + 64, y + 44, 118 );
+				ctx.font = '900 38px "Helvetica Neue", Arial, sans-serif';
+				ctx.fillText( '2008', x + 64, y + 84 );
+				ctx.fillRect( x + 26, y + 96, 76, 5 );
+
+			} else if ( k === 'flyers' ) {
+
+				// the winged P (the mask: the jacket's black shows where it's white)
+				ctx.beginPath(); ctx.arc( x + 70, y + 62, 26, 0, Math.PI * 2 ); ctx.fill();
+				ctx.fillRect( x + 26, y + 48, 40, 8 ); ctx.fillRect( x + 30, y + 64, 34, 8 );
+				ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc( x + 74, y + 60, 11, 0, Math.PI * 2 ); ctx.fill();
+
+			} else if ( k === 'bulls' ) {
+
+				ctx.font = 'italic 800 30px Georgia, serif';
+				ctx.fillText( 'Bull\'s', x + 64, y + 58 );
+				ctx.font = '800 22px Georgia, serif';
+				ctx.fillText( 'BBQ', x + 64, y + 88 );
+
+			} else if ( k === 'fox' ) {
+
+				ctx.font = '900 30px Helvetica, Arial, sans-serif';
+				ctx.fillText( 'FOX 29', x + 64, y + 72, 118 );
+
 			}
 
 			ctx.restore();
@@ -1065,197 +1590,37 @@ function drawAtlas() {
 
 }
 
-// ---------------------------------------------------------------- the cast
+// the homemade signs, 8 x 4 cards of 256 px (a card nobody registered: plain cardboard)
+function drawSigns() {
+
+	return canvasTexture( 2048, 1024, ( ctx, w, h ) => {
+
+		ctx.fillStyle = '#8c7350';
+		ctx.fillRect( 0, 0, w, h );
+		SIGNS.forEach( ( S, i ) => {
+
+			ctx.save();
+			ctx.translate( ( i % 8 ) * 256, Math.floor( i / 8 ) * 256 );
+			ctx.beginPath(); ctx.rect( 0, 0, 256, 256 ); ctx.clip();
+			S.draw( ctx, 256, 256 );
+			ctx.restore();
+
+		} );
+
+	}, 'castSigns' );
+
+}
+
+// ---------------------------------------------------------------- looks and poses
 
 // a look: the fields above, packed
 export function packLook( o ) {
 
 	const x = ( o.skin & 7 ) | ( ( o.hair & 7 ) << 3 ) | ( ( o.hairStyle & 3 ) << 6 ) | ( ( o.facial & 7 ) << 8 ) | ( ( o.glasses ? 1 : 0 ) << 11 )
 		| ( ( o.female ? 1 : 0 ) << 12 ) | ( ( o.age & 3 ) << 13 ) | ( ( o.build & 3 ) << 15 );
-	const y = ( o.top & 31 ) | ( ( o.color & 31 ) << 5 ) | ( ( o.sleeves & 31 ) << 10 ) | ( ( o.back & 63 ) << 15 ) | ( ( o.chest & 7 ) << 21 );
-	const z = ( o.pants & 7 ) | ( ( o.shoes & 7 ) << 3 ) | ( ( o.hat & 15 ) << 6 ) | ( ( o.poncho & 7 ) << 10 ) | ( ( o.scarf & 3 ) << 13 ) | ( ( o.gloves ? 1 : 0 ) << 15 );
-	return [ x, y, z, ( o.seed ?? Math.floor( Math.random() * 65536 ) ) & 65535 ];
-
-}
-
-export class Cast {
-
-	constructor( { parent, max = 320 } ) {
-
-		this.max = max;
-		this.list = [];
-		this.pose = new Float32Array( max * POSE * 4 );
-		this.prev = new Float32Array( max * POSE * 4 );
-		this.looks = new Float32Array( max * 4 );
-		this.poseBuf = new StorageBuffer( { label: 'castPose', count: max * POSE, type: 'vec4f' } );
-		this.prevBuf = new StorageBuffer( { label: 'castPrev', count: max * POSE, type: 'vec4f' } );
-		this.lookBuf = new StorageBuffer( { label: 'castLooks', count: max, type: 'vec4f' } );
-		// which slots are drawn this frame, packed (so the hidden cost nothing): all of them (the contact
-		// shadows), the near ones (the full figure) and the far ones (the light one, past NEAR metres)
-		this.order = new Uint32Array( max );
-		this.orderNear = new Uint32Array( max );
-		this.orderFar = new Uint32Array( max );
-		this.orderTiny = new Uint32Array( max );
-		this.orderBuf = new StorageBuffer( { label: 'castOrder', count: max, type: 'u32' } );
-		this.orderNearBuf = new StorageBuffer( { label: 'castOrderNear', count: max, type: 'u32' } );
-		this.orderFarBuf = new StorageBuffer( { label: 'castOrderFar', count: max, type: 'u32' } );
-		this.orderTinyBuf = new StorageBuffer( { label: 'castOrderTiny', count: max, type: 'u32' } );
-		this.near = 15;
-		this.far = 45;
-		this.atlas = drawAtlas();
-		this.material = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderNearBuf, this.atlas );
-		this.materialFar = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderFarBuf, this.atlas );
-		this.materialTiny = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderTinyBuf, this.atlas );
-		this.geometry = figureGeometry( 0 );
-		this.geometryFar = figureGeometry( 1 );
-		this.geometryTiny = figureGeometry( 2 );
-		const I = new Matrix4();
-		const make = ( geo, mat, name ) => {
-
-			const m = new InstancedMesh( geo, mat, max );
-			m.name = name;
-			m.frustumCulled = false;
-			m.castShadow = false;
-			m.receiveShadow = true;
-			m.userData.dynamic = true;
-			for ( let i = 0; i < max; i ++ ) m.setMatrixAt( i, I );
-			m.count = 1;
-			parent.add( m );
-			return m;
-
-		};
-
-		this.mesh = make( this.geometry, this.material, 'cast' );
-		this.meshFar = make( this.geometryFar, this.materialFar, 'cast-far' );
-		this.meshTiny = make( this.geometryTiny, this.materialTiny, 'cast-distant' );
-		// a soft shadow on the floor under each (the concourse's light comes from everywhere at once)
-		const blob = new PlaneGeometry( 1, 1 );
-		blob.rotateX( - Math.PI / 2 );
-		this.blobMat = standard( { name: 'cast-contact', color: new Color( 0, 0, 0 ), transparent: true, depthWrite: false, lit: false,
-			storage: { c3Pose: this.poseBuf, c3Order: this.orderBuf },
-			varyings: { vK: 'f32' },
-			vertex: /* wgsl */`
-	let slot = c3Order[ v.instance ];
-	let at = c3Pose[ slot * ${ POSE }u ];
-	let a1 = c3Pose[ slot * ${ POSE }u + 1u ];
-	let s = a1.x * ( 0.75 + 0.35 * a1.z );
-	v.useWorld = true;
-	v.worldPos = ( v.model * vec4f( at.x + v.position.x * 0.62 * s, at.y + 0.012, at.z + v.position.z * 0.62 * s, 1.0 ) ).xyz;
-	v.worldNormal = ( v.model * vec4f( 0.0, 1.0, 0.0, 0.0 ) ).xyz;
-	o.vK = select( 0.0, 1.0, a1.x > 0.05 );
-`,
-			surface: 'let r = length( in.uv - 0.5 ) * 2.0; s.albedo = vec3f( 0.0 ); s.alpha = ( 1.0 - smoothstep( 0.15, 1.0, r ) ) * 0.5 * in.vs.vK;' } );
-		this.blobMat.underwaterLighting = 'none';
-		this.blobs = new InstancedMesh( blob, this.blobMat, max );
-		this.blobs.name = 'cast-contact';
-		this.blobs.frustumCulled = false;
-		this.blobs.layers.set( 2 );
-		this.blobs.userData.dynamic = true;
-		for ( let i = 0; i < max; i ++ ) this.blobs.setMatrixAt( i, I );
-		this.blobs.count = 1;
-		parent.add( this.blobs );
-		this._fresh = true;
-
-	}
-
-	// someone new: a look (packLook's fields) and a pose to start from
-	add( look ) {
-
-		if ( this.list.length >= this.max ) return null;
-		const slot = this.list.length;
-		const p = { slot, x: 0, y: 0, z: 0, yaw: 0, scale: 1, visible: true, fresh: true, pose: restPose(), look };
-		this.looks.set( packLook( look ), slot * 4 );
-		this.list.push( p );
-		this._looksDirty = true;
-		return p;
-
-	}
-
-	// dressed differently (a poncho on for the rain, off on the 29th)
-	setLook( p, look ) {
-
-		p.look = look;
-		this.looks.set( packLook( look ), p.slot * 4 );
-		this._looksDirty = true;
-
-	}
-
-	get triangles() {
-
-		return this.geometry.index.count / 3;
-
-	}
-
-	// cam: the camera in the field frame ([ x, y, z ]) to choose near and far by
-	update( cam = null ) {
-
-		if ( this._looksDirty ) {
-
-			this.lookBuf.write( this.looks );
-			this._looksDirty = false;
-
-		}
-
-		// last frame's poses become the previous ones
-		this.prev.set( this.pose );
-		const P = this.pose;
-		let drawn = 0, nNear = 0, nFar = 0, nTiny = 0;
-		const n2 = this.near * this.near, f2 = this.far * this.far;
-		for ( const p of this.list ) {
-
-			const o = p.slot * POSE * 4, a = p.pose;
-			if ( ! p.visible ) {
-
-				P.fill( 0, o, o + POSE * 4 );
-				p.fresh = true;
-				continue;
-
-			}
-
-			P[ o ] = p.x; P[ o + 1 ] = p.y; P[ o + 2 ] = p.z; P[ o + 3 ] = p.yaw;
-			P[ o + 4 ] = p.scale; P[ o + 5 ] = a.phase; P[ o + 6 ] = a.walk; P[ o + 7 ] = a.drop;
-			P[ o + 8 ] = a.lean; P[ o + 9 ] = a.twist; P[ o + 10 ] = a.roll; P[ o + 11 ] = a.headYaw;
-			P[ o + 12 ] = a.headPitch; P[ o + 13 ] = a.mouth; P[ o + 14 ] = a.propL; P[ o + 15 ] = a.propR;
-			P.set( a.armL, o + 16 );
-			P.set( a.armR, o + 20 );
-			P[ o + 24 ] = a.hipL; P[ o + 25 ] = a.kneeL; P[ o + 26 ] = a.hipR; P[ o + 27 ] = a.kneeR;
-			P[ o + 28 ] = a.spread; P[ o + 29 ] = a.breath; P[ o + 30 ] = a.blink; P[ o + 31 ] = 0;
-			this.order[ drawn ++ ] = p.slot;
-			const dx = cam ? p.x - cam[ 0 ] : 0, dz = cam ? p.z - cam[ 2 ] : 0;
-			const e2 = dx * dx + dz * dz;
-			if ( e2 < n2 ) this.orderNear[ nNear ++ ] = p.slot;
-			else if ( e2 < f2 ) this.orderFar[ nFar ++ ] = p.slot;
-			else this.orderTiny[ nTiny ++ ] = p.slot;
-			// someone who's just appeared has no motion from last frame
-			if ( p.fresh ) {
-
-				this.prev.set( P.subarray( o, o + POSE * 4 ), o );
-				p.fresh = false;
-
-			}
-
-		}
-
-		// nobody to draw: one collapsed figure (a slot with no pose)
-		const none = this.list.length ? this.list.find( ( p ) => ! p.visible )?.slot ?? 0 : 0;
-		if ( ! drawn ) this.order[ drawn ++ ] = none;
-		if ( ! nNear ) this.orderNear[ nNear ++ ] = none;
-		if ( ! nFar ) this.orderFar[ nFar ++ ] = none;
-		if ( ! nTiny ) this.orderTiny[ nTiny ++ ] = none;
-		this.drawn = drawn;
-		this.drawnNear = nNear;
-		this.mesh.count = nNear;
-		this.meshFar.count = nFar;
-		this.meshTiny.count = nTiny;
-		this.blobs.count = drawn;
-		this.poseBuf.write( P );
-		this.prevBuf.write( this.prev );
-		this.orderBuf.write( this.order.subarray( 0, Math.max( 4, drawn ) ) );
-		this.orderNearBuf.write( this.orderNear.subarray( 0, Math.max( 4, nNear ) ) );
-		this.orderFarBuf.write( this.orderFar.subarray( 0, Math.max( 4, nFar ) ) );
-		this.orderTinyBuf.write( this.orderTiny.subarray( 0, Math.max( 4, nTiny ) ) );
-
-	}
+	const y = ( o.top & 31 ) | ( ( o.color & 31 ) << 5 ) | ( ( o.sleeves & 31 ) << 10 ) | ( ( o.back & 127 ) << 15 ) | ( ( o.chest & 15 ) << 22 );
+	const z = ( o.pants & 7 ) | ( ( o.shoes & 7 ) << 3 ) | ( ( o.hat & 31 ) << 6 ) | ( ( o.poncho & 7 ) << 11 ) | ( ( o.scarf & 3 ) << 14 ) | ( ( o.gloves ? 1 : 0 ) << 16 ) | ( ( o.gear & 15 ) << 17 );
+	return [ x >>> 0, y >>> 0, z >>> 0, ( o.seed ?? Math.floor( Math.random() * 65536 ) ) & 65535 ];
 
 }
 
@@ -1265,8 +1630,404 @@ export function restPose() {
 
 	return {
 		phase: 0, walk: 0, drop: 0, lean: 0, twist: 0, roll: 0, headYaw: 0, headPitch: 0, mouth: 0,
-		propL: 0, propR: 0, armL: [ 0.05, 0.06, 0, 0.12 ], armR: [ 0.05, 0.06, 0, 0.12 ],
+		propL: 0, propR: 0, varL: 0, varR: 0, armL: [ 0.05, 0.06, 0, 0.12 ], armR: [ 0.05, 0.06, 0, 0.12 ],
 		hipL: 0, kneeL: 0, hipR: 0, kneeR: 0, spread: 0, breath: 0, blink: 0,
 	};
+
+}
+
+// Seated on something h metres up (a stadium seat is ~0.45): the thighs out level, the shins down, the
+// pelvis lowered onto the seat. (With h over ~0.5 the feet hang: a kid on a wall.)
+export function seat( pose, h = 0.45 ) {
+
+	pose.hipL = pose.hipR = 1.5;
+	pose.kneeL = pose.kneeR = 1.5;
+	pose.drop = 0.84 - h;
+	pose.walk = 0;
+	return pose;
+
+}
+
+// ---------------------------------------------------------------- the pool
+
+const NEAR_FRAC = 0.14; // stood taller than this share of the screen's height: the near figure
+const TINY_FRAC = 0.04; // shorter than this: the distant one
+const H = 1.75; // the figure's height
+const _vp = new Matrix4(), _frustum = new Frustum(), _m = new Matrix4(), _inv = new Matrix4(), _cam = new Vector3();
+let POOL = null;
+
+class Pool {
+
+	constructor() {
+
+		this.troupes = [];
+		this.people = [];
+		this.cap = 0;
+		this.hidden = false;
+		this.stats = { people: 0, drawn: 0, near: 0, far: 0, tiny: 0, culled: 0 };
+		this.pal = palette();
+		this.palBuf = new StorageBuffer( { label: 'castPalette', count: PAL.size, type: 'vec4f', data: this.pal } );
+		this._grow( 256 );
+		this.atlas = drawAtlas();
+		this.signTex = drawSigns();
+		this._signsDrawn = SIGNS.length;
+		this.material = castMaterial( this );
+		this.blobMat = blobMaterial( this );
+		this.geometry = [ figureGeometry( 0 ), figureGeometry( 1 ), figureGeometry( 2 ) ];
+		const make = ( geo, mat, name, lod ) => {
+
+			const m = new Mesh( geo, mat );
+			m.name = name;
+			m.frustumCulled = false;
+			m.castShadow = false;
+			m.receiveShadow = true;
+			m.userData.dynamic = true;
+			// drawn first: people stand in front of most of what's behind them (the floor, the walls)
+			m.renderOrder = - 1;
+			// this draw's stretch of the order, and which figure it is
+			m.drawParams = [ 0, lod, 0 ];
+			m.onBeforeRender = ( r, s, camera ) => this.flush( camera );
+			return m;
+
+		};
+
+		this.meshes = [ make( this.geometry[ 0 ], this.material, 'cast', 0 ), make( this.geometry[ 1 ], this.material, 'cast-far', 1 ), make( this.geometry[ 2 ], this.material, 'cast-distant', 2 ) ];
+		for ( const [ i, m ] of this.meshes.entries() ) m.drawParams[ 0 ] = this.cap * ( i + 1 );
+		const blob = new PlaneGeometry( 1, 1 );
+		blob.rotateX( - Math.PI / 2 );
+		blob.instanceCount = 0;
+		this.blobs = new Mesh( blob, this.blobMat );
+		this.blobs.name = 'cast-contact';
+		this.blobs.frustumCulled = false;
+		this.blobs.layers.set( 2 );
+		this.blobs.userData.dynamic = true;
+		this.blobs.drawParams = [ 0, 0, 0 ];
+		this.blobs.onBeforeRender = ( r, s, camera ) => this.flush( camera );
+		this.group = null;
+		this._frame = - 1;
+		if ( typeof window !== 'undefined' ) window.__cast = this;
+
+	}
+
+	// room for n people
+	_grow( n ) {
+
+		const cap = Math.max( 256, Math.ceil( n * 1.25 / 64 ) * 64 );
+		if ( cap <= this.cap ) return;
+		const old = this.cap ? { pose: this.pose, prev: this.prev, looks: this.looks } : null;
+		this.cap = cap;
+		this.pose = new Float32Array( cap * POSE * 4 );
+		this.prev = new Float32Array( cap * POSE * 4 );
+		this.looks = new Uint32Array( cap * 4 );
+		if ( old ) {
+
+			this.pose.set( old.pose );
+			this.prev.set( old.prev );
+			this.looks.set( old.looks );
+
+		}
+
+		// the order: [ the contact shadows | the near | the far | the distant ], cap slots each
+		this.order = new Uint32Array( cap * 4 );
+		this.poseBuf = new StorageBuffer( { label: 'castPose', count: cap * POSE, type: 'vec4f' } );
+		this.prevBuf = new StorageBuffer( { label: 'castPrev', count: cap * POSE, type: 'vec4f' } );
+		this.lookBuf = new StorageBuffer( { label: 'castLooks', count: cap, type: 'vec4u' } );
+		this.orderBuf = new StorageBuffer( { label: 'castOrder', count: cap * 4, type: 'u32' } );
+		this._looksDirty = true;
+		if ( this.meshes ) for ( const [ i, m ] of this.meshes.entries() ) m.drawParams[ 0 ] = cap * ( i + 1 );
+
+	}
+
+	// the pool's meshes go in the field frame (the group the troupes' places are in): found from a troupe
+	// once they're all built and in the scene (not from one whose place isn't drawn: ?only=)
+	_attach( troupe ) {
+
+		let o = troupe.parent;
+		while ( o.parent && ! o.parent.isScene ) o = o.parent;
+		if ( ! o.parent ) return false;
+		if ( this.group !== o ) {
+
+			this.group = o;
+			for ( const m of [ ...this.meshes, this.blobs ] ) o.add( m );
+
+		}
+
+		return true;
+
+	}
+
+	add( troupe, look ) {
+
+		const slot = this.people.length;
+		if ( slot >= this.cap ) this._grow( slot + 1 );
+		const p = { slot, x: 0, y: 0, z: 0, yaw: 0, scale: 1, visible: true, fresh: true, pose: restPose(), look, troupe };
+		this.looks.set( packLook( look ), slot * 4 );
+		this.people.push( p );
+		this._looksDirty = true;
+		return p;
+
+	}
+
+	setLook( p, look ) {
+
+		p.look = look;
+		this.looks.set( packLook( look ), p.slot * 4 );
+		this._looksDirty = true;
+
+	}
+
+	// once a frame, as the first of the pool's meshes is about to be drawn: who's seen and in which figure,
+	// the poses and the order up to the GPU
+	flush( camera ) {
+
+		if ( this._frame === GPU.frame ) return;
+		this._frame = GPU.frame;
+		const G = this.group;
+		if ( ! G || ! camera ) return;
+		if ( this._signsDirty && SIGNS.length !== this._signsDrawn ) {
+
+			this.signTex = drawSigns();
+			this._signsDrawn = SIGNS.length;
+
+		}
+
+		this._signsDirty = false;
+		const n = this.people.length;
+		if ( n > this.cap ) this._grow( n );
+		// the camera: the view's four sides (world), and how big a figure stands on the screen
+		_vp.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
+		_frustum.setFromProjectionMatrix( _vp );
+		const planes = _frustum.planes.slice( 0, 4 );
+		const pe = camera.projectionMatrix.elements, focal = Math.abs( pe[ 5 ] ) * 0.5;
+		_cam.setFromMatrixPosition( camera.matrixWorld );
+		G.updateWorldMatrix( true, false );
+		const M = G.matrixWorld.elements;
+		const P = this.pose;
+		// last frame's poses become the previous ones
+		this.prev.set( P.subarray( 0, n * POSE * 4 ) );
+		const O = this.order, cap = this.cap;
+		const near = [], nearD = [];
+		let nBlob = 0, nFar = 0, nTiny = 0, culled = 0, drawn = 0;
+		const hidden = this.hidden;
+		const inv = _inv.copy( G.matrixWorld ).invert();
+		for ( const t of this.troupes ) {
+
+			t.drawn = 0;
+			t.drawnNear = 0;
+			// a troupe whose place isn't drawn (?only=), or looked away from
+			let o = t.parent;
+			while ( o && o !== G ) o = o.parent;
+			if ( ! o || hidden ) continue;
+			// where the troupe's frame is in the pool's (the field frame: the same, for every place so far)
+			t.parent.updateWorldMatrix( true, false );
+			const R = _rel( t, inv );
+			if ( t.bounds && ! _sphereIn( planes, M, t.bounds.center.x, t.bounds.center.y, t.bounds.center.z, t.bounds.radius ) ) continue;
+			for ( const p of t.list ) {
+
+				if ( ! p.visible ) {
+
+					p.fresh = true;
+					continue;
+
+				}
+
+				const o4 = p.slot * POSE * 4, a = p.pose;
+				let x = p.x, y = p.y, z = p.z, yaw = p.yaw;
+				if ( R ) {
+
+					const x0 = x, y0 = y, z0 = z;
+					x = R[ 0 ] * x0 + R[ 4 ] * y0 + R[ 8 ] * z0 + R[ 12 ];
+					y = R[ 1 ] * x0 + R[ 5 ] * y0 + R[ 9 ] * z0 + R[ 13 ];
+					z = R[ 2 ] * x0 + R[ 6 ] * y0 + R[ 10 ] * z0 + R[ 14 ];
+					yaw += Math.atan2( R[ 8 ], R[ 0 ] );
+
+				}
+
+				P[ o4 ] = x; P[ o4 + 1 ] = y; P[ o4 + 2 ] = z; P[ o4 + 3 ] = yaw;
+				P[ o4 + 4 ] = p.scale; P[ o4 + 5 ] = a.phase; P[ o4 + 6 ] = a.walk; P[ o4 + 7 ] = a.drop;
+				P[ o4 + 8 ] = a.lean; P[ o4 + 9 ] = a.twist; P[ o4 + 10 ] = a.roll; P[ o4 + 11 ] = a.headYaw;
+				P[ o4 + 12 ] = a.headPitch; P[ o4 + 13 ] = a.mouth; P[ o4 + 14 ] = a.propL; P[ o4 + 15 ] = a.propR;
+				P.set( a.armL, o4 + 16 );
+				P.set( a.armR, o4 + 20 );
+				P[ o4 + 24 ] = a.hipL; P[ o4 + 25 ] = a.kneeL; P[ o4 + 26 ] = a.hipR; P[ o4 + 27 ] = a.kneeR;
+				P[ o4 + 28 ] = a.spread; P[ o4 + 29 ] = a.breath; P[ o4 + 30 ] = a.blink; P[ o4 + 31 ] = ( a.varR || 0 ) + 256 * ( a.varL || 0 );
+				// someone who's just appeared has no motion from last frame
+				if ( p.fresh ) {
+
+					this.prev.set( P.subarray( o4, o4 + POSE * 4 ), o4 );
+					p.fresh = false;
+
+				}
+
+				// in the view? (a sphere round the figure: taller with an umbrella or a sign up)
+				const s = p.scale, cy = y + 0.9 * s;
+				const big = a.propR === PROP.umbrella || a.propR === PROP.sign ? 0.5 : 0;
+				const wx = M[ 0 ] * x + M[ 4 ] * cy + M[ 8 ] * z + M[ 12 ], wy = M[ 1 ] * x + M[ 5 ] * cy + M[ 9 ] * z + M[ 13 ], wz = M[ 2 ] * x + M[ 6 ] * cy + M[ 10 ] * z + M[ 14 ];
+				const r = ( 1.15 + big ) * s;
+				let seen = true;
+				for ( let i = 0; i < 4; i ++ ) {
+
+					const pl = planes[ i ], nn = pl.normal;
+					if ( nn.x * wx + nn.y * wy + nn.z * wz + pl.constant < - r ) {
+
+						seen = false;
+						break;
+
+					}
+
+				}
+
+				if ( ! seen ) {
+
+					culled ++;
+					continue;
+
+				}
+
+				// how tall on the screen (a share of its height): the figure by it
+				const dx = wx - _cam.x, dy = wy - _cam.y, dz = wz - _cam.z;
+				const d = Math.sqrt( dx * dx + dy * dy + dz * dz ) + 0.01;
+				const frac = H * s * focal / d;
+				drawn ++;
+				t.drawn ++;
+				if ( frac > NEAR_FRAC ) {
+
+					near.push( p.slot );
+					nearD.push( d );
+					O[ nBlob ++ ] = p.slot;
+					t.drawnNear ++;
+
+				} else if ( frac > TINY_FRAC ) {
+
+					O[ cap * 2 + nFar ++ ] = p.slot;
+					O[ nBlob ++ ] = p.slot;
+
+				} else O[ cap * 3 + nTiny ++ ] = p.slot;
+
+			}
+
+		}
+
+		// the near ones front to back (the ones behind are hidden early)
+		const idx = near.map( ( _, i ) => i ).sort( ( i, j ) => nearD[ i ] - nearD[ j ] );
+		for ( let i = 0; i < idx.length; i ++ ) O[ cap + i ] = near[ idx[ i ] ];
+		const nNear = near.length;
+		this.geometry[ 0 ].instanceCount = nNear;
+		this.geometry[ 1 ].instanceCount = nFar;
+		this.geometry[ 2 ].instanceCount = nTiny;
+		this.blobs.geometry.instanceCount = nBlob;
+		Object.assign( this.stats, { people: n, drawn, near: nNear, far: nFar, tiny: nTiny, culled } );
+		if ( ! n ) return;
+		const len = n * POSE * 4;
+		this.poseBuf.write( P.subarray( 0, len ) );
+		this.prevBuf.write( this.prev.subarray( 0, len ) );
+		if ( this._looksDirty ) {
+
+			this.lookBuf.write( this.looks.subarray( 0, n * 4 ) );
+			this._looksDirty = false;
+
+		}
+
+		// each stretch of the order written as far as it's used
+		const put = ( base, count ) => {
+
+			if ( count ) this.orderBuf.write( O.subarray( base, base + count ), base * 4 );
+
+		};
+
+		put( 0, nBlob );
+		put( cap, nNear );
+		put( cap * 2, nFar );
+		put( cap * 3, nTiny );
+
+	}
+
+}
+
+// a troupe's frame in the pool's (null when it's the same: every place's group sits in the field frame)
+function _rel( t, inv ) {
+
+	const e = _m.multiplyMatrices( inv, t.parent.matrixWorld ).elements;
+	const id = Math.abs( e[ 0 ] - 1 ) + Math.abs( e[ 5 ] - 1 ) + Math.abs( e[ 10 ] - 1 ) + Math.abs( e[ 12 ] ) + Math.abs( e[ 13 ] ) + Math.abs( e[ 14 ] ) + Math.abs( e[ 8 ] );
+	if ( id < 1e-4 ) return null;
+	return ( t._R ||= new Float32Array( 16 ) ).set( e ), t._R;
+
+}
+
+// a sphere (in the pool's frame, M its world matrix) against the view's four sides
+function _sphereIn( planes, M, x, y, z, r ) {
+
+	const wx = M[ 0 ] * x + M[ 4 ] * y + M[ 8 ] * z + M[ 12 ], wy = M[ 1 ] * x + M[ 5 ] * y + M[ 9 ] * z + M[ 13 ], wz = M[ 2 ] * x + M[ 6 ] * y + M[ 10 ] * z + M[ 14 ];
+	for ( const pl of planes ) if ( pl.normal.x * wx + pl.normal.y * wy + pl.normal.z * wz + pl.constant < - r ) return false;
+	return true;
+
+}
+
+// ---------------------------------------------------------------- a troupe (a place's people)
+
+export class Cast {
+
+	constructor( { parent, max = 320 } ) {
+
+		this.pool = POOL ||= new Pool();
+		this.pool.troupes.push( this );
+		this.parent = parent;
+		this.max = max;
+		this.list = [];
+		this.bounds = null;
+		this.drawn = 0;
+		this.drawnNear = 0;
+		// (the pool's meshes go into the scene now, with this troupe's place; they move to the field frame
+		// on the first update, once every place is in it)
+		if ( ! this.pool.group ) for ( const m of [ ...this.pool.meshes, this.pool.blobs ] ) parent.add( m );
+
+	}
+
+	// the pool's meshes (shared by every troupe)
+	get mesh() { return this.pool.meshes[ 0 ]; }
+	get meshFar() { return this.pool.meshes[ 1 ]; }
+	get meshTiny() { return this.pool.meshes[ 2 ]; }
+	get blobs() { return this.pool.blobs; }
+	get near() { return NEAR_FRAC; }
+	get far() { return TINY_FRAC; }
+
+	// someone new: a look (packLook's fields) and a pose to start from
+	add( look ) {
+
+		if ( this.list.length >= this.max ) return null;
+		const p = this.pool.add( this, look );
+		this.list.push( p );
+		return p;
+
+	}
+
+	// dressed differently (a poncho on for the rain, off on the 29th)
+	setLook( p, look ) {
+
+		this.pool.setLook( p, look );
+
+	}
+
+	get triangles() {
+
+		return this.pool.geometry[ 0 ].index.count / 3;
+
+	}
+
+	// once a frame, after posing. (The pool culls, picks the figures and uploads as it's drawn, with the
+	// camera it's drawn for: cam is no longer needed.)
+	update( cam = null ) {
+
+		void cam;
+		if ( ! this.pool.group ) this.pool._attach( this );
+
+	}
+
+}
+
+// the pool (for tests and tools): every troupe's people
+export function castPool() {
+
+	return POOL;
 
 }
