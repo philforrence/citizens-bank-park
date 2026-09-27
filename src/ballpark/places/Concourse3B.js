@@ -4,13 +4,12 @@ import { LiveTV } from './Concourse3BTV.js';
 import { floorSkin } from './Concourse3BFloor.js';
 import { LEVELS } from '../layout.js';
 import { Cast } from './Cast.js';
-import { Walkway } from './Concourse3BKit.js';
+import { Walkway, rng } from './Concourse3BKit.js';
 import { ConcoursePeople, nightState, RAIL_D, FRONT_D } from './Concourse3BPeople.js';
 import { Stories } from './Concourse3BStories.js';
 import { Steam } from './Concourse3BSteam.js';
 import { G } from '../../core/Globals.js';
 import { Kit, trashCan, recycleBin, condiments, cart, programTable, pendant } from './Concourse3BProps.js';
-import { rng } from './Concourse3BKit.js';
 
 // The main concourse from behind home plate round to the third base side (sections 123 to 135): the
 // walk in from the Third Base Gate to your seat, at street level, under the suite level and open to the
@@ -512,8 +511,7 @@ export default class Concourse3B {
 		this.people.update( dt, ns );
 		this.stories.update( dt, ns );
 		// the steam and the breath (the cold: 47 and raining on the 27th, 44 and windy on the 29th)
-		const cam = this.app?.camera;
-		const cf = cam ? [ ...this.field.toField( cam.position.x, cam.position.z ) ] : null;
+		const cf = camF;
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam: cf ? [ cf[ 0 ], 0, cf[ 1 ] ] : null, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
 		this.cast.update( cf ? [ cf[ 0 ], 0, cf[ 1 ] ] : null );
 		this.tv.update( dt, director, ns );
