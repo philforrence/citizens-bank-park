@@ -65,6 +65,9 @@ export class Roll {
 		g.setAttribute( 'normal', new Float32BufferAttribute( this.nrm, 3 ) );
 		g.setAttribute( 'uv', new Float32BufferAttribute( uv, 2 ) );
 		g.setIndex( index );
+		// (the attributes copy the arrays they're given: write into theirs)
+		this.pos = g.getAttribute( 'position' ).array;
+		this.nrm = g.getAttribute( 'normal' ).array;
 		this.geo = g;
 		this.mat = standard( { name: 'tarp-roll-out', color: new Color( 0.36, 0.37, 0.38 ), roughness: 0.3, modules: [ commonModule ],
 			uniforms: { turn: [ 'f32', 0 ], bare: [ 'f32', 0 ], rOut: [ 'f32', R_FULL ], len: [ 'f32', 44 ] },
