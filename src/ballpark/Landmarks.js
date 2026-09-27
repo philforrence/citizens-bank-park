@@ -572,11 +572,15 @@ export class Landmarks {
 `,
 		} );
 		const trim = standard( { name: 'alley-trim', color: new Color( 0.55, 0.5, 0.42 ), roughness: 0.7 } );
-		const rail = standard( { name: 'alley-rail', color: new Color( 0.02, 0.1, 0.06 ), roughness: 0.5, metalness: 0.4 } );
-		for ( const m of [ brick, trim, rail ] ) m.underwaterLighting = 'none';
+		const rail = standard( { name: 'alley-rail', color: new Color( 0.42, 0.43, 0.44 ), roughness: 0.35, metalness: 0.8 } );
+		const maroon = standard( { name: 'alley-deck-edge', color: new Color( 0.1, 0.014, 0.013 ), roughness: 0.55, metalness: 0.3 } );
+		for ( const m of [ brick, trim, rail, maroon ] ) m.underwaterLighting = 'none';
 		// the buildings sit along the back of the footprint behind center field, facing the field
 		const blocks = [ [ - 62, - 40 ], [ - 34, - 8 ], [ 2, 30 ], [ 36, 60 ] ];
-		const zBack = - 150.5, D = 7.5, Hb = 8.5;
+		// one storey of stands (4.5 m) under a public roof deck: a maroon steel beam along the deck's edge,
+		// a galvanized picket rail on it, patio tables under red and white umbrellas up there
+		const zBack = - 150.5, D = 7.5, Hb = 4.5;
+		const railQ = new Quads(), umbrellas = [];
 		for ( const [ x0, x1 ] of blocks ) {
 
 			const w = x1 - x0, cx = ( x0 + x1 ) / 2, cz = zBack + D / 2;
@@ -585,15 +589,38 @@ export class Landmarks {
 			b.castShadow = true;
 			b.receiveShadow = true;
 			this.group.add( b );
-			const cornice = new Mesh( new BoxGeometry( w + 0.4, 0.5, D + 0.4 ), trim );
-			cornice.position.set( cx, STREET + Hb, cz );
-			this.group.add( cornice );
-			// the rooftop's railing
-			const r = new Mesh( new BoxGeometry( w, 0.08, 0.08 ), rail );
-			r.position.set( cx, STREET + Hb + 1.1, cz + D / 2 );
-			this.group.add( r );
+			const edge = new Mesh( new BoxGeometry( w + 0.3, 0.6, 0.4 ), maroon );
+			edge.position.set( cx, STREET + Hb - 0.1, zBack + D + 0.05 );
+			this.group.add( edge );
+			const deck = new Mesh( new BoxGeometry( w + 0.2, 0.15, D + 0.2 ), trim );
+			deck.position.set( cx, STREET + Hb + 0.07, cz );
+			this.group.add( deck );
+			const ry = STREET + Hb + 0.15, rz = zBack + D - 0.05;
+			for ( const yy of [ ry + 1.07, ry + 0.12 ] ) beam( railQ, [ x0, yy, rz ], [ x1, yy, rz ], 0.05 );
+			for ( let xx = x0; xx <= x1; xx += 0.12 ) beam( railQ, [ xx, ry + 0.12, rz ], [ xx, ry + 1.07, rz ], 0.018 );
+			for ( let xx = x0 + 3; xx < x1 - 2; xx += 5.5 ) umbrellas.push( [ xx, ry, zBack + D - 2.6 ] );
 			const wpos = this.field.toWorld( cx, cz );
 			this.colliders.addBox( new Vector3( wpos.x, this.field.y0 + STREET + Hb / 2, wpos.z ), new Vector3( w / 2, Hb / 2, D / 2 ), this.field.group.rotation.y, { tag: 'ashburn-alley', walkable: true } );
+
+		}
+
+		this.group.add( new Mesh( railQ.geometry(), rail ) );
+		// the patio tables and their umbrellas (red and white segments), up on the deck
+		const umb = standard( { name: 'deck-umbrellas', color: new Color( 0.5, 0.03, 0.04 ), roughness: 0.7, side: 'double',
+			surface: 'let a = atan2( in.P.z - floor( in.P.z ), in.P.x - floor( in.P.x ) ); s.albedo = select( vec3f( 0.8, 0.79, 0.76 ), vec3f( 0.45, 0.02, 0.03 ), fract( atan2( in.N.z, in.N.x ) / 6.2832 * 8.0 ) < 0.5 );' } );
+		umb.underwaterLighting = 'none';
+		const cone = new ConeGeometry( 1.3, 0.55, 16, 1, true ), table = new CylinderGeometry( 0.55, 0.55, 0.05, 16 ), post = new CylinderGeometry( 0.03, 0.03, 2.3, 6 );
+		for ( const [ x, y, z ] of umbrellas ) {
+
+			const c = new Mesh( cone, umb );
+			c.position.set( x, y + 2.3, z );
+			this.group.add( c );
+			const p = new Mesh( post, rail );
+			p.position.set( x, y + 1.15, z );
+			this.group.add( p );
+			const t = new Mesh( table, trim );
+			t.position.set( x, y + 0.75, z );
+			this.group.add( t );
 
 		}
 
@@ -604,7 +631,7 @@ export class Landmarks {
 		const zRoof = zBack + D * 0.45;
 		for ( const [ cx, nums ] of [ [ - 24, [ [ '1', 'ASHBURN' ], [ '14', 'BUNNING' ], [ '20', 'SCHMIDT' ] ] ], [ 10, [ [ '32', 'CARLTON' ], [ '36', 'ROBERTS' ], [ '42', 'ROBINSON' ] ] ] ] ) {
 
-			const bw = 16, bh = 5.2, by = STREET + Hb;
+			const bw = 12, bh = 4.5, by = STREET + Hb + 0.15;
 			const b = new Mesh( new BoxGeometry( bw, bh, 5 ), brick );
 			b.position.set( cx, by + bh / 2, zRoof );
 			b.castShadow = true;
@@ -620,14 +647,17 @@ export class Landmarks {
 
 					const x = ( i + 0.5 ) * w / 3;
 					ctx.textAlign = 'center';
+					ctx.font = '800 230px "Helvetica Neue", Arial, sans-serif';
+					ctx.lineWidth = 10; ctx.lineJoin = 'round'; ctx.strokeStyle = '#ffffff';
+					ctx.strokeText( n, x, h * 0.62 );
 					ctx.fillStyle = n === '42' ? '#1d3f8f' : '#c8102e';
-					ctx.font = '800 300px "Helvetica Neue", Arial, sans-serif';
 					ctx.fillText( n, x, h * 0.62 );
-					ctx.fillStyle = '#f2ede1';
-					ctx.fillRect( x - 170, h * 0.74, 340, 76 );
-					ctx.fillStyle = '#1a1a1a';
-					ctx.font = '700 58px "Helvetica Neue", Arial, sans-serif';
-					ctx.fillText( name, x, h * 0.74 + 58, 320 );
+					// the name on a red plate
+					ctx.fillStyle = '#c8102e';
+					ctx.fillRect( x - 170, h * 0.74, 340, 70 );
+					ctx.fillStyle = '#ffffff';
+					ctx.font = '700 52px "Helvetica Neue", Arial, sans-serif';
+					ctx.fillText( name, x, h * 0.74 + 52, 320 );
 
 				} );
 
@@ -647,6 +677,19 @@ export class Landmarks {
 			}
 
 			this.group.add( new Mesh( g, m ) );
+			// a black barn lamp over each number, lit at night
+			for ( let i = 0; i < 3; i ++ ) {
+
+				const lx = x0 + ( x1 - x0 ) * ( i + 0.5 ) / 3;
+				const shade = new Mesh( new ConeGeometry( 0.28, 0.25, 12, 1, true ), this.barnMat || ( this.barnMat = standard( { name: 'barn-lamps', color: new Color( 0.02, 0.02, 0.02 ), roughness: 0.5, side: 'double',
+					surface: 's.emissive = vec3f( 1.0, 0.85, 0.6 ) * step( in.N.y, -0.3 ) * smoothstep( 0.1, 0.7, frame.night ) * 6.0;' } ) ) );
+				shade.position.set( lx, y1 + 0.45, z + 0.5 );
+				this.group.add( shade );
+				const arm = new Mesh( new BoxGeometry( 0.05, 0.05, 0.55 ), rail );
+				arm.position.set( lx, y1 + 0.6, z + 0.27 );
+				this.group.add( arm );
+
+			}
 
 		}
 
@@ -989,7 +1032,7 @@ export class Landmarks {
 
 		}, 'alleyBanner' );
 		const bannerMat = standard( { name: 'alley-banners', roughness: 0.8, side: 'double', textures: { bpBan: banner },
-			surface: 's.albedo = textureSample( bpBan, smpAnisoClamp, in.uv ).rgb * 0.8;' } );
+			surface: '// both faces read the right way round\n\tlet buv = select( vec2f( 1.0 - in.uv.x, in.uv.y ), in.uv, in.front ); s.albedo = textureSample( bpBan, smpAnisoClamp, buv ).rgb * 0.8;' } );
 		const bq = new Quads(), greyPole = new Quads(), speakers = new Quads();
 		this._discMat = this._discMat || standard( { name: 'alley-lamps', color: new Color( 0.5, 0.52, 0.54 ), roughness: 0.4, metalness: 0.6,
 			surface: 'if ( in.N.y < - 0.5 ) { s.emissive = vec3f( 1.0, 0.85, 0.6 ) * mix( 0.2, 3.0, smoothstep( 0.1, 0.7, frame.night ) ); }' } );
@@ -1114,24 +1157,18 @@ export class Landmarks {
 			ctx.beginPath(); ctx.arc( w / 2, h / 2, 14, 0, Math.PI * 2 ); ctx.fill();
 
 		}, 'clock' );
+		// October 2008: a blue backlit Sherwin-Williams box sign under the clock
 		const mab = canvasTexture( 1024, 320, ( ctx, w, h ) => {
 
 			ctx.clearRect( 0, 0, w, h );
-			ctx.fillStyle = '#c8102e';
-			ctx.beginPath(); ctx.ellipse( w / 2, h / 2, w / 2 - 6, h / 2 - 6, 0, 0, Math.PI * 2 ); ctx.fill();
-			const g = ctx.createLinearGradient( 0, 0, 0, h );
-			g.addColorStop( 0, '#f1f2f4' ); g.addColorStop( 0.5, '#b9bdc4' ); g.addColorStop( 1, '#e8eaee' );
-			ctx.fillStyle = g;
-			ctx.beginPath(); ctx.ellipse( w / 2, h / 2, w / 2 - 34, h / 2 - 30, 0, 0, Math.PI * 2 ); ctx.fill();
-			ctx.fillStyle = '#c8102e';
-			ctx.font = 'italic 900 150px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillStyle = '#0b4ea2';
+			ctx.fillRect( 0, h * 0.28, w, h * 0.44 );
+			ctx.fillStyle = '#ffffff';
+			ctx.font = '800 96px "Helvetica Neue", Arial, sans-serif';
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
-			ctx.fillText( 'MAB', w * 0.37, h / 2 + 6 );
-			ctx.font = 'italic 800 84px "Helvetica Neue", Arial, sans-serif';
-			ctx.fillText( 'PAINTS', w * 0.68, h / 2 + 10 );
-
-		}, 'mabPaints' );
+			ctx.fillText( 'SHERWIN-WILLIAMS', w / 2, h / 2 + 4, w - 60 );
+		}, 'swSign' );
 		const fm = standard( { name: 'clock-face', roughness: 0.5, textures: { bpClock: face }, surface: 'let t = textureSample( bpClock, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.85; s.emissive = t * 0.5 * frame.night;' } );
 		const sm = standard( { name: 'clock-sign', roughness: 0.4, alphaTest: 0.5, textures: { bpSign: mab }, surface: 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ); s.albedo = t.rgb * 0.85; s.alpha = t.a; s.emissive = t.rgb * 0.45 * frame.night;' } );
 		for ( const m of [ fm, sm ] ) m.underwaterLighting = 'none';
