@@ -33,6 +33,19 @@ export function buildClub( seats, b = new Builder() ) {
 
 	}
 
+	// the club's seats padded: a navy vinyl cushion on the pan and one on the back, piped (the first
+	// four rows, the low ones), beaded with the rain on the 27th (the palette's wet)
+	for ( const seat of seats.list ) {
+
+		if ( seat.row > 3 || ! seat.occupied ) continue;
+		const P = Builder.frame( [ seat.x, seat.y, seat.z ], [ seat.rx, seat.rz ], [ seat.nx, seat.nz ] );
+		b.use( 'pad' ).box( P, 0, 0.465, - 0.08, 0.44, 0.05, 0.4 );
+		b.use( 'padSeam' ).box( P, 0, 0.466, - 0.285, 0.44, 0.052, 0.012 );
+		b.use( 'pad' ).box( P, 0, 0.64, 0.155, 0.42, 0.3, 0.045 );
+		b.use( 'padSeam' ).box( P, 0, 0.795, 0.16, 0.42, 0.012, 0.05 );
+
+	}
+
 	// what's on it, in front of each front-row seat the place has
 	for ( const seat of seats.list ) {
 

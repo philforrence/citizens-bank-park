@@ -518,7 +518,9 @@ function* serve( w, chain, k, kind ) {
 		A.place.throwBag?.( w, buyer );
 		buyer.act( 'reachUp', 1.4, { key: 'catch', propR: 0 } );
 		buyer.bought = { prop: PROP.peanuts, from: w.N.t + 1.2, until: w.N.t + 240 };
-		yield* wait( w, 1.3 );
+		yield* wait( w, 1.0 );
+		A.place.sound?.at( 'bag', buyer.p, { vol: 0.6 } );
+		yield* wait( w, 0.3 );
 		t0 = 0;
 
 	} else {
@@ -571,6 +573,7 @@ function* serve( w, chain, k, kind ) {
 	w.lean = 0.25;
 	yield* wait( w, 0.5 );
 	w.props = [ 0, PROP.money ];
+	A.place.sound?.at( 'coins', w.p, { vol: 0.5 } );
 	w.lean = 0;
 	w.g = [ holdGear( kind )[ 0 ], SEATED.pocket[ 1 ] ];
 	yield* wait( w, 0.8 );
@@ -721,6 +724,7 @@ function* beerRun( run, i ) {
 	w.props = [ 0, 0 ];
 	w.g = null;
 	yield* wait( w, 0.8 );
+	A.place.sound?.at( 'excuse', w.p, { h: 1.55, vol: 0.55 } );
 	yield* walkPath( w, rowOut( run, run.j ) );
 	w.d = A.seats.rowD( s.row );
 	yield* walkTo( w, top );
@@ -735,7 +739,9 @@ function* beerRun( run, i ) {
 	w.shown = true;
 	yield* walkTo( w, A.seats.rowD( s.row ) );
 	letBy( run, run.j, 4.5 );
+	A.place.sound?.at( 'excuse', w.p, { h: 1.55, vol: 0.55 } );
 	yield* walkPath( w, rowOut( run, run.j ).reverse().slice( 1 ).concat( [ [ sx, s.y, sz ] ] ) );
+	A.place.sound?.at( 'thanks', w.p, { h: 1.55, vol: 0.5 } );
 	w.face = s.yaw;
 	yield* wait( w, 0.6 );
 	// sitting back down with it
@@ -764,7 +770,12 @@ function* lateRoutine( run, i ) {
 	w.props = [ 0, i === 0 ? PROP.ticket : 0 ];
 	yield* walkTo( w, rowD + 0.9 + i * 0.8 );
 	// waiting on the steps while Earl wipes, the ticket out
-	if ( i === 0 && earl ) earl.errand = { row: s.row, seats: run.fans.map( ( q ) => q.seat ) };
+	if ( i === 0 && earl ) {
+
+		earl.errand = { row: s.row, seats: run.fans.map( ( q ) => q.seat ) };
+		A.place.sound?.at( 'usher', earl.p, { h: 1.55, vol: 0.7 } );
+
+	}
 	w.face = Walkway.yaw( - w.up[ 0 ], - w.up[ 1 ] );
 	yield* wait( w, 7.5 - i * 0.3 );
 	w.props = [ 0, 0 ];

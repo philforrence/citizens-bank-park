@@ -35,6 +35,15 @@ export class Moments {
 				const f = cand[ Math.floor( hash( h * 91 + slot ) * cand.length ) ];
 				const u = N.t - slot * 23 - 3 * k;
 				if ( u < 0 || u > 11 ) continue;
+				// the phone snapped shut at the end of the call
+				if ( u > 10.9 && ! f._snap ) {
+
+					f._snap = true;
+					P.sound?.at( 'phone', f.p, { vol: 0.5 } );
+
+				}
+
+				if ( u < 1 ) f._snap = false;
 				// the phone to the ear, then the free hand waving; up on his feet for a second or two
 				const g = u < 2.5 ? SEATED.phone : [ SEATED.wave[ 1 ] && mirror( SEATED.wave[ 1 ], N.t ), SEATED.phone[ 1 ] ];
 				f.act( g, 0.3, { key: 'tv', propR: PROP.phone, propL: 0, head: [ 0, - 0.05 ], mouth: 0.3 + 0.3 * Math.max( 0, Math.sin( N.t * 7 ) ), up: u > 4 && u < 7 && hash( slot ) < 0.4 ? 1 : undefined } );
@@ -65,6 +74,14 @@ export class Moments {
 				}
 
 			}
+
+		}
+
+		// ---- a point-and-shoot's flash whining up and firing, near the camera, at the big moments
+		if ( N.flash > 0.2 && Math.random() < 0.02 ) {
+
+			const f = fans[ Math.floor( Math.random() * fans.length ) ];
+			if ( f.kit.camera ) P.sound?.at( 'flash', f.p, { h: 1.5, vol: 0.45 } );
 
 		}
 

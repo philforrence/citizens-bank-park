@@ -169,7 +169,10 @@ export class Fan {
 		if ( N.celebrate ) upT = 1;
 		if ( act && act.up !== undefined ) upT = act.up;
 		const rise = upT > this.up ? 1.6 : 1.1;
+		const was = this.up;
 		this.up += Math.max( - dt * rise, Math.min( dt * rise, upT - this.up ) );
+		// up out of the seat (its clack, a poncho's crinkle): the place listens
+		if ( was < 0.6 && this.up >= 0.6 ) this.fans.onUp?.( this, N );
 		const up = smooth( this.up );
 		// ---- the arms and what's in the hands
 		let g = null, L = 0, R = 0, mouth = 0, talk = false;

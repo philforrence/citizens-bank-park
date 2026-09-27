@@ -75,6 +75,17 @@ export default class BehindHome {
 		this.fouls = new Fouls( this );
 		// the blankets on the laps on the 29th
 		this.blankets = new Blankets( this.group, this.fans.list );
+		// a seat's clack as someone gets up (one at a time: a whole row up at once is the crowd's roar), a
+		// poncho's crinkle on the 27th
+		this._clackT = 0;
+		this.fans.onUp = ( f, N ) => {
+
+			if ( N.t - this._clackT < 0.7 || N.mood.stand > 0.5 ) return;
+			this._clackT = N.t;
+			this.sound.at( 'clack', f.seat, { h: 0.45, vol: 0.5 } );
+			if ( N.first && f.looks[ 27 ].poncho && Math.random() < 0.5 ) this.sound.at( 'poncho', f.p, { vol: 0.35 } );
+
+		};
 		// the moments the rows share: on TV, the Phanatic, the cameras in the 9th
 		this.moments = new Moments( this );
 		// breath in the cold, a wisp off every hot chocolate (W2's steam, near the camera only)

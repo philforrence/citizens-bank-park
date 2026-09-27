@@ -147,6 +147,8 @@ export function seatRegulars( place ) {
 		// up between pitches while the Phillies are in the field (the camera's on the plate), up for the
 		// big moments, else resting on his knees
 		const up = cell !== null && ( N.celebrate || N.between || ( N.half === 'top' && N.pitching && N.lt < 2.6 ) || N.mood.stand > 0.5 );
+		// held up high: now and then somebody behind has had enough
+		if ( up && ! f.sign?.up && hash( N.t * 0.7 ) < 0.3 ) place.sound?.at( 'down', { x: f.seat.x + f.seat.nx * 1.6, y: f.seat.y + 0.4, z: f.seat.z + f.seat.nz * 1.6 }, { vol: 0.7 } );
 		f.sign = cell === null ? null : { cell, up };
 		if ( cell !== null ) f.act( up ? 'sign' : 'signLow', 0.3, { key: 'sign', propL: 0, propR: 0 } );
 
@@ -225,6 +227,20 @@ export function seatRegulars( place ) {
 		kit: { idle: { watch: 3, knees: 3, eat: 1 }, drink: PROP.soda, towel: true, camera: false },
 		traits: { stand: 0.35, cheer: 0.3 },
 	} );
+	if ( R.gianna ) R.gianna.script = ( f, N ) => {
+
+		// every few innings she spots herself on the concourse TVs' feed: up on her seat, both hands
+		// waving at center field ("Mom! We're on TV!")
+		const w = fract( N.t / 530 + 0.42 );
+		if ( N.pitching && w < 0.016 ) {
+
+			if ( ! f._tv ) place.sound?.at( 'kidTV', f.p, { h: 1.0, vol: 0.8 } );
+			f._tv = true;
+			f.act( 'waveBoth', 0.3, { key: 'tv', up: 1, onSeat: true, y: 0.43, mouth: 0.8, head: [ 0, - 0.1 ] } );
+
+		} else f._tv = false;
+
+	};
 	if ( R.matty ) R.matty.script = ( f, N ) => {
 
 		// the big moments: up on his seat to see over the grown-ups
