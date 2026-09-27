@@ -482,7 +482,8 @@ export class Folk {
 
 		const dt = 1 / 60;
 		this.time += dt;
-		for ( const p of this.list ) {
+		this._frame = ( this._frame || 0 ) + 1;
+		for ( const [ i, p ] of this.list.entries() ) {
 
 			const c = p._c;
 			c.visible = p.shown && p.visible;
@@ -494,6 +495,8 @@ export class Folk {
 			}
 
 			c.x = p.x; c.y = p.y; c.z = p.z; c.yaw = p.yaw; c.scale = p.scale;
+			// the ones the camera didn't see last frame (Cast's p.lod) posed every fourth frame
+			if ( c.lod === - 1 && ( this._frame + i ) % 4 ) continue;
 			const [ A, B ] = PAIRS[ p.pair ];
 			const a = c.pose, k = Math.max( 0, Math.min( 1, p.k ) );
 			if ( p.pair === 'walk' ) {

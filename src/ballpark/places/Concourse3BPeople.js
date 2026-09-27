@@ -627,7 +627,8 @@ export class ConcoursePeople {
 		for ( const R of this.loos ) this._loo( R, dt, ns );
 		this._reactions( dt, ns );
 		// the ones far from the camera are moved every third frame (by three frames' time): nobody sees
-		// the difference 35 m off, and it saves the CPU a good part of its work
+		// the difference 35 m off, and it saves the CPU a good part of its work; (P0) the ones the camera
+		// didn't see at all last frame (Cast's p.lod: -1) every fourth, the few pixels tall every third
 		this._frame = ( this._frame || 0 ) + 1;
 		const cam = this.cam;
 		for ( const f of this.fans ) {
@@ -636,9 +637,10 @@ export class ConcoursePeople {
 			let fdt = dt;
 			if ( cam && ! this.warming ) {
 
-				const dx = f.p.x - cam[ 0 ], dz = f.p.z - cam[ 1 ];
+				const dx = f.p.x - cam[ 0 ], dz = f.p.z - cam[ 1 ], lod = f.p.lod ?? 0;
+				const every = lod < 0 ? 4 : lod === 2 || dx * dx + dz * dz > 35 * 35 ? 3 : 1;
 				f._acc = ( f._acc || 0 ) + dt;
-				if ( dx * dx + dz * dz > 35 * 35 && ( this._frame + f.p.slot ) % 3 ) continue;
+				if ( every > 1 && ( this._frame + f.p.slot ) % every ) continue;
 				fdt = f._acc;
 				f._acc = 0;
 

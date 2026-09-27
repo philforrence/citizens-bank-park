@@ -30,6 +30,9 @@ import { canvasTexture } from '../geo.js';
 //     p.visible                                drawn or not
 //     p.pose                                   the angles (restPose(): see below)
 //     p.fresh = true                           no motion blur from where they were (after a jump)
+//     p.lod                                    (read) how they were drawn last frame: 0 the near figure,
+//                                              1 the far, 2 the distant, -1 not at all (out of view,
+//                                              hidden): update the unseen and the distant less often
 //   cast.setLook( p, look )                    re-dressed (a poncho on for the rain, off on the 29th)
 //   cast.update( [ camX, 0, camZ ] )           once a frame, after posing (the camera in the field
 //                                              frame; optional: the pool finds the camera itself)
@@ -1732,29 +1735,33 @@ class Pool {
 
 		const cap = Math.max( 256, Math.ceil( n * 1.25 / 64 ) * 64 );
 		if ( cap <= this.cap ) return;
-		const old = this.cap ? { pose: this.pose, prev: this.prev, looks: this.looks } : null;
+		const old = this.cap ? { pose: this.pose, looks: this.looks } : null;
 		this.cap = cap;
 		this.pose = new Float32Array( cap * POSE * 4 );
-		this.prev = new Float32Array( cap * POSE * 4 );
 		this.looks = new Uint32Array( cap * 4 );
 		if ( old ) {
 
 			this.pose.set( old.pose );
-			this.prev.set( old.prev );
 			this.looks.set( old.looks );
 
 		}
 
 		// the order: [ the contact shadows | the near | the far | the distant ], cap slots each
 		this.order = new Uint32Array( cap * 4 );
-		this.poseBuf = new StorageBuffer( { label: 'castPose', count: cap * POSE, type: 'vec4f' } );
-		this.prevBuf = new StorageBuffer( { label: 'castPrev', count: cap * POSE, type: 'vec4f' } );
+		// two buffers of poses, turn about: this frame's, and last frame's (the previous poses, for the
+		// motion vectors, without uploading them again)
+		this._bufs = [ 0, 1 ].map( ( i ) => new StorageBuffer( { label: 'castPose' + i, count: cap * POSE, type: 'vec4f' } ) );
+		this._cur = 0;
 		this.lookBuf = new StorageBuffer( { label: 'castLooks', count: cap, type: 'vec4u' } );
 		this.orderBuf = new StorageBuffer( { label: 'castOrder', count: cap * 4, type: 'u32' } );
 		this._looksDirty = true;
+		for ( const p of this.people || [] ) p.fresh = true;
 		if ( this.meshes ) for ( const [ i, m ] of this.meshes.entries() ) m.drawParams[ 0 ] = cap * ( i + 1 );
 
 	}
+
+	get poseBuf() { return this._bufs[ this._cur ]; }
+	get prevBuf() { return this._bufs[ 1 - this._cur ]; }
 
 	// the pool's meshes go in the field frame (the group the troupes' places are in): found from a troupe
 	// once they're all built and in the scene (not from one whose place isn't drawn: ?only=)
@@ -1794,8 +1801,8 @@ class Pool {
 
 	}
 
-	// once a frame, as the first of the pool's meshes is about to be drawn: who's seen and in which figure,
-	// the poses and the order up to the GPU
+	// once a frame, as the first of the pool's meshes is about to be drawn: who's seen and in which figure
+	// (p.lod), the poses and the order up to the GPU
 	flush( camera ) {
 
 		if ( this._frame === GPU.frame ) return;
@@ -1815,19 +1822,29 @@ class Pool {
 		// the camera: the view's four sides (world), and how big a figure stands on the screen
 		_vp.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
 		_frustum.setFromProjectionMatrix( _vp );
-		const planes = _frustum.planes.slice( 0, 4 );
+		const planes = _frustum.planes;
 		const pe = camera.projectionMatrix.elements, focal = Math.abs( pe[ 5 ] ) * 0.5;
 		_cam.setFromMatrixPosition( camera.matrixWorld );
+		const cx = _cam.x, cy = _cam.y, cz = _cam.z;
 		G.updateWorldMatrix( true, false );
 		const M = G.matrixWorld.elements;
 		const P = this.pose;
-		// last frame's poses become the previous ones
-		this.prev.set( P.subarray( 0, n * POSE * 4 ) );
 		const O = this.order, cap = this.cap;
-		const near = [], nearD = [];
-		let nBlob = 0, nFar = 0, nTiny = 0, culled = 0, drawn = 0;
+		const near = [], nearD = [], fresh = [];
+		let nBlob = 0, nFar = 0, nTiny = 0, culled = 0, drawn = 0, lo = Infinity, hi = - 1;
 		const hidden = this.hidden;
 		const inv = _inv.copy( G.matrixWorld ).invert();
+		const gone = ( t ) => {
+
+			for ( const p of t.list ) {
+
+				p.lod = - 1;
+				p.fresh = true;
+
+			}
+
+		};
+
 		for ( const t of this.troupes ) {
 
 			t.drawn = 0;
@@ -1835,21 +1852,34 @@ class Pool {
 			// a troupe whose place isn't drawn (?only=), or looked away from
 			let o = t.parent;
 			while ( o && o !== G ) o = o.parent;
-			if ( ! o || hidden ) continue;
+			if ( ! o || hidden ) {
+
+				gone( t );
+				continue;
+
+			}
+
 			// where the troupe's frame is in the pool's (the field frame: the same, for every place so far)
 			t.parent.updateWorldMatrix( true, false );
 			const R = _rel( t, inv );
-			if ( t.bounds && ! _sphereIn( planes, M, t.bounds.center.x, t.bounds.center.y, t.bounds.center.z, t.bounds.radius ) ) continue;
+			if ( t.bounds && ! _sphereIn( planes, M, t.bounds.center.x, t.bounds.center.y, t.bounds.center.z, t.bounds.radius ) ) {
+
+				gone( t );
+				continue;
+
+			}
+
 			for ( const p of t.list ) {
 
 				if ( ! p.visible ) {
 
+					p.lod = - 1;
 					p.fresh = true;
 					continue;
 
 				}
 
-				const o4 = p.slot * POSE * 4, a = p.pose;
+				const a = p.pose;
 				let x = p.x, y = p.y, z = p.z, yaw = p.yaw;
 				if ( R ) {
 
@@ -1861,32 +1891,16 @@ class Pool {
 
 				}
 
-				P[ o4 ] = x; P[ o4 + 1 ] = y; P[ o4 + 2 ] = z; P[ o4 + 3 ] = yaw;
-				P[ o4 + 4 ] = p.scale; P[ o4 + 5 ] = a.phase; P[ o4 + 6 ] = a.walk; P[ o4 + 7 ] = a.drop;
-				P[ o4 + 8 ] = a.lean; P[ o4 + 9 ] = a.twist; P[ o4 + 10 ] = a.roll; P[ o4 + 11 ] = a.headYaw;
-				P[ o4 + 12 ] = a.headPitch; P[ o4 + 13 ] = a.mouth; P[ o4 + 14 ] = a.propL; P[ o4 + 15 ] = a.propR;
-				P.set( a.armL, o4 + 16 );
-				P.set( a.armR, o4 + 20 );
-				P[ o4 + 24 ] = a.hipL; P[ o4 + 25 ] = a.kneeL; P[ o4 + 26 ] = a.hipR; P[ o4 + 27 ] = a.kneeR;
-				P[ o4 + 28 ] = a.spread; P[ o4 + 29 ] = a.breath; P[ o4 + 30 ] = a.blink; P[ o4 + 31 ] = ( a.varR || 0 ) + 256 * ( a.varL || 0 );
-				// someone who's just appeared has no motion from last frame
-				if ( p.fresh ) {
-
-					this.prev.set( P.subarray( o4, o4 + POSE * 4 ), o4 );
-					p.fresh = false;
-
-				}
-
 				// in the view? (a sphere round the figure: taller with an umbrella or a sign up)
-				const s = p.scale, cy = y + 0.9 * s;
+				const s = p.scale, my = y + 0.9 * s;
 				const big = a.propR === PROP.umbrella || a.propR === PROP.sign ? 0.5 : 0;
-				const wx = M[ 0 ] * x + M[ 4 ] * cy + M[ 8 ] * z + M[ 12 ], wy = M[ 1 ] * x + M[ 5 ] * cy + M[ 9 ] * z + M[ 13 ], wz = M[ 2 ] * x + M[ 6 ] * cy + M[ 10 ] * z + M[ 14 ];
-				const r = ( 1.15 + big ) * s;
+				const wx = M[ 0 ] * x + M[ 4 ] * my + M[ 8 ] * z + M[ 12 ], wy = M[ 1 ] * x + M[ 5 ] * my + M[ 9 ] * z + M[ 13 ], wz = M[ 2 ] * x + M[ 6 ] * my + M[ 10 ] * z + M[ 14 ];
+				const r = - ( 1.15 + big ) * s;
 				let seen = true;
 				for ( let i = 0; i < 4; i ++ ) {
 
 					const pl = planes[ i ], nn = pl.normal;
-					if ( nn.x * wx + nn.y * wy + nn.z * wz + pl.constant < - r ) {
+					if ( nn.x * wx + nn.y * wy + nn.z * wz + pl.constant < r ) {
 
 						seen = false;
 						break;
@@ -1897,30 +1911,60 @@ class Pool {
 
 				if ( ! seen ) {
 
+					p.lod = - 1;
+					p.fresh = true;
 					culled ++;
 					continue;
 
 				}
 
+				// seen: the pose packed
+				const sl = p.slot, o4 = sl * POSE * 4;
+				P[ o4 ] = x; P[ o4 + 1 ] = y; P[ o4 + 2 ] = z; P[ o4 + 3 ] = yaw;
+				P[ o4 + 4 ] = s; P[ o4 + 5 ] = a.phase; P[ o4 + 6 ] = a.walk; P[ o4 + 7 ] = a.drop;
+				P[ o4 + 8 ] = a.lean; P[ o4 + 9 ] = a.twist; P[ o4 + 10 ] = a.roll; P[ o4 + 11 ] = a.headYaw;
+				P[ o4 + 12 ] = a.headPitch; P[ o4 + 13 ] = a.mouth; P[ o4 + 14 ] = a.propL; P[ o4 + 15 ] = a.propR;
+				const L = a.armL, Rr = a.armR;
+				P[ o4 + 16 ] = L[ 0 ]; P[ o4 + 17 ] = L[ 1 ]; P[ o4 + 18 ] = L[ 2 ]; P[ o4 + 19 ] = L[ 3 ];
+				P[ o4 + 20 ] = Rr[ 0 ]; P[ o4 + 21 ] = Rr[ 1 ]; P[ o4 + 22 ] = Rr[ 2 ]; P[ o4 + 23 ] = Rr[ 3 ];
+				P[ o4 + 24 ] = a.hipL; P[ o4 + 25 ] = a.kneeL; P[ o4 + 26 ] = a.hipR; P[ o4 + 27 ] = a.kneeR;
+				P[ o4 + 28 ] = a.spread; P[ o4 + 29 ] = a.breath; P[ o4 + 30 ] = a.blink; P[ o4 + 31 ] = ( a.varR || 0 ) + 256 * ( a.varL || 0 );
+				if ( sl < lo ) lo = sl;
+				if ( sl > hi ) hi = sl;
+				// someone who's just come into view has no motion from last frame
+				if ( p.fresh ) {
+
+					fresh.push( sl );
+					p.fresh = false;
+
+				}
+
 				// how tall on the screen (a share of its height): the figure by it
-				const dx = wx - _cam.x, dy = wy - _cam.y, dz = wz - _cam.z;
+				const dx = wx - cx, dy = wy - cy, dz = wz - cz;
 				const d = Math.sqrt( dx * dx + dy * dy + dz * dz ) + 0.01;
 				const frac = H * s * focal / d;
 				drawn ++;
 				t.drawn ++;
 				if ( frac > NEAR_FRAC ) {
 
-					near.push( p.slot );
+					p.lod = 0;
+					near.push( sl );
 					nearD.push( d );
-					O[ nBlob ++ ] = p.slot;
+					O[ nBlob ++ ] = sl;
 					t.drawnNear ++;
 
 				} else if ( frac > TINY_FRAC ) {
 
-					O[ cap * 2 + nFar ++ ] = p.slot;
-					O[ nBlob ++ ] = p.slot;
+					p.lod = 1;
+					O[ cap * 2 + nFar ++ ] = sl;
+					O[ nBlob ++ ] = sl;
 
-				} else O[ cap * 3 + nTiny ++ ] = p.slot;
+				} else {
+
+					p.lod = 2;
+					O[ cap * 3 + nTiny ++ ] = sl;
+
+				}
 
 			}
 
@@ -1937,17 +1981,21 @@ class Pool {
 		this.geometry[ 2 ].instanceCount = D && D.tiny === false ? 0 : nTiny;
 		this.blobs.geometry.instanceCount = D && D.blobs === false ? 0 : nBlob;
 		Object.assign( this.stats, { people: n, drawn, near: nNear, far: nFar, tiny: nTiny, culled } );
-		if ( ! n ) return;
-		const len = n * POSE * 4;
-		this.poseBuf.write( P.subarray( 0, len ) );
-		this.prevBuf.write( this.prev.subarray( 0, len ) );
-		if ( this._looksDirty ) {
+		if ( this._looksDirty && n ) {
 
 			this.lookBuf.write( this.looks.subarray( 0, n * 4 ) );
 			this._looksDirty = false;
 
 		}
 
+		if ( ! drawn ) return;
+		// this frame's poses into the other buffer (last frame's become the previous ones), as far as the
+		// ones seen reach; those who've just come into view get this frame's as their previous too
+		this._cur = 1 - this._cur;
+		const S = POSE * 4, from = lo * S, to = ( hi + 1 ) * S;
+		this.poseBuf.write( P.subarray( from, to ), from * 4 );
+		if ( fresh.length > 48 ) this.prevBuf.write( P.subarray( from, to ), from * 4 );
+		else for ( const sl of fresh ) this.prevBuf.write( P.subarray( sl * S, sl * S + S ), sl * S * 4 );
 		// each stretch of the order written as far as it's used
 		const put = ( base, count ) => {
 

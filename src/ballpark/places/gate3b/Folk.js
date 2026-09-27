@@ -225,11 +225,21 @@ export class Folk {
 
 		void eye;
 		const C = this.cast;
-		for ( const f of this.list ) {
+		this._frame = ( this._frame || 0 ) + 1;
+		for ( const [ i, f ] of this.list.entries() ) {
 
 			const p = f._p;
 			p.visible = !! f.visible;
 			if ( ! f.visible ) continue;
+			// the ones the camera didn't see last frame (Cast's p.lod) posed every fourth frame: where
+			// they are, every frame (the pool culls by it)
+			if ( p.lod === - 1 && ( this._frame + i ) % 4 ) {
+
+				p.x = f.x; p.y = f.y; p.z = f.z; p.yaw = f.yaw;
+				continue;
+
+			}
+
 			// re-dressed (a new arrival from the pool, a poncho on)
 			const key = f.look * 33554432 + ( f.props & WORN ) + f.seed;
 			if ( key !== f._key ) {
