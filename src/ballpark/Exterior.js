@@ -22,7 +22,7 @@ const FACADE = 6.5; // brick base height above the street
 export const GATES = [
 	// the Third and First Base Gates are the stadium's open maroon frame (`open`: no brick across that
 	// width), their gate line between two stair towers that carry the light towers
-	{ name: 'THIRD BASE GATE', at: [ - 80.95, 32.03 ], width: 30, open: 56, frame: true },
+	{ name: 'THIRD BASE GATE', at: [ - 80.95, 32.03 ], width: 30, open: 56, frame: true, leaves: 'open' }, // W1: its leaves open (gate3b)
 	{ name: 'FIRST BASE GATE', at: [ 73.5, 25.48 ], width: 30, open: 56, frame: true },
 	{ name: 'LEFT FIELD GATE', at: [ - 103.86, - 135.3 ], width: 28 },
 	// behind home plate, the private entrance to the suites and the clubs (there was no Home Plate Gate)
@@ -849,15 +849,29 @@ export class Exterior {
 
 		}
 
+		// ---- W1 (Third Base Gate): a gate open for the game (g.leaves: 'open') has its leaves folded out
+		// into fins and its turnstiles a few metres inside (the NLDS photo of 2 Oct 2008); the gate3b place
+		// builds those from the lanes (their bays); here only the posts
+		const shut = g.leaves !== 'open';
+		// ---- end W1
 		for ( let k = 0; k < n; k ++ ) {
 
 			const a = s0 + k * BAY, l0 = a + ( BAY - LANE ) / 2, l1 = l0 + LANE, b = a + BAY;
+			// maroon posts between the bays
+			beam( post, P( a, 0, y0 ), P( a, 0, y0 + H + 0.1 ), 0.14 );
+			if ( ! shut ) {
+
+				( this.lanes ||= [] ).push( { at: P( l1 + 0.35, - 0.8, y0 ), entry: P( ( l0 + l1 ) / 2, 1.5, y0 ), face: [ nx, nz ], gate: g.name, bay: [ a, b ], open: true } );
+				if ( k === n - 1 ) beam( post, P( b, 0, y0 ), P( b, 0, y0 + H + 0.1 ), 0.14 );
+				continue;
+
+			}
+
 			// mesh either side of the lane, and over it above head height
 			mesh( a, l0, 0, H );
 			mesh( l1, b, 0, H );
 			mesh( l0, l1, 2.3, H );
-			// maroon posts between the bays, and a baseball on the fixed panel of every other one
-			beam( post, P( a, 0, y0 ), P( a, 0, y0 + H + 0.1 ), 0.14 );
+			// a baseball on the fixed panel of every other bay
 			if ( k % 2 === 0 ) for ( const side of [ 1, - 1 ] ) balls.push( [ ( a + l0 ) / 2, side ] );
 			for ( const [ p0, p1 ] of [ [ a, l0 ], [ l1, b ] ] ) {
 
@@ -957,7 +971,7 @@ export class Exterior {
 		this.group.add( bm );
 		const disc = this.discMat || ( this.discMat = standard( { name: 'gate-disc', color: new Color( 0.85, 0.85, 0.82 ), roughness: 0.5 } ) );
 		disc.underwaterLighting = 'none';
-		this.group.add( new Mesh( dq.geometry(), disc ) );
+		if ( dq.count ) this.group.add( new Mesh( dq.geometry(), disc ) ); // (W1: none at an open gate)
 		// the baseballs on the gate panels: 0.9 m, white with red double stitching
 		const bmat = this.ballMat || ( this.ballMat = standard( { name: 'gate-baseball', color: new Color( 0.82, 0.81, 0.77 ), roughness: 0.55, side: 'double',
 			surface: /* wgsl */`

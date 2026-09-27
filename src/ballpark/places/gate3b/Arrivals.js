@@ -2,6 +2,7 @@ import { LEVELS } from '../../layout.js';
 import { rng } from './Mesher.js';
 import { PROP } from './Folk.js';
 import { dress, uniform } from './Dress.js';
+import { TURNSTILE_O, TABLE } from './Gate.js';
 
 // The way in: fans streaming across the plaza from the lots and the subway, queuing at the eight
 // lanes of the Third Base Gate, a ticket taker in a navy Phillies jacket at each scanning the ticket held
@@ -14,7 +15,9 @@ import { dress, uniform } from './Dress.js';
 // ticket, at the phone, up at the rain), at the front, then gone through the gate.
 
 const STREET = LEVELS.mainConcourse;
-const SLOT0 = 1.25, SLOT = 0.8, SLOTS = 10;
+// the front of each line waits at the turnstile, the rest back out through the open gate and into the
+// plaza; the one beside the bag table (slot 3) opens his bag there
+const SLOT0 = TURNSTILE_O + 0.8, SLOT = 0.8, SLOTS = 12, BAG_SLOT = 3, CANOPY = 4.8;
 const hash = ( n ) => {
 
 	const s = Math.sin( n * 12.9898 + 78.233 ) * 43758.5453;
@@ -35,25 +38,17 @@ const SOURCES = [
 
 export class Arrivals {
 
-	// folk: the Folk; lanes: exterior.lanes of the Third Base Gate; obstacles: [ x, z, r ]
-	constructor( { folk, lanes, obstacles, seed = 1 } ) {
+	// folk: the Folk; gate: gate3b/Gate.js's open gate (its lanes, frame, turnstiles, towel boxes);
+	// obstacles: [ x, z, r ]
+	constructor( { folk, gate, obstacles, seed = 1 } ) {
 
 		this.folk = folk;
+		this.gate = gate;
 		this.obstacles = obstacles;
 		this.r = rng( seed );
-		// each lane: its mouth (on the gate line), out (n), along (u), its taker, its queue
-		this.lanes = lanes.map( ( l, i ) => {
-
-			const n = [ l.face[ 0 ], l.face[ 1 ] ];
-			const u = [ - n[ 1 ], n[ 0 ] ];
-			const mouth = [ l.entry[ 0 ] - n[ 0 ] * 1.5, l.entry[ 2 ] - n[ 1 ] * 1.5 ];
-			return { i, n, u, mouth, taker: [ l.at[ 0 ], l.at[ 2 ] ], queue: [], timer: 2 + i * 0.7, scanning: 0 };
-
-		} );
-		// order them along the gate
-		const u0 = this.lanes[ 0 ]?.u || [ 1, 0 ];
-		this.lanes.sort( ( a, b ) => ( a.mouth[ 0 ] * u0[ 0 ] + a.mouth[ 1 ] * u0[ 1 ] ) - ( b.mouth[ 0 ] * u0[ 0 ] + b.mouth[ 1 ] * u0[ 1 ] ) );
-		this.lanes.forEach( ( l, i ) => l.i = i );
+		const { n, u } = gate;
+		// each lane: where its queue runs (s along the gate, out along n from the turnstile), its queue
+		this.lanes = gate.lanes.map( ( l, i ) => ( { i, n, u, sc: l.sc, mouth: [ l.mouth[ 0 ], l.mouth[ 2 ] ], tripod: gate.tripods[ i ], queue: [], timer: 2 + i * 0.7, scanning: 0 } ) );
 		this.pool = [];
 		this.walkers = [];
 		this.inside = [];
@@ -62,38 +57,49 @@ export class Arrivals {
 
 	}
 
+	// a point in the gate's frame: s along it, o out from it
+	_P( s, o ) {
+
+		const p = this.gate.P( s, o );
+		return [ p[ 0 ], p[ 2 ] ];
+
+	}
+
 	// ---------------------------------------------------------------- the gate's staff
 
 	_staff() {
 
-		const r = this.r, F = this.folk;
+		const r = this.r, F = this.folk, G = this.gate;
+		const out = Math.atan2( - G.n[ 0 ], - G.n[ 1 ] ); // facing out, to the plaza
 		this.staff = [];
 		for ( const L of this.lanes ) {
 
-			// the ticket taker: inside the gate line by the lane, facing out, the scanner in her hand
+			// the ticket taker: in a navy jacket beside the right-hand turnstile, the scanner in his hand
 			const u = uniform( 'usher', r, [ 'scanner' ] );
-			const f = F.add( { x: L.taker[ 0 ], z: L.taker[ 1 ], yaw: Math.atan2( - L.n[ 0 ], - L.n[ 1 ] ), look: u.look, props: u.props, scale: u.scale, seed: r() } );
+			const at = this._P( L.sc + 0.9, TURNSTILE_O + 0.35 );
+			const f = F.add( { x: at[ 0 ], z: at[ 1 ], yaw: out + 0.35, look: u.look, props: u.props, scale: u.scale, seed: r() } );
 			f.pose.flexR = 0.2; f.pose.elbowR = 1.0;
 			L.takerFig = f;
-			this.staff.push( { f, kind: 'taker', lane: L, t: r() * 10 } );
+			this.staff.push( { f, kind: 'taker', lane: L, t: r() * 10, yaw0: out + 0.35 } );
+			// the bag check: staff in red at the lane's table, at its inner end, facing out along it
+			const g = uniform( 'security', r, [ 'flash' ] );
+			const gat = this._P( L.sc + TABLE.ds, TABLE.o1 - 0.45 );
+			const gf = F.add( { x: gat[ 0 ], z: gat[ 1 ], yaw: out, look: g.look, props: g.props, scale: g.scale, seed: r() } );
+			L.guard = { f: gf, busy: null, table: this._P( L.sc + TABLE.ds, ( TABLE.o0 + TABLE.o1 ) / 2 ) };
+			this.staff.push( { f: gf, kind: 'bags', lane: L, t: r() * 10, yaw0: out } );
 
 		}
 
-		// security at the bag-check tables, one between each pair of lanes, a few steps out under the canopy
-		this.tables = [];
-		for ( let i = 0; i + 1 < this.lanes.length; i += 2 ) {
+		// the rally towels (white, red print), handed out past the turnstiles from the cartons
+		this.towels = G.towelSpots.map( ( T ) => {
 
-			const A = this.lanes[ i ], B = this.lanes[ i + 1 ];
-			const c = [ ( A.mouth[ 0 ] + B.mouth[ 0 ] ) / 2 + A.n[ 0 ] * 3.3, ( A.mouth[ 1 ] + B.mouth[ 1 ] ) / 2 + A.n[ 1 ] * 3.3 ];
-			this.tables.push( { c, n: A.n, u: A.u, lanes: [ A, B ] } );
-			const u = uniform( 'security', r, [ 'flash' ] );
-			// behind the table's far end, facing along it toward the queues
-			const at = [ c[ 0 ] + A.n[ 0 ] * 1.3, c[ 1 ] + A.n[ 1 ] * 1.3 ];
-			const f = F.add( { x: at[ 0 ], z: at[ 1 ], yaw: Math.atan2( A.n[ 0 ], A.n[ 1 ] ), look: u.look, props: u.props, scale: u.scale, seed: r() } );
-			this.staff.push( { f, kind: 'bags', table: this.tables[ this.tables.length - 1 ], t: r() * 10, home: at } );
-			A.guard = B.guard = this.staff[ this.staff.length - 1 ];
+			const u = uniform( 'security', r, [ 'towel' ] );
+			const f = F.add( { x: T.at[ 0 ], z: T.at[ 1 ], yaw: out, look: u.look, props: u.props, scale: u.scale, seed: r() } );
+			const st = { f, kind: 'towels', t: r() * 10, s: T.s, give: 0, yaw0: out };
+			this.staff.push( st );
+			return st;
 
-		}
+		} );
 
 		// (no wands: the park's security in 2008 was the bag check and the ticket; walk-through detectors
 		// came in 2014)
@@ -122,7 +128,7 @@ export class Arrivals {
 		a.umbrella = ( d.props & ( 1 << PROP.umbrella ) ) !== 0;
 		a.speed = ( d.kid ? 1.25 : 1.2 + r() * 0.35 ) * ( w.first && w.rain > 0.3 ? 1.12 : 1 );
 		a.late = 0;
-		a.checked = false; a.bagT = 0; a.arrived = false;
+		a.checked = false; a.bagT = 0; a.arrived = false; a.towel = false;
 		a.fidget = r() * 20;
 		a.habit = Math.floor( r() * 4 ); // what he does waiting: 0 looks about, 1 the phone, 2 the ticket, 3 talks
 		a.mode = 'walk';
@@ -146,10 +152,13 @@ export class Arrivals {
 
 		const r = this.r;
 		const src = this._source();
+		// to a point straight out from the lane (clear of the fins and the bins), then up to the back of its line
 		const tail = this._slotPos( lane, lane.queue.length + 2 );
+		const tailO = SLOT0 + ( lane.queue.length + 2 ) * SLOT;
+		const approach = this._P( lane.sc, Math.max( tailO, 2.6 ) + 2.2 );
 		const pts = [ ...src.path.map( ( p ) => [ p[ 0 ], p[ 1 ] ] ) ];
-		const route = this._route( pts[ pts.length - 1 ], tail, 0 );
-		pts.push( ...route.slice( 1 ) );
+		const route = this._route( pts[ pts.length - 1 ], approach, 0 );
+		pts.push( ...route.slice( 1 ), tail );
 		// spread across the width of the way (people don't walk in single file)
 		const off = ( r() - 0.5 ) * 2.4;
 		const path = pts.map( ( p, i ) => {
@@ -209,7 +218,7 @@ export class Arrivals {
 
 	_slotPos( L, k ) {
 
-		const j = ( hash( L.i * 31 + k * 7 ) - 0.5 ) * 0.22;
+		const j = ( hash( L.i * 31 + k * 7 ) - 0.5 ) * ( SLOT0 + k * SLOT < 0 ? 0.06 : 0.22 );
 		const o = SLOT0 + k * SLOT;
 		return [ L.mouth[ 0 ] + L.n[ 0 ] * o + L.u[ 0 ] * j, L.mouth[ 1 ] + L.n[ 1 ] * o + L.u[ 1 ] * j ];
 
@@ -436,10 +445,10 @@ export class Arrivals {
 
 			const f = a.f, goal = this._slotPos( L, k );
 			const dx = goal[ 0 ] - f.x, dz = goal[ 1 ] - f.z, d = Math.hypot( dx, dz );
-			const under = k * SLOT + SLOT0 < 4.8;
+			const under = k * SLOT + SLOT0 < CANOPY;
 			if ( d > 0.04 ) {
 
-				// shuffle up (hold back if the one ahead hasn't moved yet)
+				// shuffle up
 				const step = Math.min( d, 1.1 * dt );
 				f.x += dx / d * step; f.z += dz / d * step;
 				f.walk = Math.min( 1, d * 3 );
@@ -461,19 +470,19 @@ export class Arrivals {
 			const cyc = ( a.fidget * 0.35 + a.habit ) % 6;
 			if ( k === 0 ) {
 
-				// the ticket held out to the taker; the arm drops once it's scanned
+				// the ticket held out over the reader to the taker; the arm drops once it's scanned
 				f.props |= 1 << PROP.ticket;
-				const s = L.scanning ? Math.min( 1, L.scanT * 3 ) : 0.4;
-				p.flexR = 0.85 * s; p.abductR = 0.05; p.elbowR = 0.45 + ( 1 - s ) * 0.6;
-				p.yaw = 0.25 * s; p.pitch = - 0.15;
+				const s = L.scanning ? Math.min( 1, L.scanT * 3 ) * ( 1 - Math.max( 0, ( L.scanT - L.scanning + 0.5 ) / 0.5 ) ) : 0.3;
+				p.flexR = 0.85 * s; p.abductR = 0.05 + 0.25 * s; p.elbowR = 0.45 + ( 1 - s ) * 0.6;
+				p.yaw = - 0.3 * s; p.pitch = - 0.25;
 				p.lean = 0.05;
 
-			} else if ( k === 3 && a.hasBag && L.guard && a.checked !== true ) {
+			} else if ( k === BAG_SLOT && a.hasBag && a.checked !== true ) {
 
-				// the bag open on the table: he turns to it, the guard leans in with the flashlight
+				// the bag open on the table: he turns to it, she leans in with the flashlight
 				a.bagT = ( a.bagT || 0 ) + dt;
 				const T = L.guard.table;
-				this._face( f, T.c[ 0 ] - f.x, T.c[ 1 ] - f.z, dt, 4 );
+				this._face( f, T[ 0 ] - f.x, T[ 1 ] - f.z, dt, 4 );
 				p.flexL = 0.7; p.elbowL = 0.9; p.flexR = 0.6; p.elbowR = 0.9; p.lean = 0.25; p.pitch = - 0.4;
 				L.guard.busy = a;
 				if ( a.bagT > 4.5 ) {
@@ -497,8 +506,9 @@ export class Arrivals {
 
 				}
 
-			} else if ( a.habit === 2 && cyc < 2 ) {
+			} else if ( ( a.habit === 2 && cyc < 2 ) || k === 1 ) {
 
+				// the ticket out, ready (and checked again, and the seat looked at)
 				f.props |= 1 << PROP.ticket;
 				p.flexR = 0.55; p.elbowR = 1.2; p.pitch = - 0.4;
 
@@ -506,7 +516,7 @@ export class Arrivals {
 
 				// talking to the one behind: half turned, a hand going
 				p.yaw = 0.9 * Math.sin( a.fidget * 0.3 );
-				if ( ! a.umbrella ) {
+				if ( ! a.umbrella || under ) {
 
 					p.flexR = 0.3 + 0.25 * Math.max( 0, Math.sin( a.fidget * 2.3 ) ); p.elbowR = 1.1;
 
@@ -530,21 +540,68 @@ export class Arrivals {
 
 	}
 
-	// through the turnstile, a few steps in, gone
+	// through the turnstile (its arms turning a third as he pushes), past the towel boxes (one pressed
+	// into his hand), on into the concourse, gone
 	_goIn( a, dt ) {
 
 		const L = a.lane, f = a.f;
 		a.inT += dt;
-		const o = SLOT0 - a.inT * 1.3;
-		const p = [ L.mouth[ 0 ] + L.n[ 0 ] * o, L.mouth[ 1 ] + L.n[ 1 ] * o ];
+		const walked = a.inT * 1.25;
+		let s, o;
+		const T = this.towels[ L.sc < 0 ? 0 : 1 ];
+		const via = T ? T.s + ( L.sc < T.s ? - 0.7 : 0.7 ) : L.sc;
+		const o1 = TURNSTILE_O - 1.4, o2 = TURNSTILE_O - 3.1, o3 = TURNSTILE_O - 9;
+		const seg1 = SLOT0 - o1, seg2 = Math.hypot( via - L.sc, o2 - o1 ), seg3 = Math.hypot( via * 0.2 - via, o3 - o2 );
+		if ( walked < seg1 ) {
+
+			s = L.sc; o = SLOT0 - walked;
+			// the tripod turns while he's in the passage
+			if ( L.tripod && o < TURNSTILE_O + 0.4 && o > TURNSTILE_O - 0.5 ) L.tripod.phase += dt * ( Math.PI * 2 / 3 ) / 0.72;
+
+		} else if ( walked < seg1 + seg2 ) {
+
+			const t = ( walked - seg1 ) / seg2;
+			s = L.sc + ( via - L.sc ) * t; o = o1 + ( o2 - o1 ) * t;
+
+		} else {
+
+			const t = Math.min( 1, ( walked - seg1 - seg2 ) / seg3 );
+			s = via + ( via * 0.2 - via ) * t; o = o2 + ( o3 - o2 ) * t;
+			if ( t >= 1 ) {
+
+				this._free( a );
+				return;
+
+			}
+
+		}
+
+		const p = this._P( s, o );
+		this._face( f, p[ 0 ] - f.x, p[ 1 ] - f.z, dt, 8 );
 		f.x = p[ 0 ]; f.z = p[ 1 ];
-		this._face( f, - L.n[ 0 ], - L.n[ 1 ], dt );
 		f.walk = 1;
 		f.phase += dt * 5.5;
 		this._carry( a, true, true );
-		// the ticket (the stub) still in hand for the first steps
-		if ( a.inT < 1.2 ) f.props |= 1 << PROP.ticket;
-		if ( o < - 9 ) this._free( a );
+		// the ticket (the stub) still in hand for the first steps; the towel from the box
+		if ( a.inT < 1.4 ) f.props |= 1 << PROP.ticket;
+		if ( T && ! a.towel && o < o2 + 0.8 ) {
+
+			a.towel = true;
+			T.give = 1.2;
+
+		}
+
+		if ( a.towel ) {
+
+			f.props |= 1 << PROP.towel;
+			// waving it, one or two of them, already
+			if ( hash( f.seed * 17 ) < 0.25 ) {
+
+				f.pose.flexL = 2.4; f.pose.abductL = - 0.2; f.pose.elbowL = 0.4 + 0.3 * Math.sin( a.inT * 9 );
+
+			}
+
+		}
 
 	}
 
@@ -557,10 +614,10 @@ export class Arrivals {
 			const L = s.lane;
 			if ( L.scanning ) {
 
-				// takes it, scans it under the post's reader, hands it back
+				// reaches out, scans the ticket held over the reader, a word, back
 				const k = Math.min( 1, L.scanT * 2.5 ) * ( 1 - Math.max( 0, ( L.scanT - L.scanning + 0.6 ) / 0.6 ) );
-				p.flexR = 0.2 + 0.4 * k; p.abductR = 0.05; p.elbowR = 1.0 - 0.2 * k;
-				p.flexL = 0.6 * k; p.elbowL = 0.6; p.lean = 0.15 * k; p.yaw = - 0.3 * k; p.pitch = - 0.3;
+				p.flexR = 0.3 + 0.5 * k; p.abductR = 0.05; p.elbowR = 1.0 - 0.35 * k;
+				p.flexL = 0; p.elbowL = 0.2; p.lean = 0.12 * k; p.yaw = 0.35 * k; p.pitch = - 0.35;
 
 			} else {
 
@@ -571,11 +628,20 @@ export class Arrivals {
 
 		} else if ( s.kind === 'bags' ) {
 
-			const busy = s.table.lanes.some( ( L ) => L.guard.busy );
-			p.lean = busy ? 0.35 : 0.05; p.pitch = busy ? - 0.5 : 0;
-			p.flexL = busy ? 0.55 : 0.3; p.elbowL = busy ? 1.0 : 1.2; p.abductL = 0.1;
-			p.flexR = busy ? 0.7 + 0.15 * Math.sin( s.t * 3 ) : 0; p.elbowR = busy ? 0.7 : 0.2;
+			// leaning over the table, the flashlight into the bag, a hand moving things about
+			const busy = s.lane.guard.busy;
+			p.lean = busy ? 0.4 : 0.05; p.pitch = busy ? - 0.55 : 0;
+			p.flexL = busy ? 0.75 : 0.3; p.elbowL = busy ? 0.7 : 1.2; p.abductL = 0.1;
+			p.flexR = busy ? 0.75 + 0.15 * Math.sin( s.t * 3 ) : 0; p.elbowR = busy ? 0.5 : 0.2; p.abductR = busy ? - 0.1 : 0.08;
 			p.yaw = busy ? 0 : 0.4 * Math.sin( s.t * 0.2 );
+
+		} else if ( s.kind === 'towels' ) {
+
+			// a towel held out to each one coming through, another from the box
+			s.give = Math.max( 0, s.give - dt );
+			const k = Math.min( 1, s.give * 2 );
+			p.flexL = 0.3 + 0.8 * k; p.abductL = 0.1; p.elbowL = 1.0 - 0.7 * k;
+			p.lean = 0.1 * k; p.yaw = 0.3 * Math.sin( s.t * 0.4 );
 
 		}
 
