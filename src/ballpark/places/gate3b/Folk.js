@@ -314,7 +314,7 @@ export class Folk {
 		if ( has( 'scanner' ) ) right( CP.scanner );
 		if ( has( 'sign' ) ) right( CP.sign, NEED_TIX );
 		if ( has( 'fan' ) ) right( CP.tickets );
-		if ( has( 'sack' ) ) right( CP.peanuts );
+		if ( has( 'sack' ) ) right( CP.peanuts ) || left( CP.peanuts );
 		if ( has( 'camera' ) ) right( CP.camera );
 		if ( has( 'cigarette' ) ) right( CP.cigarette );
 		if ( has( 'tongs' ) ) right( CP.tongs );
