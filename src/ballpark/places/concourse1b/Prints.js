@@ -47,7 +47,7 @@ export const CELLS = {
 	hatfieldCart: [ 0, 1160, 512, 128 ], phood: [ 512, 1160, 512, 128 ], draft: [ 1024, 1160, 512, 128 ], bottles: [ 1536, 1230, 512, 128 ],
 	// the caricaturist's samples, WILL CALL, the World Series merchandise kiosk
 	caricatures: [ 0, 1300, 512, 384 ], willCall: [ 512, 1300, 512, 128 ], wsMerch: [ 512, 1430, 512, 128 ], sketch: [ 1024, 1300, 256, 320 ],
-	phunZone: [ 1280, 1370, 768, 160 ], inquirer: [ 1280, 1540, 768, 120 ],
+	phunZone: [ 1280, 1370, 768, 160 ], inquirer: [ 1280, 1540, 768, 120 ], cobblestone: [ 0, 1700, 420, 320 ],
 };
 const LIT = [ 'hatfieldCart', 'phood', 'draft', 'bottles', 'programs', 'wsMerch', 'willCall' ];
 
@@ -242,67 +242,159 @@ function wayfind( ctx, [ x, y, w, h ], lines ) {
 
 }
 
-// The South Philadelphia Market's illustrated header, from the photo of the stand in April 2008
-// (visitphilly, Flickr 2401025243): a long panel in a navy frame, a sunburst behind SOUTH PHILADELPHIA in
-// tall cream capitals with a dark edge, 9TH ST. MARKET on a blue ribbon under it; at the left a blue
-// panel about the Italian Market, at the right a painted vendor in his apron with a steak and a drink;
-// sausages, tomatoes and pretzels along the bottom
+// The South Philadelphia Market's illustrated header, from the photos of the stands in 2008 and 2009
+// (visitphilly Apr 2008; pvsbond Oct 2009, on this side): a gold-and-yellow checker border round a
+// slate-blue panel; at the left a cream board under a Phillies pennant, "South Philly Italian Market" and a
+// paragraph about Ninth Street; SOUTH PHILADELPHIA in tall condensed gold capitals edged dark; under it a
+// sunburst behind the market's produce and a vendor in his red apron weighing something on a hanging
+// scale; 9TH ST. MARKET in cream capitals; at the right a Coca-Cola cup, a hot dog with mustard, peanuts
+// and a pretzel breaking out of the frame, peanuts and tomatoes at the bottom left
 function marketHeader( ctx, [ x, y, w, h ] ) {
 
-	ctx.fillStyle = '#1b2a57'; ctx.fillRect( x, y, w, h );
-	ctx.fillStyle = '#e9dcb8'; ctx.fillRect( x + 5, y + 5, w - 10, h - 10 );
-	// the sunburst
-	const cx = x + w * 0.47, cy = y + h * 0.95;
-	ctx.save();
-	ctx.beginPath(); ctx.rect( x + 5, y + 5, w - 10, h - 10 ); ctx.clip();
-	for ( let i = 0; i < 28; i ++ ) {
+	// the checker border
+	for ( let i = 0; i < w; i += 10 ) for ( const yy of [ y, y + h - 6 ] ) {
 
-		const a0 = Math.PI + i * Math.PI / 28, a1 = a0 + Math.PI / 56;
-		ctx.fillStyle = i % 2 ? '#f0a531' : '#f6cf5b';
-		ctx.beginPath(); ctx.moveTo( cx, cy ); ctx.lineTo( cx + Math.cos( a0 ) * 700, cy + Math.sin( a0 ) * 700 ); ctx.lineTo( cx + Math.cos( a1 ) * 700, cy + Math.sin( a1 ) * 700 ); ctx.closePath(); ctx.fill();
+		ctx.fillStyle = ( i / 10 ) % 2 ? '#f2c94c' : '#c98a1c';
+		ctx.fillRect( x + i, yy, 10, 6 );
 
 	}
 
+	for ( let j = 0; j < h; j += 10 ) for ( const xx of [ x, x + w - 6 ] ) {
+
+		ctx.fillStyle = ( j / 10 ) % 2 ? '#f2c94c' : '#c98a1c';
+		ctx.fillRect( xx, y + j, 6, 10 );
+
+	}
+
+	ctx.fillStyle = '#51647f'; ctx.fillRect( x + 6, y + 6, w - 12, h - 12 );
+	// the cream board and its pennant
+	ctx.fillStyle = '#efe7cf'; ctx.fillRect( x + 16, y + 20, 128, h - 34 );
+	ctx.strokeStyle = '#2c2a26'; ctx.lineWidth = 2; ctx.strokeRect( x + 18, y + 22, 124, h - 38 );
+	ctx.fillStyle = '#f7f3ea';
+	ctx.beginPath(); ctx.moveTo( x + 30, y + 8 ); ctx.lineTo( x + 110, y + 12 ); ctx.lineTo( x + 30, y + 26 ); ctx.closePath(); ctx.fill();
+	ctx.fillStyle = '#c8102e'; ctx.font = `italic 700 9px ${ SCRIPT }`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+	ctx.fillText( 'Phillies', x + 40, y + 16 );
+	ctx.fillStyle = '#2c2a26'; ctx.textAlign = 'center';
+	ctx.font = `700 10px ${ SERIF }`; ctx.fillText( 'South Philly Italian Market', x + 80, y + 36, 118 );
+	ctx.fillStyle = 'rgba( 44, 42, 38, 0.6 )';
+	for ( let i = 0; i < 8; i ++ ) ctx.fillRect( x + 26, y + 46 + i * 7, i === 7 ? 60 : 108, 2 );
+	// the sunburst behind the produce and the vendor
+	const cx = x + 440, cy = y + h - 22;
+	ctx.save();
+	ctx.beginPath(); ctx.rect( x + 250, y + 58, 400, h - 70 ); ctx.clip();
+	for ( let i = 0; i < 22; i ++ ) {
+
+		const a0 = Math.PI + i * Math.PI / 22, a1 = a0 + Math.PI / 44;
+		ctx.fillStyle = i % 2 ? '#e8892c' : '#3a5a8c';
+		ctx.beginPath(); ctx.moveTo( cx, cy ); ctx.lineTo( cx + Math.cos( a0 ) * 400, cy + Math.sin( a0 ) * 400 ); ctx.lineTo( cx + Math.cos( a1 ) * 400, cy + Math.sin( a1 ) * 400 ); ctx.closePath(); ctx.fill();
+
+	}
+
+	// the produce: crates of peppers, tomatoes, greens, carrots, squash in rows
+	const veg = [ '#c7271e', '#e8a21c', '#3f8a2a', '#f06a1e', '#d9c255', '#8e1f1a', '#6aa52e' ];
+	for ( let i = 0; i < 70; i ++ ) {
+
+		ctx.fillStyle = veg[ i % veg.length ];
+		ctx.beginPath(); ctx.ellipse( x + 262 + ( i * 37 ) % 250, y + h - 40 + ( i % 3 ) * 7, 7, 5, i, 0, Math.PI * 2 ); ctx.fill();
+
+	}
+
+	// the vendor: a checked shirt, the red apron, grey hair, the hanging scale
+	const vx = x + 590;
+	ctx.fillStyle = '#9fb4cf'; ctx.fillRect( vx - 22, y + 76, 44, 44 );
+	ctx.fillStyle = '#b81e24'; ctx.fillRect( vx - 14, y + 86, 28, 34 );
+	ctx.fillStyle = '#e0b08e'; ctx.beginPath(); ctx.ellipse( vx, y + 66, 11, 13, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#c9c6c0'; ctx.beginPath(); ctx.ellipse( vx, y + 57, 11, 6, 0, Math.PI, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#e9e5da'; ctx.beginPath(); ctx.arc( vx - 42, y + 64, 10, 0, Math.PI * 2 ); ctx.fill();
+	ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo( vx - 42, y + 74 ); ctx.lineTo( vx - 42, y + 96 ); ctx.stroke();
 	ctx.restore();
-	// the Italian Market panel at the left
-	ctx.fillStyle = '#23407a'; ctx.fillRect( x + 12, y + 12, 150, h - 46 );
-	ctx.strokeStyle = '#e9dcb8'; ctx.lineWidth = 2; ctx.strokeRect( x + 16, y + 16, 142, h - 54 );
-	ctx.fillStyle = '#f3e7c4'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-	ctx.font = `italic 700 13px ${ SERIF }`; ctx.fillText( 'South Philly Italian Market', x + 87, y + 27, 136 );
-	ctx.fillStyle = 'rgba( 243, 231, 196, 0.55 )';
-	for ( let i = 0; i < 5; i ++ ) ctx.fillRect( x + 24, y + 40 + i * 8, 126 - ( i === 4 ? 50 : 0 ), 3 );
 	// SOUTH PHILADELPHIA
-	ctx.font = `700 50px ${ SERIF }`;
-	ctx.lineWidth = 7; ctx.strokeStyle = '#4a2512'; ctx.strokeText( 'SOUTH PHILADELPHIA', cx, y + 44, 560 );
-	ctx.fillStyle = '#f8edcf'; ctx.fillText( 'SOUTH PHILADELPHIA', cx, y + 44, 560 );
-	// the ribbon
-	ctx.fillStyle = '#1f4f96';
-	ctx.beginPath(); ctx.moveTo( cx - 150, y + 76 ); ctx.lineTo( cx + 150, y + 76 ); ctx.lineTo( cx + 138, y + 91 ); ctx.lineTo( cx + 150, y + 106 ); ctx.lineTo( cx - 150, y + 106 ); ctx.lineTo( cx - 138, y + 91 ); ctx.closePath(); ctx.fill();
-	ctx.fillStyle = '#ffffff'; ctx.font = `700 22px ${ SERIF }`; ctx.fillText( '9TH ST. MARKET', cx, y + 92, 260 );
-	// the vendor at the right: white shirt, red apron, a paper hat, a steak held out; a drink and a pretzel
-	const vx = x + w - 150;
-	ctx.fillStyle = '#f2efe6'; ctx.beginPath(); ctx.ellipse( vx, y + 90, 28, 34, 0, 0, Math.PI * 2 ); ctx.fill();
-	ctx.fillStyle = '#b8202c'; ctx.fillRect( vx - 18, y + 70, 36, 50 );
-	ctx.fillStyle = '#d9a37e'; ctx.beginPath(); ctx.ellipse( vx, y + 42, 14, 17, 0, 0, Math.PI * 2 ); ctx.fill();
-	ctx.fillStyle = '#f7f7f2'; ctx.fillRect( vx - 14, y + 20, 28, 9 );
-	ctx.fillStyle = '#6b3c1c'; ctx.beginPath(); ctx.ellipse( vx - 50, y + 78, 30, 10, - 0.1, 0, Math.PI * 2 ); ctx.fill();
-	ctx.fillStyle = '#e7d9a5'; ctx.fillRect( vx - 78, y + 70, 56, 6 );
-	ctx.fillStyle = '#c21d24'; ctx.fillRect( vx + 50, y + 42, 26, 44 );
-	ctx.fillStyle = '#ffffff'; ctx.fillRect( vx + 50, y + 54, 26, 5 );
-	ctx.strokeStyle = '#a8662b'; ctx.lineWidth = 7;
-	ctx.beginPath(); ctx.ellipse( vx + 104, y + 70, 18, 14, 0, 0, Math.PI * 2 ); ctx.stroke();
-	// along the bottom: links of sausage, tomatoes, a pretzel
+	ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+	ctx.font = `700 46px "Rockwell", "Clarendon", ${ SERIF }`;
+	ctx.save(); ctx.translate( x + 450, y + 34 ); ctx.scale( 0.72, 1 );
+	ctx.lineWidth = 6; ctx.strokeStyle = '#3b2415'; ctx.strokeText( 'SOUTH PHILADELPHIA', 0, 0 );
+	ctx.fillStyle = '#f2cf6a'; ctx.fillText( 'SOUTH PHILADELPHIA', 0, 0 );
+	ctx.restore();
+	// 9TH ST. MARKET
+	ctx.font = `700 20px "Rockwell", ${ SERIF }`;
+	ctx.lineWidth = 4; ctx.strokeStyle = '#2c2a26'; ctx.strokeText( '9TH ST. MARKET', x + 400, y + h - 16, 220 );
+	ctx.fillStyle = '#efe7cf'; ctx.fillText( '9TH ST. MARKET', x + 400, y + h - 16, 220 );
+	// the right: the Coca-Cola cup, a hot dog, peanuts, the pretzel over the frame
+	const rx = x + w - 150;
+	ctx.fillStyle = '#c21d24'; ctx.beginPath(); ctx.moveTo( rx + 40, y + 16 ); ctx.lineTo( rx + 76, y + 16 ); ctx.lineTo( rx + 71, y + 64 ); ctx.lineTo( rx + 45, y + 64 ); ctx.closePath(); ctx.fill();
+	ctx.fillStyle = '#ffffff'; ctx.font = `italic 700 10px ${ SCRIPT }`; ctx.fillText( 'Coca-Cola', rx + 58, y + 40, 30 );
+	ctx.fillStyle = '#e7c27a'; ctx.beginPath(); ctx.ellipse( rx + 45, y + 76, 34, 9, - 0.05, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#a04a2a'; ctx.beginPath(); ctx.ellipse( rx + 45, y + 72, 32, 5, - 0.05, 0, Math.PI * 2 ); ctx.fill();
+	ctx.strokeStyle = '#f2c230'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo( rx + 18, y + 70 ); for ( let i = 0; i < 10; i ++ ) ctx.lineTo( rx + 22 + i * 5.5, y + 69 + ( i % 2 ) * 3 ); ctx.stroke();
+	for ( let i = 0; i < 14; i ++ ) {
+
+		ctx.fillStyle = '#c99a5a'; ctx.beginPath(); ctx.ellipse( rx + 20 + ( i * 13 ) % 50, y + 92 + Math.floor( i / 4 ) * 6, 5, 3, i, 0, Math.PI * 2 ); ctx.fill();
+
+	}
+
+	ctx.strokeStyle = '#a8662b'; ctx.lineWidth = 6;
+	ctx.beginPath(); ctx.ellipse( rx + 100, y + 92, 22, 16, 0, 0, Math.PI * 2 ); ctx.stroke();
+	ctx.beginPath(); ctx.moveTo( rx + 86, y + 104 ); ctx.lineTo( rx + 110, y + 80 ); ctx.moveTo( rx + 114, y + 104 ); ctx.lineTo( rx + 90, y + 80 ); ctx.stroke();
+	// peanuts and tomatoes over the frame at the bottom left
 	for ( let i = 0; i < 6; i ++ ) {
 
-		ctx.fillStyle = '#7a3a1e'; ctx.beginPath(); ctx.ellipse( x + 190 + i * 22, y + h - 22, 11, 6, 0.2, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = i % 3 === 2 ? '#c2241c' : '#c99a5a';
+		ctx.beginPath(); ctx.ellipse( x + 20 + i * 20, y + h - 12, 11, 7, 0.3 * i, 0, Math.PI * 2 ); ctx.fill();
 
 	}
 
-	for ( let i = 0; i < 3; i ++ ) {
+}
 
-		ctx.fillStyle = '#c2241c'; ctx.beginPath(); ctx.arc( x + 340 + i * 20, y + h - 22, 9, 0, Math.PI * 2 ); ctx.fill();
+// The Cobblestone Grill's blade sign (pvsbond Oct 2009, on this side): an oval medallion in a green-grey
+// frame with a checker rim, a picture of Elfreth's Alley's houses in its top, COBBLESTONE GRILL in tall
+// cream capitals on a maroon banner across it, "of Elfreth's Alley" in script, a cheesesteak, fries, a
+// pepper, mushrooms and an onion at the bottom
+function cobblestone( ctx, [ x, y, w, h ] ) {
+
+	ctx.fillStyle = '#101010'; ctx.fillRect( x, y, w, h );
+	const cx = x + w / 2, cy = y + h / 2;
+	ctx.fillStyle = '#5d6a4f'; ctx.beginPath(); ctx.ellipse( cx, cy, w * 0.36, h * 0.47, 0, 0, Math.PI * 2 ); ctx.fill();
+	for ( let i = 0; i < 24; i ++ ) {
+
+		const a = i / 24 * Math.PI * 2;
+		ctx.fillStyle = i % 2 ? '#cfc6a8' : '#5d6a4f';
+		ctx.beginPath(); ctx.ellipse( cx + Math.cos( a ) * w * 0.33, cy + Math.sin( a ) * h * 0.43, 9, 9, 0, 0, Math.PI * 2 ); ctx.fill();
 
 	}
+
+	ctx.save();
+	ctx.beginPath(); ctx.ellipse( cx, cy, w * 0.3, h * 0.39, 0, 0, Math.PI * 2 ); ctx.clip();
+	// Elfreth's Alley: brick houses, shutters, a tree, the cobbles
+	ctx.fillStyle = '#8a4a36'; ctx.fillRect( x, y, w, h * 0.5 );
+	for ( let i = 0; i < 9; i ++ ) {
+
+		ctx.fillStyle = i % 2 ? '#e9e3d0' : '#2d3f6e';
+		ctx.fillRect( x + 60 + i * 32, y + 40 + ( i % 3 ) * 8, 14, 22 );
+
+	}
+
+	ctx.fillStyle = '#3d6b2a'; ctx.beginPath(); ctx.ellipse( cx - 70, y + 70, 30, 18, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#b8ad96'; ctx.fillRect( x, y + h * 0.42, w, h * 0.12 );
+	// the food at the bottom
+	ctx.fillStyle = '#6a3a1e'; ctx.beginPath(); ctx.ellipse( cx, y + h * 0.76, 70, 26, - 0.1, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#e6c27c'; ctx.beginPath(); ctx.ellipse( cx, y + h * 0.8, 78, 18, - 0.1, 0, Math.PI ); ctx.fill();
+	ctx.fillStyle = '#f0c24a'; for ( let i = 0; i < 12; i ++ ) ctx.fillRect( cx + 40 + ( i % 4 ) * 6, y + h * 0.62 + i * 3, 3, 18 );
+	ctx.fillStyle = '#4c8a2a'; ctx.beginPath(); ctx.ellipse( cx - 95, y + h * 0.74, 22, 26, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#e8dcc2'; ctx.beginPath(); ctx.ellipse( cx - 60, y + h * 0.86, 12, 9, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#d9a25e'; ctx.beginPath(); ctx.ellipse( cx + 95, y + h * 0.72, 20, 20, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#b8201c'; ctx.beginPath(); ctx.ellipse( cx + 20, y + h * 0.9, 26, 8, 0.4, 0, Math.PI * 2 ); ctx.fill();
+	ctx.restore();
+	// the banner across
+	ctx.fillStyle = '#6e1d22';
+	ctx.beginPath(); ctx.moveTo( x + 8, y + h * 0.36 ); ctx.lineTo( x + w - 8, y + h * 0.3 ); ctx.lineTo( x + w - 8, y + h * 0.58 ); ctx.lineTo( x + 8, y + h * 0.64 ); ctx.closePath(); ctx.fill();
+	ctx.strokeStyle = '#cfc6a8'; ctx.lineWidth = 3; ctx.stroke();
+	ctx.fillStyle = '#f1e6c8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+	ctx.save(); ctx.translate( cx, y + h * 0.44 ); ctx.rotate( - 0.035 ); ctx.scale( 0.7, 1 );
+	ctx.font = `700 50px "Rockwell", ${ SERIF }`; ctx.lineWidth = 4; ctx.strokeStyle = '#2a0e10';
+	ctx.strokeText( 'COBBLESTONE GRILL', 0, 0 ); ctx.fillText( 'COBBLESTONE GRILL', 0, 0 );
+	ctx.restore();
+	ctx.fillStyle = '#efe4cc'; ctx.font = `italic 700 22px ${ SCRIPT }`;
+	ctx.fillText( 'of Elfreth\'s Alley', cx + 10, y + h * 0.57 );
 
 }
 
@@ -340,6 +432,7 @@ export function drawPrints() {
 		wayfind( ctx, CELLS.wayRF, [ [ '↑', 'SECTIONS 101 - 108' ], [ '↗', 'RAMP TO ALL LEVELS' ], [ '↓', 'ADVANCE TICKETS' ], [ '↓', 'GUEST SERVICES' ], [ '↓', 'FIRST BASE GATE' ], [ '↓', 'FIRST AID' ] ] );
 		wayfind( ctx, CELLS.wayGate, [ [ '←', 'SECTIONS 101 - 114' ], [ '→', 'SECTIONS 115 - 133' ], [ '↗', 'ESCALATOR' ], [ '→', 'GUEST SERVICES' ], [ '←', 'FIRST AID' ], [ '→', 'THIRD BASE GATE' ], [ '←', 'PHANATIC PHUN ZONE' ] ] );
 		marketHeader( ctx, CELLS.market );
+		cobblestone( ctx, CELLS.cobblestone );
 		// ---- the program kiosk's panels: white, the script, PROGRAMS in red (Getty 83600062, 25 Oct 2008)
 		{
 

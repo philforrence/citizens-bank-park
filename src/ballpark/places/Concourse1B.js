@@ -499,11 +499,24 @@ export default class Concourse1B {
 		const Pr = this.prints;
 		for ( const { U } of this._units() ) {
 
-			if ( U.what !== 'market' ) continue;
 			const P = Kit.frame( U.mid, U.a, U.n );
-			Pr.panel( P, 0, 3.76, 0.075, 7.56, 0.9, 'market' );
-			// its edges: a navy return round the panel's thickness
-			Pr.use( 'navy' ).box( P, 0, 3.76, 0.06, 7.6, 0.94, 0.02 );
+			if ( U.what === 'market' ) {
+
+				Pr.panel( P, 0, 3.76, 0.075, 7.56, 0.9, 'market' );
+				// its edges: a return round the panel's thickness
+				Pr.use( 'yellow' ).box( P, 0, 3.76, 0.06, 7.6, 0.94, 0.02 );
+
+			}
+
+			if ( U.what === 'cobblestone' ) {
+
+				// the blade sign at the stand's end, out over the walkway on two blue arms, read from along it
+				const S = ( x, y, z ) => P( 3.55 - z, y, 1.0 + x );
+				S.dir = ( x, y, z ) => P.dir( - z, y, x );
+				Pr.sheet( S, 0, 3.55, 0, 1.45, 1.1, 'cobblestone' );
+				for ( const y of [ 3.2, 3.95 ] ) Pr.use( 'royal' ).box( P, 3.55, y, 0.6, 0.05, 0.05, 1.2 );
+
+			}
 
 		}
 
