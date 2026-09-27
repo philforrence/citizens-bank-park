@@ -1613,7 +1613,13 @@ export class Exterior {
 
 			const p = at( name );
 			if ( ! p ) continue;
-			this._statue( p[ 0 ], p[ 1 ], pose, label, years, drop, name === 'Steve Carlton' ? 'R' : 'L' );
+			// ---- W1 (Third Base Gate): Schmidt's plinth as it is (Flickr beauwhite 2007, pingnews 2007, u2rob Apr
+			// 2008): a low, wide slab of polished rose granite that people sit on, "MIKE SCHMIDT / PHILLIES HALL
+			// OF FAME THIRD BASEMAN 1972-1989" cut into its front; he faces south-south-west, his back (SCHMIDT
+			// 20) to the gate
+			const w1 = name === 'Mike Schmidt' ? { plinth: { w: 3.9, h: 0.55, lines: [ 'MIKE SCHMIDT', 'PHILLIES HALL OF FAME THIRD BASEMAN 1972-1989' ] }, yaw: 2.75 } : {};
+			// ---- end W1
+			this._statue( p[ 0 ], p[ 1 ], pose, label, years, drop, name === 'Steve Carlton' ? 'R' : 'L', w1 );
 			// Carlton's stands on a paved forecourt outside the Left Field Gate
 			if ( name === 'Steve Carlton' ) {
 
@@ -1631,7 +1637,7 @@ export class Exterior {
 
 	// a bronze figure (the players' own body, posed and baked) on a polished granite pedestal with its
 	// engraved plate, facing the stadium
-	_statue( x, z, pose, label, years, drop, gloveHand ) {
+	_statue( x, z, pose, label, years, drop, gloveHand, w1 = {} ) {
 
 		const g = new Group();
 		g.position.set( x, STREET, z );
@@ -1644,11 +1650,49 @@ export class Exterior {
 
 		}
 
-		const ped = new Mesh( new BoxGeometry( 3.0, 1.2, 3.0 ), this.pedestal );
-		ped.position.y = 0.6;
+		// ---- W1 (Third Base Gate): a plinth of its own (w1.plinth: its width, height and the lines cut into it)
+		const PL = w1.plinth, pw = PL ? PL.w : 3.0, ph = PL ? PL.h : 1.2;
+		if ( PL && ! this.roseGranite ) {
+
+			this.roseGranite = standard( { name: 'statue-rose-granite', color: new Color( 0.3, 0.13, 0.1 ), roughness: 0.2, metalness: 0.05, modules: [ commonModule ],
+				surface: '// polished rose granite: feldspar pink, quartz grey and black mica in a fine speckle, a sheen\n	let n = mx_noise_float3( in.P * 40.0 );\n	let m = mx_noise_float3( in.P * 90.0 + vec3f( 5.0 ) );\n	var c = mat.color * ( 0.85 + 0.3 * n );\n	c = mix( c, vec3f( 0.25, 0.23, 0.22 ), smoothstep( 0.35, 0.6, m ) * 0.5 );\n	c = mix( c, vec3f( 0.02 ), smoothstep( 0.55, 0.75, -m ) * 0.7 );\n	s.albedo = c * ( 0.95 + 0.1 * mx_noise_float3( in.P * 2.0 ) );' } );
+			this.roseGranite.underwaterLighting = 'none';
+
+		}
+
+		const ped = new Mesh( new BoxGeometry( pw, ph, pw ), PL ? this.roseGranite : this.pedestal );
+		ped.position.y = ph / 2;
 		ped.castShadow = true;
 		ped.receiveShadow = true;
 		g.add( ped );
+		if ( PL ) {
+
+			// the lines cut into the front: the letters dark in their V-grooves, a lit lower lip
+			const cut = canvasTexture( 1024, 128, ( ctx, w, h ) => {
+
+				ctx.clearRect( 0, 0, w, h );
+				ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+				for ( const [ dy, col ] of [ [ 2, 'rgba(255,220,210,0.55)' ], [ 0, 'rgba(20,6,4,1)' ] ] ) {
+
+					ctx.fillStyle = col;
+					ctx.font = '600 58px "Trajan Pro", Georgia, "Times New Roman", serif';
+					ctx.fillText( PL.lines[ 0 ], w / 2, 42 + dy, w - 80 );
+					ctx.font = '500 26px "Trajan Pro", Georgia, "Times New Roman", serif';
+					ctx.fillText( PL.lines[ 1 ], w / 2, 98 + dy, w - 80 );
+
+				}
+
+			}, 'statueCut' );
+			const cm = standard( { name: 'statue-cut', roughness: 0.6, alphaTest: 0.3, textures: { stCut: cut }, surface: 'let t = textureSample( stCut, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.5;' } );
+			cm.underwaterLighting = 'none';
+			const cq = new Quads(), hw = pw * 0.42, y0 = ph * 0.18, y1 = ph * 0.82, zf = - pw / 2 - 0.004;
+			cq.tri( [ hw, y0, zf ], [ - hw, y0, zf ], [ - hw, y1, zf ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+			cq.tri( [ hw, y0, zf ], [ - hw, y1, zf ], [ hw, y1, zf ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+			g.add( new Mesh( cq.geometry(), cm ) );
+
+		}
+
+		// ---- end W1
 		// the plate: the name and the years cut into the granite, gilded
 		const plate = canvasTexture( 512, 192, ( ctx, w, h ) => {
 
@@ -1668,18 +1712,19 @@ export class Exterior {
 		const pq = new Quads();
 		pq.tri( [ 1.0, 0.2, - 1.505 ], [ - 1.0, 0.2, - 1.505 ], [ - 1.0, 0.95, - 1.505 ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
 		pq.tri( [ 1.0, 0.2, - 1.505 ], [ - 1.0, 0.95, - 1.505 ], [ 1.0, 0.95, - 1.505 ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
-		g.add( new Mesh( pq.geometry(), pm ) );
+		if ( ! PL ) g.add( new Mesh( pq.geometry(), pm ) ); // (W1: a plinth of its own has its lines cut in)
 		const fig = new Mesh( bakePose( pose, { gloveHand, drop } ), this.statueBronze );
-		fig.position.y = 1.2;
+		fig.position.y = ph;
+		if ( PL ) fig.rotation.y = Math.PI / 2; // (W1: the baked swing faces its own side: turned, he faces the way his plinth does)
 		fig.scale.setScalar( 1.65 ); // 10 ft
 		fig.castShadow = true;
 		fig.receiveShadow = true;
 		g.add( fig );
 		// face the stadium's middle
-		g.rotation.y = Math.atan2( - ( 4 - x ), - ( - 31 - z ) ) + Math.PI;
+		g.rotation.y = w1.yaw ?? Math.atan2( - ( 4 - x ), - ( - 31 - z ) ) + Math.PI;
 		this.group.add( g );
 		const w = this.field.toWorld( x, z );
-		this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + 0.6, w.z ), new Vector3( 1.5, 0.6, 1.5 ), this.field.group.rotation.y + g.rotation.y, { tag: 'statue', walkable: true } );
+		this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + ph / 2, w.z ), new Vector3( pw / 2, ph / 2, pw / 2 ), this.field.group.rotation.y + g.rotation.y, { tag: 'statue', walkable: true } );
 
 	}
 

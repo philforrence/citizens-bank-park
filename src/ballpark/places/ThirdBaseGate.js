@@ -1,4 +1,5 @@
-import { Group, Matrix4, Vector3 } from '../../engine/index.js';
+import { Group, Mesh, SphereGeometry, Matrix4, Vector3, Color } from '../../engine/index.js';
+import { standard } from '../../materials/Materials.js';
 import { LEVELS } from '../layout.js';
 import { GATES } from '../Exterior.js';
 import { ROLE } from '../People.js';
@@ -52,6 +53,73 @@ export default class ThirdBaseGate {
 		this._crowd( app, people );
 		this.cast = new Cast( this.folk, 41 );
 		this._storeCrowd();
+		this._statueCrowd();
+
+	}
+
+	// ---------------------------------------------------------------- at the statue
+
+	// The Schmidt statue, the place everyone says to meet ("I'm at the statue"): a family's picture in
+	// front of it, the kid with his glove, the flash going off; a man with two tickets waiting on the phone
+	// for his brother-in-law; on the dry 29th two guys sitting on the plinth's edge (as people did: Flickr
+	// pingnews 2007, beauwhite 2007)
+	_statueCrowd() {
+
+		const S = STATUES[ 'Mike Schmidt' ]?.[ 0 ];
+		if ( ! S ) return;
+		const yaw = 2.75, f = [ - Math.sin( yaw ), - Math.cos( yaw ) ], u = [ - f[ 1 ], f[ 0 ] ];
+		const at = ( a, o ) => [ S[ 0 ] + f[ 0 ] * a + u[ 0 ] * o, S[ 1 ] + f[ 1 ] * a + u[ 1 ] * o ];
+		const C = this.cast, busy = ( w ) => w.rate > 0.06;
+		// the picture: the kid (the glove on), his father's hand on his shoulder, his mother with the camera
+		const kid = C.add( { at: at( 2.55, 0.35 ), face: at( 8, 0.2 ), act: 'pose', who: { kid: true }, props: [ 'glove' ], noRainGear: true, when: busy } );
+		C.add( { at: at( 2.45, - 0.3 ), face: at( 8, 0 ), act: 'pose', who: { woman: false }, noRainGear: true, when: busy } );
+		const cam = C.add( { at: at( 6.4, 0.1 ), face: at( 2.5, 0.1 ), act: 'photo', who: { woman: true }, noRainGear: true, when: busy } );
+		if ( kid ) kid.f.pose.flexL = 0.9;
+		// the flash, now and then (a white pop at the camera)
+		this.flash = { c: cam, t: 3, on: 0 };
+		const fm = standard( { name: 'w1-camera-flash', color: new Color( 1, 1, 1 ), lit: false,
+			surface: 's.albedo = vec3f( 0.0 ); s.emissive = vec3f( 60.0, 58.0, 55.0 );' } );
+		const fl = new Mesh( new SphereGeometry( 0.04, 8, 6 ), fm );
+		fl.name = 'w1-flash';
+		fl.userData.dynamic = true;
+		fl.visible = false;
+		this.group.add( fl );
+		this.flash.mesh = fl;
+		// waiting for someone, on the phone
+		C.add( { at: at( 1.2, 3.1 ), face: at( 1.2, 8 ), act: 'wait', when: busy } );
+		C.add( { at: at( - 0.6, - 3.2 ), face: at( - 0.6, - 9 ), act: 'phone', who: { woman: true }, when: ( w ) => w.rate > 0.3 } );
+		// on the plinth's edge (the 29th, dry)
+		for ( const o of [ - 1.1, 0.9 ] ) {
+
+			const p = at( 2.0, o );
+			C.add( { at: p, face: at( 6, o ), act: 'sit', y: 0.08, noRainGear: true, dry: true, when: ( w ) => ! w.first && ! w.celebrate } );
+
+		}
+
+	}
+
+	_updateFlash( dt ) {
+
+		const F = this.flash;
+		if ( ! F?.c || ! F.c.f.visible ) {
+
+			if ( F?.mesh ) F.mesh.visible = false;
+			return;
+
+		}
+
+		F.t -= dt;
+		if ( F.t <= 0 ) {
+
+			F.on = 0.09;
+			F.t = 6 + Math.random() * 7;
+
+		}
+
+		F.on = Math.max( 0, F.on - dt );
+		const f = F.c.f, s = f.scale;
+		F.mesh.visible = F.on > 0;
+		F.mesh.position.set( f.x - Math.sin( f.yaw ) * 0.3 * s, f.y + 1.6 * s, f.z - Math.cos( f.yaw ) * 0.3 * s );
 
 	}
 
@@ -245,6 +313,7 @@ export default class ThirdBaseGate {
 		}
 
 		this.cast?.update( Math.min( dt, 0.1 ), w );
+		this._updateFlash( Math.min( dt, 0.1 ) );
 		this.openGate?.poseTripods();
 		this.folk?.update();
 
