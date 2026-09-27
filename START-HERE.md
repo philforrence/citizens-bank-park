@@ -1,16 +1,27 @@
-# 🛑 START HERE: where we left off
+# START HERE: where we are
 
-**Stopped: Saturday 2026-09-26, 23:04 EDT, on branch `ballpark` after the round-1 merges.**
+**Updated: Sunday 2026-09-27, on branch `ballpark`.**
 
-**The plan for the next session is [docs/PLAN.md](docs/PLAN.md). Read it first.**
+**The plan is [docs/PLAN.md](docs/PLAN.md).**
 
-- **Done:** all 8 round-1 texture agents are merged into `ballpark`, and the merged build loads with no console errors.
-- **Open:**
-  - the merged build is about 2.4× slower on the GPU (section 2 of the plan);
-  - agents fight over the GPU (section 1: a lock, render on demand, scoped builds, one shared renderer);
-  - QA together (section 3), then round 2 (section 6).
-- **Decisions needed from you:** section 7 of the plan.
+- **Decided (section 7):**
+  - GPU lock, still mode, scoped builds and the render desk: yes;
+  - 4 agents at a time;
+  - speed before new work;
+  - round 2's first wave: sound, your seat among people, rituals and the timeline, and light and shadow;
+  - I look up the seven season lines;
+  - hosting: skipped for now.
+- **Done (section 1, the GPU):** see [docs/GPU.md](docs/GPU.md).
+  - the machine-wide lock (`tools/gpu/lock.mjs`), shared with the paintingwalk project;
+  - `?still` render on demand with `window.__qa`;
+  - scoped builds (`?only=`, `?focus=`);
+  - the render desk (`tools/gpu/desk.mjs`).
+
+  The full park now loads in ~5 s (25–37 s last night, under contention), and a scoped page in ~2.5 s.
+- **Next:**
+  - section 2: find which merge costs what, under the lock's exclusive mode, then win the speed back without cutting detail;
+  - section 3: QA together;
+  - section 6: round 2's first wave.
 - **Notes:**
   - the agents' reports are in `docs/notes/round1/`, and the audit findings in `docs/notes/audit4/`;
-  - screenshots and the QA scripts are in `.claude/qa/` (local only, gitignored).
-- No agents are running, and no new work has started.
+  - old screenshots and QA scripts are in `.claude/qa/` (local only, gitignored). The desk's shots go to `.claude/qa/desk/`.

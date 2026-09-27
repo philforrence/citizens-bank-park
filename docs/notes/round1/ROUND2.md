@@ -1,5 +1,10 @@
 # Round 2: immersion worlds (read BRIEF.md in this folder first - its "How you work" rules all apply)
 
+**Rendering has changed since round 1 (2026-09-27): read [docs/GPU.md](../../GPU.md).** It replaces BRIEF.md's
+own dev server, shot.mjs and ?profile steps: take every shot through the render desk (`node tools/gpu/desk.mjs
+shoot job.json`, no browser or dev server of your own), scope your builds (`only=` / `focus=`), check on the CPU
+first, one render batch per ~20 minutes, and don't profile (the coordinator does, once per wave).
+
 Round 1 made the park dense with detail. Round 2 makes it FEEL like being there: sound, being in a seat among
 people, the broadcast, the night's rituals, light, photoreal surfaces, faces, and the visitor's own hands on
 the experience. Photorealism is the bar: compare with real photos and broadcast frames of October 2008
