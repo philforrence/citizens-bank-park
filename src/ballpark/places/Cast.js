@@ -326,7 +326,9 @@ function figureGeometry( lod = 0 ) {
 		for ( const id of HAND_PROPS[ L ] ) {
 
 			// far off only the things that show at a distance
-			if ( tiny || ( ! fine && ! [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove ].includes( id ) ) ) continue;
+			// ---- B (home): the camera and the phone too (their flash and screen are what the TV's long lens
+			// sees of them from center field)
+			if ( tiny || ( ! fine && ! [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove, PROP.camera, PROP.phone ].includes( id ) ) ) continue;
 
 			const part = 32 + id;
 			if ( id === PROP.beer || id === PROP.soda ) {

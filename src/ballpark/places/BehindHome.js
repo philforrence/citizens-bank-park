@@ -11,6 +11,8 @@ import { seatRegulars, holdSigns } from './home/Regulars.js';
 import { Gear, GEAR } from './home/Gear.js';
 import { Aisles } from './home/Aisles.js';
 import { HomeSound } from './home/Sound.js';
+import { Fouls } from './home/Fouls.js';
+import { Blankets } from './home/Blankets.js';
 
 // Behind home plate: the TV's backdrop. The center field camera looks straight at it on every pitch
 // (press C), so this is the most-watched patch of the park: the Diamond Club's front rows and the field
@@ -63,7 +65,13 @@ export default class BehindHome {
 		this.sound = new HomeSound( app, field );
 		// the aisles: vendors, the club's ushers
 		this.aisles = new Aisles( this );
+		const R = this.regulars;
+		if ( R.gary && R.lorraine ) this.aisles.late( R.gary, R.lorraine );
 		this.flying = [];
+		// fouls into the net, and a pop foul over it once a night
+		this.fouls = new Fouls( this );
+		// the blankets on the laps on the 29th
+		this.blankets = new Blankets( this.group, this.fans.list );
 		this.state = {};
 		this._mood = { stand: 0.03, cheer: 0, clap: 0.05, jump: 0, towel: 0.03 };
 
@@ -206,8 +214,11 @@ export default class BehindHome {
 		const N = this._night( director, dt );
 		this.material.uniforms.night.value = N.first ? 27 : 29;
 		this.aisles.update( dt, N );
+		this.fouls.update( dt, N, director, camera );
 		this.fans.update( dt, N );
 		holdSigns( this );
+		this.blankets.update( N );
+		this.fouls.draw( camera );
 		this._fly( dt );
 		this.gear.update();
 		// the cast's detail by how big they are on screen: the distance against the lens (the center
@@ -241,7 +252,9 @@ function kitFor( L, r, o ) {
 		? { watch: 4, knees: 2, eat: 1, talk: 1, cup: 1 }
 		: { watch: 4, knees: 1, fold: 2, talk: 2, cup: 3, text: 0.7, call: 0.2, eat: 0.5, peanuts: 0.5, read: 0.3, pockets: 1, blow: 0.3, score: 0 };
 	if ( L.age === 1 ) idle.score = 0.6;
-	return { idle, drink, towel: r() < 0.7, camera: r() < ( o.club ? 0.3 : 0.18 ), glove: kid && r() < 0.7 };
+	// a blanket on the lap on the 29th, a few of them (more of the kids and the old)
+	const blanket = r() < ( kid || L.age === 1 ? 0.3 : 0.12 ) ? [ 'red', 'plaid', 'grey', 'navy', 'red' ][ Math.floor( r() * 5 ) ] : null;
+	return { idle, drink, towel: r() < 0.7, camera: r() < ( o.club ? 0.3 : 0.18 ), glove: kid && r() < 0.7, blanket };
 
 }
 

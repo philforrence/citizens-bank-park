@@ -1,6 +1,6 @@
 import { TOP, COLOR, HAT, CHEST, PROP, restPose } from '../Cast.js';
 import { Walkway, armIK, GESTURE } from '../Concourse3BKit.js';
-import { SEATED, easeArms } from './Poses.js';
+import { SEATED, easeArms, seatSpot } from './Poses.js';
 import { GEAR } from './Gear.js';
 import { hash, fract, wrap } from './Fans.js';
 
@@ -37,6 +37,16 @@ export class Aisles {
 		this._t = null;
 		this._vendors();
 		this._ushers();
+		// beer runs: one out of each aisle's rows at a time
+		this.runs = { A: null, B: null };
+		this.nextRun = { A: 0, B: 0 };
+
+	}
+
+	// the Pisanos, late on the 27th (Regulars seats them): down aisle A in the 2nd, Earl wiping their seats
+	late( gary, lorraine ) {
+
+		this.pisanos = [ gary, lorraine ];
 
 	}
 
@@ -70,6 +80,7 @@ export class Aisles {
 			// on the 27th a poncho over the shirt, the hood up
 			const w = this.walker( name, { wet: { ...look, poncho: k === 1 ? 4 : 1, hat: k === 3 ? HAT.hood : look.hat }, dry: { ...look, hat: k === 1 ? HAT.knitBlack : look.hat, gloves: k !== 3 } }, { aisle, speed, gear, kind: gear[ 29 ], k } );
 			w.routine = vendor;
+			w.lane = 0.22;
 			return w;
 
 		} );
@@ -120,6 +131,9 @@ export class Aisles {
 		// shot never opens on empty aisles), the fans' half-done hand-offs dropped
 		if ( this._t === null || Math.abs( N.t - this._t - dt ) > 5 ) {
 
+			// the runs in progress are called off (everyone back in his seat)
+			for ( const k in this.runs ) this._endRun( k );
+			this.nextRun = { A: N.t + 20, B: N.t + 55 };
 			for ( const w of this.walkers ) w.restart( N );
 			for ( let i = 0; i < 360; i ++ ) for ( const w of this.walkers ) w.tick( 0.25, N );
 			for ( const f of this.fans.list ) f.acts.length = 0;
@@ -128,7 +142,87 @@ export class Aisles {
 		}
 
 		this._t = N.t;
+		this._runs( N );
 		for ( const w of this.walkers ) w.tick( dt, N );
+		for ( const k in this.runs ) if ( this.runs[ k ]?.done ) this._endRun( k );
+
+	}
+
+	// Someone off for a beer (in the Rays' half or between innings, never with two strikes in the 9th):
+	// the ones between him and the aisle get up to let him by, he squeezes along, up the aisle to the
+	// concourse, and a couple of minutes later back down with two beers, and they get up again
+	_runs( N ) {
+
+		const P = this.pisanos;
+		for ( const key of [ 'A', 'B' ] ) {
+
+			if ( this.runs[ key ] ) continue;
+			// the Pisanos' late arrival is aisle A's run in the 2nd on the 27th
+			if ( key === 'A' && P && N.first && N.inning === 2 && N.half === 'top' && ! P[ 0 ].arrived ) {
+
+				this._startRun( key, P, 'late' );
+				continue;
+
+			}
+
+			if ( N.t < this.nextRun[ key ] ) continue;
+			this.nextRun[ key ] = N.t + 70 + 120 * hash( N.t * 0.37 + ( key === 'A' ? 1 : 2 ) );
+			if ( N.celebrate || N.tense > 0.3 || N.suspended || ( ! N.first && N.inning >= 9 ) ) continue;
+			if ( N.half === 'bottom' && ! N.between && hash( N.t ) < 0.6 ) continue;
+			// who: someone a seat or three in from the aisle, in one of the rows the place has along it
+			const rows = [ 7, 10, 13, 16, 19, 22, 25, 28 ];
+			const r = rows[ Math.floor( hash( N.t * 1.3 + key.length ) * rows.length ) ];
+			const chain = this.chain( key, r );
+			if ( chain.length < 3 ) continue;
+			const j = 1 + Math.floor( hash( N.t * 2.1 ) * ( chain.length - 1 ) );
+			const f = chain[ j ];
+			if ( f.p.scale < 0.8 || f.driven || f.away || f.busy() || ( this.pisanos || [] ).includes( f ) ) continue;
+			this._startRun( key, [ f ], 'beer', chain, j );
+
+		}
+
+	}
+
+	_startRun( key, fans, kind, chain = null, j = 0 ) {
+
+		const f0 = fans[ 0 ];
+		chain = chain || this.chain( key, f0.seat.row );
+		const walkers = fans.map( ( f ) => {
+
+			const w = new Walker( this, f.p, f.name || 'fan', { wet: f.looks[ 27 ], dry: f.looks[ 29 ] }, { aisle: key, speed: 0.9 } );
+			w.fan = f;
+			w.lane = - 0.2;
+			f.driven = true;
+			w.night = f.night;
+			return w;
+
+		} );
+		const run = this.runs[ key ] = { key, kind, fans, walkers, chain, j: j || Math.max( ...fans.map( ( f ) => chain.indexOf( f ) ) ) };
+		walkers.forEach( ( w, i ) => {
+
+			w.routine = () => kind === 'late' ? lateRoutine( run, i ) : beerRun( run, i );
+			w.restart( this.place.state );
+			this.walkers.push( w );
+
+		} );
+
+	}
+
+	_endRun( key ) {
+
+		const run = this.runs[ key ];
+		if ( ! run ) return;
+		for ( const w of run.walkers ) {
+
+			this.walkers.splice( this.walkers.indexOf( w ) >>> 0, 1 );
+			w.fan.driven = false;
+			w.fan.away = false;
+			w.fan.p.visible = true;
+
+		}
+
+		if ( run.kind === 'late' ) for ( const f of run.fans ) f.arrived = true;
+		this.runs[ key ] = null;
 
 	}
 
@@ -172,7 +266,7 @@ class Walker {
 	}
 
 	// where on the aisle ( d metres back ), a little off its middle toward a side
-	place( d, off = 0 ) {
+	place( d, off = this.lane || 0 ) {
 
 		const S = this.A.seats;
 		const [ x, y, z ] = S.aisle( this.aisle, d );
@@ -498,6 +592,32 @@ function* usher( w ) {
 		w.look = N.look;
 		w.g = N.celebrate ? GESTURE.cheer : [ [ - 0.35, 0.1, 0.3, 0.9 ], [ - 0.35, 0.1, 0.3, 0.9 ] ];
 		w.props = [ 0, 0 ];
+		// asked up to a row to wipe seats dry for someone arriving (the Pisanos)
+		if ( w.errand ) {
+
+			const E = w.errand;
+			w.errand = null;
+			yield* walkTo( w, rowD( w, E.row ) );
+			w.face = intoRow( w );
+			w.lean = 0.55;
+			w.props = [ 0, PROP.towel ];
+			w.look = [ E.seats[ 0 ].x, E.seats[ 0 ].y + 0.5, E.seats[ 0 ].z ];
+			for ( let i = 0; i < 30; i ++ ) {
+
+				w.g = [ null, armIK( 1, [ 0.2 + 0.18 * Math.sin( i * 1.1 ), 0.9, - 0.6 ], { lean: 0.55 } ) ];
+				yield* wait( w, 0.2 );
+
+			}
+
+			w.lean = 0;
+			w.props = [ 0, 0 ];
+			w.look = null;
+			w.g = [ null, SEATED.point[ 1 ] ];
+			yield* wait( w, 1.2 );
+			yield* walkTo( w, d );
+
+		}
+
 		// on the 27th, every so often, down a couple of rows to wipe a seat with the towel
 		if ( N.first && ! N.celebrate && fract( N.t / 170 + w.seed ) < 0.02 ) {
 
@@ -522,5 +642,134 @@ function* usher( w ) {
 		yield;
 
 	}
+
+}
+
+// along a path of field points [ x, y, z ], facing the way he goes
+function* walkPath( w, pts, speed = 0.55 ) {
+
+	const p = w.p;
+	for ( const q of pts ) {
+
+		for ( ;; ) {
+
+			const dx = q[ 0 ] - p.x, dz = q[ 2 ] - p.z, l = Math.hypot( dx, dz );
+			if ( l < 0.04 ) break;
+			const st = Math.min( l, speed * w.dt );
+			p.x += dx / l * st;
+			p.z += dz / l * st;
+			p.y += ( q[ 1 ] - p.y ) * Math.min( 1, st / l );
+			w.walking = 0.8;
+			w.face = Walkway.yaw( dx, dz );
+			yield;
+
+		}
+
+	}
+
+	w.walking = 0;
+
+}
+
+// the row's standing line (in front of the seats) from the chain's seat j out to the aisle
+function rowOut( run, j ) {
+
+	const A = run.walkers[ 0 ].A, pts = [];
+	for ( let q = j - 1; q >= 0; q -- ) {
+
+		const s = run.chain[ q ].seat, [ x, z ] = seatSpot( s, 1 );
+		pts.push( [ x, s.y, z ] );
+
+	}
+
+	const s = run.chain[ j ].seat;
+	pts.push( A.seats.aisle( run.key, A.seats.rowD( s.row ) ) );
+	return pts;
+
+}
+
+// the ones between him and the aisle up on their feet, in turn, as he comes by
+function letBy( run, j, dur ) {
+
+	for ( let q = 0; q < j; q ++ ) {
+
+		const f = run.chain[ q ];
+		if ( run.fans.includes( f ) ) continue;
+		f.act( undefined, dur, { key: 'let', up: 1, lean: - 0.06, from: 0.2 * ( j - q ), head: [ 0, 0.1 ] } );
+
+	}
+
+}
+
+function* beerRun( run, i ) {
+
+	const w = run.walkers[ i ], f = w.fan, A = w.A, s = f.seat;
+	const top = A.seats.rowD( 35 ) + 0.6;
+	const t0 = w.N.t;
+	// up out of his seat: where he stands, turned to the aisle
+	letBy( run, run.j, 4.5 );
+	const [ sx, sz ] = seatSpot( s, 1 );
+	w.p.x = sx; w.p.z = sz; w.p.y = s.y;
+	w.yaw = w.p.yaw = s.yaw;
+	w.shown = true;
+	w.props = [ 0, 0 ];
+	w.g = null;
+	yield* wait( w, 0.8 );
+	yield* walkPath( w, rowOut( run, run.j ) );
+	w.d = A.seats.rowD( s.row );
+	yield* walkTo( w, top );
+	w.shown = false;
+	yield* wait( w, 60 + 70 * hash( t0 * 0.1 + s.x ) );
+	// back with two beers (a hot chocolate on the 27th, some of them), down to his row
+	const cocoa = w.N.first && hash( t0 ) < 0.5;
+	w.props = [ 0, cocoa ? PROP.cocoa : PROP.beers ];
+	w.g = [ null, GESTURE.carry[ 1 ] ];
+	w.d = top;
+	w.place( top );
+	w.shown = true;
+	yield* walkTo( w, A.seats.rowD( s.row ) );
+	letBy( run, run.j, 4.5 );
+	yield* walkPath( w, rowOut( run, run.j ).reverse().slice( 1 ).concat( [ [ sx, s.y, sz ] ] ) );
+	w.face = s.yaw;
+	yield* wait( w, 0.6 );
+	// sitting back down with it
+	f.up = 1;
+	f.bought = { prop: cocoa ? PROP.cocoa : PROP.beer, from: w.N.t, until: w.N.t + 300 };
+	run.done = true;
+
+}
+
+// the Pisanos in late and soaked on the 27th: down aisle A from the concourse, Lorraine first; Earl
+// comes up to their row and wipes their two seats with his towel while they wait on the steps; the one
+// on the aisle gets up; they squeeze in and sit, and Gary shakes the rain off his cap
+function* lateRoutine( run, i ) {
+
+	const w = run.walkers[ i ], f = w.fan, A = w.A, s = f.seat;
+	const top = A.seats.rowD( 35 ) + 0.6;
+	const rowD = A.seats.rowD( s.row );
+	// the usher (Earl, on aisle A) goes up to their row to wipe
+	const earl = A.ushers?.find( ( u ) => u.aisle === run.key );
+	w.shown = false;
+	yield* wait( w, i * 1.4 );
+	w.d = top;
+	w.place( top );
+	w.shown = true;
+	w.g = null;
+	w.props = [ 0, i === 0 ? PROP.ticket : 0 ];
+	yield* walkTo( w, rowD + 0.9 + i * 0.8 );
+	// waiting on the steps while Earl wipes, the ticket out
+	if ( i === 0 && earl ) earl.errand = { row: s.row, seats: run.fans.map( ( q ) => q.seat ) };
+	w.face = Walkway.yaw( - w.up[ 0 ], - w.up[ 1 ] );
+	yield* wait( w, 7.5 - i * 0.3 );
+	w.props = [ 0, 0 ];
+	yield* walkTo( w, rowD );
+	letBy( run, run.j + 1, 5 );
+	const [ sx, sz ] = seatSpot( s, 1 );
+	yield* walkPath( w, rowOut( run, run.chain.indexOf( f ) ).reverse().slice( 1 ).concat( [ [ sx, s.y, sz ] ] ) );
+	w.face = s.yaw;
+	yield* wait( w, 0.5 );
+	f.up = 1;
+	if ( i === run.walkers.length - 1 ) run.done = true;
+	else while ( ! run.done ) yield;
 
 }

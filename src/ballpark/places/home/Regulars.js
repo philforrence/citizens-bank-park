@@ -232,6 +232,28 @@ export function seatRegulars( place ) {
 
 	};
 
+	// ---- the Pisanos, row 11 by aisle A, late on the 27th (Aisles: down the aisle in the 2nd)
+	const row10 = S.bySec[ 9 ][ 10 ] || [];
+	R.gary = sit( row10[ 2 ], {
+		name: 'Gary Pisano',
+		looks: both( { age: 0, skin: 0, hair: 6, facial: 4, build: 3, top: TOP.eagles, color: COLOR.green, chest: CHEST.eagles, pants: 0, shoes: 3, hat: HAT.capRed, seed: 1117 },
+			{}, { top: TOP.jacket, color: COLOR.red, chest: 0, hat: HAT.knitRed, gloves: true } ),
+		kit: { idle: { watch: 4, cup: 3, talk: 2, fold: 1 }, drink: PROP.beer, towel: true, camera: false },
+	} );
+	R.lorraine = sit( row10[ 1 ], {
+		name: 'Lorraine Pisano',
+		looks: both( { female: true, age: 0, skin: 0, hair: 4, hairStyle: 1, build: 1, top: TOP.jacket, color: COLOR.red, pants: 3, shoes: 1, hat: HAT.hood, seed: 1118 },
+			{}, { hat: HAT.knitRed, scarf: 1 } ),
+		kit: { idle: { watch: 3, cocoa: 0, warm: 3, talk: 2 }, drink: PROP.cocoa, towel: true, camera: true },
+	} );
+	for ( const f of [ R.gary, R.lorraine ] ) if ( f ) f.script = ( q, N ) => {
+
+		if ( N.first && N.inning < 2 ) q.arrived = false;
+		if ( ! N.first || N.inning > 2 || ( N.inning === 2 && N.half === 'bottom' ) ) q.arrived = true;
+		q.away = ! q.arrived && ! q.driven;
+
+	};
+
 	// ---- the Villanova four, row 25
 	const vx = - 0.2, V = [ [ 'Sean Gallagher', 1113, BACK.HAMELS ], [ 'Pete Kostic', 1114, BACK.UTLEY ], [ 'Mo Rahman', 1115, 0 ], [ 'Rick Albrecht', 1116, BACK.WERTH ] ];
 	R.villanova = V.map( ( [ name, seed, back ], k ) => sit( seat( 24, vx + ( k - 1.5 ) * 0.5 ), {

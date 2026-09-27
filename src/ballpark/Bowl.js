@@ -33,33 +33,95 @@ const interiorModule = new ShaderModule( {
 fn ihash( x: f32 ) -> f32 { return fract( sin( x * 12.9898 + 4.1 ) * 43758.5453 ); }
 
 fn figure( p: vec2f, h: f32, coat: vec3f, hair: vec3f, skin: vec3f, headset: f32 ) -> vec4f {
-	// the head: hair over the crown, the face below it (lit by the room and the monitors)
-	let hd = ( p - vec2f( 0.0, h - 0.115 ) ) / vec2f( 0.085, 0.118 );
-	if ( dot( hd, hd ) < 1.0 ) {
+	// ---- B (home): a person, not a pill (the suites' and the booths' people read as capsules from the
+	// field): a head with ears, the hair's line, the eyes' shade and the mouth; a neck, a shirt collar in
+	// the coat's V; shoulders that slope; arms apart from the trunk, the hands at the hips, or a drink
+	// held at the chest, the arms folded, or a hand up; two legs, shoes. Round, not flat: darker toward
+	// the edges. Which pose is a function of the person (their height and coat).
+	let sd = fract( h * 37.13 + coat.r * 13.7 + coat.b * 71.3 + hair.g * 5.1 );
+	let seated = h < 1.45;
+	let pose = select( u32( sd * 4.0 ), 1u + u32( sd * 2.0 ), seated );
+	let hc = h - 0.115;
+	let hd = ( p - vec2f( 0.0, hc ) ) / vec2f( 0.083, 0.117 );
+	// the head: a little narrower at the jaw
+	let hq = vec2f( hd.x * mix( 1.0, 1.18, smoothstep( 0.1, - 0.9, hd.y ) ), hd.y );
+	if ( dot( hq, hq ) < 1.0 ) {
 		var c = skin;
-		if ( ( p.y > h - 0.075 ) || ( abs( p.x ) > 0.07 && p.y > h - 0.14 ) ) { c = hair; }
+		// the hair: the crown and down the sides behind the ears; a part of the forehead showing
+		let hairLine = hc + 0.05 - 0.03 * smoothstep( 0.0, 0.7, abs( hd.x ) );
+		if ( p.y > hairLine || ( abs( hd.x ) > 0.82 && p.y > hc - 0.02 ) ) { c = hair; }
+		// the eyes in their shade, the nose's shadow, the mouth
+		if ( abs( p.y - ( hc + 0.008 ) ) < 0.011 && abs( abs( p.x ) - 0.03 ) < 0.017 ) { c = c * 0.42; }
+		if ( abs( p.x - 0.006 ) < 0.008 && p.y < hc - 0.005 && p.y > hc - 0.04 ) { c = c * 0.78; }
+		if ( abs( p.x ) < 0.021 && abs( p.y - ( hc - 0.063 ) ) < 0.006 ) { c = c * 0.55; }
+		c = c * ( 1.0 - 0.4 * smoothstep( 0.5, 1.0, length( hq ) ) );
 		if ( headset > 0.5 && p.y > h - 0.03 ) { c = vec3f( 0.015 ); }
 		return vec4f( c, 1.0 );
 	}
+	// the ears
+	if ( length( ( vec2f( abs( p.x ) - 0.084, p.y - hc + 0.005 ) ) / vec2f( 0.016, 0.028 ) ) < 1.0 ) { return vec4f( skin * 0.72, 1.0 ); }
 	// a headset's ear cups and the microphone's boom
 	if ( headset > 0.5 ) {
 		if ( length( vec2f( abs( p.x ) - 0.088, p.y - ( h - 0.125 ) ) ) < 0.036 ) { return vec4f( vec3f( 0.015 ), 1.0 ); }
 		if ( p.x > 0.0 && p.x < 0.1 && abs( p.y - ( h - 0.2 - p.x * 0.4 ) ) < 0.009 ) { return vec4f( vec3f( 0.02 ), 1.0 ); }
 	}
-	// the neck, the shoulders (rounded) and the body
-	if ( abs( p.x ) < 0.05 && p.y > h - 0.29 && p.y <= h - 0.2 ) { return vec4f( skin * 0.75, 1.0 ); }
-	let sy = h - 0.28;
-	let w = 0.21 - 0.12 * smoothstep( sy - 0.03, sy + 0.06, p.y );
-	if ( abs( p.x ) < w && p.y < sy + 0.06 && p.y > 0.0 ) {
-		// a collar and a zip / buttons down the front
+	// the neck
+	let sy = h - 0.3;
+	if ( abs( p.x ) < 0.043 && p.y > sy && p.y <= hc - 0.09 ) { return vec4f( skin * 0.68, 1.0 ); }
+	// what the hands hold: a drink at the chest (a clear cup of beer, or a red one)
+	let hip = h * 0.47;
+	let ax = abs( p.x );
+	var arm = false;
+	var hand = false;
+	var cup = false;
+	if ( pose == 0u || ( pose == 1u && p.x < 0.0 ) || ( pose == 3u && p.x < 0.0 ) ) {
+		// hanging at the side, the hand at the hip
+		arm = ax > 0.168 && ax < 0.228 - 0.012 * smoothstep( sy, hip, p.y ) && p.y < sy + 0.02 && p.y > hip;
+		hand = ax > 0.17 && ax < 0.215 && p.y <= hip && p.y > hip - 0.08;
+	}
+	if ( pose == 1u && p.x >= 0.0 ) {
+		// the upper arm down to the elbow, the forearm across to the chest, the hand round a cup
+		arm = ( ax > 0.168 && ax < 0.228 && p.y < sy + 0.02 && p.y > sy - 0.27 ) || ( p.x > 0.06 && p.x < 0.228 && p.y < sy - 0.2 && p.y > sy - 0.28 );
+		hand = p.x > 0.03 && p.x <= 0.075 && p.y < sy - 0.19 && p.y > sy - 0.27;
+		cup = p.x > 0.022 && p.x < 0.083 && p.y >= sy - 0.19 && p.y < sy - 0.06;
+	}
+	if ( pose == 2u ) {
+		// folded across the chest
+		arm = ( ax > 0.168 && ax < 0.228 && p.y < sy + 0.02 && p.y > sy - 0.28 ) || ( ax < 0.228 && p.y < sy - 0.19 && p.y > sy - 0.29 );
+	}
+	if ( pose == 3u && p.x >= 0.0 ) {
+		// a hand up (a cheer, a wave to someone)
+		arm = p.x > 0.165 && p.x < 0.225 && p.y > sy - 0.05 && p.y < h + 0.2;
+		hand = p.x > 0.168 && p.x < 0.222 && p.y >= h + 0.2 && p.y < h + 0.28;
+	}
+	if ( cup ) { return vec4f( select( vec3f( 0.55, 0.34, 0.06 ), vec3f( 0.45, 0.03, 0.03 ), sd > 0.6 ), 1.0 ); }
+	if ( hand ) { return vec4f( skin * 0.8, 1.0 ); }
+	if ( arm ) {
+		// the sleeve, shaded round, darker on the side away from the room's light
+		let k = 1.0 - 0.35 * smoothstep( 0.19, 0.228, ax );
+		return vec4f( coat * k * select( 1.0, 0.82, pose == 2u && p.y < sy - 0.19 ), 1.0 );
+	}
+	// the trunk: rounded shoulders sloping to the neck, narrower at the waist, to the hips
+	let shTop = sy + 0.03 - 0.9 * max( 0.0, ax - 0.05 ) * max( 0.0, ax - 0.05 ) * 4.0;
+	let tw = mix( 0.165, 0.14, smoothstep( sy - 0.15, hip + 0.05, p.y ) );
+	if ( ax < tw && p.y < shTop && p.y > hip - 0.02 ) {
 		var c = coat;
-		if ( abs( p.x ) < 0.012 && p.y < sy ) { c = coat * 0.6; }
-		// standing: dark trousers below the coat, a gap between the legs
-		if ( p.y < h * 0.45 && abs( p.x ) < 0.025 ) { return vec4f( 0.0 ); }
-		if ( p.y < h * 0.52 ) { c = vec3f( 0.04, 0.04, 0.05 ); }
+		// the collar's V: a shirt showing
+		if ( p.y > sy - 0.12 && ax < 0.045 * ( 1.0 - ( sy - p.y ) / 0.12 ) + 0.005 ) { c = mix( vec3f( 0.55, 0.53, 0.5 ), coat * 1.3, sd ); }
+		// the zip or buttons down the front, a belt
+		if ( ax < 0.006 && p.y < sy - 0.12 ) { c = coat * 0.6; }
+		if ( p.y < hip + 0.02 ) { c = coat * 0.5; }
+		c = c * ( 1.0 - 0.38 * smoothstep( 0.6, 1.0, ax / tw ) ) * mix( 0.8, 1.0, smoothstep( hip, sy, p.y ) );
 		return vec4f( c, 1.0 );
 	}
+	// the legs: dark trousers, a gap between, the shoes
+	if ( p.y <= hip && p.y > 0.0 && ax > 0.018 && ax < 0.125 - 0.02 * ( 1.0 - p.y / hip ) ) {
+		var c = vec3f( 0.035, 0.035, 0.045 ) * ( 1.0 + 0.3 * sd );
+		if ( p.y < 0.06 ) { c = vec3f( 0.012 ); }
+		return vec4f( c * ( 1.0 - 0.3 * smoothstep( 0.08, 0.125, ax ) ), 1.0 );
+	}
 	return vec4f( 0.0 );
+	// ---- end B
 }
 `,
 } );

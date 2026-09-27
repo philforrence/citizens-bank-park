@@ -316,8 +316,11 @@ export class Fan {
 		a.blink = fract( t * 0.31 + sd * 7 ) < 0.035 ? 1 : 0;
 		// ---- the legs and where he is: seated, up, or up and jumping at the last out
 		sitPose( a, up, this.scale, act?.lean || 0 );
-		const [ x, z ] = seatSpot( this.seat, up );
+		const [ x, z ] = act?.onSeat ? seatSpot( this.seat, 0 ) : seatSpot( this.seat, up );
 		p.x = x; p.z = z;
+		// turned round (to someone behind), the turn eased
+		this.turn = ( this.turn || 0 ) + ( ( act?.turn || 0 ) - ( this.turn || 0 ) ) * k * 0.6;
+		p.yaw = this.seat.yaw + this.turn;
 		let y = this.seat.y;
 		if ( N.celebrate && up > 0.9 && hash( sd * 43 ) < 0.6 ) y += Math.max( 0, Math.sin( t * 7.5 + sd * 20 ) ) * 0.12;
 		if ( act?.y ) y += act.y;
