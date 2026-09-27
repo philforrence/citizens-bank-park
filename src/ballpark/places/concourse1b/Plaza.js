@@ -1,9 +1,11 @@
-import { Mesh, BufferGeometry, Float32BufferAttribute, Color } from '../../../engine/index.js';
+import { Group, Mesh, BufferGeometry, Float32BufferAttribute, Color } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
 import { commonModule } from '../../../engine/render/wgsl/common.js';
 import { LEVELS } from '../../layout.js';
 import { buildDrips } from '../gate3b/Drips.js';
 import { plantBeds } from '../gate3b/Planting.js';
+import { plantTrees } from '../gate3b/Trees.js';
+import { LIFT } from '../gate3b/Street.js';
 
 // The First Base Gate's plaza, from the 2008 photos (Flickr rdowens, 23 Jul 2008: the gate and the Roberts
 // statue; puckfiend 2005: the whole front; bikesontransit Jan 2007: the paving and the furniture):
@@ -160,17 +162,28 @@ export function buildPlaza( { group, G, Pr, K, W } ) {
 
 	strip( - 27, 27, 0.05, 8.2, false );
 	strip( - 27, 27, 8.2, 8.8, true );
-	// the band curving away across the concrete toward Pattison (1.8 m wide, a darker edge each side)
-	for ( let i = 0; i < 16; i ++ ) {
+	// the drop-off loop in front (puckfiend 2005): a ring of brick round a planted island, a darker course
+	// at its edges
+	const loop = xz( 0, 21 ), ring = ( r0, r1, border ) => {
 
-		const t0 = i / 16, t1 = ( i + 1 ) / 16;
-		const c = ( t ) => [ - 6 + 20 * Math.sin( t * 1.4 ), 8.8 + t * 34 ];
-		const [ s0, o0 ] = c( t0 ), [ s1, o1 ] = c( t1 );
-		strip( s0 - 0.9, s1 - 0.9, o0, o1, true );
-		strip( s0 - 0.6, s1 - 0.6, o0, o1, false );
-		strip( s0 + 0.6, s1 + 0.6, o0, o1, true );
+		const n = 40;
+		for ( let k = 0; k < n; k ++ ) {
 
-	}
+			const a0 = k / n * Math.PI * 2, a1 = ( k + 1 ) / n * Math.PI * 2;
+			const p = ( r, a ) => [ loop[ 0 ] + Math.cos( a ) * r, loop[ 1 ] + Math.sin( a ) * r ];
+			const a = p( r0, a0 ), b = p( r0, a1 ), c = p( r1, a1 ), d = p( r1, a0 );
+			const up = ( b[ 0 ] - a[ 0 ] ) * ( d[ 1 ] - a[ 1 ] ) - ( b[ 1 ] - a[ 1 ] ) * ( d[ 0 ] - a[ 0 ] );
+			if ( up < 0 ) quad( a, b, c, d, border ); else quad( a, d, c, b, border );
+
+		}
+
+	};
+
+	ring( 6.0, 6.5, true );
+	ring( 6.5, 11.4, false );
+	ring( 11.4, 12.0, true );
+	// the way from the loop to the brick at the gate
+	strip( - 4.5, 4.5, 8.8, 10.5, false );
 
 	{
 
@@ -201,7 +214,7 @@ export function buildPlaza( { group, G, Pr, K, W } ) {
 
 	// ---- the lamp posts: grey poles, a flat disc head, the lens under it (lit after dark)
 	const lamps = [];
-	for ( const [ s, o ] of [ [ - 26, 12 ], [ 26, 12 ], [ - 8, 24 ], [ 12, 30 ] ] ) {
+	for ( const [ s, o ] of [ [ - 26, 12 ], [ 26, 12 ], [ - 14, 21 ], [ 14, 21 ], [ 0, 36 ] ] ) {
 
 		const c = frameAt( s, o );
 		Pr.use( 'grey' ).cyl( c, 0, 0, 0, 4.4, 0.08, 0.06, 8, { top: false } );
@@ -293,6 +306,22 @@ export function buildPlaza( { group, G, Pr, K, W } ) {
 
 	}
 
+	// ---- the loop's island: planted, young trees going yellow (W1's trees and beds), its curb
+	{
+
+		const trees = new Group();
+		trees.position.y = - LIFT;
+		group.add( trees );
+		plantTrees( trees, [ [ ...xz( - 2.5, 20 ), 1 ], [ ...xz( 3, 23.5 ), 2 ], [ ...xz( 1.5, 17.5 ), 3 ], [ ...xz( - 29, 11.5 ), 4 ], [ ...xz( 30, 12.5 ), 5 ] ], { grates: false, shadows: true } );
+		plantBeds( group, [ [ ...xz( 0, 21 ), 5.6, STREET + 0.16 ] ], 23 );
+		const curb = frameAt( 0, 21 );
+		Pr.use( 'concrete' ).cyl( curb, 0, 0, 0, 0.16, 5.95, 5.95, 36, { top: false } );
+		Pr.use( 'mulch' ).cyl( curb, 0, 0, 0.14, 0.15, 5.9, 5.9, 36 );
+		obstacles.push( [ ...loop, 6.3 ] );
+		for ( const s of [ - 29, 30 ] ) obstacles.push( [ ...xz( s, s < 0 ? 11.5 : 12.5 ), 0.6 ] );
+
+	}
+
 	// ---- the planting: along the fence behind the statue, and round the pier
 	plantBeds( group, [ [ 17.5, 2.2, 1.6 ], [ 20.5, 2.2, 1.6 ], [ 23.5, 2.4, 1.5 ], [ 11.8, 2.0, 1.2 ] ].map( ( [ s, o, r ] ) => [ ...xz( s, o ), r, STREET + 0.02 ] ), 21 );
 	for ( const [ s, o, r ] of [ [ 17.5, 2.2, 1.6 ], [ 20.5, 2.2, 1.6 ], [ 23.5, 2.4, 1.5 ] ] ) obstacles.push( [ ...xz( s, o ), r ] );
@@ -347,7 +376,6 @@ export function buildPhunZone( Pr, Q ) {
 	// the white domed spheres at the ends, a bubble window each
 	ball( Pr.use( 'white' ), Q( - W - 0.1, L1 + 0.6, 0.6 ), 0.75, false, 12 );
 	ball( Pr.use( 'white' ), Q( 0.4, L2 + 0.7, 0 ), 0.7, false, 12 );
-	ball( Pr.use( 'glass' ), Q( - W - 0.1, L1 + 0.6, 1.2 ), 0.32, false, 8 );
 	// a slide down the side
 	for ( let k = 0; k < 8; k ++ ) {
 
@@ -367,8 +395,16 @@ export function buildPhunZone( Pr, Q ) {
 	Pr.use( red ).cyl( Q, W - 1.3, - 0.6, L2 + 3.0, L2 + 3.15, 0.3, 0.26, 10 );
 	// the Inquirer's board and the arch over the way in
 	Pr.use( 'black' ).box( Q, 0, 3.15, D + 0.15, 3.6, 0.55, 0.05, 'inquirer' );
-	Pr.use( 'white' ).box( Q, 0, 2.2, D + 0.2, 4.6, 1.0, 0.05, 'phunZone' );
-	for ( const x of [ - 2.3, 2.3 ] ) Pr.use( 'black' ).box( Q, x, 1.05, D + 0.2, 0.08, 2.1, 0.08 );
+	Pr.use( 'white' ).box( Q, 0, 2.2, D + 0.25, 4.8, 1.0, 0.05, 'phunZone' );
+	for ( const x of [ - 2.45, 2.45 ] ) Pr.use( 'black' ).box( Q, x, 1.05, D + 0.12, 0.08, 2.1, 0.08 );
+	// the court's lamps (the disc heads again), so it's lit after dark
+	for ( const x of [ - 6.2, 6.2 ] ) {
+
+		Pr.use( 'grey' ).cyl( Q, x, D + 2.5, 0, 4.4, 0.08, 0.06, 8, { top: false } );
+		Pr.use( 'grey' ).cyl( Q, x, D + 2.5, 4.4, 4.55, 0.45, 0.45, 14 );
+		Pr.use( 'lamp' ).cyl( Q, x, D + 2.5, 4.36, 4.4, 0.36, 0.36, 14, { top: false } );
+
+	}
 	// the soft floor round it
 	Pr.use( 'foam' ).box( Q, 0, 0.02, 0, 2 * W + 3.5, 0.04, 2 * D + 1.6 );
 

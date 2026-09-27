@@ -405,7 +405,22 @@ export default class Concourse1B {
 		this.plaza = buildPlaza( { group: this.group, G: this.gate, Pr: this.prints, K: this.kit, W: this.W } );
 		const w = this.W.at( 104, 60 );
 		this.phun = { s: 104, d: 60, x: w.x, z: w.z, fwd: [ - w.ux, - w.uz ] };
-		buildPhunZone( this.prints, this._facing( [ w.x, w.z ], this.phun.fwd ) );
+		const Q = this._facing( [ w.x, w.z ], this.phun.fwd );
+		buildPhunZone( this.prints, Q );
+		// the lamps light the plaza and the court after dark: the app makes point lights of the exterior's
+		// lamps (lampSources) once the places are built
+		const lamps = this.app?.exterior?.lamps;
+		if ( lamps ) {
+
+			for ( const p of this.plaza.lamps ) lamps.push( [ p[ 0 ], p[ 1 ], p[ 2 ], false ] );
+			for ( const x of [ - 6.2, 6.2 ] ) {
+
+				const p = Q( x, 4.3, 2.5 + 2.5 );
+				lamps.push( [ p[ 0 ], p[ 1 ], p[ 2 ], false ] );
+
+			}
+
+		}
 
 	}
 
