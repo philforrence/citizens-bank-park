@@ -31,6 +31,19 @@ const STANDS = [
 	[ "DIPPIN' DOTS", '#7a1fa2', '#ffffff', [ 'BANANA SPLIT', 'CHOCOLATE', 'COOKIES' ] ],
 ];
 
+// The field level's section numbers, as the Phillies number them: 101-104 in the right field seats, then
+// from 105 at the right field pole round behind home plate (the low 120s: Guest Services behind 122, the
+// ticket windows behind 124, McFadden's behind 127) to 139 at the left field pole, and the 140s in left.
+// From the angle round home plate (field frame).
+export function sectionAt( x, z ) {
+
+	const a = Math.atan2( x, z ) * 180 / Math.PI; // 0 behind home plate, + toward first
+	if ( Math.abs( a ) <= 134 ) return Math.round( 122.5 - a / 134 * 17.5 );
+	if ( a > 0 ) return Math.max( 101, Math.round( 104 - ( a - 134 ) / 30 * 3 ) );
+	return Math.min( 148, Math.round( 140 + ( - a - 134 ) / 30 * 8 ) );
+
+}
+
 export class Concourse {
 
 	constructor( { field, bowl, colliders } ) {
@@ -40,9 +53,11 @@ export class Concourse {
 		this.group = new Group();
 		this.group.name = 'concourse';
 		field.group.add( this.group );
+		this._aisleHeads( bowl );
+		this._rail( bowl );
 		this._stands( bowl );
 		this._monitors( bowl );
-		this._sectionSigns( bowl );
+		this._sectionSigns();
 
 	}
 
@@ -116,60 +131,176 @@ export class Concourse {
 
 	}
 
-	// A blue sign with the section number at the head of each aisle of the field level seats, facing the
-	// concourse
-	_sectionSigns( bowl ) {
+	// The heads of the field level's aisles, where they meet the concourse: on each corner's bisector
+	// between two sections, with the way along the concourse (u) and out from the field (n). Each gets
+	// its section number.
+	_aisleHeads( bowl ) {
 
 		const tier = bowl.tiers[ 0 ];
 		const secs = tierSections( tier );
-		const d = tier.rows * tier.depth + 0.5;
-		const atlas = canvasTexture( 1024, 1024, ( ctx, w, h ) => {
+		const d = ( tier.start || 0 ) + tier.rows * tier.depth;
+		this.backEdge = d;
+		this.aisles = [];
+		for ( let k = 0; k < secs.length - 1; k ++ ) {
 
-			for ( let i = 0; i < 64; i ++ ) {
+			const S = secs[ k ], T = secs[ k + 1 ];
+			const s = S.len - S.m1 * d;
+			const x = S.a[ 0 ] + S.ux * s + S.nx * d, z = S.a[ 1 ] + S.uz * s + S.nz * d;
+			const ux = ( S.ux + T.ux ) / Math.hypot( S.ux + T.ux, S.uz + T.uz ), uz = ( S.uz + T.uz ) / Math.hypot( S.ux + T.ux, S.uz + T.uz );
+			let nx = - uz, nz = ux;
+			if ( nx * S.nx + nz * S.nz < 0 ) {
 
-				const x = ( i % 8 ) * 128, y = Math.floor( i / 8 ) * 128;
-				ctx.fillStyle = '#0b2a5b';
-				ctx.fillRect( x, y, 128, 128 );
-				ctx.strokeStyle = '#ffffff';
-				ctx.lineWidth = 3;
-				ctx.strokeRect( x + 5, y + 20, 118, 88 );
-				ctx.fillStyle = '#ffffff';
-				ctx.textAlign = 'center';
-				ctx.textBaseline = 'middle';
-				ctx.font = '600 15px "Helvetica Neue", Arial, sans-serif';
-				ctx.fillText( 'SECTION', x + 64, y + 36 );
-				ctx.font = '800 46px "Helvetica Neue", Arial, sans-serif';
-				ctx.fillText( String( 104 + i ), x + 64, y + 76 );
+				nx = - nx; nz = - nz;
+
+			}
+
+			this.aisles.push( { x, z, ux, uz, nx, nz, num: sectionAt( x, z ) } );
+
+		}
+
+	}
+
+	// The drink rail along the back of the field level seats: galvanized posts and a mid rail under a flat
+	// aluminium shelf at 1.07 m, open at every aisle head (baseballparks.com, 2004: 'metal counters
+	// throughout for standing guests to place food/drinks while viewing the field'; the 500-odd standing
+	// room tickets of a sellout lean on them). The walker can't step over it: the way down is the aisles.
+	// Where people lean: this.railSpots.
+	_rail( bowl ) {
+
+		const tier = bowl.tiers[ 0 ];
+		const secs = tierSections( tier );
+		const d = this.backEdge + 0.1, y0 = STREET;
+		const q = new Quads(), shelf = new Quads();
+		this.railSpots = [];
+		const worldYaw = this.field.group.rotation.y;
+		for ( const S of secs ) {
+
+			if ( ! S.seats ) continue;
+			const s0 = Math.min( S.len, S.m0 * d ) + 0.7, s1 = S.len - S.m1 * d - 0.7;
+			if ( s1 - s0 < 1 ) continue;
+			const at = ( s, o = 0 ) => [ S.a[ 0 ] + S.ux * s + S.nx * ( d + o ), S.a[ 1 ] + S.uz * s + S.nz * ( d + o ) ];
+			const n = Math.max( 1, Math.round( ( s1 - s0 ) / 1.8 ) );
+			for ( let i = 0; i <= n; i ++ ) {
+
+				const [ x, z ] = at( s0 + ( s1 - s0 ) * i / n );
+				beam( q, [ x, y0, z ], [ x, y0 + 1.04, z ], i === 0 || i === n ? 0.06 : 0.045 );
+
+			}
+
+			const [ ax, az ] = at( s0 ), [ bx, bz ] = at( s1 );
+			beam( q, [ ax, y0 + 0.55, az ], [ bx, y0 + 0.55, bz ], 0.04 );
+			beam( q, [ ax, y0 + 0.12, az ], [ bx, y0 + 0.12, bz ], 0.03 );
+			// the shelf, over the concourse side of the posts, with a rolled front lip
+			const [ a0x, a0z ] = at( s0 - 0.1, - 0.06 ), [ b0x, b0z ] = at( s1 + 0.1, - 0.06 );
+			const [ a1x, a1z ] = at( s0 - 0.1, 0.26 ), [ b1x, b1z ] = at( s1 + 0.1, 0.26 );
+			const yt = y0 + 1.07;
+			shelf.add( [ a0x, yt, a0z ], [ b0x, yt, b0z ], [ b1x, yt, b1z ], [ a1x, yt, a1z ], [ 0, 1, 0 ] );
+			shelf.add( [ a0x, yt - 0.03, a0z ], [ a1x, yt - 0.03, a1z ], [ b1x, yt - 0.03, b1z ], [ b0x, yt - 0.03, b0z ], [ 0, - 1, 0 ] );
+			shelf.add( [ a1x, yt - 0.05, a1z ], [ b1x, yt - 0.05, b1z ], [ b1x, yt, b1z ], [ a1x, yt, a1z ], [ S.nx, 0, S.nz ] );
+			shelf.add( [ b0x, yt - 0.03, b0z ], [ a0x, yt - 0.03, a0z ], [ a0x, yt, a0z ], [ b0x, yt, b0z ], [ - S.nx, 0, - S.nz ] );
+			// a place to lean every 0.75 m
+			for ( let s = s0 + 0.4; s < s1 - 0.3; s += 0.75 ) {
+
+				const [ x, z ] = at( s, 0.62 );
+				this.railSpots.push( { x, z, nx: S.nx, nz: S.nz, num: sectionAt( x, z ) } );
+
+			}
+
+			const [ cx, cz ] = at( ( s0 + s1 ) / 2, 0.08 ), w = this.field.toWorld( cx, cz );
+			this.colliders.addBox( new Vector3( w.x, this.field.y0 + y0 + 0.55, w.z ), new Vector3( ( s1 - s0 ) / 2 + 0.05, 0.55, 0.2 ), worldYaw - Math.atan2( S.uz, S.ux ), { tag: 'drink-rail' } );
+
+		}
+
+		const galv = standard( { name: 'drink-rail', color: new Color( 0.42, 0.43, 0.44 ), roughness: 0.45, metalness: 0.7 } );
+		const alu = standard( { name: 'drink-shelf', color: new Color( 0.62, 0.63, 0.64 ), roughness: 0.3, metalness: 0.85, modules: [ commonModule ],
+			surface: /* wgsl */`
+	// brushed along its length, rings where the cups stood, a spilled patch here and there
+	if ( in.N.y > 0.5 ) {
+		let ring = mx_noise_float2( in.P.xz * 7.0 );
+		s.roughness = 0.35 + 0.15 * smoothstep( 0.4, 0.7, ring );
+		s.albedo = s.albedo * ( 0.8 + 0.08 * mx_noise_float2( in.P.xz * 1.3 ) );
+	}
+` } );
+		for ( const [ geo, m, name ] of [ [ q, galv, 'drink-rail' ], [ shelf, alu, 'drink-shelf' ] ] ) {
+
+			m.underwaterLighting = 'none';
+			const mesh = new Mesh( geo.geometry(), m );
+			mesh.name = name;
+			mesh.castShadow = true;
+			mesh.receiveShadow = true;
+			this.group.add( mesh );
+
+		}
+
+	}
+
+	// The section numbers: over the head of every aisle a small tan plate with maroon numerals, both
+	// faces, hung on two rods from the suite level's underside round the infield (the 2008 photos: '131'
+	// over the aisle, a loudspeaker beside it), on a post at the rail's end down the lines where no deck
+	// is overhead
+	_sectionSigns() {
+
+		const atlas = canvasTexture( 1024, 1024, ( ctx ) => {
+
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			for ( let i = 0; i < 32; i ++ ) {
+
+				const x = ( i % 4 ) * 256, y = Math.floor( i / 4 ) * 128;
+				const g = ctx.createLinearGradient( x, y, x, y + 128 );
+				g.addColorStop( 0, '#d8caa0' ); g.addColorStop( 1, '#c2b286' );
+				ctx.fillStyle = g;
+				ctx.fillRect( x, y, 256, 128 );
+				ctx.strokeStyle = '#5e1a24';
+				ctx.lineWidth = 5;
+				ctx.strokeRect( x + 9, y + 9, 238, 110 );
+				// screw heads in the corners, a little grime along the bottom
+				ctx.fillStyle = '#8f846a';
+				for ( const [ sx, sy ] of [ [ 20, 20 ], [ 236, 20 ], [ 20, 108 ], [ 236, 108 ] ] ) ctx.fillRect( x + sx - 3, y + sy - 3, 6, 6 );
+				ctx.fillStyle = 'rgba( 60, 50, 30, 0.12 )';
+				ctx.fillRect( x + 4, y + 110, 248, 16 );
+				ctx.fillStyle = '#6a1c28';
+				ctx.font = '800 92px "Helvetica Neue", Helvetica, Arial, sans-serif';
+				const num = this.aisles[ i ]?.num;
+				if ( num ) ctx.fillText( String( num ), x + 128, y + 68, 220 );
 
 			}
 
 		}, 'sectionSigns' );
-		const signMat = standard( { name: 'section-signs', roughness: 0.5, textures: { bpSec: atlas },
-			surface: 'let t = textureSample( bpSec, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.7; s.emissive = t * step( 0.5, t.r ) * smoothstep( 0.1, 0.7, frame.night ) * 0.8;' } );
+		const signMat = standard( { name: 'section-signs', roughness: 0.55, textures: { bpSec: atlas },
+			surface: 'let t = textureSample( bpSec, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.85; s.emissive = t * smoothstep( 0.1, 0.7, frame.night ) * 0.12;' } );
 		const post = new Quads(), face = new Quads();
-		let n = 0;
-		for ( let k = 0; k < secs.length && n < 64; k ++ ) {
+		const W = 0.62, H = 0.31;
+		// under the suites: the infield between the dugouts' far ends
+		const underDeck = ( x, z ) => Math.abs( Math.atan2( x, z ) ) < 1.95;
+		this.aisles.forEach( ( A, i ) => {
 
-			const S = secs[ k ];
-			const s = S.len - S.m1 * d;
-			const cx = S.a[ 0 ] + S.ux * s + S.nx * d, cz = S.a[ 1 ] + S.uz * s + S.nz * d;
-			const y0 = STREET, y1 = STREET + 2.9;
-			beam( post, [ cx, y0, cz ], [ cx, y1 - 0.4, cz ], 0.08 );
-			// the sign faces away from the field (-n is the field side here: face +n)
-			const ux = S.ux, uz = S.uz, o = 0.05;
-			const P = ( a, yy ) => [ cx + ux * a + S.nx * o, yy, cz + uz * a + S.nz * o ];
-			const u0 = ( n % 8 ) / 8, v0 = Math.floor( n / 8 ) / 8, du = 1 / 8;
-			// seen from the concourse (looking along -n) the viewer's right is ( nz, -nx )
-			const rightIsU = ( ux * S.nz - uz * S.nx ) > 0;
-			const [ L, R ] = rightIsU ? [ - 0.5, 0.5 ] : [ 0.5, - 0.5 ];
-			face.tri( P( L, y1 - 1.0 ), P( R, y1 - 1.0 ), P( R, y1 ), [ S.nx, 0, S.nz ], [ u0, v0 + du ], [ u0 + du, v0 + du ], [ u0 + du, v0 ] );
-			face.tri( P( L, y1 - 1.0 ), P( R, y1 ), P( L, y1 ), [ S.nx, 0, S.nz ], [ u0, v0 + du ], [ u0 + du, v0 ], [ u0, v0 ] );
-			// its back, toward the field
-			const Q = ( a, yy ) => [ cx + ux * a + S.nx * ( o - 0.03 ), yy, cz + uz * a + S.nz * ( o - 0.03 ) ];
-			post.add( Q( - 0.5, y1 - 1.0 ), Q( 0.5, y1 - 1.0 ), Q( 0.5, y1 ), Q( - 0.5, y1 ), [ - S.nx, 0, - S.nz ] );
-			n ++;
+			if ( i >= 32 ) return;
+			const hung = underDeck( A.x, A.z );
+			// hung over the aisle's middle, or on a post at the rail's end beside it
+			const along = hung ? 0 : 1.0;
+			const cx = A.x + A.ux * along + A.nx * 0.1, cz = A.z + A.uz * along + A.nz * 0.1;
+			const yc = hung ? LEVELS.suites - 0.95 : STREET + 2.35;
+			const P = ( a, yy, o ) => [ cx + A.ux * a + A.nx * o, yy, cz + A.uz * a + A.nz * o ];
+			const u0 = ( i % 4 ) / 4, v0 = Math.floor( i / 4 ) / 8, du = 1 / 4, dv = 1 / 8;
+			// both faces read left to right: seen along -n (from the concourse) the right is ( nz, -nx )
+			for ( const side of [ 1, - 1 ] ) {
 
-		}
+				const o = side * 0.012;
+				const rightIsU = side * ( A.ux * A.nz - A.uz * A.nx ) > 0;
+				const [ L, R ] = rightIsU ? [ - W / 2, W / 2 ] : [ W / 2, - W / 2 ];
+				const nrm = [ A.nx * side, 0, A.nz * side ];
+				face.tri( P( L, yc - H / 2, o ), P( R, yc - H / 2, o ), P( R, yc + H / 2, o ), nrm, [ u0, v0 + dv ], [ u0 + du, v0 + dv ], [ u0 + du, v0 ] );
+				face.tri( P( L, yc - H / 2, o ), P( R, yc + H / 2, o ), P( L, yc + H / 2, o ), nrm, [ u0, v0 + dv ], [ u0 + du, v0 ], [ u0, v0 ] );
+
+			}
+
+			// its edge, and what holds it up
+			post.add( P( - W / 2, yc + H / 2, - 0.012 ), P( W / 2, yc + H / 2, - 0.012 ), P( W / 2, yc + H / 2, 0.012 ), P( - W / 2, yc + H / 2, 0.012 ), [ 0, 1, 0 ] );
+			if ( hung ) for ( const a of [ - W * 0.35, W * 0.35 ] ) beam( post, P( a, yc + H / 2, 0 ), P( a, LEVELS.suites - 0.25, 0 ), 0.018 );
+			else beam( post, P( 0, STREET, - 0.04 ), P( 0, yc - H / 2, - 0.04 ), 0.06 );
+
+		} );
 
 		const steel = standard( { name: 'sign-posts', color: new Color( 0.1, 0.1, 0.11 ), roughness: 0.5, metalness: 0.6 } );
 		for ( const [ geo, m, name ] of [ [ post, steel, 'section-posts' ], [ face, signMat, 'section-signs' ] ] ) {
