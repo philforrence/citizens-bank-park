@@ -18,7 +18,7 @@ import * as Mv from './Moves.js';
 
 const GIRLS = [
 	[ 'BRIANNA', 'fair', 'sandy' ], [ 'KRISTEN', 'light', 'brown' ], [ 'DANA', 'olive', 'dark' ], [ 'LAUREN', 'fair', 'light' ],
-	[ 'TARA', 'tan', 'black' ], [ 'MEGAN', 'ruddy', 'red' ], [ 'ALYSSA', 'latin', 'black' ], [ 'COLLEEN', 'fair', 'sandy' ],
+	[ 'TARA', 'tan', 'black' ], [ 'RENEE', 'ruddy', 'red' ], [ 'ALYSSA', 'latin', 'black' ], [ 'COLLEEN', 'fair', 'sandy' ],
 ];
 const SKIN = { fair: [ 0.62, 0.41, 0.3 ], light: [ 0.58, 0.37, 0.26 ], ruddy: [ 0.6, 0.35, 0.24 ], olive: [ 0.5, 0.32, 0.2 ], tan: [ 0.37, 0.215, 0.13 ], latin: [ 0.26, 0.14, 0.08 ] };
 const HAIR = { black: [ 0.012, 0.01, 0.008 ], dark: [ 0.03, 0.019, 0.012 ], brown: [ 0.075, 0.045, 0.025 ], light: [ 0.16, 0.1, 0.055 ], sandy: [ 0.26, 0.17, 0.09 ], red: [ 0.2, 0.08, 0.035 ] };

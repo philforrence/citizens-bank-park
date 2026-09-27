@@ -11,6 +11,7 @@ import { Ways, STREET } from './phanatic/Ways.js';
 import { buildNight } from './phanatic/Night.js';
 import { registerSounds } from './phanatic/Sounds.js';
 import { Cast, TOP, COLOR, HAT, PROP, restPose } from './Cast.js';
+import * as CastLib from './Cast.js';
 
 // The Phillie Phanatic, all over the park, all night: the most Philadelphia thing in the building. He's
 // one slot of the players' rig (game/Players.js, KIND.phanatic: the green fur, the belly, the size-20
@@ -138,6 +139,9 @@ export default class Phanatic {
 		n.act = st.act;
 		n.onField = st.visible && ( st.zone === 'field' || st.zone === 'roof3B' || st.zone === 'roof1B' );
 		n.excite = st.visible ? st.excite : 0;
+		// everyone's heads turning to him wherever he goes (the shared people system's lookAt: P0's Cast.js;
+		// before that merge it isn't there and this does nothing)
+		CastLib.lookAt?.( 'phanatic', n.visible && n.zone !== 'backstage' ? { x: n.x, y: n.y + 1.2, z: n.z, r: 14, k: 0.4 + 0.6 * n.excite } : null );
 		this._sound( st, t, director );
 		this._lastT = t;
 
