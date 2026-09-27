@@ -66,6 +66,7 @@ export class Stories1B {
 		this._nguyens();
 		this._walkers();
 		this._phunZone();
+		this._photoOp();
 
 	}
 
@@ -251,6 +252,110 @@ export class Stories1B {
 
 	}
 
+	// ---- a picture with the Phanatic: when he's parked his four-wheeler on this concourse (A's place; in
+	// the 3rd on the 27th, behind 111), a line forms beside it: a father and his son (the glove on), two
+	// girls from Temple with a phone, an older couple. Each in turn beside him, the picture taken, off
+	_photoOp() {
+
+		const L = ( o ) => ( { ...o } );
+		this.photo = { groups: [
+			[ this._add( L( { age: 0, skin: 2, hair: 1, facial: 2, build: 2, top: TOP.hoodie, color: COLOR.red, sleeves: COLOR.red, chest: CHEST.block, hat: HAT.capRed, pants: 0, shoes: 0 } ) ),
+				this._add( L( { age: 2, skin: 2, hair: 1, top: TOP.nameTee, color: COLOR.red, sleeves: COLOR.grey, back: BACK.VICTORINO, hat: HAT.capRed, pants: 1, shoes: 0 } ), { scale: 0.68 } ) ],
+			[ this._add( L( { female: true, age: 3, skin: 0, hair: 4, hairStyle: 1, top: TOP.homeJersey, color: COLOR.white, sleeves: COLOR.red, back: BACK.HAMELS, chest: CHEST.script, hat: HAT.knitRed, pants: 1, shoes: 0 } ), { scale: 0.93 } ),
+				this._add( L( { female: true, age: 3, skin: 5, hair: 0, hairStyle: 2, top: TOP.puffer, color: COLOR.red, sleeves: COLOR.red, hat: HAT.none, pants: 1, shoes: 1 } ), { scale: 0.92 } ) ],
+			[ this._add( L( { age: 1, skin: 0, hair: 7, glasses: true, build: 3, top: TOP.jacket, color: COLOR.red, sleeves: COLOR.red, hat: HAT.cap1980, pants: 2, shoes: 3 } ) ),
+				this._add( L( { female: true, age: 1, skin: 0, hair: 6, hairStyle: 0, glasses: true, top: TOP.fleece, color: COLOR.red, sleeves: COLOR.red, hat: HAT.knitRed, pants: 5, shoes: 1, scarf: 1 } ) ) ],
+		].filter( ( g ) => g[ 0 ] && g[ 1 ] ), t: 0, on: false };
+		for ( const g of this.photo.groups ) for ( const a of g ) a.p.visible = false;
+
+	}
+
+	_updatePhotoOp( dt ) {
+
+		const O = this.photo, ph = this.spots.app?.phanatic?.now;
+		if ( ! O?.groups.length ) return;
+		// parked here: visible, off the field, on this concourse by the spot
+		const here = ph?.visible && ! ph.onField && Math.hypot( ph.x - 74.4, ph.z - 0.4 ) < 2.5;
+		if ( here && ! O.on ) {
+
+			O.on = true;
+			O.t = 0;
+
+		}
+
+		if ( ! here && O.on ) {
+
+			O.on = false;
+			for ( const g of O.groups ) for ( const a of g ) a.p.visible = false;
+
+		}
+
+		if ( ! O.on ) return;
+		O.t += dt;
+		const t = this.time, per = 13;
+		const face = ( a, ds, dd ) => Walkway.yaw( ...this._dir( a, ds, dd ) );
+		O.groups.forEach( ( [ a, b ], i ) => {
+
+			const T = O.t - i * per;
+			const vis = T < per + 5;
+			a.p.visible = b.p.visible = vis;
+			if ( ! vis ) return;
+			const PA = a.p.pose, PB = b.p.pose;
+			for ( const P of [ PA, PB ] ) {
+
+				P.walk = 0; P.lean = 0; P.twist = 0; P.drop = 0; P.hipL = P.hipR = P.kneeL = P.kneeR = 0;
+				P.propL = 0; P.propR = 0; P.mouth = 0;
+				P.armL = GESTURE.pockets[ 0 ].slice(); P.armR = [ 0.05, 0.08, 0, 0.2 ];
+				P.blink = ( t * 0.35 + i ) % 1 < 0.04 ? 1 : 0;
+
+			}
+
+			if ( T < 0 ) {
+
+				// waiting their turn in the line up the walkway, talking, the camera out ready
+				const q = - T / per;
+				const s = 97.4 + q * 1.6, d = 38.6;
+				this._place( a, s, d, face( a, - 1, - 0.3 ), dt );
+				this._place( b, s + 0.6, d + 0.5, face( b, - 1, - 0.4 ), dt );
+				PB.armR = GESTURE.carry[ 1 ].slice(); PB.propR = i === 1 ? PROP.phone : PROP.camera;
+				PA.mouth = Math.max( 0, 0.3 * Math.sin( t * 7 + i ) ) * ( Math.sin( t * 0.5 + i ) > 0 ? 1 : 0 );
+				return;
+
+			}
+
+			if ( T < per ) {
+
+				// one beside him, the arm round him (the kid: both arms up); the other a step back with the camera
+				this._place( a, 95.2, 38.1, face( a, 0.2, 2.5 ), dt );
+				this._place( b, 95.6, 40.9, face( b, 0, - 1 ), dt );
+				PA.armL = [ 1.3, 1.0, - 0.4, 0.6 ];
+				PA.armR = a.p.look?.age === 2 ? [ 2.6, 0.3, 0, 0.4 ] : [ 0.05, 0.08, 0, 0.2 ];
+				PA.mouth = 0.5;
+				PB.armR = GESTURE.photo[ 1 ].slice(); PB.armL = GESTURE.photo[ 0 ].slice();
+				PB.propR = i === 1 ? PROP.phone : PROP.camera;
+				PB.mouth = T % 4 < 1.2 ? 0.35 : 0;
+				return;
+
+			}
+
+			// off together toward home, looking at the picture on the camera's screen
+			const k = ( T - per ) / 5;
+			this._place( a, 95.2 - k * 5, 38.6 + k, face( a, - 1, 0 ), dt );
+			this._place( b, 95.6 - k * 5 + 0.5, 39.4 + k, face( b, - 1, 0 ), dt );
+			for ( const P of [ PA, PB ] ) {
+
+				P.walk = 1;
+				P.phase = ( P.phase + dt * 6 ) % ( Math.PI * 2 );
+
+			}
+
+			PB.armR = GESTURE.text[ 1 ].slice(); PB.propR = i === 1 ? PROP.phone : PROP.camera; PB.headPitch = 0.4;
+			PA.headYaw = - 0.6;
+
+		} );
+
+	}
+
 	// ---- the walkers with jobs or stories: Brandon the Rays fan, a beer man
 	_walkers() {
 
@@ -290,6 +395,7 @@ export class Stories1B {
 		this._updateCaricature( dt, ns );
 		this._updateNguyens( dt, ns, R );
 		this._updatePhun( dt, ns );
+		this._updatePhotoOp( dt );
 		// Brandon gets looked over as he goes by; his head down at a Phillies run; at the last out he claps
 		// for them
 		const b = this.brandon;

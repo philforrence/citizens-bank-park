@@ -81,7 +81,9 @@ export default class Concourse1B {
 		// (P0's pool reads this: the whole troupe skipped when the view's elsewhere)
 		this.cast.bounds = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.55 + 60 );
 		this.people = new People1B( { cast: this.cast, walkway: this.W, concourse, bowl, obstacles: this.obstacles, carts: this.carts, seed: 1029 } );
-		this.stories = new Stories1B( this.people, { caricature: this.caricature, phun: this.phun } );
+		// where the Phanatic parks his four-wheeler on this concourse (A's plan: behind 111, in the 3rd)
+		this.obstacles.push( [ 95.7, 37.0, 1.2 ] );
+		this.stories = new Stories1B( this.people, { caricature: this.caricature, phun: this.phun, app } );
 		// the fans coming in through the gate
 		if ( this.gate ) {
 
