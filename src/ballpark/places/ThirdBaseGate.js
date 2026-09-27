@@ -20,6 +20,7 @@ import { buildTailgates } from './gate3b/Tailgate.js';
 import { buildFurniture } from './gate3b/Furniture.js';
 import { buildDrips } from './gate3b/Drips.js';
 import { buildCelebration } from './gate3b/Celebration.js';
+import { plantBeds } from './gate3b/Planting.js';
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -56,6 +57,17 @@ export default class ThirdBaseGate {
 		// the Majestic Clubhouse Store's corner pavilion (gate3b/Store.js): its block, its bed
 		this.store = buildStore( this.group, colliders, field );
 		this.obstacles.push( [ - 98.1, 21.2, 5.6 ] );
+		// the plaza's round planters (Exterior's, those it kept clear of the walk to the gate), planted as
+		// they were in October: fountain grass, fall mums, low evergreens
+		const start = [ - 112, 78 ], g = this.gate.at, dx = g[ 0 ] - start[ 0 ], dz = g[ 1 ] - start[ 1 ], l2 = dx * dx + dz * dz;
+		const clear = ( x, z, r ) => {
+
+			const t = Math.max( 0, Math.min( 1, ( ( x - start[ 0 ] ) * dx + ( z - start[ 1 ] ) * dz ) / l2 ) );
+			return Math.hypot( start[ 0 ] + dx * t - x, start[ 1 ] + dz * t - z ) > r + 3;
+
+		};
+
+		plantBeds( this.group, PLANTERS.filter( ( [ x, z, r ] ) => clear( x, z, r ) ).map( ( [ x, z, r ] ) => [ x, z, r, LEVELS.mainConcourse + LIFT + 0.6 ] ) );
 		const bed = this.store.bed;
 		for ( let t = - 0.5; t <= 0.5; t += 0.25 ) this.obstacles.push( [ bed.cen[ 0 ] + bed.d[ 0 ] * bed.L * t, bed.cen[ 1 ] + bed.d[ 1 ] * bed.L * t, 1.1 ] );
 		this._crowd( app, people );
@@ -305,6 +317,8 @@ export default class ThirdBaseGate {
 		const ex = app.exterior;
 		if ( ! ex ) return;
 		const skip = /^(facade|sidewalks|stair|channel|blade|suite|mcfaddens)/;
+		// the planters' sphere shrubs go: the beds are planted properly below (gate3b/Planting.js)
+		for ( const o of [ ...ex.group.children ] ) if ( o.isMesh && o.material?.name === 'shrubs' ) o.removeFromParent();
 		ex.group.updateMatrixWorld( true );
 		const box = { min: new Vector3(), max: new Vector3() };
 		for ( const o of ex.group.children ) {
@@ -444,7 +458,7 @@ export default class ThirdBaseGate {
 
 	}
 
-	update( dt, director ) {
+	update( dt, director, camera ) {
 
 		const w = night( director );
 		// the score: a run for the Phillies sets off a cheer, one for the Rays a groan (the ones following
@@ -491,7 +505,8 @@ export default class ThirdBaseGate {
 		this._updateFlash( Math.min( dt, 0.1 ) );
 		this.celebration?.update( Math.min( dt, 0.1 ) );
 		this.openGate?.poseTripods();
-		this.folk?.update();
+		// the near ones drawn in full, the far ones lighter (by the eye)
+		this.folk?.update( camera ? this.field.toField( camera.position.x, camera.position.z ) : null );
 
 	}
 

@@ -19,6 +19,7 @@ import { BONE, J, pose, boneXf, apply, unapply, unrotate, FOLK_FK } from './Folk
 //   folk.update()  (after moving and posing them)
 
 const MAX = 600;
+const NEAR = 38; // m from the eye: past it, the lighter body
 const K = 4; // vec4s per figure
 
 // the props: which bit shows them
@@ -73,7 +74,11 @@ export function propBits( list ) {
 
 // ---------------------------------------------------------------- the figure
 
-function figureGeometry() {
+// lod 1: the same figure for the far ones, fewer sides round everything and only the props that
+// read from a distance (umbrellas, ponchos, hoods, hair, bags, a vendor's tray, a sign, a towel, a hat)
+function figureGeometry( lod = 0 ) {
+
+	const sides = ( n ) => lod ? Math.max( 4, Math.round( n * 0.55 ) ) : n;
 
 	const m = new Mesher( { aRig: 4 } );
 	const rig = ( bA, bB = bA, w = 1, part = 0, bit = - 1 ) => ( { aRig: [ bA, bB, w, part + 64 * ( bit + 1 ) ] } );
@@ -121,7 +126,7 @@ function figureGeometry() {
 			[ 0.085, x, 0.0, 0.048, 0.052, shin ], [ 0.3, x, 0.005, 0.052, 0.057, shin ], [ 0.46, x, 0.0, 0.056, 0.058, shin ],
 			[ 0.51, x, 0.0, 0.058, 0.06, thigh, shin, 0.5 ], [ 0.57, x, 0.0, 0.063, 0.066, thigh ], [ 0.72, x, - 0.004, 0.073, 0.077, thigh ],
 			[ 0.86, x, 0.0, 0.085, 0.086, thigh ], [ 0.97, s * 0.095, 0.0, 0.09, 0.09, thigh, B.pelvis, 0.5 ],
-		], 8, PART.pants );
+		], sides( 8 ), PART.pants );
 		// the shoe: a sole, a toe box, a heel
 		const shoe = ( y0, y1, z0, z1, w0, w1 ) => {
 
@@ -144,27 +149,27 @@ function figureGeometry() {
 			[ 0.905, ax( 0.905 ), 0.0, 0.036, 0.038, fore ], [ 0.96, ax( 0.96 ), 0.0, 0.04, 0.042, fore ], [ 1.06, ax( 1.06 ), 0.0, 0.046, 0.048, fore ],
 			[ 1.15, ax( 1.15 ), 0.0, 0.048, 0.05, upper, fore, 0.5 ], [ 1.26, ax( 1.26 ), 0.0, 0.053, 0.055, upper ], [ 1.37, ax( 1.37 ), 0.0, 0.058, 0.06, upper ],
 			[ 1.45, s * 0.182, 0.0, 0.056, 0.058, upper, B.torso, 0.5 ], [ 1.48, s * 0.17, 0.0, 0.03, 0.035, B.torso ],
-		], 7, PART.sleeve );
+		], sides( 7 ), PART.sleeve );
 		// the hand, palm in, and a thumb
 		const hx = s * 0.222;
-		loft( [ [ 0.72, hx, - 0.01, 0.013, 0.028, fore ], [ 0.78, hx, - 0.005, 0.024, 0.043, fore ], [ 0.85, hx, 0.0, 0.028, 0.045, fore ], [ 0.915, hx - s * 0.002, 0.0, 0.026, 0.034, fore ] ], 6, PART.skin, { capBottom: true } );
-		m.tube( [ [ hx + s * 0.012, 0.87, - 0.025 ], [ hx + s * 0.018, 0.82, - 0.043 ], [ hx + s * 0.016, 0.79, - 0.05 ] ], [ 0.012, 0.011, 0.009 ], 4, { capB: true, ex: rig( fore, fore, 1, PART.skin ) } );
+		loft( [ [ 0.72, hx, - 0.01, 0.013, 0.028, fore ], [ 0.78, hx, - 0.005, 0.024, 0.043, fore ], [ 0.85, hx, 0.0, 0.028, 0.045, fore ], [ 0.915, hx - s * 0.002, 0.0, 0.026, 0.034, fore ] ], sides( 6 ), PART.skin, { capBottom: true } );
+		if ( ! lod ) m.tube( [ [ hx + s * 0.012, 0.87, - 0.025 ], [ hx + s * 0.018, 0.82, - 0.043 ], [ hx + s * 0.016, 0.79, - 0.05 ] ], [ 0.012, 0.011, 0.009 ], 4, { capB: true, ex: rig( fore, fore, 1, PART.skin ) } );
 
 	}
 
 	// the hips, and the jacket over them (it hangs past the belt); the chest; the collar
-	loft( [ [ 0.84, 0, 0.005, 0.15, 0.105, B.pelvis ], [ 0.93, 0, 0.0, 0.165, 0.112, B.pelvis ], [ 1.02, 0, 0.0, 0.16, 0.108, B.pelvis, B.torso, 0.5 ] ], 10, PART.pants, { capBottom: true } );
+	loft( [ [ 0.84, 0, 0.005, 0.15, 0.105, B.pelvis ], [ 0.93, 0, 0.0, 0.165, 0.112, B.pelvis ], [ 1.02, 0, 0.0, 0.16, 0.108, B.pelvis, B.torso, 0.5 ] ], sides( 10 ), PART.pants, { capBottom: true } );
 	loft( [
 		[ 0.86, 0, 0.003, 0.178, 0.123, B.pelvis, B.torso, 0.3 ], [ 0.98, 0, 0.0, 0.172, 0.118, B.pelvis, B.torso, 0.6 ],
 		[ 1.1, 0, 0.0, 0.166, 0.112, B.torso ], [ 1.24, 0, 0.0, 0.176, 0.117, B.torso ], [ 1.36, 0, 0.004, 0.19, 0.122, B.torso ],
 		[ 1.44, 0, 0.01, 0.168, 0.106, B.torso ], [ 1.49, 0, 0.012, 0.082, 0.072, B.torso ],
-	], 12, PART.top, { capBottom: true } );
+	], sides( 12 ), PART.top, { capBottom: true } );
 	// the neck
-	loft( [ [ 1.47, 0, 0.012, 0.054, 0.054, B.torso, B.head, 0.5 ], [ 1.56, 0, 0.006, 0.05, 0.05, B.head ] ], 8, PART.neck );
+	loft( [ [ 1.47, 0, 0.012, 0.054, 0.054, B.torso, B.head, 0.5 ], [ 1.56, 0, 0.006, 0.05, 0.05, B.head ] ], sides( 8 ), PART.neck );
 	// the head: an egg, a nose, the jaw a little narrower, ears
 	{
 
-		const W = 14, H = 10, c = J.head, r = [ 0.078, 0.102, 0.094 ];
+		const W = lod ? 8 : 14, H = lod ? 6 : 10, c = J.head, r = [ 0.078, 0.102, 0.094 ];
 		const rows = [];
 		for ( let j = 0; j <= H; j ++ ) {
 
@@ -185,22 +190,24 @@ function figureGeometry() {
 		}
 
 		for ( let j = 0; j < H; j ++ ) for ( let i = 0; i < W; i ++ ) m.quad( rows[ j ][ i ], rows[ j + 1 ][ i ], rows[ j + 1 ][ i + 1 ], rows[ j ][ i + 1 ] );
-		for ( const s of [ - 1, 1 ] ) m.tube( [ [ c[ 0 ] + s * 0.074, c[ 1 ] + 0.0, c[ 2 ] + 0.01 ], [ c[ 0 ] + s * 0.086, c[ 1 ] - 0.005, c[ 2 ] + 0.014 ] ], [ 0.02, 0.016 ], 5, { capB: true, ex: rig( B.head, B.head, 1, PART.head ) } );
+		if ( ! lod ) for ( const s of [ - 1, 1 ] ) m.tube( [ [ c[ 0 ] + s * 0.074, c[ 1 ] + 0.0, c[ 2 ] + 0.01 ], [ c[ 0 ] + s * 0.086, c[ 1 ] - 0.005, c[ 2 ] + 0.014 ] ], [ 0.02, 0.016 ], 5, { capB: true, ex: rig( B.head, B.head, 1, PART.head ) } );
 
 	}
 
-	props( m, rig );
+	props( m, rig, lod );
 	return m.geometry();
 
 }
 
 // The props, each into its bone's rest frame from the pose it's held in
-function props( m, rig ) {
+function props( m, rig, lod = 0 ) {
 
 	const B = BONE;
 	// a prop part built in the posed frame of `pose` on bone b, then taken back to the rest frame
+	const far = new Set( [ PART.hood, PART.poncho, PART.hair, PART.bag, PART.strap, PART.canopy, PART.shaft, PART.tray, PART.sign, PART.towel, PART.shopbag, PART.hat ] );
 	const held = ( b, q, part, bit, build ) => {
 
+		if ( lod && ! far.has( part ) ) return;
 		const xf = boneXf( b, q );
 		const sub = new Mesher();
 		build( sub, ( p ) => apply( xf, p ) );
@@ -263,7 +270,7 @@ function props( m, rig ) {
 	// the hood up: a shell round the top, sides and back of the head, open at the face
 	held( B.head, rest, T.hood, P.hood, ( s ) => {
 
-		const c = J.head, W = 12, H = 7, r = [ 0.1, 0.122, 0.112 ];
+		const c = J.head, W = lod ? 6 : 12, H = lod ? 4 : 7, r = [ 0.1, 0.122, 0.112 ];
 		const rows = [];
 		for ( let j = 0; j <= H; j ++ ) {
 
@@ -295,7 +302,7 @@ function props( m, rig ) {
 	held( B.torso, rest, T.poncho, P.poncho, ( s ) => {
 
 		const rings = [ [ 1.53, 0.07, 0.065 ], [ 1.47, 0.19, 0.135 ], [ 1.38, 0.255, 0.155 ], [ 1.12, 0.27, 0.175 ], [ 0.88, 0.29, 0.195 ], [ 0.72, 0.3, 0.205 ] ];
-		const n = 14, ids = [];
+		const n = lod ? 8 : 14, ids = [];
 		for ( const [ y, rx, rz ] of rings ) {
 
 			const row = [];
@@ -422,7 +429,7 @@ function props( m, rig ) {
 	held( B.torso, rest, T.tray, P.tray, ( s ) => {
 
 		s.box( [ 0, 1.02, - 0.3 ], [ 0.5, 0.08, 0.3 ] );
-		for ( let i = 0; i < 6; i ++ ) s.box( [ - 0.18 + ( i % 3 ) * 0.18, 1.1, - 0.37 + Math.floor( i / 3 ) * 0.14 ], [ 0.12, 0.1, 0.1 ] );
+		if ( ! lod ) for ( let i = 0; i < 6; i ++ ) s.box( [ - 0.18 + ( i % 3 ) * 0.18, 1.1, - 0.37 + Math.floor( i / 3 ) * 0.14 ], [ 0.12, 0.1, 0.1 ] );
 
 	} );
 	held( B.torso, rest, T.strap, P.tray, ( s ) => {
@@ -530,10 +537,11 @@ function backsAtlas() {
 
 const folkModule = new ShaderModule( { name: 'w1-folk-fk', deps: [ commonModule ], code: FOLK_FK } );
 
-function folkMaterial( info, moved, backs ) {
+function folkMaterial( info, moved, backs, base = 0 ) {
 
 	const mat = standard( {
 		name: 'w1-folk', roughness: 0.85, side: 'double', modules: [ commonModule, folkModule ],
+		uniforms: { base: [ 'f32', base ] },
 		storage: { folkInfo: info, folkMoved: moved },
 		textures: { folkBacks: backs },
 		attributes: { aRig: 'vec4f' },
@@ -541,7 +549,8 @@ function folkMaterial( info, moved, backs ) {
 		vertex: /* wgsl */`
 	// info: 0 (phase, walk, seed, look) 1 (flexL, abductL, elbowL, flexR) 2 (abductR, elbowR, lean, twist)
 	// 3 (yaw, pitch, sit, props)
-	let base = v.instance * ${ K }u;
+	let slot = v.instance + u32( mat.base + 0.5 );
+	let base = slot * ${ K }u;
 	let i0 = folkInfo[ base ]; let i1 = folkInfo[ base + 1u ]; let i2 = folkInfo[ base + 2u ]; let i3 = folkInfo[ base + 3u ];
 	let look = u32( i0.w );
 	let props = u32( i3.w );
@@ -603,7 +612,7 @@ function folkMaterial( info, moved, backs ) {
 	v.useWorld = true;
 	v.worldPos = ( v.model * vec4f( pp, 1.0 ) ).xyz;
 	v.worldNormal = normalize( ( v.model * vec4f( nn, 0.0 ) ).xyz );
-	v.prevWorldPos = v.worldPos - folkMoved[ v.instance ].xyz;
+	v.prevWorldPos = v.worldPos - folkMoved[ slot ].xyz;
 	o.vPart = part;
 	o.vLook = vec4f( f32( look & 0xFFFFu ), f32( look >> 16u ), seed, f32( props ) );
 	// the rest pose's own position for the patterns (a kid's face, a big man's jersey, drawn as on anyone)
@@ -902,20 +911,25 @@ export class Folk {
 	constructor( parent, field ) {
 
 		this.field = field;
-		this.info = new Float32Array( MAX * K * 4 );
-		this.infoBuffer = new StorageBuffer( { label: 'folkInfo', count: MAX * K, type: 'vec4f' } );
-		this.moved = new Float32Array( MAX * 4 );
-		this.movedBuffer = new StorageBuffer( { label: 'folkMoved', count: MAX, type: 'vec4f' } );
+		this.info = new Float32Array( MAX * 2 * K * 4 );
+		this.infoBuffer = new StorageBuffer( { label: 'folkInfo', count: MAX * 2 * K, type: 'vec4f' } );
+		this.moved = new Float32Array( MAX * 2 * 4 );
+		this.movedBuffer = new StorageBuffer( { label: 'folkMoved', count: MAX * 2, type: 'vec4f' } );
 		this.backs = backsAtlas();
-		this.geometry = figureGeometry();
-		this.material = folkMaterial( this.infoBuffer, this.movedBuffer, this.backs );
-		this.mesh = new InstancedMesh( this.geometry, this.material, MAX );
+		// the near ones (within NEAR m of the eye) in full, the rest from lighter bodies
+		this.mesh = new InstancedMesh( figureGeometry( 0 ), folkMaterial( this.infoBuffer, this.movedBuffer, this.backs, 0 ), MAX );
+		this.far = new InstancedMesh( figureGeometry( 1 ), folkMaterial( this.infoBuffer, this.movedBuffer, this.backs, MAX ), MAX );
 		this.mesh.name = 'w1-folk';
-		this.mesh.frustumCulled = false;
-		this.mesh.castShadow = false;
-		this.mesh.receiveShadow = true;
-		this.mesh.userData.dynamic = true;
-		parent.add( this.mesh );
+		this.far.name = 'w1-folk-far';
+		for ( const m of [ this.mesh, this.far ] ) {
+
+			m.frustumCulled = false;
+			m.castShadow = false;
+			m.receiveShadow = true;
+			m.userData.dynamic = true;
+			parent.add( m );
+
+		}
 		// a soft dark patch under each (grounds them in the lamplight and on the wet paving)
 		const blobGeo = new PlaneGeometry( 1, 1 );
 		blobGeo.rotateX( - Math.PI / 2 );
@@ -928,7 +942,7 @@ export class Folk {
 		this.blobs.layers.set( 2 );
 		this.blobs.userData.dynamic = true;
 		// where they are (for ?focus=: an instanced mesh's own box is taken from its matrices at the build, all at the origin)
-		for ( const m of [ this.mesh, this.blobs ] ) m.boundingSphere = new Sphere( new Vector3( - 100, 7, 60 ), 130 );
+		for ( const m of [ this.mesh, this.far, this.blobs ] ) m.boundingSphere = new Sphere( new Vector3( - 100, 7, 60 ), 130 );
 		parent.add( this.blobs );
 		this.list = [];
 		this._m = new Matrix4();
@@ -952,11 +966,12 @@ export class Folk {
 
 	}
 
-	update() {
+	// eye: the camera's [ x, z ] in the field frame (the near ones are drawn in full)
+	update( eye ) {
 
 		const M = this._m, q = this._q, v = this._v, s = this._s;
 		const rot = this.field.group.rotation.y, cy = Math.cos( rot ), sy = Math.sin( rot );
-		let n = 0;
+		let n = 0, nNear = 0, nFar = 0;
 		for ( const f of this.list ) {
 
 			if ( ! f.visible ) {
@@ -966,15 +981,17 @@ export class Folk {
 
 			}
 
+			const near = ! eye || ( Math.hypot( f.x - eye[ 0 ], f.z - eye[ 1 ] ) < NEAR );
+			const slot = near ? nNear ++ : MAX + nFar ++;
 			const dx = f.px === undefined ? 0 : f.x - f.px, dz = f.px === undefined ? 0 : f.z - f.pz, dy = f.px === undefined ? 0 : f.y - f.py;
-			this.moved.set( [ dx * cy + dz * sy, dy, - dx * sy + dz * cy, 0 ], n * 4 );
+			this.moved.set( [ dx * cy + dz * sy, dy, - dx * sy + dz * cy, 0 ], slot * 4 );
 			f.px = f.x; f.py = f.y; f.pz = f.z;
 			q.setFromAxisAngle( this._up, f.yaw );
 			M.compose( v.set( f.x, f.y, f.z ), q, s.setScalar( f.scale ) );
-			this.mesh.setMatrixAt( n, M );
+			( near ? this.mesh : this.far ).setMatrixAt( near ? slot : slot - MAX, M );
 			M.compose( v.set( f.x, f.y + 0.012, f.z ), q, s.set( 0.75 * f.scale, 1, 0.6 * f.scale ) );
 			this.blobs.setMatrixAt( n, M );
-			const p = f.pose, o = n * K * 4;
+			const p = f.pose, o = slot * K * 4;
 			const I = this.info;
 			I[ o ] = f.phase; I[ o + 1 ] = Math.min( 1, f.walk ); I[ o + 2 ] = f.seed; I[ o + 3 ] = f.look;
 			I[ o + 4 ] = p.flexL; I[ o + 5 ] = p.abductL; I[ o + 6 ] = p.elbowL; I[ o + 7 ] = p.flexR;
@@ -984,14 +1001,19 @@ export class Folk {
 
 		}
 
-		this.mesh.count = Math.max( 1, n );
+		this.mesh.count = Math.max( 1, nNear );
+		this.far.count = Math.max( 1, nFar );
 		this.blobs.count = Math.max( 1, n );
-		if ( ! n ) this.mesh.setMatrixAt( 0, M.makeScale( 0, 0, 0 ) );
+		if ( ! nNear ) this.mesh.setMatrixAt( 0, M.makeScale( 0, 0, 0 ) );
+		if ( ! nFar ) this.far.setMatrixAt( 0, M.makeScale( 0, 0, 0 ) );
+		if ( ! n ) this.blobs.setMatrixAt( 0, M.makeScale( 0, 0, 0 ) );
 		this.mesh.instanceMatrix.needsUpdate = true;
+		this.far.instanceMatrix.needsUpdate = true;
 		this.blobs.instanceMatrix.needsUpdate = true;
 		this.infoBuffer.write( this.info );
 		this.movedBuffer.write( this.moved );
 		this.count = n;
+		this.counts = { near: nNear, far: nFar };
 
 	}
 

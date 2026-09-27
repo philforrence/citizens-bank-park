@@ -228,14 +228,14 @@ function grow( x, y0, z, seed, bark, leaves, o = {} ) {
 
 	}
 
-	bark.tube( trunk, tr, 8 );
+	bark.tube( trunk, tr, 7 );
 	const top = trunk[ nT ];
 	const cards = [];
 	// a branch from p along dir, length L, base radius rb, level lv: a gently curving tube, its children
 	// along it, leaf cards where it's thin
 	const branch = ( p, dir, L, rb, lv ) => {
 
-		const n = lv < 2 ? 4 : lv < 3 ? 3 : 2;
+		const n = lv < 2 ? 4 : 2;
 		const pts = [ p ], radii = [ rb ];
 		let d = norm( dir ), q = p;
 		// up toward the light as it goes, the thin ones drooping a little at the tips
@@ -249,7 +249,7 @@ function grow( x, y0, z, seed, bark, leaves, o = {} ) {
 
 		}
 
-		bark.tube( pts, radii, lv < 2 ? 6 : lv < 3 ? 4 : 3, { capB: true } );
+		bark.tube( pts, radii, lv < 2 ? 5 : lv < 3 ? 4 : 3, { capB: lv < 3 } );
 		if ( lv >= 3 || L < 0.45 ) {
 
 			cards.push( [ q, d, lv ] );
@@ -300,7 +300,7 @@ function grow( x, y0, z, seed, bark, leaves, o = {} ) {
 	// the leaf cards: a cluster of crossed sprays at each tip, fewer where the crown has thinned
 	for ( const [ p0, d ] of cards ) {
 
-		const nc = r() < thin ? 2 : 3;
+		const nc = r() < thin ? 3 : 4;
 		for ( let c = 0; c < nc; c ++ ) {
 
 			const s = 0.85 + r() * 0.55;

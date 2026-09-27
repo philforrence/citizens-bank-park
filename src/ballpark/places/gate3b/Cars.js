@@ -70,9 +70,12 @@ function body( type ) {
 
 	const wheel = ( x, z, r, w ) => {
 
-		m.tube( [ [ x - w / 2, r, z ], [ x + w / 2, r, z ] ], [ r, r ], 10, { capA: true, capB: true, ex: {} } );
+		// 7 sides, capped on the outside only (a parked lot's worth of wheels adds up)
+		const out = x > 0;
+		const n0 = m.count;
+		m.tube( [ [ x - w / 2, r, z ], [ x + w / 2, r, z ] ], [ r, r ], 7, { capA: ! out, capB: out, ex: {} } );
 		const n = m.count;
-		for ( let i = n - 24; i < n; i ++ ) { m.uv[ i * 2 ] = 2.5; m.uv[ i * 2 + 1 ] = 0.5; }
+		for ( let i = n0; i < n; i ++ ) { m.uv[ i * 2 ] = 2.5; m.uv[ i * 2 + 1 ] = 0.5; }
 
 	};
 
@@ -321,7 +324,8 @@ export class Cars {
 	let col = select( vec3f( 1.0, 0.9, 0.72 ), vec3f( 1.0, 0.06, 0.03 ), rear );
 	s.albedo = vec3f( 0.0 );
 	s.emissive = col * select( 2.5, 1.2, rear );
-	s.alpha = beams * along * smoothstep( 0.2, 0.7, frame.wet ) * smoothstep( 0.1, 0.7, frame.night ) * 0.5;
+	// a reflection: seen along the road from its level, not from above
+	s.alpha = beams * along * smoothstep( 0.2, 0.7, frame.wet ) * smoothstep( 0.1, 0.7, frame.night ) * 0.45 * ( 1.0 - smoothstep( 0.08, 0.3, abs( in.V.y ) ) );
 ` } );
 		glareMat.underwaterLighting = 'none';
 		this.glare = new InstancedMesh( gm.geometry(), glareMat, fleet.length );
