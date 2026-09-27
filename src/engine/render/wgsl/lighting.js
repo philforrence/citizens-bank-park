@@ -380,10 +380,38 @@ fn studioEnvDiffuse( N: vec3f ) -> vec3f {
 fn shadeSurface( s0: Surface, P: vec3f, V: vec3f, pixel: vec2f ) -> vec3f {
 	var s = s0;
 #if !DRY
-	// rain: what faces the sky soaks up water, darker and glossy (materials under cover define DRY)
-	let wetK = frame.wet * smoothstep( 0.25, 0.75, s.normal.y ) * ( 1.0 - s.metalness );
-	s.albedo = s.albedo * mix( 1.0, 0.6, wetK * smoothstep( 0.25, 0.9, s.roughness ) );
-	s.roughness = mix( s.roughness, min( s.roughness, 0.14 ), wetK );
+	// ---- L (light and night): rain. What faces the sky gets wet, each kind of surface its own way
+	// (materials under cover, or with their own rain, define DRY). It used to turn everything to wet
+	// concrete: every jersey, flag and fan glossy as plastic.
+	if ( frame.wet > 0.001 ) {
+		let r0 = s.roughness;
+#if WET_FABRIC
+		// people and cloth (the crowd, the staff, flags, bunting): the fabric soaks through, darker and
+		// a little richer, and stays matte; skin takes a thin sheen; what's smooth already (a plastic
+		// poncho, vinyl, a helmet, the eyes) beads and shines. A driving rain wets more than the tops
+		let wetF = frame.wet * smoothstep( -0.35, 0.6, s.normal.y ) * ( 1.0 - s.metalness );
+		let fabric = smoothstep( 0.62, 0.74, r0 );
+		let slick = 1.0 - smoothstep( 0.3, 0.45, r0 );
+		let skin = ( 1.0 - fabric ) * ( 1.0 - slick );
+		let soaked = s.albedo * mix( 1.0, 0.66, wetF * fabric ) * mix( 1.0, 0.94, wetF * skin );
+		s.albedo = mix( vec3f( luminance( soaked ) ), soaked, 1.0 + 0.12 * wetF * fabric );
+		s.roughness = r0 - wetF * ( fabric * 0.1 + skin * max( r0 - 0.36, 0.0 ) );
+		s.roughness = mix( s.roughness, min( s.roughness, 0.1 ), wetF * slick );
+#else
+		// hard ground (concrete, asphalt, painted steel, the seats' plastic): porous stuff darkens, and a
+		// film of water lies on it, thin in places and pooled in others, so its reflections of the lights
+		// break up the way they do on a wet concourse (not one even varnish)
+		let wetK = frame.wet * smoothstep( 0.25, 0.75, s.normal.y ) * ( 1.0 - s.metalness );
+		let pn = perlin2( P.xz * 0.45 ) + 0.5 * perlin2( P.xz * 1.9 + vec2f( 17.3, 5.1 ) );
+		let pool = smoothstep( -0.05, 0.45, pn );
+		s.albedo = s.albedo * mix( 1.0, 0.58, wetK * smoothstep( 0.25, 0.9, r0 ) );
+		s.roughness = mix( r0, min( r0, mix( 0.3, 0.05, pool ) ), wetK );
+		// bare metal (the rails, the seat standards) beads up: its sheen tightens
+		let wetM = frame.wet * smoothstep( -0.2, 0.6, s.normal.y ) * s.metalness;
+		s.roughness = mix( s.roughness, s.roughness * 0.55, wetM );
+#endif
+	}
+	// ---- end L
 #endif
 	let N = s.normal;
 	let rough = clamp( s.roughness, 0.03, 1.0 );
