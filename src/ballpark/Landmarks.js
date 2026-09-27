@@ -834,15 +834,6 @@ export class Landmarks {
 				c.font = '700 34px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'CRAB FRIES', W * 0.57, H * 0.76 );
 
 			} ],
-			[ "CAMPO'S", ( c, W, H ) => {
-
-				c.fillStyle = '#ffffff'; c.fillRect( 0, 0, W, H );
-				c.strokeStyle = '#1d6b34'; c.lineWidth = 12; c.strokeRect( 8, 8, W - 16, H - 16 );
-				c.fillStyle = '#c8102e'; c.beginPath(); c.ellipse( W * 0.33, H / 2, 150, 46, 0, 0, Math.PI * 2 ); c.fill();
-				c.fillStyle = '#ffffff'; c.font = 'italic 900 64px Georgia, serif'; c.fillText( "Campo's", W * 0.33, H * 0.54 );
-				c.fillStyle = '#1d6b34'; c.font = 'italic 700 34px Georgia, serif'; c.fillText( "Philadelphia's Cheesesteak", W * 0.72, H * 0.54, W * 0.5 );
-
-			} ],
 			[ 'PLANET HOAGIE', ( c, W, H ) => {
 
 				c.fillStyle = '#1d6b34'; c.fillRect( 0, 0, W, H );
@@ -857,11 +848,15 @@ export class Landmarks {
 				c.fillStyle = '#c8102e'; c.font = '900 80px Georgia, serif'; c.fillText( 'SEASONS PIZZA', W / 2, H * 0.54, W - 60 );
 
 			} ],
-			[ 'GOLDEN BEAR', ( c, W, H ) => {
+			[ "RICK'S STEAKS", ( c, W, H ) => {
 
-				c.fillStyle = '#6b3f10'; c.fillRect( 0, 0, W, H );
-				c.fillStyle = '#f2c14e'; c.font = '800 76px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'GOLDEN BEAR', W / 2, H * 0.5, W - 60 );
-				c.font = '600 30px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'ICE CREAM', W / 2, H * 0.82 );
+				// a white box, RICKS in red under a gold crown, STEAKS
+				c.fillStyle = '#f4f1ea'; c.fillRect( 0, 0, W, H );
+				c.strokeStyle = '#c8102e'; c.lineWidth = 8; c.strokeRect( 8, 8, W - 16, H - 16 );
+				c.fillStyle = '#d4a017';
+				c.beginPath(); c.moveTo( W * 0.24, H * 0.36 ); for ( let k = 0; k <= 4; k ++ ) { c.lineTo( W * 0.24 + k * 22, H * ( k % 2 ? 0.2 : 0.12 ) ); } c.lineTo( W * 0.24 + 88, H * 0.36 ); c.closePath(); c.fill();
+				c.fillStyle = '#c8102e'; c.font = '900 86px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'RICKS', W * 0.42, H * 0.64 );
+				c.fillStyle = '#1a1a1a'; c.font = '800 54px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'STEAKS', W * 0.75, H * 0.64 );
 
 			} ],
 			[ 'BREWERYTOWN', ( c, W, H ) => {
@@ -903,24 +898,47 @@ export class Landmarks {
 		s.emissive = vec3f( 1.0, 0.86, 0.62 ) * ( 1.0 - smoothstep( 0.05, 0.08, g.x ) ) * mix( 0.8, 2.0, frame.night );
 	}
 ` } );
-		// the kitchen through the counter: stainless, shelves, a menu board across the top, lit warm
+		// the kitchen through the open service window: traced 1.5 m back (the view ray into the stand) to a
+		// white-tiled back wall with a stainless counter, the dark shapes of the grills and fryers, a hood
+		// with its lights, the floor; warm light; the menu board across the top
 		const kitchen = standard( { name: 'alley-kitchens', color: new Color( 0.06, 0.055, 0.05 ), roughness: 0.3, modules: [ commonModule ],
 			surface: /* wgsl */`
-	let y = in.P.y - ${ STREET.toFixed( 3 ) };
-	// a dim, warm-lit kitchen: steel shelving, a hood, shapes of equipment
-	let steel = 0.8 + 0.2 * step( 0.5, fract( in.P.x * 1.3 ) );
-	let shelf = step( 0.92, fract( y / 0.45 ) );
-	var c = vec3f( 0.05, 0.05, 0.052 ) * steel + vec3f( 0.15 ) * shelf;
-	var e = vec3f( 1.0, 0.86, 0.62 ) * ( 0.05 + 0.08 * shelf ) * steel;
+	let y = in.uv.y - ${ STREET.toFixed( 3 ) };
+	let xw = in.uv.x * 7.8;
+	var c = vec3f( 0.0 );
+	var e = vec3f( 0.0 );
 	if ( y > 2.25 ) {
 		// the menu board: dark with rows of white items and yellow prices
 		let row = fract( ( y - 2.25 ) / 0.11 );
-		let item = step( 0.35, row ) * step( row, 0.75 ) * step( 0.2, fract( in.P.x * 0.9 ) ) * step( fract( in.P.x * 0.9 ), 0.72 );
+		let item = step( 0.35, row ) * step( row, 0.75 ) * step( 0.2, fract( xw * 0.25 ) ) * step( fract( xw * 0.25 ), 0.72 );
 		c = vec3f( 0.02 );
-		e = mix( vec3f( 0.0 ), select( vec3f( 1.0, 0.8, 0.2 ), vec3f( 0.9 ), fract( in.P.x * 0.9 ) < 0.55 ), item ) * 0.6;
+		e = mix( vec3f( 0.0 ), select( vec3f( 1.0, 0.8, 0.2 ), vec3f( 0.9 ), fract( xw * 0.25 ) < 0.55 ), item ) * 0.6;
+	} else {
+		let N = normalize( in.N );
+		let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), N ) );
+		let Vd = normalize( in.P - frame.cameraPos );
+		let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - N ), 0.05 ) );
+		let tBack = 1.5 / rd.z;
+		let tFloor = select( 1e5, - y / rd.y, rd.y < 0.0 );
+		let hitB = vec3f( xw, y, 0.0 ) + rd * tBack;
+		var col = vec3f( 0.0 );
+		if ( tFloor < tBack ) {
+			col = vec3f( 0.12, 0.1, 0.09 );
+		} else {
+			// the back wall: white tile, the stainless counter along it, equipment shapes, the hood
+			col = vec3f( 0.55, 0.53, 0.5 ) * ( 0.85 + 0.15 * step( 0.06, fract( hitB.y / 0.15 ) ) * step( 0.06, fract( hitB.x / 0.15 ) ) );
+			if ( hitB.y < 0.95 ) { col = vec3f( 0.35, 0.36, 0.37 ) * ( 0.8 + 0.2 * step( 0.5, fract( hitB.x * 1.1 ) ) ); }
+			let unit = fract( hitB.x / 1.6 );
+			if ( hitB.y > 0.95 && hitB.y < 1.25 + 0.3 * step( 0.5, fract( hitB.x / 3.2 ) ) && unit < 0.7 ) { col = vec3f( 0.08, 0.08, 0.085 ); }
+			if ( hitB.y > 1.9 ) { col = vec3f( 0.3, 0.31, 0.32 ); }
+		}
+		// the light: warm, brightest under the hood and near the window
+		let lightK = 0.35 + 0.4 * smoothstep( 0.8, 1.9, hitB.y ) * step( tBack, tFloor );
+		c = col * 0.25;
+		e = col * vec3f( 1.0, 0.82, 0.6 ) * lightK;
 	}
 	s.albedo = c;
-	s.emissive = e * mix( 0.7, 1.2, frame.night );
+	s.emissive = e * mix( 0.45, 1.1, frame.night );
 ` } );
 		const tvMat = this._alleyTV || ( this._alleyTV = standard( { name: 'alley-tvs', color: new Color( 0.02, 0.02, 0.025 ), roughness: 0.2,
 			surface: 'let u = in.uv; s.emissive = mix( vec3f( 0.12, 0.3, 0.1 ), vec3f( 0.1, 0.16, 0.35 ), step( 0.45, u.y ) ) * 0.9 + vec3f( 0.5, 0.35, 0.2 ) * step( abs( u.x - 0.5 ), 0.06 ) * step( abs( u.y - 0.35 ), 0.1 ) * 0.6;' } ) );
@@ -934,6 +952,8 @@ export class Landmarks {
 			for ( let j = 0; j < n; j ++ ) {
 
 				const a = x0 + ( x1 - x0 ) * j / n + 0.6, b = x0 + ( x1 - x0 ) * ( j + 1 ) / n - 0.6;
+				// (for the people: staff behind the counter, a line in front)
+				( this.alleyStands ||= [] ).push( { mid: [ ( a + b ) / 2, z + 0.1 ], n: [ 0, 1 ], u: [ 1, 0 ], inset: 0.0 } );
 				const v0 = k / vendors.length, v1 = ( k + 1 ) / vendors.length;
 				k = ( k + 1 ) % vendors.length;
 				// the sign, 1.4 m tall, over the canopy

@@ -267,7 +267,7 @@ const rnd = ( s ) => {
 
 export class People {
 
-	constructor( { field, bowl, concourse, exterior } ) {
+	constructor( { field, bowl, concourse, exterior, landmarks } ) {
 
 		this.info = new Float32Array( MAX * 4 );
 		this.infoBuffer = new StorageBuffer( { label: 'peopleInfo', count: MAX, type: 'vec4f' } );
@@ -289,7 +289,7 @@ export class People {
 		this._s = new Vector3();
 		this._up = new Vector3( 0, 1, 0 );
 		this._seed = 1;
-		this._stands( concourse );
+		this._stands( [ ...( concourse?.standSpots || [] ), ...( landmarks?.alleyStands || [] ) ] );
 		this._walkway( bowl );
 		this._aisles( bowl );
 		this._gates( exterior );
@@ -309,14 +309,17 @@ export class People {
 	}
 
 	// ---- the concession stands: two behind each counter, a line in front
-	_stands( concourse ) {
+	_stands( spots ) {
 
 		this.stands = [];
-		for ( const st of concourse?.standSpots || [] ) {
+		for ( const st of spots ) {
 
 			const { mid, n, u } = st;
 			const yaw = Math.atan2( - n[ 0 ], - n[ 1 ] ); // facing +n (out over the counter)
-			const staff = [ - 1, 1 ].map( ( k ) => this._add( ROLE.staff, mid[ 0 ] + u[ 0 ] * k * 1.6 - n[ 0 ] * 0.6, STREET, mid[ 1 ] + u[ 1 ] * k * 1.6 - n[ 1 ] * 0.6, yaw ) );
+			// behind the counter (the Alley's kitchens are painted into their windows: there the staff stand
+			// in the window itself, behind the counter's front)
+			const inset = st.inset ?? 0.6;
+			const staff = [ - 1, 1 ].map( ( k ) => this._add( ROLE.staff, mid[ 0 ] + u[ 0 ] * k * 1.6 - n[ 0 ] * inset, STREET, mid[ 1 ] + u[ 1 ] * k * 1.6 - n[ 1 ] * inset, yaw ) );
 			// the line: up to eight people out from the counter, facing it
 			const line = [];
 			for ( let q = 0; q < 8; q ++ ) {
