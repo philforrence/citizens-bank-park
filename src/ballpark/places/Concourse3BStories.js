@@ -15,7 +15,7 @@ import { RAIL_D } from './Concourse3BPeople.js';
 //   Eddie Pagano from Mayfair, 67, standing room behind 125 (the photos from both nights show standing
 //     room there), a season ticket at the Vet from 1971: the 1980 maroon cap, keeping score in his book
 //     every play; at the last out he puts the book down and wipes his eyes
-//   Jen and Dave from Manayunk at the rail behind 128, huddled in clear ponchos on the 27th, his arm
+//   Jen and Dave from Manayunk at the rail behind 128, sharing the one clear poncho on the 27th, his arm
 //     round her; on the 29th, rally towels
 //   Stan at the hot chocolate cart, his thirtieth season selling at the ballpark (he started at the Vet in
 //     1979); on the 27th they sold 15,000 cups of it, and his line never stops
@@ -130,7 +130,7 @@ export class Stories {
 			mike: this._add( { top: TOP.satin, color: COLOR.red, hat: HAT.knitRed, build: 3, facial: 4, skin: 0, hair: 1, pants: 0, shoes: 2 }, { s: q[ 1 ].s, d: q[ 1 ].d, scale: 1.02 } ),
 			tyler: this._add( { top: TOP.jacket, color: COLOR.red, hat: HAT.capRed, age: 2, skin: 0, hair: 4, pants: 1, shoes: 0 }, { s: q[ 2 ].s, d: q[ 2 ].d, scale: 0.7 } ),
 			denise: this._add( { top: TOP.puffer, color: COLOR.black, female: true, hairStyle: 1, hair: 3, hat: HAT.knitPlain, scarf: 1, gloves: true, pants: 1, shoes: 2 }, { s: q[ 0 ].s, d: q[ 0 ].d, scale: 0.94 } ),
-			katie: this._add( { top: TOP.jacket, color: COLOR.pink, female: true, age: 2, hairStyle: 2, hair: 4, hat: HAT.knitRed, pants: 0, shoes: 0 }, { s: q[ 0 ].s - 0.55, d: q[ 0 ].d + 0.35, scale: 0.56 } ),
+			katie: this._add( { top: TOP.jacket, color: COLOR.pink, female: true, age: 2, hairStyle: 2, hair: 4, hat: HAT.knitRed, pants: 0, shoes: 0 }, { s: q[ 0 ].s + 0.35, d: q[ 0 ].d + 0.5, scale: 0.56 } ),
 			spots: q,
 		};
 		const F = this.fam;
@@ -167,11 +167,13 @@ export class Stories {
 		const q = [ this._railSpot( 41.3 ), this._railSpot( 42.05 ) ];
 		if ( q.some( ( x ) => ! x ) ) return;
 		const jen = this._add( { top: TOP.homeJersey, color: COLOR.white, sleeves: COLOR.grey, back: BACK.VICTORINO, chest: CHEST.script, female: true, hairStyle: 1, hair: 2, hat: HAT.capRed, pants: 1, shoes: 0 },
-			{ s: q[ 0 ].s, d: q[ 0 ].d, scale: 0.93, wet: { poncho: 1, hat: HAT.hood } } );
+			{ s: q[ 0 ].s, d: q[ 0 ].d, scale: 0.93, wet: { hat: HAT.knitRed } } );
 		const dave = this._add( { top: TOP.hoodie, color: COLOR.grey, chest: CHEST.block, hat: HAT.capRed, facial: 2, build: 1, pants: 0, shoes: 0 },
-			{ s: q[ 1 ].s, d: q[ 1 ].d, scale: 1.0, wet: { poncho: 1, hat: HAT.hood } } );
+			{ s: q[ 1 ].s, d: q[ 1 ].d, scale: 1.0, wet: { poncho: 7, hat: HAT.hood } } );
 		if ( ! dave ) return;
-		this.couple = { jen, dave, sJ: q[ 0 ].s, sD: q[ 1 ].s - 0.2 };
+		// on the 27th under the one poncho, pressed together; on the 29th an arm's length apart
+		// (facing the field, further along the concourse is to the left: she is on his left)
+		this.couple = { jen, dave, sJ: q[ 1 ].s, sD: q[ 0 ].s + 0.2, sDwet: q[ 1 ].s - 0.36 };
 		// his left arm round her shoulders; her right on his back
 		this.couple.around = armIK( - 1, [ - 0.72, 1.33, 0.02 ] );
 		this.couple.back = armIK( 1, [ 0.5, 1.12, 0.12 ] );
@@ -358,12 +360,13 @@ export class Stories {
 		this._place( F.denise, q[ 0 ].s, q[ 0 ].d, face, dt );
 		// Katie: the cotton candy, her other hand up in her mom's; she jumps at the last out
 		const k = F.katie.p.pose;
-		k.walk = 0; k.propR = PROP.cottonCandy; k.propL = 0;
-		k.armR = GESTURE.carry[ 1 ].slice();
-		k.armL = [ 1.1, 0.5, - 0.35, 0.3 ];
+		k.walk = 0; k.propL = PROP.cottonCandy; k.propR = 0;
+		k.armL = GESTURE.carryL[ 0 ].slice();
+		k.armR = [ 1.1, 0.5, - 0.35, 0.3 ];
 		k.headPitch = - 0.3;
 		k.drop = ns.celebrate ? - Math.max( 0, Math.sin( t * 8 ) ) * 0.08 : 0;
-		this._place( F.katie, q[ 0 ].s - 0.5, q[ 0 ].d + 0.3, face - 0.3, dt );
+		// on her mother's left (further along), a step behind, between her and her dad
+		this._place( F.katie, q[ 0 ].s + 0.35, q[ 0 ].d + 0.5, face + 0.3, dt );
 
 	}
 
@@ -435,7 +438,7 @@ export class Stories {
 		}
 
 		this._place( C.jen, C.sJ, C.jen.d, face, dt );
-		this._place( C.dave, C.sD, C.dave.d, face, dt );
+		this._place( C.dave, ns.first ? C.sDwet : C.sD, C.dave.d, face, dt );
 
 	}
 

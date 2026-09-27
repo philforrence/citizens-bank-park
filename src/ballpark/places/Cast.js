@@ -50,7 +50,7 @@ export const PROP = {
 const UPRIGHT = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.bag, PROP.cottonCandy, PROP.waterIce, PROP.peanuts, PROP.beers ];
 // which props each hand can hold (the geometry is built once per hand)
 const HAND_PROPS = [
-	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.glove, PROP.bag, PROP.scorebook, PROP.peanuts, PROP.programs, PROP.money, PROP.hotdog, PROP.ticket ], // left
+	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.glove, PROP.bag, PROP.scorebook, PROP.peanuts, PROP.programs, PROP.money, PROP.hotdog, PROP.ticket, PROP.cottonCandy ], // left
 	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.program, PROP.phone, PROP.towel, PROP.sandwich, PROP.waterIce, PROP.cottonCandy, PROP.hotdog, PROP.money, PROP.beers, PROP.ticket, PROP.pencil, PROP.camera ], // right
 ];
 
@@ -68,7 +68,7 @@ export const POSE = 8;
 //      atlas cell, 0 none) | the print on the chest <<21 (CHEST)
 //   z: pants <<0 (0 jeans, 1 dark jeans, 2 khakis, 3 black, 4 grey sweats, 5 navy) | shoes <<3 (0 white
 //      sneakers, 1 black, 2 tan boots, 3 brown, 4 grey) | hat <<6 (HAT) | poncho <<10 (0 none, 1 clear,
-//      2 red, 3 white, 4 yellow, 5 orange, 6 a grey trash bag) | scarf <<13 (0 none, 1 red and white, 2 grey, 3 black) | gloves <<15
+//      2 red, 3 white, 4 yellow, 5 orange, 6 a grey trash bag, 7 a clear one shared with the one on the left) | scarf <<13 (0 none, 1 red and white, 2 grey, 3 black) | gloves <<15
 //      | hat colour <<16
 //   w: a seed (0..65535) for the small things
 export const TOP = {
@@ -588,6 +588,12 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		}
 	}
 	if ( female && ( part == ${ PART.sleeve }u || part == ${ PART.hand }u ) ) { q.x *= 0.95; }
+	// one poncho for two (poncho 7): it hangs from his shoulders and spreads out over the one on his left
+	if ( part == ${ PART.poncho }u && poncho == 7u ) {
+		let spread = 1.0 - smoothstep( 1.18, 1.44, q.y );
+		q.x = q.x * ( 1.0 + 0.95 * spread ) - 0.27 * spread;
+		q.z = q.z * ( 1.0 + 0.25 * spread );
+	}
 	let headC = ${ f3( J.head ) };
 	if ( bone == 2u && part != ${ PART.neck }u ) {
 		// a kid's head is big for his body; a hood (and a knit hat) sits over the hair
@@ -871,11 +877,12 @@ function castMaterial( pose, prev, looks, order, atlas ) {
 		let fres = pow( 1.0 - abs( dot( normalize( in.N ), normalize( in.V ) ) ), 2.5 );
 		var pc = select( select( select( mix( topC * 0.8, vec3f( 0.42, 0.44, 0.47 ), 0.03 + 0.35 * fres ), vec3f( 0.36, 0.02, 0.03 ), poncho == 2u ), vec3f( 0.62 ), poncho == 3u ), vec3f( 0.65, 0.5, 0.03 ), poncho == 4u );
 		if ( poncho == 5u ) { pc = vec3f( 0.62, 0.2, 0.02 ); }
+		if ( poncho == 7u ) { pc = mix( topC * 0.8, vec3f( 0.42, 0.44, 0.47 ), 0.1 + 0.35 * fres ); }
 		if ( poncho == 6u ) { pc = vec3f( 0.06, 0.065, 0.07 ); }
 		let crease = 0.9 + 0.1 * sin( atan2( L.x, L.z ) * 11.0 + L.y * 7.0 ) + select( 0.0, 0.12 * sin( L.y * 31.0 + L.x * 17.0 ), poncho == 6u );
 		c = pc * crease;
 		// the clear ones catch the light like wet film: glossier where they face it
-		rough = select( 0.18, 0.06, poncho == 1u );
+		rough = select( 0.18, 0.06, poncho == 1u || poncho == 7u );
 		// the clear film shows the jacket's print through it
 		if ( poncho == 1u ) { c = mix( c, printC, printA * 0.6 ); }
 	}
