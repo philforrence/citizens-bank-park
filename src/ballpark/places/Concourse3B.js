@@ -195,7 +195,8 @@ export default class Concourse3B {
 			// facing the rail side (toward the field): its front ( +z ) is -d
 			const n = [ w.nx, w.nz ], a = [ w.ux, w.uz ];
 			const P = Kit.frame( [ w.x, w.z ], a, n );
-			if ( table ) programTable( K, P, r ); else cart( K, P, kind, r );
+			// the carts by the gate's atrium under the sage-green barrel canopies of the photos
+			if ( table ) programTable( K, P, r ); else cart( K, P, kind, r, s > 70 );
 			this.obstacles.push( [ s, d, table ? 0.75 : 1.0 ] );
 			this.carts.push( { kind, s, d, x: w.x, z: w.z, n, u: a } );
 

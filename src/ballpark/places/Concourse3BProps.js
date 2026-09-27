@@ -26,6 +26,7 @@ export const PALETTE = [
 	[ 'foil', [ 0.7, 0.7, 0.72 ], 0.25, 1 ], [ 'popcorn', [ 0.85, 0.7, 0.35 ], 0.8, 0, [ 0.3, 0.22, 0.08 ] ], [ 'screen', [ 0.02, 0.03, 0.03 ], 0.2, 0, [ 0.12, 0.5, 0.3 ] ],
 	[ 'beer', [ 0.55, 0.33, 0.04 ], 0.1, 0 ], [ 'foam', [ 0.75, 0.72, 0.62 ], 0.9, 0 ], [ 'white', [ 0.72, 0.71, 0.68 ], 0.7, 0 ],
 	[ 'redPlastic', [ 0.4, 0.02, 0.03 ], 0.45, 0 ], [ 'paper', [ 0.66, 0.64, 0.58 ], 0.95, 0 ], [ 'darkWet', [ 0.05, 0.05, 0.05 ], 0.15, 0 ],
+	[ 'sage', [ 0.2, 0.28, 0.17 ], 0.75, 0 ], [ 'postYellow', [ 0.7, 0.52, 0.04 ], 0.45, 0.2 ],
 ];
 export const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
 const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;
@@ -491,7 +492,7 @@ export function pendant( K, P, x, z, y, top ) {
 // top, a lit sign on two poles over it, and what it sells on the top: water ice in a freezer chest, the
 // cotton candy bags and a popcorn machine, the hot chocolate urns, the nacho cheese pump and the chip
 // warmer, cold beer in a tub of ice
-export function cart( K, P, kind, r ) {
+export function cart( K, P, kind, r, barrel = false ) {
 
 	const L = 1.7, D = 0.8, H = 0.95;
 	K.use( 'cartRed' ).box( P, 0, H / 2 + 0.12, 0, L, H - 0.24, D );
@@ -502,10 +503,30 @@ export function cart( K, P, kind, r ) {
 	for ( const [ x, z ] of [ [ - 0.7, - 0.3 ], [ 0.7, - 0.3 ], [ - 0.7, 0.3 ], [ 0.7, 0.3 ] ] ) K.use( 'rubber' ).cyl( P, x, z, 0.0, 0.14, 0.07, 0.07, 8 );
 	// the sign over it on two poles, facing the customers (and a second face for the other way)
 	const sign = { waterIce: 'waterIce', cottonCandy: 'cottonCandy', cocoa: 'cocoaCart', nachos: 'nachos', programs: 'programs', beer: 'beerCart' }[ kind ];
-	for ( const x of [ - L / 2 + 0.06, L / 2 - 0.06 ] ) K.use( 'chrome' ).cyl( P, x, 0, H, H + 1.2, 0.02, 0.02, 6 );
-	K.box( P, 0, H + 1.35, 0.01, L + 0.1, 0.34, 0.04, sign );
-	// the canopy's red top over the sign
-	K.use( 'cartRed' ).box( P, 0, H + 1.54, 0.0, L + 0.2, 0.04, 0.34 );
+	if ( barrel ) {
+
+		// the carts by the Third Base Gate (the Apr 2008 and Game 5 photos): a sage-green barrel canopy
+		// on four yellow posts, the sign hung under its front edge
+		for ( const [ x, z ] of [ [ - L / 2, - D / 2 ], [ L / 2, - D / 2 ], [ - L / 2, D / 2 ], [ L / 2, D / 2 ] ] ) K.use( 'postYellow' ).cyl( P, x, z, H, H + 1.3, 0.025, 0.025, 6 );
+		const n = 8, R = D / 2 + 0.18, yc = H + 1.3;
+		for ( let i = 0; i < n; i ++ ) {
+
+			const a0 = Math.PI * i / n, a1 = Math.PI * ( i + 1 ) / n;
+			const p = ( x, a ) => P( x, yc + Math.sin( a ) * R * 0.75, Math.cos( a ) * R );
+			K.use( 'sage' ).quad( p( - L / 2 - 0.12, a0 ), p( L / 2 + 0.12, a0 ), p( L / 2 + 0.12, a1 ), p( - L / 2 - 0.12, a1 ), P.dir( 0, Math.sin( ( a0 + a1 ) / 2 ), Math.cos( ( a0 + a1 ) / 2 ) ) );
+
+		}
+
+		K.box( P, 0, H + 1.12, R - 0.02, L, 0.3, 0.03, sign );
+
+	} else {
+
+		for ( const x of [ - L / 2 + 0.06, L / 2 - 0.06 ] ) K.use( 'chrome' ).cyl( P, x, 0, H, H + 1.2, 0.02, 0.02, 6 );
+		K.box( P, 0, H + 1.35, 0.01, L + 0.1, 0.34, 0.04, sign );
+		// the canopy's red top over the sign
+		K.use( 'cartRed' ).box( P, 0, H + 1.54, 0.0, L + 0.2, 0.04, 0.34 );
+
+	}
 	// the front: the sign again, low, on the cart's face
 	K.box( P, 0, 0.55, D / 2 + 0.005, L * 0.9, 0.28, 0.01, sign );
 	if ( kind === 'waterIce' ) {
