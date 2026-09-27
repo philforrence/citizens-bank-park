@@ -459,10 +459,10 @@ export class BallparkApp {
 		this._boardT = 0;
 		const st = this.director.boardState();
 		this.fascia.update( st, this.director );
-		const key = JSON.stringify( [ st.score, st.count, st.outs, st.batter?.last, st.inning, st.half, st.video.kind, st.today.length, st.line, st.pitcher ] );
+		const key = JSON.stringify( [ st.score, st.count, st.outs, st.batter?.last, st.inning, st.half, st.video.kind, st.today.length, st.line, st.pitcher, this.landmarks.boardKey?.( this.director ) ] );
 		if ( key === this._boardKey ) return;
 		this._boardKey = key;
-		this.landmarks.updateScoreboard( st );
+		this.landmarks.updateScoreboard( st, this.director );
 		this.details.updateOutOfTown( st );
 
 	}

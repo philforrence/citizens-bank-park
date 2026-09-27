@@ -10,6 +10,7 @@ import { FT, LEVELS, fencePoint } from './layout.js';
 import { offsetPolyline } from './Bowl.js';
 import { LibertyBell } from './LibertyBell.js';
 import { memoryLane } from './AshburnAlley.js';
+import { Phanavision, FACE_W, FACE_H, LAMPS, VIDEO } from './Phanavision.js';
 
 // The ballpark's landmarks round the outfield: the main scoreboard in left field (152 x 86 ft since 2023,
 // its steel topping out 143 ft above the field), the Liberty Bell sign in right-center (35 x 50 ft, 100 ft
@@ -73,20 +74,40 @@ export class Landmarks {
 		// green neon letters on brick, then the board)
 		const y0 = STREET + 15.7;
 		this.board = { W, H, y0 };
-		this.boardCanvas = new OffscreenCanvas( 1600, 1304 );
-		this.scoreboardTexture = canvasTexture( 1600, 1304, ( ctx, w, h ) => drawBoard2008( ctx, w, h, null ), 'scoreboard' );
+		// what it shows (Phanavision.js): the ad column, the amber lamp matrix, the video board
+		this.phanavision = new Phanavision();
+		this.boardCanvas = this.phanavision.canvas;
+		this.scoreboardTexture = canvasTexture( FACE_W, FACE_H, ( ctx ) => this.phanavision.draw( ctx, null, null ), 'scoreboard' );
+		const f2 = ( v ) => v.toFixed( 1 );
 		const screen = standard( {
 			name: 'scoreboard', roughness: 0.4, textures: { bpBoard: this.scoreboardTexture },
 			surface: /* wgsl */`
 	let t = textureSample( bpBoard, smpAnisoClamp, in.uv ).rgb;
-	// LEDs and lit panels: their own light, a little brighter after dark; up close the screen's pixel
-	// grid shows (fading out when the grid gets finer than the screen's pixels)
-	let px = in.uv * vec2f( 800.0, 652.0 );
-	let fw = length( fwidth( px ) );
-	let dots = 1.0 - smoothstep( 0.32, 0.5, length( fract( px ) - 0.5 ) );
-	let led = mix( 0.35 + dots * 1.1, 1.0, clamp( fw * 1.5 - 0.3, 0.0, 1.0 ) );
-	s.albedo = t * 0.06;
-	s.emissive = t * led * mix( 1.6, 0.55, frame.night );
+	// three kinds of light on the face, each with its own structure up close (fading out when it gets
+	// finer than the screen's pixels): the matrix's round amber lamps, a lamp every 3 texels, with the
+	// dark ones still faintly there; the video board's red, green and blue LEDs in triads; the ad
+	// column's backlit posters, smooth
+	let cpx = in.uv * vec2f( ${ f2( FACE_W ) }, ${ f2( FACE_H ) } );
+	var col = t;
+	if ( cpx.x > ${ f2( LAMPS.x ) } && cpx.y < ${ f2( LAMPS.y + LAMPS.rows * LAMPS.pitch ) } ) {
+		let q = ( cpx - vec2f( ${ f2( LAMPS.x ) }, ${ f2( LAMPS.y ) } ) ) / ${ f2( LAMPS.pitch ) };
+		let near = 1.0 - clamp( length( fwidth( q ) ) * 1.4 - 0.25, 0.0, 1.0 );
+		let lamp = 1.0 - smoothstep( 0.3, 0.44, length( fract( q ) - 0.5 ) );
+		col = mix( t, ( t * 2.2 + vec3f( 0.02, 0.016, 0.012 ) ) * lamp, near );
+	} else if ( cpx.x > ${ f2( VIDEO.x ) } && cpx.y > ${ f2( VIDEO.y ) } && cpx.y < ${ f2( VIDEO.y + VIDEO.h ) } ) {
+		let q = ( cpx - vec2f( ${ f2( VIDEO.x ) }, ${ f2( VIDEO.y ) } ) ) / 2.0;
+		let near = 1.0 - clamp( length( fwidth( q ) ) * 1.4 - 0.25, 0.0, 1.0 );
+		let f = fract( q );
+		let sub = f.x * 3.0;
+		let rgb = vec3f( 1.0 - step( 1.0, sub ), step( 1.0, sub ) * ( 1.0 - step( 2.0, sub ) ), step( 2.0, sub ) );
+		let lampY = 1.0 - smoothstep( 0.32, 0.46, abs( f.y - 0.5 ) );
+		col = mix( t, t * rgb * 2.6 * lampY, near );
+	}
+	// the LEDs sit in louvred cells: seen from off to the side or from below they dim and warm a little
+	let ndv = clamp( dot( normalize( in.N ), normalize( in.V ) ), 0.0, 1.0 );
+	let axis = mix( 0.35, 1.0, smoothstep( 0.05, 0.75, ndv ) );
+	s.albedo = t * 0.04;
+	s.emissive = col * axis * vec3f( 1.0, mix( 0.9, 1.0, axis ), mix( 0.8, 1.0, axis ) ) * mix( 1.6, 0.55, frame.night );
 `,
 		} );
 		screen.underwaterLighting = 'none';
@@ -393,12 +414,19 @@ export class Landmarks {
 
 	}
 
-	// redraw the board with the game's state (Director.boardState())
-	updateScoreboard( state ) {
+	// redraw the board with the game's state (Director.boardState()) and what the replay is doing
+	updateScoreboard( state, director ) {
 
 		const c = this.boardCanvas, ctx = c.getContext( '2d' );
-		drawBoard2008( ctx, c.width, c.height, state );
+		this.phanavision.draw( ctx, state, this.phanavision.moment( director ) );
 		refreshCanvasTexture( this.scoreboardTexture, c );
+
+	}
+
+	// changes when the board's picture needs redrawing (its screens change, its animations step)
+	boardKey( director ) {
+
+		return this.phanavision.key( director );
 
 	}
 
@@ -1270,205 +1298,6 @@ function star( ctx, cx, cy, r, color ) {
 	ctx.closePath();
 	ctx.fillStyle = color;
 	ctx.fill();
-
-}
-
-// The 2008 board's face: the ad column on the left; the amber matrix (at-bat, due up, today, the lineup,
-// the line score, the count) over the video board.
-function drawBoard2008( ctx, w, h, st ) {
-
-	const amber = '#ffab2e';
-	ctx.fillStyle = '#05070b';
-	ctx.fillRect( 0, 0, w, h );
-	// ---- the ad column
-	const colW = w * 0.19;
-	ctx.fillStyle = '#c8102e';
-	ctx.fillRect( 8, 8, colW - 16, h * 0.47 );
-	// a bottle, roughly
-	ctx.fillStyle = '#f4f1ea';
-	const bx = colW / 2, by = h * 0.08;
-	ctx.beginPath();
-	ctx.moveTo( bx - 14, by ); ctx.lineTo( bx + 14, by ); ctx.lineTo( bx + 16, by + 60 ); ctx.quadraticCurveTo( bx + 50, by + 120, bx + 42, by + 200 );
-	ctx.quadraticCurveTo( bx + 34, by + 260, bx + 44, by + 330 ); ctx.lineTo( bx - 44, by + 330 ); ctx.quadraticCurveTo( bx - 34, by + 260, bx - 42, by + 200 );
-	ctx.quadraticCurveTo( bx - 50, by + 120, bx - 16, by + 60 ); ctx.closePath(); ctx.fill();
-	ctx.fillStyle = '#ffffff';
-	ctx.font = 'italic 700 58px Georgia, serif';
-	ctx.textAlign = 'center';
-	ctx.fillText( 'Coca-Cola', colW / 2, h * 0.44, colW - 30 );
-	ctx.fillStyle = '#16120e';
-	ctx.fillRect( 8, h * 0.5, colW - 16, h * 0.49 );
-	ctx.fillStyle = '#e8781e';
-	ctx.font = '800 56px "Helvetica Neue", Arial, sans-serif';
-	[ 'MEDICINE', 'WITH', 'MUSCLE' ].forEach( ( t, i ) => ctx.fillText( t, colW / 2, h * 0.58 + i * 66, colW - 30 ) );
-	ctx.fillStyle = '#e6c21c';
-	ctx.fillRect( colW * 0.18, h * 0.8, colW * 0.64, h * 0.1 );
-	ctx.fillStyle = '#1b3f8e';
-	ctx.font = 'italic 800 54px "Helvetica Neue", Arial, sans-serif';
-	ctx.fillText( 'Motrin', colW / 2, h * 0.87, colW * 0.6 );
-
-	// ---- the amber matrix
-	const mx = colW + 10, mw = w - mx - 8, mh = h * 0.47;
-	ctx.fillStyle = '#0a0703';
-	ctx.fillRect( mx, 8, mw, mh );
-	ctx.textAlign = 'left';
-	const txt = ( t, x, y, size = 40, color = amber, align = 'left' ) => {
-
-		ctx.fillStyle = color;
-		ctx.font = `700 ${ size }px "Courier New", Courier, monospace`;
-		ctx.textAlign = align;
-		ctx.shadowColor = color;
-		ctx.shadowBlur = 6;
-		ctx.fillText( t, x, y );
-		ctx.shadowBlur = 0;
-
-	};
-
-	const S = st || { teams: { away: { abbr: 'TB', club: 'Rays' }, home: { abbr: 'PHI', club: 'Phillies' } }, line: [], score: { away: 0, home: 0 }, hits: { away: 0, home: 0 }, errors: { away: 0, home: 0 }, count: [ 0, 0 ], outs: 0, lineup: [], dueUp: [], today: [], batter: null, video: { kind: 'title' } };
-	// the at-bat
-	const c1 = mx + 16;
-	txt( 'AT-BAT:', c1, 58, 30 );
-	if ( S.batter ) txt( S.batter.last, c1 + 20, 102, 42 );
-	txt( 'TODAY', c1, 156, 32 );
-	const tdy = S.today.length ? `${ S.today.filter( ( t ) => /SINGLED|DOUBLED|TRIPLED|HOMERED/.test( t ) ).length } FOR ${ S.today.filter( ( t ) => ! /WALKED|HIT BY|SACRIFICED/.test( t ) ).length }` : '0 FOR 0';
-	txt( tdy, c1 + 20, 196, 36 );
-	txt( `${ ( S.batting === 'home' ? S.teams.away : S.teams.home ).club.toUpperCase() }`, c1, 262, 30 );
-	txt( 'DUE UP:', c1, 298, 30 );
-	S.dueUp.forEach( ( d, i ) => txt( d, c1 + 12, 336 + i * 36, 30 ) );
-	// today's at-bats
-	const c2 = mx + mw * 0.3;
-	ctx.strokeStyle = amber;
-	ctx.lineWidth = 2;
-	ctx.strokeRect( c2, 22, mw * 0.36, mh - 150 );
-	if ( S.batter ) {
-
-		ctx.fillStyle = '#5a3a08';
-		ctx.fillRect( c2 + 4, 26, mw * 0.36 - 8, 52 );
-		txt( `${ S.batter.num }  ${ S.batter.last }  ${ S.batter.pos }`, c2 + 16, 66, 36 );
-
-	}
-
-	S.today.slice( - 4 ).forEach( ( t, i ) => txt( t, c2 + 16, 130 + i * 44, 28 ) );
-	// the lineup
-	const c3 = mx + mw * 0.7;
-	txt( ( S.batting === 'home' ? S.teams.home.club : S.teams.away.club ).toUpperCase(), c3 + mw * 0.14, 50, 34, amber, 'center' );
-	S.lineup.forEach( ( l, i ) => {
-
-		txt( `${ l.up ? '*' : ' ' }${ String( l.num ).padStart( 2, ' ' ) } ${ l.last }`, c3, 92 + i * 33, 28 );
-		txt( l.pos, mx + mw - 14, 92 + i * 33, 28, amber, 'right' );
-
-	} );
-	// the line score and the count
-	const ly = mh - 110;
-	const cols = mw * 0.64 / 13;
-	const lx = mx + 16;
-	for ( let i = 1; i <= 9; i ++ ) txt( String( i ), lx + ( i + 2.6 ) * cols, ly, 32, amber, 'center' );
-	[ 'R', 'H', 'E' ].forEach( ( t, i ) => txt( t, lx + ( 12.2 + i * 0.9 ) * cols, ly, 32, amber, 'center' ) );
-	[ [ 'away', 0 ], [ 'home', 1 ] ].forEach( ( [ side, r ] ) => {
-
-		const y = ly + 42 + r * 42;
-		txt( S.teams[ side ].club.toUpperCase().slice( 0, 8 ), lx, y, 32 );
-		for ( let i = 1; i <= 9; i ++ ) {
-
-			const v = S.line[ i - 1 ]?.[ r ];
-			if ( v != null ) txt( String( v ), lx + ( i + 2.6 ) * cols, y, 32, amber, 'center' );
-
-		}
-
-		[ S.score[ side ], S.hits[ side ], S.errors[ side ] ].forEach( ( v, i ) => txt( String( v ), lx + ( 12.2 + i * 0.9 ) * cols, y, 32, amber, 'center' ) );
-
-	} );
-	const cx = mx + mw * 0.78;
-	[ [ 'BALLS', S.count[ 0 ] ], [ 'STRIKES', S.count[ 1 ] ], [ 'OUTS', S.outs ] ].forEach( ( [ k, v ], i ) => {
-
-		txt( k, cx, ly + i * 40, 30 );
-		txt( String( v ), mx + mw - 18, ly + i * 40, 34, amber, 'right' );
-
-	} );
-
-	// ---- the video board
-	const vx = mx, vy = mh + 22, vw = mw, vh = h - vy - 44;
-	const grad = ctx.createLinearGradient( vx, vy, vx + vw, vy + vh );
-	const v = S.video || { kind: 'title' };
-	const phi = S.batting === 'home';
-	grad.addColorStop( 0, v.kind === 'batter' ? ( phi ? '#8d0b1c' : '#0a2656' ) : '#0b2a6f' );
-	grad.addColorStop( 1, v.kind === 'batter' ? ( phi ? '#3a0710' : '#08162f' ) : '#6b0a18' );
-	ctx.fillStyle = grad;
-	ctx.fillRect( vx, vy, vw, vh );
-	ctx.textAlign = 'center';
-	ctx.fillStyle = '#ffffff';
-	ctx.shadowColor = 'rgba( 0, 0, 0, 0.6 )';
-	ctx.shadowBlur = 16;
-	if ( v.kind === 'batter' && S.batter ) {
-
-		// the batter's card: a header bar, his portrait in its frame (cap and shoulders in the team's
-		// colours), the big number behind, name, number and position, and what he's done tonight
-		const cap = phi ? '#c8102e' : '#0b2a5b', trim = phi ? '#0b2a5b' : '#8fbce6';
-		ctx.shadowBlur = 0;
-		ctx.fillStyle = 'rgba( 0, 0, 0, 0.35 )';
-		ctx.fillRect( vx, vy, vw, vh * 0.16 );
-		ctx.fillStyle = '#ffffff';
-		ctx.font = '800 44px "Helvetica Neue", Arial, sans-serif';
-		ctx.textAlign = 'left';
-		ctx.fillText( 'NOW BATTING', vx + 28, vy + vh * 0.11 );
-		ctx.textAlign = 'right';
-		ctx.fillText( 'WORLD SERIES 2008', vx + vw - 28, vy + vh * 0.11 );
-		ctx.textAlign = 'center';
-		const fx = vx + vw * 0.08, fy = vy + vh * 0.22, fw = vw * 0.26, fh = vh * 0.7;
-		ctx.fillStyle = 'rgba( 255, 255, 255, 0.12 )';
-		ctx.fillRect( fx, fy, fw, fh );
-		ctx.strokeStyle = trim; ctx.lineWidth = 8; ctx.strokeRect( fx, fy, fw, fh );
-		ctx.fillStyle = '#e8eaee';
-		ctx.beginPath(); ctx.ellipse( fx + fw / 2, fy + fh * 1.02, fw * 0.46, fh * 0.34, 0, Math.PI, 0 ); ctx.fill();
-		ctx.fillStyle = '#b98a6a';
-		ctx.beginPath(); ctx.ellipse( fx + fw / 2, fy + fh * 0.44, fw * 0.2, fh * 0.2, 0, 0, Math.PI * 2 ); ctx.fill();
-		ctx.fillStyle = cap;
-		ctx.beginPath(); ctx.ellipse( fx + fw / 2, fy + fh * 0.33, fw * 0.22, fh * 0.12, 0, Math.PI, 0 ); ctx.fill();
-		ctx.fillRect( fx + fw * 0.28, fy + fh * 0.32, fw * 0.5, fh * 0.035 );
-		ctx.fillStyle = phi ? '#ffffff' : '#ffffff';
-		ctx.font = `italic 700 ${ Math.round( fh * 0.1 ) }px Georgia, serif`;
-		ctx.fillText( phi ? 'P' : 'TB', fx + fw / 2, fy + fh * 0.3 );
-		ctx.font = '900 300px "Helvetica Neue", Arial, sans-serif';
-		ctx.globalAlpha = 0.18;
-		ctx.fillText( S.batter.num, vx + vw * 0.8, vy + vh * 0.86 );
-		ctx.globalAlpha = 1;
-		ctx.textAlign = 'left';
-		ctx.shadowBlur = 16;
-		ctx.font = '900 92px "Helvetica Neue", Arial, sans-serif';
-		ctx.fillText( S.batter.name, vx + vw * 0.38, vy + vh * 0.46, vw * 0.6 );
-		ctx.font = '700 46px "Helvetica Neue", Arial, sans-serif';
-		ctx.fillText( `#${ S.batter.num }   ${ S.batter.pos }`, vx + vw * 0.38, vy + vh * 0.62 );
-		ctx.font = '700 34px "Courier New", monospace';
-		ctx.fillStyle = '#ffd24a';
-		ctx.fillText( ( S.today && S.today.length ) ? 'TONIGHT: ' + S.today.slice( - 3 ).join( '  ' ) : 'FIRST AT BAT TONIGHT', vx + vw * 0.38, vy + vh * 0.8, vw * 0.6 );
-		ctx.textAlign = 'center';
-		ctx.fillStyle = '#ffffff';
-
-	} else if ( v.kind === 'final' ) {
-
-		ctx.font = '900 118px "Helvetica Neue", Arial, sans-serif';
-		ctx.fillText( 'WORLD', vx + vw / 2, vy + vh * 0.42 );
-		ctx.fillText( 'CHAMPIONS!', vx + vw / 2, vy + vh * 0.72, vw - 60 );
-
-	} else if ( v.kind === 'pitcher' ) {
-
-		ctx.font = '700 58px "Helvetica Neue", Arial, sans-serif';
-		ctx.fillText( 'NOW PITCHING', vx + vw / 2, vy + vh * 0.4 );
-		ctx.font = '900 100px "Helvetica Neue", Arial, sans-serif';
-		ctx.fillText( `#${ v.num } ${ ( v.name || '' ).toUpperCase() }`, vx + vw / 2, vy + vh * 0.66, vw - 60 );
-
-	} else {
-
-		ctx.font = '900 92px "Helvetica Neue", Arial, sans-serif';
-		ctx.fillText( 'WORLD SERIES 2008', vx + vw / 2, vy + vh * 0.42, vw - 60 );
-		ctx.font = '700 64px "Helvetica Neue", Arial, sans-serif';
-		ctx.fillText( S.inning ? `${ S.half === 'top' ? 'TOP' : 'BOTTOM' } ${ S.inning }  ·  ${ S.teams.away.abbr } ${ S.score.away }  ${ S.teams.home.abbr } ${ S.score.home }` : 'GAME 5', vx + vw / 2, vy + vh * 0.68, vw - 60 );
-
-	}
-
-	ctx.shadowBlur = 0;
-	ctx.fillStyle = '#9aa3ad';
-	ctx.font = '600 24px "Helvetica Neue", Arial, sans-serif';
-	ctx.fillText( 'PHILIPS', vx + vw / 2, h - 14 );
 
 }
 
