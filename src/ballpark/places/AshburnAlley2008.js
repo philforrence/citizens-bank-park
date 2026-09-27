@@ -6,6 +6,7 @@ import { LEVELS } from '../layout.js';
 import { when } from './alley/Night.js';
 import { promenade, pitEdgeZ } from './alley/Promenade.js';
 import { flowerBoxes } from './alley/Flowers.js';
+import { Pens } from './alley/Pens.js';
 
 // Ashburn Alley and the bullpens on the World Series nights, October 27 and 29, 2008: the park's living
 // room. The promenade behind center field (its bricks and the All-Star Walk in them, the Wall of Fame,
@@ -40,6 +41,8 @@ export default class AshburnAlley2008 {
 
 		this._promenade( L );
 		this._railOverPens();
+		// the pens' gear and people (the warm-ups in step with the replay's pitching changes)
+		if ( this.pens ) this.penLife = new Pens( { parent: this.group, frame: this.pens } );
 
 	}
 
@@ -161,6 +164,12 @@ export default class AshburnAlley2008 {
 		// the floor: puddles while it rains, litter building through each night
 		const k = w.night === 27 ? Math.min( 1, director.t / 2143 ) : Math.min( 1, 0.35 + ( w.inning - 6 ) / 4 );
 		this.floor?.set( { litter: 0.25 + 0.75 * k, rain: w.rain } );
+		if ( this.penLife ) {
+
+			this.penLife.setGame( director.game );
+			this.penLife.update( dt, director, this.app.players, w );
+
+		}
 
 	}
 
