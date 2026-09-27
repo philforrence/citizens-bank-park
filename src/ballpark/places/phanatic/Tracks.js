@@ -107,12 +107,15 @@ export class Tracks {
 		this.mesh.layers.set( 2 );
 		this.parent.add( this.mesh );
 		this.triangles = index.length / 3;
+		this.t0 = Math.min( ...tr.filter( ( v, i ) => i % 2 === 0 ) );
 
 	}
 
 	update( t ) {
 
 		this.material.uniforms.now.value = t;
+		// nothing laid yet: not drawn
+		if ( this.mesh ) this.mesh.visible = t >= this.t0;
 
 	}
 

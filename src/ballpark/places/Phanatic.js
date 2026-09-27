@@ -100,10 +100,10 @@ export default class Phanatic {
 	_handler( st, t ) {
 
 		const h = this.people.handler;
-		// while he's up on the Phillies' roof she waits at the foot of the steps behind it, watching him
+		// while he's up on the Phillies' roof she waits on the steps behind it, watching him
 		if ( st.visible && st.zone === 'roof1B' ) {
 
-			const w = this._foot ||= this.ways.roofStairs( '1B' ).pts.slice( - 3 )[ 0 ];
+			const w = this._foot ||= this.ways.roofStairs( '1B' ).pts.slice( - 5 )[ 0 ];
 			h.visible = true;
 			h.x = w[ 0 ]; h.y = w[ 1 ]; h.z = w[ 2 ];
 			h.yaw = Math.atan2( - ( st.x - w[ 0 ] ), - ( st.z - w[ 2 ] ) );

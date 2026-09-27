@@ -815,13 +815,12 @@ function nightTwo( ctx ) {
 		] );
 		plan.cue( t9t + 2.5, 'charge' );
 		plan.cue( t9t + 12, 'charge' );
-		// off the roof to the foot of the steps (the first row behind it), there through the 9th
-		const d = W.dugouts[ '1B' ];
+		// off the roof and a few rows up the steps behind it (the aisle guard has the bottom step), there
+		// through the 9th
 		const foot = W.roofStairs( '1B' );
-		const standAt = foot.pts[ foot.pts.length - 3 ];
+		const standAt = foot.pts[ foot.pts.length - 4 ];
 		const yawCrowd = W.roofFacing( '1B', true );
-		const tSteps = plan.walk( t9t + 23, new Way( [ foot.pts[ foot.pts.length - 1 ], foot.pts[ foot.pts.length - 2 ], standAt ] ), { speed: 1.2, zone: 'stands', name: 'to the steps' } );
-		void d;
+		const tSteps = plan.walk( t9t + 23, new Way( foot.pts.slice( - 4 ).reverse() ), { speed: 1.2, zone: 'stands', name: 'to the steps' } );
 		plan.hold( tSteps, cel.t0, { x: standAt[ 0 ], y: standAt[ 1 ], z: standAt[ 2 ], yaw: yawCrowd }, ( tau ) => ( Math.floor( tau / 9 ) % 3 === 2 ? Mv.pumpUp( tau ) : Mv.idle( tau ) ), { zone: 'stands', name: 'waiting behind the dugout', excite: 0.7 } );
 
 	}
@@ -834,9 +833,9 @@ function nightTwo( ctx ) {
 
 		const c0 = cel.t0;
 		const foot = W.roofStairs( '1B' );
-		const standAt = foot.pts[ foot.pts.length - 3 ];
+		const standAt = foot.pts[ foot.pts.length - 4 ];
 		const edge = W.roofAt( '1B', W.dugouts[ '1B' ].len / 2 + 1, 0.2 );
-		const onto = new Way( [ standAt, foot.pts[ foot.pts.length - 2 ], [ edge[ 0 ], edge[ 1 ], edge[ 2 ] ] ] );
+		const onto = new Way( [ standAt, foot.pts[ foot.pts.length - 3 ], foot.pts[ foot.pts.length - 2 ], [ edge[ 0 ], edge[ 1 ], edge[ 2 ] ] ] );
 		let t = plan.walk( c0, onto, { speed: 3.2, gait: ( ph, tau ) => Mv.scamper( ph, tau ), zone: 'roof1B', name: 'over the roof', excite: 1 } );
 		// the jump down onto the track
 		const land = [ edge[ 0 ] - W.dugouts[ '1B' ].nx * 1.6, edge[ 2 ] - W.dugouts[ '1B' ].nz * 1.6 ];
