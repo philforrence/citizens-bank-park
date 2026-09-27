@@ -24,7 +24,7 @@ export function programKiosk( Pr, K, P ) {
 	for ( const x of [ - R, R ] ) Pr.use( 'red' ).box( P, x, 1.45, - 0.08, 0.1, 2.9, 0.1 );
 	Pr.use( 'red' ).box( P, 0, 2.95, - 0.08, 2 * R + 0.1, 0.12, 0.12 );
 	Pr.use( 'red' ).box( P, 0, 2.3, - 0.08, 2 * R, 0.06, 0.08 );
-	Pr.box( P, 0, 2.62, - 0.08, 1.9, 0.46, 0.05, 'programs', 'programs' );
+	Pr.use( 'white' ).box( P, 0, 2.62, - 0.08, 1.9, 0.46, 0.05, 'programs', 'programs' );
 	// the covers stood up in a row on the counter, a stack of them flat
 	for ( let i = 0; i < 5; i ++ ) {
 
@@ -57,7 +57,7 @@ export function caricatureCorner( Pr, P ) {
 	};
 
 	easel( 0, 0, 0, 'sketch', 0.5, 0.62, 0.95 );
-	easel( - 1.5, - 0.6, - 1.1, 'caricatures', 0.8, 0.6, 1.05 );
+	easel( - 1.45, - 0.35, 0.55, 'caricatures', 0.8, 0.6, 1.05 );
 	// his stool behind the easel, the sitter's in front of it; a tackle box of markers on the floor
 	for ( const [ x, z, h ] of [ [ 0.05, - 0.75, 0.62 ], [ 0.0, 1.35, 0.5 ] ] ) {
 

@@ -445,7 +445,7 @@ export default class Concourse1B {
 
 			const w = W.at( 124, 42.6 );
 			const P = this._facing( [ w.x, w.z ], [ w.ux, w.uz ] );
-			Pr.box( P, 0, 4.3, 0, 1.3, 1.95, 0.04, 'wayRF' );
+			Pr.use( 'white' ).box( P, 0, 4.3, 0, 1.3, 1.95, 0.04, 'wayRF' );
 			for ( const x of [ - 0.5, 0.5 ] ) K.use( 'grey' ).box( P, x, ( 5.3 + top ) / 2, 0, 0.015, top - 5.3, 0.015 );
 
 		}
@@ -454,7 +454,7 @@ export default class Concourse1B {
 
 			const g = this.gate, c = g.P( 0, - 10.5 );
 			const P = this._facing( [ c[ 0 ], c[ 2 ] ], g.n );
-			Pr.box( P, 0, 4.4, 0, 1.3, 1.95, 0.04, 'wayGate' );
+			Pr.use( 'white' ).box( P, 0, 4.4, 0, 1.3, 1.95, 0.04, 'wayGate' );
 			for ( const x of [ - 0.5, 0.5 ] ) K.use( 'grey' ).box( P, x, ( 5.4 + top ) / 2, 0, 0.015, top - 5.4, 0.015 );
 
 		}
