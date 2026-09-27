@@ -37,7 +37,7 @@ import { Concourse } from './Concourse.js';
 import { People } from './People.js';
 import { Complex } from './Complex.js';
 import { SkyGlow } from './SkyGlow.js';
-import { batchStatic } from './geo.js';
+import { batchStatic, imageTexturesReady } from './geo.js';
 import { Players } from './game/Players.js';
 import * as Motions from './game/Motions.js';
 import { Ball } from './game/Ball.js';
@@ -274,6 +274,8 @@ export class BallparkApp {
 		this.freeCam = qs.has( 'fly' );
 
 		// ---------------------------------------------------------------- post
+		// the photographs the parts asked for (imageTexture())
+		await imageTexturesReady();
 		await progress( 0.2, 'Preparing the shaders…' );
 		this.water = new DryWater();
 		// the lens / medium composite of the post chain (always "in air" here)

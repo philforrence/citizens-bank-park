@@ -93,6 +93,34 @@ export function canvasTexture( w, h, draw, label = 'canvas' ) {
 
 }
 
+// A photograph (a CC0 scan in public/textures, tools/textures/fetch.mjs) as a mipmapped texture. It's
+// made at once, at the size given (the image is scaled to it), and filled when the image has loaded:
+// the app waits for them all before its first frame (imageTexturesReady()). srgb: false for data
+// (normals, roughness, height).
+const _loading = new Set();
+export function imageTexture( url, { width = 1024, height = width, srgb = true, label = url } = {} ) {
+
+	const tex = new Texture( { label, width, height, format: srgb ? 'rgba8unorm-srgb' : 'rgba8unorm', mips: true, usage: [ 'sample', 'copyDst', 'render' ] } );
+	const job = fetch( url ).then( ( r ) => {
+
+		// (a missing file comes back as Vite's page, not a 404)
+		if ( ! r.ok || ! /^image\//.test( r.headers.get( 'content-type' ) || '' ) ) throw new Error( `not found (${ r.status } ${ r.headers.get( 'content-type' ) })` );
+		return r.blob();
+
+	} ).then( ( b ) => createImageBitmap( b, { colorSpaceConversion: 'none', premultiplyAlpha: 'none', resizeWidth: width, resizeHeight: height, resizeQuality: 'high' } ) ).then( ( bmp ) => {
+
+		GPU.device.queue.copyExternalImageToTexture( { source: bmp }, { texture: tex.getGPU(), premultipliedAlpha: false }, [ width, height ] );
+		generateMipmaps( tex );
+		bmp.close();
+
+	} ).catch( ( e ) => console.error( `imageTexture ${ url }: ${ e.message }` ) ).finally( () => _loading.delete( job ) );
+	_loading.add( job );
+	return tex;
+
+}
+
+export const imageTexturesReady = () => Promise.all( [ ..._loading ] );
+
 // a canvas texture redrawn: the canvas copied straight into it on the GPU (no read back through the CPU)
 export function refreshCanvasTexture( tex, canvas = tex.canvas ) {
 
