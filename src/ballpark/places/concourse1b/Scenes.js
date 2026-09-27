@@ -1,5 +1,6 @@
 import { PROP, TOP, COLOR, HAT, CHEST, BACK } from '../Cast.js';
 import { GESTURE } from '../Concourse3BKit.js';
+import { PR } from './Arrivals.js';
 
 // Little scenes outside the First Base Gate that play out on the replay's clock (Concourse1B.js), each of
 // them ending in the line at a turnstile, the person then just another arrival (Arrivals1B), and in the
@@ -263,7 +264,7 @@ export class Scenes1B {
 		P.walk = 0; P.lean = 0.02; P.twist = 0; P.drop = 0; P.hipL = P.hipR = 0; P.kneeL = i ? 0 : 0.12; P.kneeR = i ? 0.12 : 0;
 		const drag = ( ( T + i * 3.1 ) % 7 ) < 1.4;
 		P.armR = drag ? [ 1.35, 0.5, 0.45, 2.1 ] : [ 0.35, 0.2, 0.2, 1.3 ];
-		P.propR = PROP.pencil;
+		P.propR = PR.cigarette;
 		P.armL = GESTURE.pockets[ 0 ].slice(); P.propL = PROP.pocket;
 		P.headPitch = drag ? 0.1 : 0;
 		P.headYaw = drag ? 0 : Math.sin( t * 0.3 + i * 2 ) * 0.4;

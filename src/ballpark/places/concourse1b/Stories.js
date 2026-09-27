@@ -2,6 +2,7 @@ import { LEVELS } from '../../layout.js';
 import { PROP, TOP, COLOR, HAT, BACK, CHEST } from '../Cast.js';
 import { Walkway, GESTURE, railArms } from '../Concourse3BKit.js';
 import { RAIL_D } from '../Concourse3BPeople.js';
+import { PR } from './Arrivals.js';
 
 // The first base concourse's people with names (Concourse1B.js), all invented, in the register
 // (.claude/wave2/CAST.md); who they are shows in what they wear, carry and do, and what they do follows
@@ -373,8 +374,8 @@ export class Stories1B {
 		if ( ! L ) return;
 		const a = L.p.pose, t = this.time;
 		a.walk = 0; a.lean = 0.02; a.twist = 0; a.drop = 0;
-		a.armR = GESTURE.phone[ 1 ].slice(); a.propR = PROP.phone;
-		a.armL = GESTURE.carryL[ 0 ].slice(); a.propL = PROP.hotdog;
+		a.armL = GESTURE.phone[ 1 ].slice(); a.propL = PR.radio;
+		a.armR = GESTURE.carry[ 1 ].slice(); a.propR = PROP.hotdog;
 		a.kneeL = 0.1; a.kneeR = 0;
 		const S = L.S;
 		// facing the line; after a play, turned to it telling them ("Harry says it's in the gap!")
@@ -387,7 +388,7 @@ export class Stories1B {
 		a.headPitch = telling ? - 0.05 : 0.1;
 		if ( telling && ( ns.result.home > 0 || ns.celebrate ) ) {
 
-			a.armL = [ 2.6, 0.3, 0, 0.5 ]; a.propL = PROP.hotdog;
+			a.armR = [ 2.6, 0.3, 0, 0.5 ]; a.propR = PROP.hotdog;
 
 		}
 

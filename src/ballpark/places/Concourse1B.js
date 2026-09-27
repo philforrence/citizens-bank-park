@@ -78,6 +78,8 @@ export default class Concourse1B {
 		this.cast = new Cast( { parent: this.group, max: 560 } );
 		const mid = this.W.at( S_END / 2, 40 );
 		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.55 + 60 );
+		// (P0's pool reads this: the whole troupe skipped when the view's elsewhere)
+		this.cast.bounds = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.55 + 60 );
 		this.people = new People1B( { cast: this.cast, walkway: this.W, concourse, bowl, obstacles: this.obstacles, carts: this.carts, seed: 1029 } );
 		this.stories = new Stories1B( this.people, { caricature: this.caricature, phun: this.phun } );
 		// the fans coming in through the gate

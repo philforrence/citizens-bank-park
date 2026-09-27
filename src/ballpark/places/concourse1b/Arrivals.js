@@ -18,6 +18,11 @@ import { TURNSTILE_O, TABLE } from '../gate3b/Gate.js';
 //
 // Everyone's in the concourse's cast. Positions in the field frame; the gate's own frame is P( s, o ): s
 // along the gate line, o out from it (the turnstiles at o = -4.8, the plaza at o > 0).
+// P0's props (Cast.js, P0's branch: the ids are fixed there); until the merge, the stand-ins
+export const PR = {
+	scanner: PROP.scanner ?? PROP.phone, flashlight: PROP.flashlight ?? 0, thermos: PROP.thermos ?? PROP.cocoa,
+	cigarette: PROP.cigarette ?? PROP.pencil, radio: PROP.radio ?? PROP.phone, umbrella: PROP.umbrella ?? 0, furled: PROP.furled ?? 0,
+};
 const STREET = LEVELS.mainConcourse;
 const SLOT0 = TURNSTILE_O + 0.8, SLOT = 0.78, SLOTS = 14, BAG_SLOT = 3;
 const TAU = Math.PI * 2;
@@ -184,6 +189,9 @@ export class Arrivals1B {
 			speed: ( dry.age === 2 ? 1.3 : dry.age === 1 ? 1.0 : 1.2 + r() * 0.3 ) * ( ns.first && ns.rain > 0.4 ? 1.1 : 1 ),
 			// a bag to open at the table (a purse, a backpack, a team store bag): about one in three
 			bag: r() < 0.32, habit: Math.floor( r() * 4 ), order: r(), towel: false, checked: false, bagT: 0,
+			// an umbrella for some on the 27th (the ones not in ponchos): up out in the rain, furled under the
+			// canopy (umbrellas were allowed in, 2008's guide)
+			umbrella: ns.first && ! wet.poncho && r() < 0.3,
 		};
 		return a;
 
@@ -501,6 +509,7 @@ export class Arrivals1B {
 
 		}
 
+		this._umbrella( a, P, ns );
 		// the head down into the rain on the 27th; a look up at the gate's sign
 		P.headPitch = ns.first ? 0.18 * ns.rain : 0.0;
 		P.headYaw = Math.sin( this.time * 0.3 + a.order * 20 ) * 0.25;
@@ -653,7 +662,7 @@ export class Arrivals1B {
 				// the thermos still in his hand on the way out
 				if ( A.stage === 'out' ) {
 
-					P.armR = GESTURE.carry[ 1 ].slice(); P.propR = PROP.cocoa;
+					P.armR = GESTURE.carry[ 1 ].slice(); P.propR = PR.thermos;
 					P.mouth = Math.max( 0, 0.3 * Math.sin( this.time * 6 ) );
 
 				}
@@ -686,7 +695,7 @@ export class Arrivals1B {
 		P.armL = [ 0.05, 0.08, 0, 0.2 ]; P.propL = 0;
 		P.armR = GESTURE.reach[ 1 ].slice();
 		P.armR[ 0 ] -= 0.35;
-		P.propR = A.t < 1.3 ? PROP.cocoa : 0;
+		P.propR = A.t < 1.3 ? PR.thermos : 0;
 		P.mouth = A.t > 1.3 ? Math.max( 0, 0.25 * Math.sin( this.time * 7 ) ) : 0;
 		if ( A.t > 2.4 ) {
 
@@ -767,7 +776,26 @@ export class Arrivals1B {
 
 		}
 
+		if ( ! ( k === 0 && L.scan ) && L.bagFan !== a ) this._umbrella( a, P, ns );
 		P.blink = ( t * 0.33 + a.order * 3 ) % 1 < 0.04 ? 1 : 0;
+
+	}
+
+	// the umbrella: held up over the head out in the rain; under the gate's canopy (5 m out from the gate
+	// line) furled and hanging from the hand
+	_umbrella( a, P, ns ) {
+
+		if ( ! a.umbrella || ! ns.first || ! PR.umbrella ) return;
+		const g = this.gate.P( 0, 0 ), o = ( a.p.x - g[ 0 ] ) * this.n[ 0 ] + ( a.p.z - g[ 2 ] ) * this.n[ 1 ];
+		if ( o > 4.6 ) {
+
+			P.armR = [ 1.15, 0.2, 0.15, 1.35 ]; P.propR = PR.umbrella;
+
+		} else {
+
+			P.armR = [ 0.1, 0.1, 0, 0.15 ]; P.propR = PR.furled;
+
+		}
 
 	}
 
@@ -830,7 +858,7 @@ export class Arrivals1B {
 
 			const L = s.lane;
 			// the scanner held at the chest, out to the ticket while scanning; a word to the fan
-			P.armR = GESTURE.carry[ 1 ].slice(); P.propR = PROP.phone;
+			P.armR = GESTURE.carry[ 1 ].slice(); P.propR = PR.scanner;
 			if ( L.scan ) {
 
 				const k = Math.min( 1, L.scanT / 0.6 ) * Math.min( 1, ( L.scan - L.scanT ) / 0.4 + 0.2 );
@@ -855,15 +883,15 @@ export class Arrivals1B {
 				// bent over the bag, the flashlight in it, the other hand holding it open
 				P.lean = 0.35;
 				P.headPitch = 0.55;
-				P.armR = GESTURE.reach[ 1 ].slice(); P.propR = PROP.phone;
-				P.armL = GESTURE.reachL[ 0 ].slice();
+				P.armL = GESTURE.reachL[ 0 ].slice(); P.propL = PR.flashlight;
+				P.armR = GESTURE.reach[ 1 ].slice();
 				P.mouth = B.bagT > 3 ? Math.max( 0, 0.3 * Math.sin( t * 7 ) ) : 0;
 				if ( B.thermos && B.bagT > 2.2 ) {
 
 					// the thermos held up out of the bag; shaking his head
 					P.lean = 0.05;
 					P.headPitch = 0.05;
-					P.armR = GESTURE.holdUp[ 1 ].map( ( v, k ) => v * ( k === 0 ? 0.75 : 1 ) ); P.propR = PROP.cocoa;
+					P.armR = GESTURE.holdUp[ 1 ].map( ( v, k ) => v * ( k === 0 ? 0.75 : 1 ) ); P.propR = PR.thermos;
 					P.headYaw = 0.25 * Math.sin( t * 6 );
 					P.mouth = Math.max( 0, 0.35 * Math.sin( t * 7 ) );
 
