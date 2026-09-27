@@ -312,7 +312,7 @@ Round 3: a full critic pass against the 2008 photos and broadcast, then fixes.
 3. Yes: fix the speed regression before any new work.
 4. My choice: sound, your seat among people, rituals and the timeline, and light and shadow go first.
 5. I'll look up the seven season lines.
-6. Hosting: still open.
+6. Hosting: skip for now.
 
 The original questions:
 
