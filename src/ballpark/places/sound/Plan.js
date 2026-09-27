@@ -1,0 +1,214 @@
+// The soundscape's night: a timeline of what the park's PA says, what the music plays and what the crowd
+// does, laid out once from the replay's segments (the Director's), like the radio's script and the
+// Phanatic's plan. Pure: the same game gives the same night, and Node can build it (tools/audio/pa-lines.mjs
+// reads the PA's keys from it to voice them).
+//
+//   const plan = buildPlan( director );
+//   plan.events: [ { t, kind, ... } ] sorted by t:
+//     pa        { key }                   Dan Baker at the mic (PA.js voices the key)
+//     walkup    { id, until }              a Phillies batter's walk-up music (an original stand-in)
+//     music     { tune, until, vol }       the organ between innings, during a pitching change
+//     sting     { tune }                   a short organ cue between pitches
+//     fans      { what, level }            the crowd: cheer, groan, ooh, boo, aww, rise, applause
+//     chant     { what, from, cycles }     a chant starting in a section (from: its angle round the bowl)
+//     hush      { dur }                    the breath the park holds before a big pitch
+//     tarp, night2, celebrate              the 27th's suspension, the 29th beginning, the last out
+//   plan.nights: the replay time the 29th begins (the resumption)
+
+import { REL } from '../../game/Motions.js';
+
+const WALKUP = 6, CHANGE = 18, SWITCH = 24, SET = 3.0;
+
+// the stars get the loudest hellos (and the Rays' the loudest boos)
+const STAR = { home: [ 'Utley', 'Howard', 'Rollins', 'Hamels', 'Burrell', 'Victorino', 'Lidge' ], away: [ 'Upton', 'Crawford', 'Pena', 'Longoria' ] };
+
+export function buildPlan( director ) {
+
+	const d = director, g = d.game, P = g.players, S = d.segments;
+	const ev = [];
+	const add = ( t, kind, data = {} ) => ev.push( { t: Math.round( t * 100 ) / 100, kind, ...data } );
+	let seed = 5;
+	const rnd = () => ( seed = ( seed * 16807 ) % 2147483647 ) / 2147483647;
+	const pick = ( a ) => a[ Math.floor( rnd() * a.length ) ];
+	// the suspension: the break after the top of the 6th (the tarp comes on; the 29th begins in it)
+	const susp = S.find( ( s ) => s.kind === 'switch' && s.snap.inning === 6 && s.snap.half === 'bottom' );
+	const night2 = susp ? susp.t0 + 12 : Infinity;
+	const plays = g.plays;
+	const subsOf = ( pi ) => ( plays[ pi ]?.events || [] ).filter( ( e ) => e.t === 'action' && /offensive_substitution/.test( e.kind || '' ) );
+	// the organ's between-innings tunes, rotated (Music.js has them), the rain's on the 27th
+	const tunes = { dry: [ 'hatdance', 'hottime', 'saints', 'entertainer', 'stars', 'sweetgeorgia', 'turkey', 'yessir' ], wet: [ 'rainrain', 'singin', 'hatdance', 'saints' ] };
+	let tuneI = 0, wetI = 0;
+
+	for ( let i = 0; i < S.length; i ++ ) {
+
+		const s = S[ i ], n = S[ i + 1 ], sn = s.snap || {};
+		const t0 = s.t0;
+		const onFirst = t0 < night2;
+
+		if ( s.kind === 'intro' ) {
+
+			add( t0 + 0.8, 'pa', { key: 'welcome-27' } );
+			add( t0 + 0.5, 'fans', { what: 'cheer', level: 2 } );
+
+		}
+
+		if ( s.kind === 'walkup' ) {
+
+			const p = plays[ s.pi ], id = sn.batter, who = P[ id ], home = sn.batting === 'home';
+			const subs = subsOf( s.pi );
+			const ph = subs.find( ( e ) => e.player === id && /Pinch-hitter/.test( e.desc ) );
+			const prs = subs.filter( ( e ) => /Pinch-runner/.test( e.desc ) );
+			// a pinch runner goes in straight after the play before (the break before this batter)
+			for ( const pr of prs ) add( t0 - 2.2, 'pa', { key: `run-${ pr.player }-${ pr.replaced }` } );
+			// a pitching change before he bats: he's announced after it
+			const at = n && n.kind === 'change' ? n.t0 + n.dur - 5.2 : t0 + ( prs.length ? 2.2 : 0.8 );
+			add( at, 'pa', { key: ph ? `bat-${ id }-ph-${ ph.replaced }` : `bat-${ id }` } );
+			// the Phillies' batters walk up to their music (ducked under Baker's call); the Rays' to boos
+			if ( home ) add( at - 0.6, 'walkup', { id, until: ( n && n.kind === 'change' ? n.t0 + n.dur : t0 + WALKUP ) + 2.5 } );
+			const star = STAR[ home ? 'home' : 'away' ].includes( who?.last );
+			if ( home ) add( at + 3.2, 'fans', { what: 'cheer', level: star ? 1.6 : 1 } );
+			else add( at + 3.0, 'fans', { what: 'boo', level: star ? 1 : 0.55 } );
+			void p;
+
+		}
+
+		if ( s.kind === 'change' ) {
+
+			const id = sn.pitcher, home = P[ id ]?.side === 'home';
+			add( t0 + 7, 'pa', { key: `pitch-${ id }` } );
+			// the Phillies' relievers come in to their music (Lidge's the loudest), the Rays' to the organ
+			add( t0 + 0.8, home ? 'walkup' : 'music', home ? { id, until: t0 + CHANGE - 0.5 } : { tune: pick( [ 'bullpen', 'hottime', 'hatdance' ] ), until: t0 + CHANGE - 1, vol: 0.8 } );
+			add( t0 + 9.5, 'fans', home ? { what: 'cheer', level: P[ id ]?.last === 'Lidge' ? 2.2 : 1.2 } : { what: 'boo', level: 0.5 } );
+			// the Rays' manager's slow walk out gets the old organ send-off... and the one they're taking out
+			// gets a sarcastic hand
+			if ( ! home ) add( t0 + 2.5, 'fans', { what: 'applause', level: 0.6 } );
+
+		}
+
+		if ( s.kind === 'switch' ) {
+
+			if ( s === susp ) {
+
+				// the 27th: play suspended, the tarp out; then (the 29th) welcome back
+				add( t0 + 1.0, 'tarp' );
+				add( t0 + 3.5, 'pa', { key: 'suspended' } );
+				add( t0 + 4.5, 'fans', { what: 'boo', level: 0.7 } );
+				add( night2, 'night2' );
+				add( night2 + 1.5, 'pa', { key: 'welcome-29' } );
+				add( night2 + 7.5, 'fans', { what: 'cheer', level: 2.5 } );
+				add( night2 + 9.5, 'chant', { what: 'letsgo', from: pick( [ - 60, 40, 120 ] ), cycles: 3 } );
+				continue;
+
+			}
+
+			const wet = onFirst && sn.inning >= 3;
+			const tune = wet ? tunes.wet[ wetI ++ % tunes.wet.length ] : tunes.dry[ tuneI ++ % tunes.dry.length ];
+			// the seventh-inning stretch is the Phanatic's organ (A's cue) and everyone's singing
+			const stretch = sn.inning === 7 && sn.half === 'bottom';
+			if ( ! stretch ) add( t0 + 2.0, 'music', { tune, until: t0 + SWITCH - 3.5, vol: 0.9 } );
+			// the home half: the Phillies come in to bat; the top: they take the field, and the park stands
+			if ( sn.half === 'top' ) add( t0 + 1.2, 'fans', { what: 'cheer', level: sn.inning >= 8 ? 1.8 : 1 } );
+			// the PA's between-innings business
+			const biz = { '3bottom': 'rain-reminder', '5top': 'last-call', '8top': 'attendance', '2bottom': 'foul-balls', '4top': 'no-tarp' }[ sn.inning + sn.half ];
+			if ( biz ) add( t0 + 12, 'pa', { key: biz } );
+
+		}
+
+		if ( s.kind === 'pitch' ) {
+
+			const e = s.ev, home = sn.batting === 'home', [ b, k ] = e.count;
+			const tRel = t0 + SET + REL, tMitt = tRel + ( s.path?.toCatcher ?? 0.45 );
+			const late = sn.inning >= 9, outs2 = sn.outs >= 2;
+			// the two-strike count with a Phillies pitcher: up on their feet, a roar building (Fans.js does the
+			// build from the count); here the moments on top of it
+			if ( ! e.inPlay ) {
+
+				const strike = /^(C|S|W|M|T|L)$/.test( e.call ) || ( e.call === 'F' && sn.strikes < 2 );
+				if ( ! home ) {
+
+					if ( strike && k === 2 && sn.strikes < 2 ) add( tMitt + 0.1, 'fans', { what: 'rise', level: outs2 ? 1.5 : 1 } );
+					else if ( ! strike && e.call !== 'F' && sn.strikes === 2 ) add( tMitt + 0.2, 'fans', { what: 'aww', level: 0.6 } );
+					else if ( e.call === 'F' && sn.strikes === 2 ) add( tMitt + 0.1, 'fans', { what: 'ooh', level: 0.7 } );
+					if ( b === 4 || /B/.test( e.call ) && sn.balls === 3 ) add( tMitt + 0.3, 'fans', { what: 'groan', level: 0.6 } );
+
+				} else {
+
+					if ( /B/.test( e.call ) && sn.balls === 3 ) add( tMitt + 0.3, 'fans', { what: 'cheer', level: 1 } );
+					else if ( /B/.test( e.call ) && sn.balls >= 1 ) add( tMitt + 0.3, 'fans', { what: 'applause', level: 0.35 } );
+					// called out on strikes: at the umpire
+					if ( e.call === 'C' && sn.strikes === 2 ) add( tMitt + 0.3, 'fans', { what: 'boo', level: 0.8 } );
+
+				}
+
+			}
+
+			// a foul into the stands: ooh as it goes up
+			if ( s.foul && s.foulPath ) add( tRel + ( s.path?.flight ?? 0.42 ) + 0.35, 'fans', { what: 'ooh', level: 0.5 } );
+			// the hush before a big pitch: two strikes, two outs, the 9th
+			if ( ! home && late && sn.strikes === 2 && outs2 ) add( tRel - 1.6, 'hush', { dur: 1.5 } );
+			else if ( ! home && late && sn.strikes === 2 ) add( tRel - 1.2, 'hush', { dur: 1.0 } );
+			// between pitches: the organ's stings, now and then, when it matters
+			const next = n && n.kind === 'pitch';
+			if ( next && ! e.inPlay ) {
+
+				const on = ( sn.bases || [] ).filter( Boolean ).length;
+				if ( home && on >= 2 && rnd() < 0.5 ) add( s.t0 + s.dur - 2.2, 'sting', { tune: 'charge' } );
+				else if ( ! home && k === 2 && rnd() < 0.45 ) add( s.t0 + s.dur - 2.4, 'sting', { tune: pick( [ 'clap', 'climb' ] ) } );
+				else if ( rnd() < 0.08 ) add( s.t0 + s.dur - 2.2, 'sting', { tune: pick( [ 'letsgo', 'clap' ] ) } );
+
+			}
+
+		}
+
+		if ( s.kind === 'inplay' ) {
+
+			const p = plays[ s.pi ], home = sn.batting === 'home';
+			const air = /fly|line|popup/.test( p.hit?.traj || '' ) || /home_run/.test( p.result.type );
+			// a fly ball off a Phillies bat: the rising "ohhh" while it's up; a Rays home run: the park goes
+			// quiet but for the Rays' dugout
+			if ( home && air ) add( t0 + 0.4, 'fans', { what: 'rise', level: p.hit?.hard === 'hard' ? 1.4 : 0.8 } );
+			if ( ! home && /home_run/.test( p.result.type ) ) add( t0 + 1.2, 'hush', { dur: 5 } );
+
+		}
+
+		if ( s.kind === 'result' ) {
+
+			const p = plays[ s.pi ], home = sn.batting === 'home', type = p.result.type;
+			// walks and hit batsmen aren't in play (the app's cue only cheers runs and strikeouts)
+			if ( /walk|hit_by_pitch/.test( type ) ) add( t0 + 0.3, 'fans', home ? { what: 'cheer', level: 1.2 } : { what: 'groan', level: 0.8 } );
+			// an inning over with a Phillies pitcher: the hand as they come off
+			if ( ! home && s.snap.outs >= 3 && i < S.length - 2 ) add( t0 + 1.0, 'fans', { what: 'applause', level: 1 } );
+			// the chant: the Phillies batting with men on, or the 9th
+			const on = ( s.snap.bases || [] ).filter( Boolean ).length;
+			if ( home && on >= 2 && s.snap.outs < 3 && rnd() < 0.6 ) add( t0 + 1.8, 'chant', { what: 'letsgo', from: pick( [ - 70, - 20, 30, 80, 140 ] ), cycles: 2 } );
+
+		}
+
+		if ( s.kind === 'celebrate' ) {
+
+			add( t0 + 0.3, 'celebrate' );
+			add( t0 + 24, 'pa', { key: 'champions' } );
+			add( t0 + 34, 'music', { tune: 'happydays', until: t0 + s.dur, vol: 1 } );
+
+		}
+
+	}
+
+	// the 9th, the Phillies three outs away: the whole park chanting
+	const ninth = S.find( ( s ) => s.kind === 'switch' && s.snap.inning === 9 && s.snap.half === 'top' );
+	if ( ninth ) add( ninth.t0 + 14, 'chant', { what: 'letsgo', from: 0, cycles: 4 } );
+	// in the rain on the 27th, they kept it going
+	const fifth = S.find( ( s ) => s.kind === 'switch' && s.snap.inning === 5 && s.snap.half === 'top' );
+	if ( fifth ) add( fifth.t0 + 18, 'chant', { what: 'letsgo', from: 100, cycles: 3 } );
+
+	ev.sort( ( a, b ) => a.t - b.t );
+	return { events: ev, night2, susp };
+
+}
+
+// the PA keys the plan uses (for the voicing tool)
+export function paKeys( plan ) {
+
+	return [ ...new Set( plan.events.filter( ( e ) => e.kind === 'pa' ).map( ( e ) => e.key ) ) ];
+
+}

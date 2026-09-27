@@ -32,6 +32,15 @@ export class GameSound {
 		const wet = ctx.createGain();
 		wet.gain.value = 0.35;
 		this.reverb.connect( wet ).connect( this.master );
+		// ---- S (the soundscape): everything sends to the reverb through one input, so the soundscape
+		// (places/Soundscape.js) can put its rooms behind it (the open bowl, a roofed concourse) and fade
+		// between them as you walk; reverbOut is where the rooms come back in
+		this.reverbOut = wet;
+		this.reverbCore = this.reverb;
+		this.reverb = ctx.createGain();
+		this.reverb.connect( this.reverbCore );
+		this.buses = {};
+		// ---- end S
 		this.master.connect( ctx.destination );
 		this.noise = this._noiseBuffer( 4 );
 		// the crowd: pink-ish noise through a band of formant-like filters, slowly swelling
@@ -81,11 +90,23 @@ export class GameSound {
 
 		if ( this[ 'crowd' ].sampled ) this.crowdBase = this.crowd.gain.gain.value;
 		this._vendor();
+		this.onLoaded?.(); // ---- S: the soundscape takes the crowd and the rain onto its buses
 
 	}
 
+	// ---- S (the soundscape): where a sound goes: a bus of the soundscape's (the PA's speakers, the
+	// music, the crowd, the field) if it's made them, else straight out. The organ's cues go out through
+	// the park's speakers by themselves, and the crowd's reactions and the beer man are the crowd's.
+	_out( name, bus ) {
+
+		const b = bus || ( /organ/.test( name ) ? 'music' : /^(vendor|cheer|groan|ooh)/.test( name ) ? 'crowd' : null );
+		return ( b && this.buses?.[ b ] ) || this.master;
+
+	}
+	// ---- end S
+
 	// play a sample: vol, rate (pitch), and whether it goes through the stadium's reverb
-	play( name, { vol = 1, rate = 1, wet = true, delay = 0 } = {} ) {
+	play( name, { vol = 1, rate = 1, wet = true, delay = 0, bus = null } = {} ) {
 
 		const b = this.buffers[ name ];
 		if ( ! b || ! this.ctx ) return false;
@@ -94,10 +115,10 @@ export class GameSound {
 		src.playbackRate.value = rate;
 		const g = this.ctx.createGain();
 		g.gain.value = vol;
-		src.connect( g ).connect( this.master );
+		src.connect( g ).connect( this._out( name, bus ) ); // ---- S: through a bus
 		if ( wet ) g.connect( this.reverb );
 		src.start( this.ctx.currentTime + delay );
-		return true;
+		return src; // ---- S: the source (truthy as before), so a caller can stop it
 
 	}
 
@@ -191,7 +212,14 @@ export class GameSound {
 		p.positionZ.value = h.position.z;
 		const g = ctx.createGain();
 		g.gain.value = h.vol;
-		src.connect( g ).connect( p ).connect( this.master );
+		// ---- S (the soundscape): the air between: the highs fall away with distance, and more through a
+		// wall or the facade (the soundscape's space sets h.air's cutoff as you walk, for the loops)
+		const air = ctx.createBiquadFilter();
+		air.type = 'lowpass';
+		air.frequency.value = this.airCutoff ? this.airCutoff( h.position ) : 20000;
+		src.connect( g ).connect( air ).connect( p ).connect( this.master );
+		h.air = air;
+		// ---- end S
 		if ( h.wet ) p.connect( this.reverb );
 		src.start( 0, h.loop ? Math.random() * b.duration : 0 );
 		if ( ! h.loop ) src.onended = () => h.stop();
@@ -257,7 +285,7 @@ export class GameSound {
 
 		if ( ! this.ctx ) return;
 		const name = hard === 'hard' ? 'bat-hard' : hard === 'soft' ? 'bat-soft' : ( Math.random() < 0.5 ? 'bat-bright' : 'bat-hard' );
-		if ( this.play( name, { vol: hard === 'soft' ? 0.7 : 1, rate: 0.95 + Math.random() * 0.1 } ) ) return;
+		if ( this.play( name, { vol: hard === 'soft' ? 0.7 : 1, rate: 0.95 + Math.random() * 0.1, bus: 'field' } ) ) return; // ---- S: the field's bus
 		const ctx = this.ctx, t = ctx.currentTime;
 		const k = hard === 'hard' ? 1.2 : hard === 'soft' ? 0.6 : 0.9;
 		// a sharp broadband click and the bat's ring
@@ -289,7 +317,7 @@ export class GameSound {
 	mitt( soft = false ) {
 
 		if ( ! this.ctx ) return;
-		if ( this.play( soft ? 'mitt-soft' : ( Math.random() < 0.5 ? 'mitt-1' : 'mitt-2' ), { vol: soft ? 0.6 : 0.9, rate: 0.95 + Math.random() * 0.1 } ) ) return;
+		if ( this.play( soft ? 'mitt-soft' : ( Math.random() < 0.5 ? 'mitt-1' : 'mitt-2' ), { vol: soft ? 0.6 : 0.9, rate: 0.95 + Math.random() * 0.1, bus: 'field' } ) ) return; // ---- S: the field's bus
 		const ctx = this.ctx, t = ctx.currentTime;
 		const src = ctx.createBufferSource();
 		src.buffer = this.noise;
@@ -310,6 +338,7 @@ export class GameSound {
 	cheer( level ) {
 
 		if ( ! this.ctx ) return;
+		if ( this.hooks?.cheer?.( level ) ) return; // ---- S: the soundscape's crowd answers, when it's there
 		const g = this.crowd.gain.gain, t = this.ctx.currentTime;
 		// recorded reactions over the murmur
 		if ( level >= 3 ) this.play( 'cheer-big', { vol: 0.9 } ), this.play( 'cheer-burst', { vol: 0.7, delay: 0.2 } );
@@ -338,6 +367,7 @@ export class GameSound {
 	organ( tune = 'charge', delay = 0 ) {
 
 		if ( ! this.ctx ) return;
+		if ( this.hooks?.organ?.( tune, delay ) ) return; // ---- S: the soundscape's organ plays it, when it's there
 		if ( tune === 'charge' && this.play( 'organ-charge', { vol: 0.45, delay } ) ) return;
 		const ctx = this.ctx;
 		const t0 = ctx.currentTime + delay;
@@ -379,6 +409,7 @@ export class GameSound {
 	// the pile at the end: the whole place goes up
 	celebrate() {
 
+		if ( this.hooks?.celebrate?.() ) return; // ---- S: the soundscape has the last out
 		this.cheer( 4 );
 		this.organ( 'run', 0.5 );
 
