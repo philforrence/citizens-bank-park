@@ -50,6 +50,7 @@ import { GAME } from './data/game-2008-ws5.js';
 import { FOOTPRINT, LEVELS } from './layout.js';
 import { Walker } from './Walker.js';
 import { Scope } from './Scope.js';
+import { PLACES } from './places/index.js';
 
 const _up = new Vector3( 0, 1, 0 );
 
@@ -146,7 +147,7 @@ export class BallparkApp {
 
 		// ---------------------------------------------------------------- world
 		// ?only= / ?focus=: part of the park (Scope.js); the parts not built are undefined below
-		const scope = this.scope = new Scope( qs );
+		const scope = this.scope = new Scope( qs, PLACES.map( ( [ name ] ) => name ) );
 		// how long each part takes to build (CPU), in ms
 		const buildMs = this.buildMs = {};
 		const time = ( name, make ) => {
@@ -181,6 +182,18 @@ export class BallparkApp {
 		if ( scope.builds( 'fascia' ) ) this.fascia = time( 'fascia', () => new Fascia( { field: F, bowl: B } ) );
 		if ( scope.builds( 'concourse' ) ) this.concourse = time( 'concourse', () => new Concourse( { field: F, bowl: B, colliders } ) );
 		if ( scope.builds( 'people' ) ) this.people = time( 'people', () => new People( { field: F, bowl: B, concourse: this.concourse, exterior: this.exterior, landmarks: this.landmarks } ) );
+		// the little worlds (places/index.js)
+		this.places = [];
+		for ( const [ name, Place ] of PLACES ) {
+
+			if ( ! scope.builds( name ) ) continue;
+			const place = time( name, () => new Place( { app: this, field: F, bowl: B, people: this.people, colliders, scope } ) );
+			place.name = name;
+			if ( place.group && ! place.group.parent ) F.group.add( place.group );
+			this.places.push( place );
+
+		}
+
 		if ( ! scope.full ) {
 
 			// the fans without their stands: keep them where they sit
@@ -189,6 +202,7 @@ export class BallparkApp {
 				field: fieldOwn, bowl: [ B.group ], crowd: B.crowd.meshes, exterior: [ this.exterior?.group ], surroundings: [ this.surroundings?.group ],
 				complex: [ this.complex?.group ], landmarks: [ this.landmarks?.group ], details: [ this.details?.group ], fascia: [ this.fascia?.group ],
 				concourse: [ this.concourse?.group ], people: [ this.people?.mesh ],
+				...Object.fromEntries( this.places.map( ( p ) => [ p.name, [ p.group ] ] ) ),
 			}, ( x, z ) => F.toField( x, z ) );
 			console.info( `scope: ${ scope.only ? 'only ' + [ ...scope.only ].join( ', ' ) : 'all parts' }${ scope.focus ? `, focus ${ Object.values( scope.focus ).join( ', ' ) } (${ removed.focus } meshes outside dropped)` : '' }` );
 
@@ -818,6 +832,7 @@ export class BallparkApp {
 		const cf = this.field.toField( this.camera.position.x, this.camera.position.z );
 		this.bowl.updateCameras( this.director ? this.director.ballAt : null, dt, [ cf[ 0 ], this.camera.position.y - this.field.y0, cf[ 1 ] ] );
 		this.details?.update( dt, this.director );
+		for ( const p of this.places ) p.update?.( dt, this.director, this.camera );
 
 		this.players.update();
 		if ( this.gameHUD ) this.gameHUD.refresh();

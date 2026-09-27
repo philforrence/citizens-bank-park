@@ -40,7 +40,7 @@
 // is disabled, so an edit never reloads a page outside a job; a job reloads a page whose tree has
 // changed since. The browser closes after 10 min without a job, or at once when someone else holds the
 // GPU lock exclusively (their profiling); the desk exits after 30 min idle.
-import { mkdirSync, readFileSync, writeFileSync, renameSync, readdirSync, rmSync, statSync, existsSync, openSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, renameSync, readdirSync, rmSync, statSync, existsSync, openSync, symlinkSync } from 'node:fs';
 import { spawn, execFileSync } from 'node:child_process';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -232,6 +232,9 @@ class Desk {
 
 		const s = this.servers.get( root );
 		if ( s && s.proc.exitCode === null ) return s.port;
+		// a new worktree: it shares this checkout's node_modules
+		const shared = join( HERE, '../../node_modules' );
+		if ( ! existsSync( join( root, 'node_modules' ) ) && existsSync( shared ) ) symlinkSync( shared, join( root, 'node_modules' ) );
 		const used = new Set( [ ...this.servers.values() ].map( ( x ) => x.port ) );
 		for ( let port = PORTS[ 0 ]; port <= PORTS[ 1 ]; port ++ ) {
 

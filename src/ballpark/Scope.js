@@ -31,11 +31,16 @@ export const PARTS = {
 
 export class Scope {
 
-	constructor( qs ) {
+	// places: the little worlds' names (places/index.js), parts too
+	constructor( qs, places = [] ) {
 
 		const only = qs.get( 'only' );
 		this.only = only ? new Set( only.split( ',' ).map( ( s ) => s.trim() ).filter( Boolean ) ) : null;
-		if ( this.only ) for ( const p of this.only ) if ( ! PARTS[ p ] ) console.warn( `?only: no part "${ p }" (parts: ${ Object.keys( PARTS ).join( ', ' ) })` );
+		const names = [ ...Object.keys( PARTS ), ...places ];
+		if ( this.only ) for ( const p of this.only ) if ( ! names.includes( p ) ) console.warn( `?only: no part "${ p }" (parts: ${ names.join( ', ' ) })` );
+		// a place may use any part of the park (it stands on it, adds people to it): with one in scope
+		// everything is built (the build is quick), and only what's named is drawn
+		this.placeInScope = !! this.only && places.some( ( p ) => this.only.has( p ) );
 		const f = ( qs.get( 'focus' ) || '' ).split( ',' ).map( Number );
 		this.focus = f.length === 3 && f.every( Number.isFinite ) ? { x: f[ 0 ], z: f[ 1 ], r: f[ 2 ] } : null;
 		this.full = ! this.only && ! this.focus;
@@ -52,7 +57,7 @@ export class Scope {
 	// is it built (drawn, or needed by a part that is)? The bowl is always built: everything stands on it
 	builds( part ) {
 
-		if ( this.has( part ) ) return true;
+		if ( this.has( part ) || this.placeInScope ) return true;
 		// the people stand at the concourse's stands and the Alley's, and queue at the gates
 		const needs = { concourse: [ 'people' ], landmarks: [ 'people' ], exterior: [ 'people' ] };
 		return ( needs[ part ] || [] ).some( ( p ) => this.has( p ) );
