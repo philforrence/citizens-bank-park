@@ -484,9 +484,10 @@ export class Folk {
 		const dt = 1 / 60;
 		this.time += dt;
 		this._frame = ( this._frame || 0 ) + 1;
-		for ( const [ i, p ] of this.list.entries() ) {
+		const list = this.list;
+		for ( let i = 0; i < list.length; i ++ ) {
 
-			const c = p._c;
+			const p = list[ i ], c = p._c;
 			c.visible = p.shown && p.visible;
 			if ( ! c.visible ) {
 

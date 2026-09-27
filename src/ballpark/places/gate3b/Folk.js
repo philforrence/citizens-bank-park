@@ -226,9 +226,10 @@ export class Folk {
 		void eye;
 		const C = this.cast;
 		this._frame = ( this._frame || 0 ) + 1;
-		for ( const [ i, f ] of this.list.entries() ) {
+		const list = this.list;
+		for ( let i = 0; i < list.length; i ++ ) {
 
-			const p = f._p;
+			const f = list[ i ], p = f._p;
 			p.visible = !! f.visible;
 			if ( ! f.visible ) continue;
 			// the ones the camera didn't see last frame (Cast's p.lod) posed every fourth frame: where
