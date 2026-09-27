@@ -124,6 +124,15 @@ export class OnDeck {
 			// its weighted sleeve on the barrel
 			const sl = put( group, new CylinderGeometry( 0.036, 0.036, 0.16, 12 ), M.black, [ cx + toDug * 0.25 - Math.cos( by ) * 0.62, H + 0.034, cz + 0.2 + Math.sin( by ) * 0.62 ], 0 );
 			sl.rotation.set( 0, by, Math.PI / 2, 'YXZ' );
+			// and the bats laid across it, a towel for the grip (heston 2986440499, Game 3)
+			for ( const [ ox, oz, turn ] of [ [ - 0.2, - 0.1, 0.35 ], [ 0.05, 0.3, - 0.5 ] ] ) {
+
+				const b = put( group, batGeometry(), rnd( k * 5 + ox ) < 0.5 ? M.wood : M.black, [ cx + toDug * ox, H + 0.032, cz + oz ], 0 );
+				b.rotation.set( 0, toDug * ( 1.4 + turn ), Math.PI / 2, 'YXZ' );
+
+			}
+
+			put( group, new BoxGeometry( 0.3, 0.02, 0.22 ), M.white, [ cx - toDug * 0.35, H + 0.012, cz - 0.35 ], 0.4 * toDug );
 
 		}
 
