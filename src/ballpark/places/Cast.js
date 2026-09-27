@@ -42,6 +42,11 @@ import { canvasTexture } from '../geo.js';
 //   sign( draw, name )                         a homemade sign ( draw( ctx, w, h ) on a 256 x 256 card):
 //                                              returns its cell, the variant of PROP.sign / PROP.photo
 //   seat( pose, h )                            the legs folded to sit on a seat h metres up
+//   lookAt( key, { x, y, z, r, k } )           something worth a look (the field frame): everyone seen
+//                                              within r metres (12) turns their head to it (and a little
+//                                              of their body), each a beat late; k (0..1) how much.
+//                                              lookAt( key, null ) when it's gone. (The Phanatic going
+//                                              by: lookAt( 'phanatic', { x, y, z, r: 14, k: excite } ).)
 //
 // The pose (restPose(); angles in radians): phase and walk (the stride: walk 0..1, phase advancing ~4.5 rad
 // a metre), drop (the pelvis lowered, m), lean (forward +), twist (left +), roll, headYaw (left +),
@@ -206,6 +211,16 @@ export function sign( draw, name = '' ) {
 	SIGNS.push( { draw, name } );
 	if ( POOL ) POOL._signsDirty = true;
 	return SIGNS.length - 1;
+
+}
+
+// ---------------------------------------------------------------- something worth a look
+
+const LOOKS = new Map();
+export function lookAt( key, spot ) {
+
+	if ( spot ) LOOKS.set( key, spot );
+	else LOOKS.delete( key );
 
 }
 
@@ -1929,6 +1944,8 @@ class Pool {
 				P[ o4 + 20 ] = Rr[ 0 ]; P[ o4 + 21 ] = Rr[ 1 ]; P[ o4 + 22 ] = Rr[ 2 ]; P[ o4 + 23 ] = Rr[ 3 ];
 				P[ o4 + 24 ] = a.hipL; P[ o4 + 25 ] = a.kneeL; P[ o4 + 26 ] = a.hipR; P[ o4 + 27 ] = a.kneeR;
 				P[ o4 + 28 ] = a.spread; P[ o4 + 29 ] = a.breath; P[ o4 + 30 ] = a.blink; P[ o4 + 31 ] = ( a.varR || 0 ) + 256 * ( a.varL || 0 );
+				// heads turned to what's worth a look (lookAt)
+				if ( LOOKS.size ) _look( p, P, o4, x, y, z, yaw );
 				if ( sl < lo ) lo = sl;
 				if ( sl > hi ) hi = sl;
 				// someone who's just come into view has no motion from last frame
@@ -2009,6 +2026,41 @@ class Pool {
 		put( cap * 3, nTiny );
 
 	}
+
+}
+
+// Heads turned to what's worth a look (lookAt): the nearest spot in range and in front of them (not
+// behind: they'd have to turn round), the head most of the way and the shoulders a little, each coming
+// round at their own pace (p._look eases to it) and some more than others
+function _look( p, P, o4, x, y, z, yaw ) {
+
+	let w = 0, want = 0, pitch = 0;
+	for ( const L of LOOKS.values() ) {
+
+		const r = L.r ?? 12, dx = L.x - x, dz = L.z - z, d2 = dx * dx + dz * dz;
+		if ( d2 > r * r || d2 < 0.25 ) continue;
+		let a = Math.atan2( - dx, - dz ) - yaw;
+		a = Math.atan2( Math.sin( a ), Math.cos( a ) );
+		if ( Math.abs( a ) > 2.3 ) continue;
+		const d = Math.sqrt( d2 ), k = ( L.k ?? 1 ) * Math.min( 1, 1.6 * ( 1 - d / r ) ) * ( 1 - Math.max( 0, Math.abs( a ) - 1.6 ) / 0.7 );
+		if ( k > w ) {
+
+			w = k; want = a;
+			pitch = Math.atan2( y + 1.5 * p.scale - ( L.y ?? y + 1.2 ), d );
+
+		}
+
+	}
+
+	const eager = 0.55 + 0.45 * ( ( p.slot * 0.6180339 ) % 1 );
+	p._look = ( p._look || 0 ) + ( w * eager - ( p._look || 0 ) ) * 0.06;
+	const k = p._look;
+	if ( k < 0.01 ) return;
+	if ( w > 0.01 ) p._lookA = want;
+	const a = p._lookA || 0, head = Math.max( - 1.25, Math.min( 1.25, a * 0.8 ) );
+	P[ o4 + 9 ] += ( Math.max( - 0.45, Math.min( 0.45, a - head ) ) + a * 0.1 ) * k;
+	P[ o4 + 11 ] += ( head - P[ o4 + 11 ] ) * k;
+	P[ o4 + 12 ] += ( Math.max( - 0.5, Math.min( 0.6, pitch ) ) - P[ o4 + 12 ] ) * k * 0.7;
 
 }
 
