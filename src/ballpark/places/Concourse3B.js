@@ -1,4 +1,4 @@
-import { Group, Mesh, BufferGeometry, Float32BufferAttribute, Matrix4, Vector3, Sphere } from '../../engine/index.js';
+import { Group, Mesh, BufferGeometry, Float32BufferAttribute, Vector3, Sphere } from '../../engine/index.js';
 import { standard } from '../../materials/Materials.js';
 import { LiveTV } from './Concourse3BTV.js';
 import { floorSkin } from './Concourse3BFloor.js';
@@ -54,19 +54,16 @@ export default class Concourse3B {
 		this.group.add( this.floor );
 		// the people: the cast (drawn here), and People.js's own figures handed over to it in this stretch
 		this.cast = new Cast( { parent: this.group, max: 440 } );
-		// where the cast is (for ?focus=, which drops what's wholly outside its circle)
+		// where the cast is (the pool skips the whole troupe when the view's elsewhere)
 		const mid = this.W.at( S_END / 2, 40 );
-		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
+		this.cast.bounds = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
 		this.people = new ConcoursePeople( { cast: this.cast, walkway: this.W, concourse, bowl, sEnd: S_END, obstacles: this.obstacles, carts: this.carts, seed: 1027 } );
 		this.stories = new Stories( this.people );
 		// steam off the grills and the urns and the cups, and people's breath
-		this.steam = new Steam( { parent: this.group, bounds: this.cast.mesh.boundingSphere } );
+		this.steam = new Steam( { parent: this.group, bounds: this.cast.bounds } );
 		this._steamers();
 		people?.hiders?.push( ( x, z ) => this.covers( x, z ) );
-		// the rain's cover: built now, before the static batching takes the bowl's meshes apart
-		const t0 = performance.now();
-		this._cover = this._rainCover();
-		this.coverMs = Math.round( performance.now() - t0 );
+		// (the rain's cover over the decks, first built here, is the app's now: RainCover.js)
 
 	}
 
@@ -422,72 +419,7 @@ export default class Concourse3B {
 
 	}
 
-	// The rain stays out from under the decks: a map of the top of whatever's overhead (the heights of the
-	// decks, the stands, the roofs, the outer ring's floors) over the whole park, rasterized once from the
-	// bowl's and the facade's meshes (not the thin things: rails, lamps, the light towers, the netting),
-	// for the rain's shader (Rain.setCover). The drops under a roof, the concourse's among them, aren't
-	// drawn.
-	_rainCover() {
-
-		const F = this.field;
-		F.group.updateMatrixWorld( true );
-		const inv = new Matrix4().copy( F.group.matrixWorld ).invert();
-		const m = new Matrix4();
-		const cell = 0.75, nx = 400, nz = 400, x0 = - 150, z0 = - 180;
-		const H = new Float32Array( nx * nz ).fill( - 1e4 );
-		const skip = /^(rails|tower-|lamp-|pa-speakers|club-mullions|camera-|roof-edge-lights|columns|elevator-|netting|drink-rail|sign-posts|section-)/;
-		const a = new Vector3(), b = new Vector3(), c = new Vector3();
-		const tri = ( ax, ay, az, bx, by, bz, cx, cy, cz ) => {
-
-			const minX = Math.max( 0, Math.floor( ( Math.min( ax, bx, cx ) - x0 ) / cell ) ), maxX = Math.min( nx - 1, Math.floor( ( Math.max( ax, bx, cx ) - x0 ) / cell ) );
-			const minZ = Math.max( 0, Math.floor( ( Math.min( az, bz, cz ) - z0 ) / cell ) ), maxZ = Math.min( nz - 1, Math.floor( ( Math.max( az, bz, cz ) - z0 ) / cell ) );
-			const den = ( bz - cz ) * ( ax - cx ) + ( cx - bx ) * ( az - cz );
-			if ( Math.abs( den ) < 1e-6 ) return;
-			for ( let iz = minZ; iz <= maxZ; iz ++ ) for ( let ix = minX; ix <= maxX; ix ++ ) {
-
-				const px = x0 + ( ix + 0.5 ) * cell, pz = z0 + ( iz + 0.5 ) * cell;
-				const l1 = ( ( bz - cz ) * ( px - cx ) + ( cx - bx ) * ( pz - cz ) ) / den;
-				const l2 = ( ( cz - az ) * ( px - cx ) + ( ax - cx ) * ( pz - cz ) ) / den;
-				const l3 = 1 - l1 - l2;
-				if ( l1 < - 1e-4 || l2 < - 1e-4 || l3 < - 1e-4 ) continue;
-				const y = l1 * ay + l2 * by + l3 * cy, i = ix + iz * nx;
-				if ( y > H[ i ] ) H[ i ] = y;
-
-			}
-
-		};
-
-		for ( const root of [ this.bowl.group, this.app?.exterior?.group, this.concourse?.group ] ) root?.traverse( ( o ) => {
-
-			if ( ! o.isMesh || o.isInstancedMesh || o.material?.transparent || skip.test( o.material?.name || '' ) ) return;
-			const g = o.geometry, P = g.getAttribute( 'position' );
-			if ( ! P ) return;
-			m.multiplyMatrices( inv, o.matrixWorld );
-			const idx = g.index ? g.index.array : null, n = idx ? idx.length : P.count;
-			for ( let k = 0; k < n; k += 3 ) {
-
-				a.fromBufferAttribute( P, idx ? idx[ k ] : k ).applyMatrix4( m );
-				b.fromBufferAttribute( P, idx ? idx[ k + 1 ] : k + 1 ).applyMatrix4( m );
-				c.fromBufferAttribute( P, idx ? idx[ k + 2 ] : k + 2 ).applyMatrix4( m );
-				tri( a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z );
-
-			}
-
-		} );
-		return { heights: H, x0, z0, cell, nx, cos: Math.cos( F.group.rotation.y ), sin: Math.sin( F.group.rotation.y ), y0: F.group.position.y };
-
-	}
-
 	update( dt, director ) {
-
-		// the rain's cover, once the rain exists (it's made after the places)
-		const rain = this.app?.rain;
-		if ( rain?.setCover && this._cover ) {
-
-			rain.setCover( this._cover.heights, this._cover );
-			this._cover = null;
-
-		}
 
 		const ns = nightState( director );
 		this.night = ns;

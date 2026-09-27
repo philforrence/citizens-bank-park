@@ -5,6 +5,7 @@ import { canvasTexture } from '../../geo.js';
 import { LEVELS } from '../../layout.js';
 import { Mesher } from './Mesher.js';
 import { LIFT, pattisonZ } from './Street.js';
+import { lookAt } from '../Cast.js';
 
 // FOX 29 live from the Third Base Gate. FOX had the World Series, and WTXF, its Philadelphia station,
 // hosted its morning show at the Third Base Gate that week (the Inquirer, 30 Oct 2008); on the game
@@ -283,6 +284,8 @@ export function buildTV( { group, colliders, field, cast } ) {
 			clock.t += dt;
 			clock.live = clock.t % 62 < 21;
 			tallyMesh.visible = clock.live;
+			// (P0) the ones going by look over at her while she's on, under the lights
+			lookAt( 'gate-fox29', clock.live ? { x: rep[ 0 ], y: LEVELS.mainConcourse + LIFT + 1.6, z: rep[ 1 ], r: 11, k: 0.55 } : null );
 
 		},
 	};

@@ -4,6 +4,7 @@ import { standard } from '../../../materials/Materials.js';
 import { canvasTexture } from '../../geo.js';
 import { LEVELS } from '../../layout.js';
 import { Mesher } from './Mesher.js';
+import { PROP } from './Folk.js';
 
 // The tailgaters in the lots across Pattison and 11th (the lots south of Pattison allowed it; YouTube
 // "Game 5 pregame tailgate", CheeseSteakHead, Oct 2008): a pop-up canopy over a freed-up stall, a kettle
@@ -175,7 +176,8 @@ export function buildTailgates( { group, cast } ) {
 			// the tongs: turning something over, a look at the TV, again
 			const k = Math.max( 0, Math.sin( c.t * 0.8 ) );
 			p.flexR = 0.6 + 0.35 * k; p.elbowR = 1.0 - 0.3 * k; p.abductR = 0.1; p.lean = 0.1 + 0.1 * k; p.pitch = - 0.4 * k;
-			p.flexL = 0.4; p.elbowL = 1.4; c.f.props |= 1 << 7;
+			// (P0: the tongs in his right hand, a beer in the left)
+			p.flexL = 0.4; p.elbowL = 1.4; c.f.props |= ( 1 << PROP.cup ) | ( 1 << PROP.tongs );
 
 		} } } );
 		cast.add( { at: P( - 0.6, - 2.3, 0 ).filter( ( _, i ) => i !== 1 ), face: G.tv, act: 'drink', onRoad: true, reacts: true, when: ( w ) => ! w.celebrate } );

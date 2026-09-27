@@ -19,7 +19,7 @@ import { RAIL_D } from './Concourse3BPeople.js';
 //     round her; on the 29th, rally towels
 //   Stan at the hot chocolate cart, his thirtieth season selling at the ballpark (he started at the Vet in
 //     1979); on the 27th they sold 15,000 cups of it, and his line never stops
-//   Kevin from Clearwater in a Crawford jersey and a Rays cap, a brave man, who gets looked at
+//   Travis from Clearwater in a Crawford jersey and a Rays cap, a brave man, who gets looked at
 //   the beer men in their yellow shirts and number badges, carrying their trays down to the sections
 const STREET = LEVELS.mainConcourse;
 const TAU = Math.PI * 2;
@@ -195,10 +195,10 @@ export class Stories {
 
 	}
 
-	// ---- the walkers with names: Kevin the Rays fan, the beer men
+	// ---- the walkers with names: Travis the Rays fan, the beer men
 	_walkersWithNames() {
 
-		this.kevin = this.P.addFan( { top: TOP.rays, color: COLOR.raysNavy, sleeves: COLOR.raysNavy, back: BACK.CRAWFORD, chest: CHEST.rays, hat: HAT.capRays, age: 0, skin: 2, hair: 0, facial: 2, pants: 1, shoes: 0 }, { carry: 'beer', hands: 'free' } );
+		this.travis = this.P.addFan( { top: TOP.rays, color: COLOR.raysNavy, sleeves: COLOR.raysNavy, back: BACK.CRAWFORD, chest: CHEST.rays, hat: HAT.capRays, age: 0, skin: 2, hair: 0, facial: 2, pants: 1, shoes: 0 }, { carry: 'beer', hands: 'free' } );
 		this.hawkers = [];
 		for ( let i = 0; i < 2; i ++ ) {
 
@@ -235,8 +235,8 @@ export class Stories {
 		this._updateCouple( dt, ns );
 		// Stan's line: busier on the 27th
 		if ( this.stan ) this.stan.S.base = ns.first ? 1.3 : 0.6;
-		// Kevin gets looked at: the fans walking by him turn their heads
-		const k = this.kevin;
+		// Travis gets looked at: the fans walking by him turn their heads
+		const k = this.travis;
 		if ( k && k.p.visible ) for ( const o of this.P.fans ) {
 
 			if ( o === k || ! o.p.visible || o.mode !== 'walk' ) continue;
@@ -249,7 +249,7 @@ export class Stories {
 
 		}
 
-		// Kevin keeps his head down at a Phillies run
+		// Travis keeps his head down at a Phillies run
 		if ( k && R && ( R.kind === 'cheer' || R.kind === 'champions' ) ) {
 
 			k.p.pose.headPitch = 0.45;
