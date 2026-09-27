@@ -52,7 +52,7 @@ export class Rain {
 				coverXf: [ 'vec4f', new Vector4() ], coverGrid: [ 'vec4f', new Vector4( 0, 0, 1, 1 ) ],
 				// ---- end W2
 			},
-			storage: { rainCover: this.coverBuf },
+			storage: { rainCover: this.coverBuf }, // ---- W2 (concourse): the cover map
 			attributes: { aSeed: 'vec4f', aCorner: 'vec2f' },
 			varyings: { vA: 'f32', vY: 'f32', vLit: 'f32' },
 			vertex: /* wgsl */`
