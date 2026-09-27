@@ -1,21 +1,22 @@
 # 🛑 START HERE: where we are
 
-**Sunday 2026-09-27: little-worlds wave 2 is running** (launched after the owner's go-ahead). Branch `ballpark`.
+**Sunday 2026-09-27, evening: little-worlds wave 3 is running** (the owner said "go"). Branch `ballpark`.
 
-- **Wave 1** (the gate, the concourse, the Alley, the rail) is merged; see [docs/notes/worlds/WAVE1.md](docs/notes/worlds/WAVE1.md).
-- **Wave 2**, chosen by the scouting in [SCOUT.md](docs/notes/worlds/SCOUT.md):
-  - **P0:** one people system (onto Cast.js), the budget fixed, the name collisions renamed;
-  - **A:** the Phillie Phanatic;
-  - **B:** behind home plate, the TV backdrop;
-  - **C:** the 1B concourse and the First Base Gate.
-- **The builders' branches** are `worktree-agent-*`. They share live notes and one cast register in `.claude/wave2/` (local).
+- **Waves 1 and 2 are merged:** seven places, one people system, the Phanatic. See [WAVE1.md](docs/notes/worlds/WAVE1.md) and [WAVE2.md](docs/notes/worlds/WAVE2.md).
+- **Stage 7 is live** at https://philforrence.github.io/citizens-bank-park/
+- **Wave 3,** enriching the park as a whole:
+  - **S:** the soundscape;
+  - **R:** the rituals and the celebration;
+  - **L:** light and night;
+  - **H:** a people-CPU tune-up, then Harry the K's and the left field corner.
+
+  They share `.claude/wave3/` (local). Their branches are `worktree-agent-*`.
 - **When they're all done: merge everything** (keep every entry in `places/index.js`). Then:
   1. load it clean, and profile it under exclusive;
-  2. commit `.claude/wave2/CAST.md` as `docs/notes/worlds/CAST.md`;
-  3. write `WAVE2.md`;
+  2. commit `.claude/wave3/CAST.md` as `docs/notes/worlds/CAST.md`;
+  3. write `WAVE3.md`;
   4. show the owner.
-
-  The owner reviews before any wave 3.
+- **If the machine slept and the builders stalled:** resume each with a message; its commits are safe on its branch.
 
 **Hosted (2026-09-27):**
 - **The repo:** https://github.com/philforrence/citizens-bank-park, public, default branch `ballpark`. `main` isn't pushed: it still has Tidewater's own deploy workflow.
