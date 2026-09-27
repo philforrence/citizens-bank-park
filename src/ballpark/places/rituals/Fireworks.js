@@ -22,7 +22,7 @@ const hash = ( n ) => {
 const COLORS = [ [ 1.0, 0.08, 0.05 ], [ 1.0, 0.95, 0.85 ], [ 0.15, 1.0, 0.25 ], [ 1.0, 0.62, 0.12 ], [ 0.55, 0.7, 1.0 ] ];
 // kinds: 0 a burst (a peony: out in a sphere, slowing, drooping), 1 a gerb (a fountain of sparks
 // streaming up over a stretch), 2 the rising trail of a shell before it bursts
-const SPARKS = 72, GERB = 110;
+const SPARKS = 110, GERB = 160;
 
 export function fireworksPlan() {
 
@@ -38,7 +38,7 @@ export function fireworksPlan() {
 		const finale = k >= 26;
 		const x = - 55 + hash( k * 3.1 ) * 110, z = - 175 - hash( k * 5.7 ) * 35, y = 85 + hash( k * 7.3 ) * 40;
 		shells.push( { kind: 2, at: [ x * 0.8, 8, z - 20 ], to: [ x, y, z ], t0: t - 1.3, dur: 1.3 } );
-		shells.push( { kind: 0, at: [ x, y, z ], t0: t, dur: 2.4, color: Math.floor( hash( k * 11.9 ) * COLORS.length ), v: 18 + hash( k * 2.2 ) * 9, r: finale ? 1.2 : 1 } );
+		shells.push( { kind: 0, at: [ x, y, z ], t0: t, dur: 2.6, color: Math.floor( hash( k * 11.9 ) * COLORS.length ), v: 34 + hash( k * 2.2 ) * 14, r: finale ? 1.2 : 1 } );
 		t += finale ? 0.35 + hash( k ) * 0.3 : k < 6 ? 0.7 + hash( k ) * 0.4 : 1.1 + hash( k ) * 1.2;
 
 	}
@@ -60,7 +60,7 @@ export class Fireworks {
 
 				pos.push( S.at[ 0 ], S.at[ 1 ], S.at[ 2 ] );
 				shell.push( S.at[ 0 ], S.at[ 1 ], S.at[ 2 ], S.t0 );
-				spark.push( dir[ 0 ], dir[ 1 ], dir[ 2 ], S.kind + c * 4 + k * 0.001 );
+				spark.push( dir[ 0 ], dir[ 1 ], dir[ 2 ], S.kind + c * 4 + Math.min( 0.99, k ) * 0.99 );
 				corner.push( cx, cy, S.dur, S.v || 0 );
 
 			}
@@ -134,7 +134,7 @@ export class Fireworks {
 	if ( kind == 0u ) {
 		// a burst: out fast, slowing in the air (drag), drooping, fading and twinkling at the end
 		let V = v.aCorner.w;
-		let k = 1.8;
+		let k = 1.4;
 		let tt = max( T, 0.0 );
 		let dragged = ( 1.0 - exp( - k * tt ) ) / k;
 		p = org + v.aSpark.xyz * V * dragged + vec3f( 0.0, - 2.2 * tt * tt, 0.0 );
@@ -143,7 +143,7 @@ export class Fireworks {
 		a = step( 0.0, T ) * ( 1.0 - smoothstep( life * 0.55, life, T ) );
 		a *= mix( 1.0, step( 0.5, fract( T * 13.0 + jit * 7.0 ) ), smoothstep( life * 0.5, life * 0.7, T ) );
 		len = clamp( length( vel ) * 0.06, 0.3, 2.6 );
-		wid = 0.22;
+		wid = 0.3;
 		a *= 1.0 + 3.0 * ( 1.0 - smoothstep( 0.0, 0.15, T ) );
 	} else if ( kind == 1u ) {
 		// a gerb: this spark goes up again and again (1.1 s each) all through the stretch
@@ -153,8 +153,9 @@ export class Fireworks {
 		p = org + v.aSpark.xyz * V * tt + vec3f( 0.0, - 4.9 * tt * tt, 0.0 );
 		vel = v.aSpark.xyz * V + vec3f( 0.0, - 9.8 * tt, 0.0 );
 		a = step( 0.0, T ) * step( T, dur ) * ( 1.0 - tt / cyc ) * smoothstep( 0.0, 0.3, T ) * ( 1.0 - smoothstep( dur - 2.0, dur, T ) );
-		len = clamp( length( vel ) * 0.035, 0.2, 1.2 );
-		wid = 0.1;
+		len = clamp( length( vel ) * 0.06, 0.4, 2.0 );
+		wid = 0.2;
+		a *= 1.6;
 	} else {
 		// a shell's trail up
 		let k = clamp( T / dur, 0.0, 1.0 );
