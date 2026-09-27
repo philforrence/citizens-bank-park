@@ -113,3 +113,12 @@ Piper (https://github.com/rhasspy/piper, MIT): the en_US-joe-medium voice (CC0 d
 play-by-play and en_US-norman-medium (public-domain LibriVox recordings) for the colour, mixed with an
 AM-radio treatment by `tools/radio/build-audio.py` into `public/audio/radio/game5.mp3`. It is not the
 real 2008 broadcast.
+
+## Behind home plate's sounds: `public/audio/places/home/`
+
+The vendors' calls and the fans' voices behind home plate are Piper TTS (MIT), made only with the CC0 and
+public-domain voices (joe, mike, bryce, john, kristin, ljspeech, norman). A WORLD vocoder pass turns them
+into hawkers' calls. The small sounds are CC0 Freesound previews (rsellick, My Name Here, ekfink, Solar01,
+IENBA, tmkappelt, JamesOC, AquarianThunderProductions) or synthesized. Each file is listed in
+[`public/audio/places/home/CREDITS.md`](public/audio/places/home/CREDITS.md), and `tools/audio/build-home.py`
+rebuilds them.
