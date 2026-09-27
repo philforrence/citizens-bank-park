@@ -9,6 +9,7 @@ import { BallGirls } from './rail/BallGirls.js';
 import { buildTarpTube } from './rail/Tarp.js';
 import { Crew } from './rail/Crew.js';
 import { Police } from './rail/Police.js';
+import { buildWalls } from './rail/Walls.js';
 
 // The rail: field level round home plate and the dugouts, the strip every TV shot sees. The backstop,
 // the camera wells, the front rows and the dugout surrounds, the on-deck circles and foul territory down
@@ -48,6 +49,8 @@ export default class FieldRail {
 		this.crew = new Crew( ctx );
 		// event staff on the track, and the police who line it in the 9th on the 29th
 		this.police = new Police( ctx );
+		// the Series' panels on the walls past the wells, the backstop net's cables
+		buildWalls( this.group, this.M );
 		this.figs.build();
 		this.state = {};
 
