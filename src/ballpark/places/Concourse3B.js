@@ -7,6 +7,8 @@ import { Cast } from './Cast.js';
 import { Walkway } from './Concourse3BKit.js';
 import { ConcoursePeople, nightState, RAIL_D, FRONT_D } from './Concourse3BPeople.js';
 import { Stories } from './Concourse3BStories.js';
+import { Steam } from './Concourse3BSteam.js';
+import { G } from '../../core/Globals.js';
 import { Kit, trashCan, recycleBin, condiments, cart, programTable, pendant } from './Concourse3BProps.js';
 import { rng } from './Concourse3BKit.js';
 
@@ -58,6 +60,9 @@ export default class Concourse3B {
 		for ( const m of [ this.cast.mesh, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
 		this.people = new ConcoursePeople( { cast: this.cast, walkway: this.W, concourse, bowl, sEnd: S_END, obstacles: this.obstacles, carts: this.carts, seed: 1027 } );
 		this.stories = new Stories( this.people );
+		// steam off the grills and the urns and the cups, and people's breath
+		this.steam = new Steam( { parent: this.group, bounds: this.cast.mesh.boundingSphere } );
+		this._steamers();
 		people?.hiders?.push( ( x, z ) => this.covers( x, z ) );
 		// the rain's cover: built now, before the static batching takes the bowl's meshes apart
 		const t0 = performance.now();
@@ -369,6 +374,38 @@ export default class Concourse3B {
 
 	}
 
+	// what steams: the grills' flat-tops behind the counters (Cobblestone, Hatfield), the steam rolling out
+	// under the menu boards; the hot chocolate cart's urns
+	_steamers() {
+
+		const W = this.W;
+		for ( const U of this.concourse?.units || [] ) {
+
+			const [ s ] = W.toSD( U.mid[ 0 ], U.mid[ 1 ] );
+			if ( s < 0 || s > S_END || ! [ 'cobblestone', 'hatfield', 'schmitter' ].includes( U.what ) ) continue;
+			for ( const x of [ - 1.8, 0, 1.8 ] ) {
+
+				const p = [ U.mid[ 0 ] + U.a[ 0 ] * x - U.n[ 0 ] * 0.95, STREET + 1.15, U.mid[ 1 ] + U.a[ 1 ] * x - U.n[ 1 ] * 0.95 ];
+				this.steam.emit( { x: p[ 0 ], y: p[ 1 ], z: p[ 2 ], rate: 2.2, kind: 0, spread: [ 1.2, 0.4 ], drift: [ U.n[ 0 ] * 0.2, U.n[ 1 ] * 0.2 ], rise: 0.3, life: 3.4 } );
+
+			}
+
+		}
+
+		for ( const c of this.carts || [] ) {
+
+			if ( c.kind !== 'cocoa' ) continue;
+			for ( const x of [ - 0.45, 0.0 ] ) {
+
+				const px = c.x + c.u[ 0 ] * x - c.n[ 0 ] * 0.05, pz = c.z + c.u[ 1 ] * x - c.n[ 1 ] * 0.05;
+				this.steam.emit( { x: px, y: STREET + 1.6, z: pz, rate: 1.4, kind: 2, spread: [ 0.1, 0.1 ], rise: 0.3, life: 2.2 } );
+
+			}
+
+		}
+
+	}
+
 	// The rain stays out from under the decks: a map of the top of whatever's overhead (the heights of the
 	// decks, the stands, the roofs, the outer ring's floors) over the whole park, rasterized once from the
 	// bowl's and the facade's meshes (not the thin things: rails, lamps, the light towers, the netting),
@@ -452,6 +489,10 @@ export default class Concourse3B {
 		this._lastT = t;
 		this.people.update( dt, ns );
 		this.stories.update( dt, ns );
+		// the steam and the breath (the cold: 47 and raining on the 27th, 44 and windy on the 29th)
+		const cam = this.app?.camera;
+		const cf = cam ? [ ...this.field.toField( cam.position.x, cam.position.z ) ] : null;
+		this.steam.update( dt, G.time.value, { cast: this.cast, cam: cf ? [ cf[ 0 ], 0, cf[ 1 ] ] : null, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
 		this.cast.update();
 		this.tv.update( dt, director, ns );
 		// the floor: wet on the 27th (wetter as it pours), dry prints on the 29th, the litter piling up
