@@ -11,8 +11,10 @@
 // named are drawn, e.g. ?only=gate,exterior,people.
 import FieldRail from './FieldRail.js';
 import AshburnAlley2008 from './AshburnAlley2008.js';
+import ThirdBaseGate from './ThirdBaseGate.js';
 
 export const PLACES = [
 	[ 'rail', FieldRail ],
 	[ 'alley', AshburnAlley2008 ],
+	[ 'gate3b', ThirdBaseGate ],
 ];

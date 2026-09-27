@@ -1,4 +1,4 @@
-import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, LatheGeometry, Vector2, Vector3, Vector4, Color } from '../engine/index.js';
+import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, LatheGeometry, Vector2, Vector3, Vector4, Color, Quaternion } from '../engine/index.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { StorageBuffer } from '../engine/gpu/Texture.js';
 import { standard } from '../materials/Materials.js';
@@ -22,7 +22,7 @@ const FACADE = 6.5; // brick base height above the street
 export const GATES = [
 	// the Third and First Base Gates are the stadium's open maroon frame (`open`: no brick across that
 	// width), their gate line between two stair towers that carry the light towers
-	{ name: 'THIRD BASE GATE', at: [ - 80.95, 32.03 ], width: 30, open: 56, frame: true },
+	{ name: 'THIRD BASE GATE', at: [ - 80.95, 32.03 ], width: 30, open: 56, frame: true, leaves: 'open' }, // W1: its leaves open (gate3b)
 	{ name: 'FIRST BASE GATE', at: [ 73.5, 25.48 ], width: 30, open: 56, frame: true },
 	{ name: 'LEFT FIELD GATE', at: [ - 103.86, - 135.3 ], width: 28 },
 	// behind home plate, the private entrance to the suites and the clubs (there was no Home Plate Gate)
@@ -48,11 +48,15 @@ const PLAZA_3B = [
 // The named frontages in the facade's ground storey (Frontages.js): a point on the footprint's edge and
 // the length of the front there
 const FRONTAGES = [
-	// the Majestic Clubhouse Store, two storeys of glass on the plaza's east side ("adjacent to the Third
-	// Base Gate", the 2007 guide; the June 2008 photo from the corner shows its glass)
-	{ at: [ - 71.75, 75 ], len: 23, kind: FRONT.store },
-	// McFadden's Restaurant & Saloon, open onto the plaza on its north side
-	{ at: [ - 119.4, 11.61 ], len: 11.5, kind: FRONT.saloon },
+	// ---- W1 (Third Base Gate): the Majestic Clubhouse Store is the glass corner pavilion just left of the
+	// gate as you face it from the plaza, the gate's fence running on from it; McFadden's is the building
+	// on the right, its name lit yellow (Getty, 25 and 27 Oct 2008: "fans stand outside the team store";
+	// "fans stand outside of Citizens Bank Park in the rain"). Round 1 had them the other way round. The
+	// store's canopy, banners and its curved sign are the gate3b place's.
+	{ at: [ - 95.65, 23.4 ], len: 7.6, kind: FRONT.store },
+	{ at: [ - 101.07, 24.14 ], len: 6.0, kind: FRONT.store },
+	{ at: [ - 71.75, 75 ], len: 23, kind: FRONT.saloon },
+	// ---- end W1
 	// ticket windows (the Commons photo of 29 Mar 2008): on Pattison Avenue between the plaza and home
 	// plate, and by the First Base Gate
 	{ at: [ - 36, 91.54 ], len: 14, kind: FRONT.tickets, first: 1 },
@@ -358,6 +362,29 @@ export class Exterior {
 	let puddle = smoothstep( 0.2, 0.32, pn - ( 1.0 - wet ) * 0.8 ) * wet;
 	c = c * mix( 1.0, 0.6, wet * select( 1.0, 0.6, band ) ) * mix( 1.0, 0.55, puddle );
 	rough = mix( mix( rough, 0.2, wet ), 0.03, puddle );
+	// ---- W1 (Third Base Gate): the rain on the water: rings spreading from each drop on the puddles, a
+	// pinprick splash where one lands (while it's raining, the 27th; on the 29th it's only drying)
+	let raining = smoothstep( 0.35, 0.6, wet ) * ( 1.0 - far );
+	var rip = 0.0; var splash = 0.0;
+	if ( raining > 0.0 ) {
+		for ( var k = 0; k < 2; k ++ ) {
+			let sc = select( 0.37, 0.23, k == 1 );
+			let q = p / sc + vec2f( f32( k ) * 17.3 );
+			let id = floor( q );
+			let hh = fract( sin( vec3f( dot( id, vec2f( 12.9898, 78.233 ) ), dot( id, vec2f( 39.35, 11.13 ) ), dot( id, vec2f( 73.1, 52.7 ) ) ) ) * 43758.5453 );
+			let ctr = hh.xy * 0.5 + 0.25;
+			let ph = fract( frame.time * ( 0.8 + 0.7 * hh.z ) + hh.x * 7.0 );
+			let d = length( fract( q ) - ctr ) * sc;
+			let r = ph * 0.085;
+			rip += sin( ( d - r ) * 170.0 ) * exp( - abs( d - r ) * 70.0 ) * ( 1.0 - ph );
+			splash += ( 1.0 - smoothstep( 0.003, 0.01, d ) ) * step( ph, 0.07 );
+		}
+	}
+	rip *= raining;
+	splash *= raining;
+	c = c + vec3f( 0.05 ) * max( rip, 0.0 ) * puddle + vec3f( 0.2 ) * splash;
+	rough = rough + abs( rip ) * 0.1 * puddle;
+	// ---- end W1
 	var refl = vec3f( 0.0 );
 	let V = normalize( in.P - frame.cameraPos );
 	let R = vec3f( V.x, - V.y, V.z );
@@ -379,7 +406,7 @@ export class Exterior {
 	}
 	s.albedo = c;
 	s.roughness = rough;
-	s.emissive = refl * wet * mix( 0.3, 1.0, puddle ) * smoothstep( 0.1, 0.7, frame.night );
+	s.emissive = refl * wet * mix( 0.3, 1.0, puddle ) * ( 1.0 + 0.9 * rip * puddle ) * smoothstep( 0.1, 0.7, frame.night ); // (W1: the rings break the streaks up)
 `,
 		} );
 		this.pavers.setDefine( 'DRY', 1 ); // its own wetness (above)
@@ -428,21 +455,46 @@ export class Exterior {
 			this.group.add( pl );
 			if ( tall ) {
 
-				for ( let k = 0; k < 3; k ++ ) {
+				// ---- W1 (Third Base Gate): the tall poles' heads as in the photos of 2007-08 (Flickr u2rob April
+				// 2008, pingnews 2007; Getty Oct 2008): four maroon drum floodlights on a crosshead, each aimed out
+				// and down, and a flat round "saucer" light halfway up the pole
+				const y = STREET + H - 0.35;
+				const cross = new Mesh( new CylinderGeometry( 0.05, 0.05, 1.0, 6 ), pole );
+				cross.position.set( x, y + 0.12, z );
+				cross.rotation.set( 0, 0.4, Math.PI / 2 );
+				this.group.add( cross );
+				const cross2 = new Mesh( new CylinderGeometry( 0.05, 0.05, 1.0, 6 ), pole );
+				cross2.position.set( x, y + 0.12, z );
+				cross2.rotation.set( 0, 0.4 + Math.PI / 2, Math.PI / 2 );
+				this.group.add( cross2 );
+				const drumGeo = new CylinderGeometry( 0.17, 0.2, 0.46, 14 ), faceGeo = new CylinderGeometry( 0.165, 0.165, 0.02, 14 );
+				for ( let k = 0; k < 4; k ++ ) {
 
-					const a = k * Math.PI * 2 / 3 + 0.4, ax = x + Math.cos( a ) * 0.75, az = z + Math.sin( a ) * 0.75, y = STREET + H - 0.5;
-					const arm = new Mesh( new CylinderGeometry( 0.03, 0.03, 0.8, 6 ), pole );
-					arm.position.set( x + Math.cos( a ) * 0.38, y + 0.25, z + Math.sin( a ) * 0.38 );
-					arm.rotation.set( 0, - a, Math.PI / 2 );
-					this.group.add( arm );
-					const b = new Mesh( bellGeo, shade );
-					b.position.set( ax, y - 0.1, az );
+					// aimed out along its arm and 40 degrees down: the drum's axis
+					const a = k * Math.PI / 2 + 0.4, tilt = 0.7;
+					const dir = new Vector3( Math.cos( a ) * Math.cos( tilt ), - Math.sin( tilt ), Math.sin( a ) * Math.cos( tilt ) );
+					const c = new Vector3( x + Math.cos( a ) * 0.48, y, z + Math.sin( a ) * 0.48 );
+					const q = new Quaternion().setFromUnitVectors( new Vector3( 0, - 1, 0 ), dir );
+					const b = new Mesh( drumGeo, shade );
+					b.position.copy( c );
+					b.quaternion.copy( q );
 					this.group.add( b );
-					const l = new Mesh( lensGeo, lens );
-					l.position.set( ax, y - 0.11, az );
+					const l = new Mesh( faceGeo, lens );
+					l.position.copy( c ).addScaledVector( dir, 0.235 );
+					l.quaternion.copy( q );
 					this.group.add( l );
 
 				}
+
+				// the saucer halfway up, on a short bracket
+				const sd = new Mesh( discGeo, lens );
+				sd.position.set( x + 0.35, STREET + 4.6, z );
+				this.group.add( sd );
+				const br = new Mesh( new CylinderGeometry( 0.025, 0.025, 0.35, 5 ), pole );
+				br.position.set( x + 0.17, STREET + 4.68, z );
+				br.rotation.set( 0, 0, Math.PI / 2 );
+				this.group.add( br );
+				// ---- end W1
 
 				this.lamps.push( [ x, STREET + H - 0.65, z, 1 ] );
 
@@ -532,8 +584,7 @@ export class Exterior {
 		// trees in grates across the plaza
 		for ( const [ x, z ] of [ [ - 118, 88 ], [ - 88, 90 ], [ - 126, 36 ], [ - 96, 20 ], [ - 110, 58 ], [ - 72, 74 ] ].filter( ( [ x, z ] ) => clearOfWalk( x, z, 1.5 ) ) ) {
 
-			this._tree( x, z, trunk, leaves );
-			box( steel, [ x, STREET + 0.03, z ], [ 1.8, 0.04, 1.8 ] );
+			this._tree( x, z, trunk, leaves ); // (W1: its grate is the gate3b place's)
 
 		}
 
@@ -573,23 +624,12 @@ export class Exterior {
 
 	}
 
-	_tree( x, z, trunk, leaves ) {
+	_tree( x, z ) {
 
-		const t = new Mesh( new CylinderGeometry( 0.15, 0.22, 3.2, 8 ), trunk );
-		t.position.set( x, STREET + 1.6, z );
-		t.castShadow = true;
-		this.group.add( t );
-		const k = 0.8 + 0.4 * Math.abs( Math.sin( x * 12.9 + z * 7.3 ) );
-		for ( const [ dx, dy, dz, r ] of [ [ 0, 4.3, 0, 1.9 ], [ 0.9, 3.8, 0.4, 1.3 ], [ - 0.8, 4.0, - 0.5, 1.4 ], [ 0.2, 5.1, - 0.3, 1.2 ] ] ) {
-
-			const c = new Mesh( new SphereGeometry( r * k, 10, 8 ), leaves );
-			c.position.set( x + dx, STREET + dy * k, z + dz );
-			c.castShadow = true;
-			c.receiveShadow = true;
-			this.group.add( c );
-
-		}
-
+		// ---- W1 (Third Base Gate): the trees themselves (and their grates) are grown by the gate3b place
+		// (places/gate3b/Trees.js: branches and leaves, not spheres); here only the spot and the collider
+		( this.treeSpots ||= [] ).push( [ x, z ] );
+		// ---- end W1
 		const w = this.field.toWorld( x, z );
 		this.colliders.addCylinder( w.x, w.z, 0.3, this.field.y0 + STREET, this.field.y0 + STREET + 3 );
 
@@ -861,15 +901,29 @@ export class Exterior {
 
 		}
 
+		// ---- W1 (Third Base Gate): a gate open for the game (g.leaves: 'open') has its leaves folded out
+		// into fins and its turnstiles a few metres inside (the NLDS photo of 2 Oct 2008); the gate3b place
+		// builds those from the lanes (their bays); here only the posts
+		const shut = g.leaves !== 'open';
+		// ---- end W1
 		for ( let k = 0; k < n; k ++ ) {
 
 			const a = s0 + k * BAY, l0 = a + ( BAY - LANE ) / 2, l1 = l0 + LANE, b = a + BAY;
+			// maroon posts between the bays
+			beam( post, P( a, 0, y0 ), P( a, 0, y0 + H + 0.1 ), 0.14 );
+			if ( ! shut ) {
+
+				( this.lanes ||= [] ).push( { at: P( l1 + 0.35, - 0.8, y0 ), entry: P( ( l0 + l1 ) / 2, 1.5, y0 ), face: [ nx, nz ], gate: g.name, bay: [ a, b ], open: true } );
+				if ( k === n - 1 ) beam( post, P( b, 0, y0 ), P( b, 0, y0 + H + 0.1 ), 0.14 );
+				continue;
+
+			}
+
 			// mesh either side of the lane, and over it above head height
 			mesh( a, l0, 0, H );
 			mesh( l1, b, 0, H );
 			mesh( l0, l1, 2.3, H );
-			// maroon posts between the bays, and a baseball on the fixed panel of every other one
-			beam( post, P( a, 0, y0 ), P( a, 0, y0 + H + 0.1 ), 0.14 );
+			// a baseball on the fixed panel of every other bay
 			if ( k % 2 === 0 ) for ( const side of [ 1, - 1 ] ) balls.push( [ ( a + l0 ) / 2, side ] );
 			for ( const [ p0, p1 ] of [ [ a, l0 ], [ l1, b ] ] ) {
 
@@ -969,7 +1023,7 @@ export class Exterior {
 		this.group.add( bm );
 		const disc = this.discMat || ( this.discMat = standard( { name: 'gate-disc', color: new Color( 0.85, 0.85, 0.82 ), roughness: 0.5 } ) );
 		disc.underwaterLighting = 'none';
-		this.group.add( new Mesh( dq.geometry(), disc ) );
+		if ( dq.count ) this.group.add( new Mesh( dq.geometry(), disc ) ); // (W1: none at an open gate)
 		// the baseballs on the gate panels: 0.9 m, white with red double stitching
 		const bmat = this.ballMat || ( this.ballMat = standard( { name: 'gate-baseball', color: new Color( 0.82, 0.81, 0.77 ), roughness: 0.55, side: 'double',
 			surface: /* wgsl */`
@@ -1013,7 +1067,7 @@ export class Exterior {
 			const Q = ( s, o, y ) => P( s + mid, o, y );
 			if ( f.kind === FRONT.store ) {
 
-				this._channelLetters( Q, 'MAJESTIC CLUBHOUSE STORE', 0.1, STREET + 5.42, [ nx, nz ], tu, { faceC: [ 0.5, 0.02, 0.03 ], glowC: [ 1.0, 0.08, 0.06 ], h: 0.66 } );
+				// (W1: the store's sign is the curved navy band round its corner, the gate3b place's)
 
 			} else if ( f.kind === FRONT.tickets ) {
 
@@ -1024,7 +1078,11 @@ export class Exterior {
 
 			} else if ( f.kind === FRONT.saloon ) {
 
-				this._saloonSign( Q, STREET + 4.5, [ nx, nz ], tu );
+				// ---- W1 (Third Base Gate): McFADDEN'S in channel letters lit yellow over the glass (Getty, 25
+				// Oct 2008), in place of the green crest
+				this._channelLetters( Q, 'McFADDEN’S', 0.1, STREET + 5.45, [ nx, nz ], tu, { faceC: [ 0.62, 0.45, 0.08 ], retC: [ 0.03, 0.025, 0.02 ], glowC: [ 1.0, 0.72, 0.16 ], h: 0.9 } );
+				if ( this.reflect ) this.reflect.push( [ ...Q( 0, 0.3, STREET + 5.9 ), 1.0, 0.75, 0.2, 1.4 ] );
+				// ---- end W1
 
 			}
 
@@ -1055,12 +1113,23 @@ export class Exterior {
 			ctx.fillText( 'SALES', w / 2, 240 );
 
 		}, 'bladeSign' );
-		const m = standard( { name: 'blade-sign', roughness: 0.5, side: 'double', textures: { bsTex: tex },
+		const m = standard( { name: 'blade-sign', roughness: 0.5, textures: { bsTex: tex },
 			surface: 'let t = textureSample( bsTex, smpAnisoClamp, in.uv ).rgb; s.albedo = t; s.emissive = t * smoothstep( 0.1, 0.7, frame.night ) * 0.35;' } );
 		m.underwaterLighting = 'none';
 		const q = new Quads(), W = 0.95, H = 1.2, o0 = 0.35;
-		q.tri( P( s, o0, y ), P( s, o0 + W, y ), P( s, o0 + W, y + H ), [ 1, 0, 0 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
-		q.tri( P( s, o0, y ), P( s, o0 + W, y + H ), P( s, o0, y + H ), [ 1, 0, 0 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+		// ---- W1 (Third Base Gate): a face each side (one double-sided face read backwards from behind),
+		// the text running the right way on both: out from the wall where the viewer's right hand points out
+		const e0 = P( s, 0, y ), e1 = P( s + 1, 0, y ), ux = e1[ 0 ] - e0[ 0 ], uz = e1[ 2 ] - e0[ 2 ];
+		for ( const side of [ 1, - 1 ] ) {
+
+			const out = side * ( uz * n[ 0 ] - ux * n[ 1 ] ) > 0, [ uA, uB ] = out ? [ 0, 1 ] : [ 1, 0 ];
+			const S = s + side * 0.012, N = [ ux * side, 0, uz * side ];
+			q.tri( P( S, o0, y ), P( S, o0 + W, y ), P( S, o0 + W, y + H ), N, [ uA, 1 ], [ uB, 1 ], [ uB, 0 ] );
+			q.tri( P( S, o0, y ), P( S, o0 + W, y + H ), P( S, o0, y + H ), N, [ uA, 1 ], [ uB, 0 ], [ uA, 0 ] );
+
+		}
+
+		// ---- end W1
 		this.group.add( new Mesh( q.geometry(), m ) );
 		const b = new Quads();
 		beam( b, P( s, 0, y + H + 0.08 ), P( s, o0 + W + 0.05, y + H + 0.08 ), 0.06 );
@@ -1592,7 +1661,13 @@ export class Exterior {
 
 			const p = at( name );
 			if ( ! p ) continue;
-			this._statue( p[ 0 ], p[ 1 ], pose, label, years, drop, name === 'Steve Carlton' ? 'R' : 'L' );
+			// ---- W1 (Third Base Gate): Schmidt's plinth as it is (Flickr beauwhite 2007, pingnews 2007, u2rob Apr
+			// 2008): a low, wide slab of polished rose granite that people sit on, "MIKE SCHMIDT / PHILLIES HALL
+			// OF FAME THIRD BASEMAN 1972-1989" cut into its front; he faces south-south-west, his back (SCHMIDT
+			// 20) to the gate
+			const w1 = name === 'Mike Schmidt' ? { plinth: { w: 3.9, h: 0.55, lines: [ 'MIKE SCHMIDT', 'PHILLIES HALL OF FAME THIRD BASEMAN 1972-1989' ] }, yaw: 2.75 } : {};
+			// ---- end W1
+			this._statue( p[ 0 ], p[ 1 ], pose, label, years, drop, name === 'Steve Carlton' ? 'R' : 'L', w1 );
 			// Carlton's stands on a paved forecourt outside the Left Field Gate
 			if ( name === 'Steve Carlton' ) {
 
@@ -1610,7 +1685,7 @@ export class Exterior {
 
 	// a bronze figure (the players' own body, posed and baked) on a polished granite pedestal with its
 	// engraved plate, facing the stadium
-	_statue( x, z, pose, label, years, drop, gloveHand ) {
+	_statue( x, z, pose, label, years, drop, gloveHand, w1 = {} ) {
 
 		const g = new Group();
 		g.position.set( x, STREET, z );
@@ -1623,11 +1698,49 @@ export class Exterior {
 
 		}
 
-		const ped = new Mesh( new BoxGeometry( 3.0, 1.2, 3.0 ), this.pedestal );
-		ped.position.y = 0.6;
+		// ---- W1 (Third Base Gate): a plinth of its own (w1.plinth: its width, height and the lines cut into it)
+		const PL = w1.plinth, pw = PL ? PL.w : 3.0, ph = PL ? PL.h : 1.2;
+		if ( PL && ! this.roseGranite ) {
+
+			this.roseGranite = standard( { name: 'statue-rose-granite', color: new Color( 0.3, 0.13, 0.1 ), roughness: 0.2, metalness: 0.05, modules: [ commonModule ],
+				surface: '// polished rose granite: feldspar pink, quartz grey and black mica in a fine speckle, a sheen\n	let n = mx_noise_float3( in.P * 40.0 );\n	let m = mx_noise_float3( in.P * 90.0 + vec3f( 5.0 ) );\n	var c = mat.color * ( 0.85 + 0.3 * n );\n	c = mix( c, vec3f( 0.25, 0.23, 0.22 ), smoothstep( 0.35, 0.6, m ) * 0.5 );\n	c = mix( c, vec3f( 0.02 ), smoothstep( 0.55, 0.75, -m ) * 0.7 );\n	s.albedo = c * ( 0.95 + 0.1 * mx_noise_float3( in.P * 2.0 ) );' } );
+			this.roseGranite.underwaterLighting = 'none';
+
+		}
+
+		const ped = new Mesh( new BoxGeometry( pw, ph, pw ), PL ? this.roseGranite : this.pedestal );
+		ped.position.y = ph / 2;
 		ped.castShadow = true;
 		ped.receiveShadow = true;
 		g.add( ped );
+		if ( PL ) {
+
+			// the lines cut into the front: the letters dark in their V-grooves, a lit lower lip
+			const cut = canvasTexture( 1024, 128, ( ctx, w, h ) => {
+
+				ctx.clearRect( 0, 0, w, h );
+				ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+				for ( const [ dy, col ] of [ [ 2, 'rgba(255,220,210,0.55)' ], [ 0, 'rgba(20,6,4,1)' ] ] ) {
+
+					ctx.fillStyle = col;
+					ctx.font = '600 58px "Trajan Pro", Georgia, "Times New Roman", serif';
+					ctx.fillText( PL.lines[ 0 ], w / 2, 42 + dy, w - 80 );
+					ctx.font = '500 26px "Trajan Pro", Georgia, "Times New Roman", serif';
+					ctx.fillText( PL.lines[ 1 ], w / 2, 98 + dy, w - 80 );
+
+				}
+
+			}, 'statueCut' );
+			const cm = standard( { name: 'statue-cut', roughness: 0.6, alphaTest: 0.3, textures: { stCut: cut }, surface: 'let t = textureSample( stCut, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.5;' } );
+			cm.underwaterLighting = 'none';
+			const cq = new Quads(), hw = pw * 0.42, y0 = ph * 0.18, y1 = ph * 0.82, zf = - pw / 2 - 0.004;
+			cq.tri( [ hw, y0, zf ], [ - hw, y0, zf ], [ - hw, y1, zf ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
+			cq.tri( [ hw, y0, zf ], [ - hw, y1, zf ], [ hw, y1, zf ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
+			g.add( new Mesh( cq.geometry(), cm ) );
+
+		}
+
+		// ---- end W1
 		// the plate: the name and the years cut into the granite, gilded
 		const plate = canvasTexture( 512, 192, ( ctx, w, h ) => {
 
@@ -1647,18 +1760,19 @@ export class Exterior {
 		const pq = new Quads();
 		pq.tri( [ 1.0, 0.2, - 1.505 ], [ - 1.0, 0.2, - 1.505 ], [ - 1.0, 0.95, - 1.505 ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 1 ], [ 1, 0 ] );
 		pq.tri( [ 1.0, 0.2, - 1.505 ], [ - 1.0, 0.95, - 1.505 ], [ 1.0, 0.95, - 1.505 ], [ 0, 0, - 1 ], [ 0, 1 ], [ 1, 0 ], [ 0, 0 ] );
-		g.add( new Mesh( pq.geometry(), pm ) );
+		if ( ! PL ) g.add( new Mesh( pq.geometry(), pm ) ); // (W1: a plinth of its own has its lines cut in)
 		const fig = new Mesh( bakePose( pose, { gloveHand, drop } ), this.statueBronze );
-		fig.position.y = 1.2;
+		fig.position.y = ph;
+		if ( PL ) fig.rotation.y = Math.PI / 2; // (W1: the baked swing faces its own side: turned, he faces the way his plinth does)
 		fig.scale.setScalar( 1.65 ); // 10 ft
 		fig.castShadow = true;
 		fig.receiveShadow = true;
 		g.add( fig );
 		// face the stadium's middle
-		g.rotation.y = Math.atan2( - ( 4 - x ), - ( - 31 - z ) ) + Math.PI;
+		g.rotation.y = w1.yaw ?? Math.atan2( - ( 4 - x ), - ( - 31 - z ) ) + Math.PI;
 		this.group.add( g );
 		const w = this.field.toWorld( x, z );
-		this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + 0.6, w.z ), new Vector3( 1.5, 0.6, 1.5 ), this.field.group.rotation.y + g.rotation.y, { tag: 'statue', walkable: true } );
+		this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + ph / 2, w.z ), new Vector3( pw / 2, ph / 2, pw / 2 ), this.field.group.rotation.y + g.rotation.y, { tag: 'statue', walkable: true } );
 
 	}
 

@@ -55,24 +55,28 @@ fn fzFigure( p: vec2f, h: f32 ) -> f32 {
 	return 0.0;
 }
 
-// a seven-segment digit in the cell p (0..1 each way)
+// ---- W1 (Third Base Gate): the window numbers in a 5 x 7 face instead of seven segments (a "6" read
+// as an "E"): a digit in the cell p (0..1 each way, y up), each row five bits, the leftmost the high one
 fn fzDigit( p: vec2f, n: i32 ) -> f32 {
-	var masks = array<u32, 10>( 0x3Fu, 0x06u, 0x5Bu, 0x4Fu, 0x66u, 0x6Du, 0x7Du, 0x07u, 0x7Fu, 0x6Fu );
-	let m = masks[ clamp( n, 0, 9 ) ];
-	let w = 0.09;
-	let hx = p.x > 0.12 && p.x < 0.88;
-	let vu = p.y > 0.52 && p.y < 0.92;
-	let vl = p.y > 0.08 && p.y < 0.48;
-	var on = false;
-	on = on || ( ( m & 1u ) != 0u && hx && abs( p.y - 0.95 ) < w );
-	on = on || ( ( m & 2u ) != 0u && vu && abs( p.x - 0.9 ) < w );
-	on = on || ( ( m & 4u ) != 0u && vl && abs( p.x - 0.9 ) < w );
-	on = on || ( ( m & 8u ) != 0u && hx && abs( p.y - 0.05 ) < w );
-	on = on || ( ( m & 16u ) != 0u && vl && abs( p.x - 0.1 ) < w );
-	on = on || ( ( m & 32u ) != 0u && vu && abs( p.x - 0.1 ) < w );
-	on = on || ( ( m & 64u ) != 0u && hx && abs( p.y - 0.5 ) < w );
-	return select( 0.0, 1.0, on );
+	var rows = array<u32, 70>(
+		0x0Eu, 0x11u, 0x13u, 0x15u, 0x19u, 0x11u, 0x0Eu, // 0
+		0x04u, 0x0Cu, 0x04u, 0x04u, 0x04u, 0x04u, 0x0Eu, // 1
+		0x0Eu, 0x11u, 0x01u, 0x02u, 0x04u, 0x08u, 0x1Fu, // 2
+		0x1Fu, 0x02u, 0x04u, 0x02u, 0x01u, 0x11u, 0x0Eu, // 3
+		0x02u, 0x06u, 0x0Au, 0x12u, 0x1Fu, 0x02u, 0x02u, // 4
+		0x1Fu, 0x10u, 0x1Eu, 0x01u, 0x01u, 0x11u, 0x0Eu, // 5
+		0x06u, 0x08u, 0x10u, 0x1Eu, 0x11u, 0x11u, 0x0Eu, // 6
+		0x1Fu, 0x01u, 0x02u, 0x04u, 0x08u, 0x08u, 0x08u, // 7
+		0x0Eu, 0x11u, 0x11u, 0x0Eu, 0x11u, 0x11u, 0x0Eu, // 8
+		0x0Eu, 0x11u, 0x11u, 0x0Fu, 0x01u, 0x02u, 0x0Cu  // 9
+	);
+	if ( p.x < 0.0 || p.x >= 1.0 || p.y < 0.0 || p.y >= 1.0 ) { return 0.0; }
+	let col = u32( floor( p.x * 5.0 ) );
+	let row = u32( floor( ( 1.0 - p.y ) * 7.0 ) );
+	let bits = rows[ u32( clamp( n, 0, 9 ) ) * 7u + row ];
+	return f32( ( bits >> ( 4u - col ) ) & 1u );
 }
+// ---- end W1
 
 // the ticket windows: x from the frontage's left end (as you face it), v up from the street
 fn fzTickets( x: f32, v: f32, len: f32, first: f32, rd: vec3f, night: f32, base: FzOut ) -> FzOut {
