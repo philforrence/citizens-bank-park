@@ -211,6 +211,25 @@ function POSITIONS_OF( def, id ) {
 
 }
 
+// the knots they gather in after (the mound, the grass toward the Phillies' dugout, by the plate, the
+// third base side of the mound)
+const KNOTS = [ { c: [ 2.5, - 14.5 ], r: 1.7 }, { c: [ 12, - 6.5 ], r: 2.0 }, { c: [ - 1.5, - 5 ], r: 1.6 }, { c: [ - 7, - 15 ], r: 1.5 } ];
+// what a man does in a knot: arms round the next man, a jump, pointing up to the stands, clapping,
+// a word (turning to the one beside him)
+function knotPose( tau, n ) {
+
+	const c = Math.floor( tau / 4.5 + hash( n ) * 4 ) % 6;
+	if ( c === 0 || c === 3 ) return R.hug( tau, n % 2 ? 1 : - 1, 0 );
+	if ( c === 1 ) return M.jump( tau + hash( n ) * 2 );
+	if ( c === 2 ) return R.fist( tau, hash( n ) );
+	if ( c === 4 ) return R.applaud( tau, n );
+	const p = M.stand( tau + n );
+	p.head = [ 0.05, 0.6 * Math.sin( tau * 0.5 + n ) ];
+	p.glove = false;
+	return p;
+
+}
+
 // The first minutes after: pairs find each other (Lidge and Ruiz again, Manuel and Lidge, Howard and
 // Utley, Rollins and Victorino, Werth and Feliz, Hamels and Myers), the rest walk out toward the stands
 // behind the dugouts and home, waving their caps and pumping their fists at the crowd, and back.
@@ -254,16 +273,32 @@ function afterPile( d, seg, L, def ) {
 
 		}
 
-		// out to the stands and back toward the infield grass
-		const [ sx, sz ] = stands[ n % stands.length ];
-		const wave = [ sx + ( hash( n * 3 ) - 0.5 ) * 8, sz - 5 - hash( n * 7 ) * 6 ];
-		const walk = tt + 0.5;
-		const tw = walk + dist( p, wave ) / 1.7;
-		st.push( { t0: walk, t1: tw, kind: 'go', a: p, b: wave, gait: 'walk' } );
-		const face = [ wave[ 0 ] * 1.6, wave[ 1 ] + 20 ];
-		st.push( { t0: tw, t1: tw + 14 + hash( n * 11 ) * 10, kind: 'hold', p: wave, yaw: yawTo( wave, face ), y: 0, pose: ( tau ) => ( Math.floor( tau / 5 + n ) % 3 === 0 ? R.fist( tau, hash( n ) ) : Math.floor( tau / 5 + n ) % 3 === 1 ? R.waveCrowd( tau, hash( n ) ) : R.applaud( tau, n ) ) } );
-		info.afterAt = st[ st.length - 1 ].t1;
-		info.afterP = wave;
+		// then: one in five out to the stands to wave to the crowd first; everyone into the knots of them on
+		// the infield grass (by the mound, toward the dugout, by the plate), arms round each other, jumping,
+		// pointing up at the stands (Getty 83571364, pompomflipflop 2985431999)
+		if ( n % 5 === 2 ) {
+
+			const [ sx, sz ] = stands[ n % stands.length ];
+			const wave = [ sx + ( hash( n * 3 ) - 0.5 ) * 8, sz - 5 - hash( n * 7 ) * 4 ];
+			const walk = tt + 0.5, tw = walk + dist( p, wave ) / 1.7;
+			st.push( { t0: walk, t1: tw, kind: 'go', a: p, b: wave, gait: 'walk' } );
+			const face = [ wave[ 0 ] * 1.6, wave[ 1 ] + 20 ];
+			st.push( { t0: tw, t1: tw + 10 + hash( n * 11 ) * 6, kind: 'hold', p: wave, yaw: yawTo( wave, face ), y: 0, pose: ( tau ) => ( Math.floor( tau / 4 + n ) % 2 ? R.fist( tau, hash( n ) ) : R.waveCrowd( tau, hash( n ) ) ) } );
+			tt = st[ st.length - 1 ].t1;
+			p = wave;
+
+		}
+
+		const K = KNOTS[ n % KNOTS.length ], m = Math.floor( n / KNOTS.length );
+		const a = m * 1.1 + hash( n ) * 0.4, rr = K.r + ( m % 2 ) * 0.7;
+		const spot = [ K.c[ 0 ] + Math.cos( a ) * rr, K.c[ 1 ] + Math.sin( a ) * rr ];
+		const t1 = tt + 0.5, t2 = t1 + dist( p, spot ) / 1.6;
+		st.push( { t0: t1, t1: t2, kind: 'go', a: p, b: spot, gait: 'walk' } );
+		const inward = yawTo( spot, K.c ), nn = n;
+		st.push( { t0: t2, t1: t2 + 400, kind: 'hold', p: spot, yaw: inward, y: moundY( spot[ 0 ], spot[ 1 ] ), pose: ( tau ) => knotPose( tau, nn ) } );
+		p = spot;
+		info.afterAt = st[ st.length - 1 ].t0;
+		info.afterP = p;
 		n ++;
 
 	}
