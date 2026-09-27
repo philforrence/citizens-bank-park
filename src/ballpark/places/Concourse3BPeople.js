@@ -513,6 +513,22 @@ export class ConcoursePeople {
 
 		}
 
+		// to the rail or the crowd behind home: up from a nearby aisle or out of a nearby door (a minute's walk
+		// at most)
+		if ( f.spot && from.kind !== 'gate' ) {
+
+			const near = this.portals.filter( ( q ) => q.kind !== 'end' && Math.abs( q.s - f.spot.s ) < 30 );
+			if ( near.length ) {
+
+				const q = near[ Math.floor( r() * near.length ) ];
+				f.from = q;
+				f.s = q.s + ( r() - 0.5 ) * 0.6;
+				f.d = q.kind === 'aisle' ? RAIL_D - 2.6 : q.kind === 'door' ? q.d + 1.2 : q.d;
+
+			}
+
+		}
+
 		f.mode = 'walk';
 		f.phase = 'in';
 		const goalS = stand ? stand.s : f.loo ? f.loo.s : f.spot ? f.spot.s : f.to.s;
@@ -646,7 +662,7 @@ export class ConcoursePeople {
 				if ( ! free.length ) break;
 				if ( f.stand ) f.stand.coming = Math.max( 0, f.stand.coming - 1 );
 				if ( f.loo ) f.loo.coming = Math.max( 0, f.loo.coming - 1 );
-				f.stand = null; f.loo = null; f.to = null;
+				f.stand = null; f.loo = null; f.to = null; f.hold = 0;
 				f.spot = free[ 0 ];
 				f.spot.who = f;
 				f.phase = 'in';
@@ -672,7 +688,7 @@ export class ConcoursePeople {
 	_walk( f, dt, ns ) {
 
 		const p = f.p;
-		if ( f.hold > 0 ) {
+		if ( f.hold > 0 && f.to?.usher ) {
 
 			// stopped for the usher: the ticket held out to him, then off down the steps
 			f.hold -= dt;
