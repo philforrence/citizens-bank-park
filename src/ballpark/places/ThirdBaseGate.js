@@ -17,6 +17,7 @@ import { Horses, manure } from './gate3b/Horses.js';
 import { buildTV } from './gate3b/TV.js';
 import { Cars } from './gate3b/Cars.js';
 import { buildTailgates } from './gate3b/Tailgate.js';
+import { buildFurniture } from './gate3b/Furniture.js';
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -69,6 +70,10 @@ export default class ThirdBaseGate {
 		// the lots filled, the streets running, the tailgaters (gate3b/Cars.js, Tailgate.js)
 		const tail = buildTailgates( { group: this.group, cast: this.cast } );
 		this.cars = new Cars( { group: this.group, field, clear: tail.spots } );
+		// the banners, the marquee, the balloons, the bins, the store's board (gate3b/Furniture.js)
+		this.furniture = buildFurniture( { group: this.group, exterior: app.exterior, colliders, field } );
+		this.obstacles.push( ...this.furniture.obstacles );
+		this.clock = 0;
 
 	}
 
@@ -404,6 +409,8 @@ export default class ThirdBaseGate {
 		this._updatePolice( Math.min( dt, 0.1 ) );
 		this.tv?.update( Math.min( dt, 0.1 ) );
 		this.cars?.update( Math.min( dt, 0.1 ), w );
+		this.clock += dt;
+		this.furniture?.update( w, this.clock );
 		this._lights();
 		this._updateFlash( Math.min( dt, 0.1 ) );
 		this.openGate?.poseTripods();

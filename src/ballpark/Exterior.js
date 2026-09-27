@@ -1,4 +1,4 @@
-import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, LatheGeometry, Vector2, Vector3, Vector4, Color } from '../engine/index.js';
+import { Group, Mesh, BoxGeometry, CylinderGeometry, ConeGeometry, SphereGeometry, LatheGeometry, Vector2, Vector3, Vector4, Color, Quaternion } from '../engine/index.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { StorageBuffer } from '../engine/gpu/Texture.js';
 import { standard } from '../materials/Materials.js';
@@ -432,21 +432,46 @@ export class Exterior {
 			this.group.add( pl );
 			if ( tall ) {
 
-				for ( let k = 0; k < 3; k ++ ) {
+				// ---- W1 (Third Base Gate): the tall poles' heads as in the photos of 2007-08 (Flickr u2rob April
+				// 2008, pingnews 2007; Getty Oct 2008): four maroon drum floodlights on a crosshead, each aimed out
+				// and down, and a flat round "saucer" light halfway up the pole
+				const y = STREET + H - 0.35;
+				const cross = new Mesh( new CylinderGeometry( 0.05, 0.05, 1.0, 6 ), pole );
+				cross.position.set( x, y + 0.12, z );
+				cross.rotation.set( 0, 0.4, Math.PI / 2 );
+				this.group.add( cross );
+				const cross2 = new Mesh( new CylinderGeometry( 0.05, 0.05, 1.0, 6 ), pole );
+				cross2.position.set( x, y + 0.12, z );
+				cross2.rotation.set( 0, 0.4 + Math.PI / 2, Math.PI / 2 );
+				this.group.add( cross2 );
+				const drumGeo = new CylinderGeometry( 0.17, 0.2, 0.46, 14 ), faceGeo = new CylinderGeometry( 0.165, 0.165, 0.02, 14 );
+				for ( let k = 0; k < 4; k ++ ) {
 
-					const a = k * Math.PI * 2 / 3 + 0.4, ax = x + Math.cos( a ) * 0.75, az = z + Math.sin( a ) * 0.75, y = STREET + H - 0.5;
-					const arm = new Mesh( new CylinderGeometry( 0.03, 0.03, 0.8, 6 ), pole );
-					arm.position.set( x + Math.cos( a ) * 0.38, y + 0.25, z + Math.sin( a ) * 0.38 );
-					arm.rotation.set( 0, - a, Math.PI / 2 );
-					this.group.add( arm );
-					const b = new Mesh( bellGeo, shade );
-					b.position.set( ax, y - 0.1, az );
+					// aimed out along its arm and 40 degrees down: the drum's axis
+					const a = k * Math.PI / 2 + 0.4, tilt = 0.7;
+					const dir = new Vector3( Math.cos( a ) * Math.cos( tilt ), - Math.sin( tilt ), Math.sin( a ) * Math.cos( tilt ) );
+					const c = new Vector3( x + Math.cos( a ) * 0.48, y, z + Math.sin( a ) * 0.48 );
+					const q = new Quaternion().setFromUnitVectors( new Vector3( 0, - 1, 0 ), dir );
+					const b = new Mesh( drumGeo, shade );
+					b.position.copy( c );
+					b.quaternion.copy( q );
 					this.group.add( b );
-					const l = new Mesh( lensGeo, lens );
-					l.position.set( ax, y - 0.11, az );
+					const l = new Mesh( faceGeo, lens );
+					l.position.copy( c ).addScaledVector( dir, 0.235 );
+					l.quaternion.copy( q );
 					this.group.add( l );
 
 				}
+
+				// the saucer halfway up, on a short bracket
+				const sd = new Mesh( discGeo, lens );
+				sd.position.set( x + 0.35, STREET + 4.6, z );
+				this.group.add( sd );
+				const br = new Mesh( new CylinderGeometry( 0.025, 0.025, 0.35, 5 ), pole );
+				br.position.set( x + 0.17, STREET + 4.68, z );
+				br.rotation.set( 0, 0, Math.PI / 2 );
+				this.group.add( br );
+				// ---- end W1
 
 				this.lamps.push( [ x, STREET + H - 0.65, z, 1 ] );
 
