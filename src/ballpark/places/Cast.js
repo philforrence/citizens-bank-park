@@ -99,7 +99,10 @@ const CHEST_CELL = 40; // the chest prints start at this atlas cell
 
 // ---------------------------------------------------------------- the figure's geometry
 
-function figureGeometry() {
+// lod 0: the near figure; lod 1: the far one (fewer sides, no joints' rounds, a plain hand, no nose)
+function figureGeometry( lod = 0 ) {
+
+	const fine = lod === 0, N8 = fine ? 8 : 5, N6 = fine ? 6 : 4;
 
 	const pos = [], nrm = [], info = [], index = [];
 	const sub = ( a, b ) => [ a[ 0 ] - b[ 0 ], a[ 1 ] - b[ 1 ], a[ 2 ] - b[ 2 ] ];
@@ -245,7 +248,7 @@ function figureGeometry() {
 	// an upright cylinder (a cup), centre of its base c
 	const cyl = ( bone, part, c, rB, rT, h, n = 8, top = true ) => {
 
-		tube( bone, part, c, add( c, [ 0, h, 0 ] ), [ rB, rB ], [ rT, rT ], n, false, top );
+		tube( bone, part, c, add( c, [ 0, h, 0 ] ), [ rB, rB ], [ rT, rT ], fine ? n : Math.min( n, 5 ), false, top );
 
 	};
 
@@ -254,14 +257,14 @@ function figureGeometry() {
 	loft( B.spine, PART.torso, [
 		[ 0.83, 0.172, 0.118, 0.012 ], [ 0.95, 0.168, 0.112, 0.01 ], [ 1.06, 0.164, 0.11, 0.008 ], [ 1.17, 0.172, 0.114, 0.006 ],
 		[ 1.28, 0.186, 0.118, 0.012 ], [ 1.36, 0.196, 0.108, 0.022 ], [ 1.42, 0.17, 0.085, 0.028 ], [ 1.465, 0.09, 0.062, 0.03 ],
-	], 12, true, true );
+	], fine ? 12 : 7, true, true );
 	// the hips and seat (the pelvis), under the trunk's hem
-	loft( B.pelvis, PART.pants, [ [ 0.74, 0.16, 0.1, 0.012 ], [ 0.86, 0.168, 0.11, 0.012 ], [ 0.97, 0.16, 0.105, 0.012 ] ], 10, true, false );
+	loft( B.pelvis, PART.pants, [ [ 0.74, 0.16, 0.1, 0.012 ], [ 0.86, 0.168, 0.11, 0.012 ], [ 0.97, 0.16, 0.105, 0.012 ] ], fine ? 10 : 6, true, false );
 	// the neck
-	tube( B.head, PART.neck, [ 0, 1.4, 0.03 ], [ 0, 1.54, 0.02 ], [ 0.052, 0.05 ], [ 0.046, 0.046 ], 8 );
+	tube( B.head, PART.neck, [ 0, 1.4, 0.03 ], [ 0, 1.54, 0.02 ], [ 0.052, 0.05 ], [ 0.046, 0.046 ], N6 );
 	// the head, the nose, a cap's brim, a knit hat's pom-pom, long hair down the back
-	ellipsoid( B.head, PART.head, J.head, HEAD_R, 14, 9 );
-	{
+	ellipsoid( B.head, PART.head, J.head, HEAD_R, fine ? 14 : 8, fine ? 9 : 6 );
+	if ( fine ) {
 
 		const h = J.head, tip = [ 0, h[ 1 ] - 0.022, h[ 2 ] - HEAD_R[ 2 ] - 0.022 ];
 		const a = [ - 0.017, h[ 1 ] - 0.042, h[ 2 ] - HEAD_R[ 2 ] + 0.012 ], b = [ 0.017, h[ 1 ] - 0.042, h[ 2 ] - HEAD_R[ 2 ] + 0.012 ], t = [ 0, h[ 1 ] + 0.02, h[ 2 ] - HEAD_R[ 2 ] + 0.01 ];
@@ -275,7 +278,7 @@ function figureGeometry() {
 		const h = J.head;
 		const brim = [ [ - 0.078, 0.048, - 0.055 ], [ 0.078, 0.048, - 0.055 ], [ 0.07, 0.03, - 0.17 ], [ - 0.07, 0.03, - 0.17 ], [ 0, 0.045, - 0.115 ] ].map( ( o ) => vert( add( h, o ), [ 0, 1, - 0.15 ], B.head, PART.brim ) );
 		index.push( brim[ 0 ], brim[ 4 ], brim[ 1 ], brim[ 1 ], brim[ 4 ], brim[ 2 ], brim[ 2 ], brim[ 4 ], brim[ 3 ], brim[ 3 ], brim[ 4 ], brim[ 0 ] );
-		ellipsoid( B.head, PART.pompom, add( h, [ 0, HEAD_R[ 1 ] + 0.04, 0.005 ] ), [ 0.034, 0.03, 0.034 ], 6, 4 );
+		ellipsoid( B.head, PART.pompom, add( h, [ 0, HEAD_R[ 1 ] + 0.04, 0.005 ] ), [ 0.034, 0.03, 0.034 ], N6, fine ? 4 : 3 );
 		// long hair: a card down the back, curved round the head
 		const hc = [ - 0.08, - 0.04, 0, 0.04, 0.08 ];
 		const top = hc.map( ( x ) => vert( add( h, [ x, 0.05, 0.075 - x * x * 3 ] ), [ x, 0, 1 ], B.head, PART.hairCard ) );
@@ -289,28 +292,28 @@ function figureGeometry() {
 		const L = s < 0 ? 0 : 1;
 		const sh = side( J.shoulder, s ), el = side( J.elbow, s ), wr = side( J.wrist, s ), ha = side( J.hand, s );
 		// the shoulder's round, the upper arm, the forearm and the cuff (sleeves: the shaders colour them)
-		ellipsoid( B.uarm[ L ], PART.sleeve, add( sh, [ - 0.012 * s, - 0.018, 0 ] ), [ 0.064, 0.052, 0.064 ], 8, 5 );
-		tube( B.uarm[ L ], PART.sleeve, sh, el, [ 0.062, 0.064 ], [ 0.05, 0.052 ], 8 );
-		ellipsoid( B.farm[ L ], PART.sleeve, el, [ 0.05, 0.05, 0.052 ], 8, 4 );
-		tube( B.farm[ L ], PART.sleeve, el, wr, [ 0.049, 0.05 ], [ 0.04, 0.042 ], 8 );
+		if ( fine ) ellipsoid( B.uarm[ L ], PART.sleeve, add( sh, [ - 0.012 * s, - 0.018, 0 ] ), [ 0.064, 0.052, 0.064 ], 8, 5 );
+		tube( B.uarm[ L ], PART.sleeve, sh, el, [ 0.062, 0.064 ], [ 0.05, 0.052 ], N8 );
+		if ( fine ) ellipsoid( B.farm[ L ], PART.sleeve, el, [ 0.05, 0.05, 0.052 ], 8, 4 );
+		tube( B.farm[ L ], PART.sleeve, el, wr, [ 0.049, 0.05 ], [ 0.04, 0.042 ], N8 );
 		// the hand: a mitten with its thumb, turned in toward the body
 		boxAt( B.farm[ L ], PART.hand, add( ha, [ - 0.004 * s, 0.0, 0 ] ), [ 0.017, 0.045, 0.036 ] );
-		boxAt( B.farm[ L ], PART.hand, add( ha, [ - 0.016 * s, 0.022, - 0.03 ] ), [ 0.012, 0.026, 0.011 ] );
-		tube( B.farm[ L ], PART.hand, add( wr, [ 0, 0.01, 0 ] ), add( ha, [ 0, 0.02, 0 ] ), [ 0.03, 0.027 ], [ 0.02, 0.036 ], 6 );
+		if ( fine ) boxAt( B.farm[ L ], PART.hand, add( ha, [ - 0.016 * s, 0.022, - 0.03 ] ), [ 0.012, 0.026, 0.011 ] );
+		if ( fine ) tube( B.farm[ L ], PART.hand, add( wr, [ 0, 0.01, 0 ] ), add( ha, [ 0, 0.02, 0 ] ), [ 0.03, 0.027 ], [ 0.02, 0.036 ], 6 );
 		// the thigh, the knee, the shin and the shoe
 		const hp = side( J.hip, s ), kn = side( J.knee, s ), an = side( J.ankle, s );
-		tube( B.thigh[ L ], PART.pants, add( hp, [ 0, 0.05, 0 ] ), kn, [ 0.088, 0.09 ], [ 0.062, 0.064 ], 8 );
-		ellipsoid( B.shin[ L ], PART.pants, kn, [ 0.059, 0.058, 0.06 ], 8, 4 );
-		tube( B.shin[ L ], PART.pants, kn, add( an, [ 0, 0.02, 0 ] ), [ 0.06, 0.062 ], [ 0.047, 0.05 ], 8 );
+		tube( B.thigh[ L ], PART.pants, add( hp, [ 0, 0.05, 0 ] ), kn, [ 0.088, 0.09 ], [ 0.062, 0.064 ], N8 );
+		if ( fine ) ellipsoid( B.shin[ L ], PART.pants, kn, [ 0.059, 0.058, 0.06 ], 8, 4 );
+		tube( B.shin[ L ], PART.pants, kn, add( an, [ 0, 0.02, 0 ] ), [ 0.06, 0.062 ], [ 0.047, 0.05 ], N8 );
 		boxAt( B.shin[ L ], PART.shoe, add( an, [ 0.003 * s, - 0.045, - 0.045 ] ), [ 0.048, 0.042, 0.125 ] );
 
 	}
 
 	// a poncho: a bell of plastic from the shoulders to the knees, over everything (the spine bone)
-	loft( B.spine, PART.poncho, [ [ 0.6, 0.32, 0.25, 0.02 ], [ 0.85, 0.29, 0.21, 0.02 ], [ 1.12, 0.262, 0.175, 0.015 ], [ 1.36, 0.245, 0.14, 0.025 ], [ 1.44, 0.17, 0.105, 0.03 ], [ 1.49, 0.07, 0.068, 0.03 ] ], 14, false, false );
+	loft( B.spine, PART.poncho, [ [ 0.6, 0.32, 0.25, 0.02 ], [ 0.85, 0.29, 0.21, 0.02 ], [ 1.12, 0.262, 0.175, 0.015 ], [ 1.36, 0.245, 0.14, 0.025 ], [ 1.44, 0.17, 0.105, 0.03 ], [ 1.49, 0.07, 0.068, 0.03 ] ], fine ? 14 : 8, false, false );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
-	loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], 12, false, false );
-	loft( B.spine, PART.vest, [ [ 0.98, 0.178, 0.122, 0.01 ], [ 1.17, 0.18, 0.124, 0.006 ], [ 1.3, 0.194, 0.128, 0.012 ], [ 1.4, 0.18, 0.1, 0.024 ] ], 12, false, false );
+	loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], fine ? 12 : 7, false, false );
+	loft( B.spine, PART.vest, [ [ 0.98, 0.178, 0.122, 0.01 ], [ 1.17, 0.18, 0.124, 0.006 ], [ 1.3, 0.194, 0.128, 0.012 ], [ 1.4, 0.18, 0.1, 0.024 ] ], fine ? 12 : 7, false, false );
 
 	// ---- what's held: each hand's set, built at its hand (the rig carries it)
 	for ( const s of [ - 1, 1 ] ) {
@@ -320,6 +323,9 @@ function figureGeometry() {
 		// upright things sit just in front of the palm, held round their middle
 		const g = add( h, [ - 0.035 * s, - 0.06, - 0.02 ] );
 		for ( const id of HAND_PROPS[ L ] ) {
+
+			// far off only the things that show at a distance
+			if ( ! fine && ! [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove ].includes( id ) ) continue;
 
 			const part = 32 + id;
 			if ( id === PROP.beer || id === PROP.soda ) {
@@ -1057,22 +1063,38 @@ export class Cast {
 		this.poseBuf = new StorageBuffer( { label: 'castPose', count: max * POSE, type: 'vec4f' } );
 		this.prevBuf = new StorageBuffer( { label: 'castPrev', count: max * POSE, type: 'vec4f' } );
 		this.lookBuf = new StorageBuffer( { label: 'castLooks', count: max, type: 'vec4f' } );
-		// which slots are drawn this frame, packed (so the hidden cost nothing)
+		// which slots are drawn this frame, packed (so the hidden cost nothing): all of them (the contact
+		// shadows), the near ones (the full figure) and the far ones (the light one, past NEAR metres)
 		this.order = new Uint32Array( max );
+		this.orderNear = new Uint32Array( max );
+		this.orderFar = new Uint32Array( max );
 		this.orderBuf = new StorageBuffer( { label: 'castOrder', count: max, type: 'u32' } );
+		this.orderNearBuf = new StorageBuffer( { label: 'castOrderNear', count: max, type: 'u32' } );
+		this.orderFarBuf = new StorageBuffer( { label: 'castOrderFar', count: max, type: 'u32' } );
+		this.near = 22;
 		this.atlas = drawAtlas();
-		this.material = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderBuf, this.atlas );
-		this.geometry = figureGeometry();
-		this.mesh = new InstancedMesh( this.geometry, this.material, max );
-		this.mesh.name = 'cast';
-		this.mesh.frustumCulled = false;
-		this.mesh.castShadow = false;
-		this.mesh.receiveShadow = true;
-		this.mesh.userData.dynamic = true;
+		this.material = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderNearBuf, this.atlas );
+		this.materialFar = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderFarBuf, this.atlas );
+		this.geometry = figureGeometry( 0 );
+		this.geometryFar = figureGeometry( 1 );
 		const I = new Matrix4();
-		for ( let i = 0; i < max; i ++ ) this.mesh.setMatrixAt( i, I );
-		this.mesh.count = 1;
-		parent.add( this.mesh );
+		const make = ( geo, mat, name ) => {
+
+			const m = new InstancedMesh( geo, mat, max );
+			m.name = name;
+			m.frustumCulled = false;
+			m.castShadow = false;
+			m.receiveShadow = true;
+			m.userData.dynamic = true;
+			for ( let i = 0; i < max; i ++ ) m.setMatrixAt( i, I );
+			m.count = 1;
+			parent.add( m );
+			return m;
+
+		};
+
+		this.mesh = make( this.geometry, this.material, 'cast' );
+		this.meshFar = make( this.geometryFar, this.materialFar, 'cast-far' );
 		// a soft shadow on the floor under each (the concourse's light comes from everywhere at once)
 		const blob = new PlaneGeometry( 1, 1 );
 		blob.rotateX( - Math.PI / 2 );
@@ -1131,7 +1153,8 @@ export class Cast {
 
 	}
 
-	update() {
+	// cam: the camera in the field frame ([ x, y, z ]) to choose near and far by
+	update( cam = null ) {
 
 		if ( this._looksDirty ) {
 
@@ -1143,7 +1166,8 @@ export class Cast {
 		// last frame's poses become the previous ones
 		this.prev.set( this.pose );
 		const P = this.pose;
-		let drawn = 0;
+		let drawn = 0, nNear = 0, nFar = 0;
+		const n2 = this.near * this.near;
 		for ( const p of this.list ) {
 
 			const o = p.slot * POSE * 4, a = p.pose;
@@ -1164,6 +1188,9 @@ export class Cast {
 			P[ o + 24 ] = a.hipL; P[ o + 25 ] = a.kneeL; P[ o + 26 ] = a.hipR; P[ o + 27 ] = a.kneeR;
 			P[ o + 28 ] = a.spread; P[ o + 29 ] = a.breath; P[ o + 30 ] = a.blink; P[ o + 31 ] = 0;
 			this.order[ drawn ++ ] = p.slot;
+			const dx = cam ? p.x - cam[ 0 ] : 0, dz = cam ? p.z - cam[ 2 ] : 0;
+			if ( dx * dx + dz * dz < n2 ) this.orderNear[ nNear ++ ] = p.slot;
+			else this.orderFar[ nFar ++ ] = p.slot;
 			// someone who's just appeared has no motion from last frame
 			if ( p.fresh ) {
 
@@ -1175,13 +1202,20 @@ export class Cast {
 		}
 
 		// nobody to draw: one collapsed figure (a slot with no pose)
-		if ( ! drawn ) this.order[ drawn ++ ] = this.list.length ? this.list[ 0 ].slot : 0;
+		const none = this.list.length ? this.list.find( ( p ) => ! p.visible )?.slot ?? 0 : 0;
+		if ( ! drawn ) this.order[ drawn ++ ] = none;
+		if ( ! nNear ) this.orderNear[ nNear ++ ] = none;
+		if ( ! nFar ) this.orderFar[ nFar ++ ] = none;
 		this.drawn = drawn;
-		this.mesh.count = drawn;
+		this.drawnNear = nNear;
+		this.mesh.count = nNear;
+		this.meshFar.count = nFar;
 		this.blobs.count = drawn;
 		this.poseBuf.write( P );
 		this.prevBuf.write( this.prev );
 		this.orderBuf.write( this.order.subarray( 0, Math.max( 4, drawn ) ) );
+		this.orderNearBuf.write( this.orderNear.subarray( 0, Math.max( 4, nNear ) ) );
+		this.orderFarBuf.write( this.orderFar.subarray( 0, Math.max( 4, nFar ) ) );
 
 	}
 

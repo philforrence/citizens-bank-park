@@ -57,7 +57,7 @@ export default class Concourse3B {
 		this.cast = new Cast( { parent: this.group, max: 360 } );
 		// where the cast is (for ?focus=, which drops what's wholly outside its circle)
 		const mid = this.W.at( S_END / 2, 40 );
-		for ( const m of [ this.cast.mesh, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
+		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
 		this.people = new ConcoursePeople( { cast: this.cast, walkway: this.W, concourse, bowl, sEnd: S_END, obstacles: this.obstacles, carts: this.carts, seed: 1027 } );
 		this.stories = new Stories( this.people );
 		// steam off the grills and the urns and the cups, and people's breath
@@ -493,7 +493,7 @@ export default class Concourse3B {
 		const cam = this.app?.camera;
 		const cf = cam ? [ ...this.field.toField( cam.position.x, cam.position.z ) ] : null;
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam: cf ? [ cf[ 0 ], 0, cf[ 1 ] ] : null, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
-		this.cast.update();
+		this.cast.update( cf ? [ cf[ 0 ], 0, cf[ 1 ] ] : null );
 		this.tv.update( dt, director, ns );
 		// the floor: wet on the 27th (wetter as it pours), dry prints on the 29th, the litter piling up
 		const U = this.floor.material.uniforms;
