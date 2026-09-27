@@ -263,19 +263,17 @@ export class Details2008 {
 		const cover = standard( { name: 'tarp-roll', color: new Color( 0.035, 0.08, 0.05 ), roughness: 0.4, modules: [ commonModule ],
 			surface: 's.albedo = mat.color * ( 0.85 + 0.2 * mx_noise_float3( in.P * 1.5 ) ) * ( 1.0 - 0.6 * step( 0.93, fract( dot( in.P.xz, vec2f( 0.7071 ) ) / 3.0 ) ) );' } );
 		cover.underwaterLighting = 'none';
-		const [ a, b ] = [ FOUL_TERRITORY[ 4 ], FOUL_TERRITORY[ 3 ] ];
-		const len = Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] );
-		const roll = new Mesh( new CylinderGeometry( 0.65, 0.65, len - 1, 24 ), cover );
-		const mx = ( a[ 0 ] + b[ 0 ] ) / 2, mz = ( a[ 1 ] + b[ 1 ] ) / 2;
-		const nx = - ( b[ 1 ] - a[ 1 ] ) / len, nz = ( b[ 0 ] - a[ 0 ] ) / len;
-		const sgn = nx * - mx + nz * ( - 40 - mz ) > 0 ? 1 : - 1;
-		roll.position.set( mx + nx * sgn * 1.0, 0.65, mz + nz * sgn * 1.0 );
-		roll.rotation.set( 0, - Math.atan2( b[ 1 ] - a[ 1 ], b[ 0 ] - a[ 0 ] ), Math.PI / 2 );
-		roll.castShadow = true;
-		roll.receiveShadow = true;
+		// ---- W4 (rail): the roll lies on the third base side, past the visitors' photographers' well
+		// toward the left field pole, under its canvas cover and the WORLD SERIES '08 ON FOX banner
+		// (heston 2987303394; the audit's HP08). The rail (places/rail/Tarp.js) builds it into this
+		// group; setTarp() still shows and hides it
+		const roll = new Group();
+		roll.name = 'tarp-roll';
 		roll.userData.dynamic = true; // shown and hidden
 		this.group.add( roll );
 		this.tarpRoll = roll;
+		void cover;
+		// ---- end W4
 
 		// the sheet: a grid over a 44 m square turned with the diamond, from behind the plate out past
 		// second; it drapes the mound, sags between, with folds
@@ -310,15 +308,15 @@ export class Details2008 {
 		const nrm = g.getAttribute( 'normal' );
 		if ( nrm.array[ 1 ] < 0 ) for ( let i = 0; i < nrm.array.length; i ++ ) nrm.array[ i ] = - nrm.array[ i ];
 		g.computeBoundingSphere();
-		// it comes off the roll on the first base side: u = 1 is the first base edge
+		// ---- W4 (rail): it comes off the roll on the third base side: u = 0 is the third base edge
 		this.tarpMat = standard( { name: 'tarp', color: new Color( 0.62, 0.64, 0.6 ), roughness: 0.3, side: 'double', modules: [ commonModule ],
 			uniforms: { pull: [ 'f32', 0 ] },
 			vertex: /* wgsl */`
 	// the part not yet pulled out is the roll, lying along the sheet's leading edge as it crosses
 	let k = mat.pull;
 	let front = 1.0 - k;
-	let out = step( front, v.uv.x );
-	let lx = ( front - 0.5 ) * ${ S.toFixed( 1 ) }; let lz = ( v.uv.y - 0.5 ) * ${ S.toFixed( 1 ) };
+	let out = step( front, 1.0 - v.uv.x );
+	let lx = ( 0.5 - front ) * ${ S.toFixed( 1 ) }; let lz = ( v.uv.y - 0.5 ) * ${ S.toFixed( 1 ) };
 	let rolled = vec3f( ${ c[ 0 ].toFixed( 2 ) } + ( lx - lz ) * ${ r2.toFixed( 5 ) }, 0.55, ${ c[ 1 ].toFixed( 2 ) } + ( lx + lz ) * ${ r2.toFixed( 5 ) } );
 	let p = mix( rolled, v.position, out );
 	v.useWorld = true;

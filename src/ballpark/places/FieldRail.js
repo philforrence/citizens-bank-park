@@ -6,6 +6,8 @@ import { railMaterials } from './rail/Props.js';
 import { Wells } from './rail/Wells.js';
 import { OnDeck } from './rail/OnDeck.js';
 import { BallGirls } from './rail/BallGirls.js';
+import { buildTarpTube } from './rail/Tarp.js';
+import { Crew } from './rail/Crew.js';
 
 // The rail: field level round home plate and the dugouts, the strip every TV shot sees. The backstop,
 // the camera wells, the front rows and the dugout surrounds, the on-deck circles and foul territory down
@@ -39,6 +41,10 @@ export default class FieldRail {
 		this.onDeck = new OnDeck( ctx );
 		// the ball girls down the lines, and the kids waiting on the rail for a ball
 		this.ballGirls = new BallGirls( ctx );
+		// the tarp's tube down the third base side (into Details2008's roll, which the pull shows and hides)
+		buildTarpTube( app?.details?.tarpRoll || this.group, this.group, this.M );
+		// the grounds crew waiting by it in the rain
+		this.crew = new Crew( ctx );
 		this.figs.build();
 		this.state = {};
 
@@ -99,6 +105,7 @@ export default class FieldRail {
 		this.wells.update( S, dt );
 		this.onDeck.update( S, dt, director );
 		this.ballGirls.update( S, dt, director );
+		this.crew.update( S, dt );
 		this.figs.update();
 
 	}
