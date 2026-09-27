@@ -219,8 +219,19 @@ export class MeshRenderer {
 		if ( ! byMat ) _layouts.set( geometry, byMat = new Map() );
 		const inst = object.isInstancedMesh ? ( object.instanceColor ? 2 : 1 ) : 0;
 		const mkey = inst ? material.id + ':' + inst : material.id;
-		let e = byMat.get( mkey );
-		if ( e && e.version === material.version && e.attrsVersion === geometry.attributesVersion && ( ! inst || e.instanceMatrix === object.instanceMatrix ) ) {
+		// instanced meshes sharing a geometry and a material (the crowd's and the seats' chunks) each have
+		// their own instance buffers: an entry for each, not one rebuilt at every draw as they alternate
+		let entries = byMat, ekey = mkey;
+		if ( inst ) {
+
+			entries = byMat.get( mkey );
+			if ( ! entries ) byMat.set( mkey, entries = new WeakMap() );
+			ekey = object.instanceMatrix;
+
+		}
+
+		let e = entries.get( ekey );
+		if ( e && e.version === material.version && e.attrsVersion === geometry.attributesVersion && ( ! inst || e.instanceColor === object.instanceColor ) ) {
 
 			const refs = e.refs, names = e.names, attrs = geometry.attributes;
 			let ok = true;
@@ -237,9 +248,9 @@ export class MeshRenderer {
 
 		const vl = this._layout( object, geometry, material );
 		const names = vl.layout.filter( ( l ) => ! l.name.startsWith( 'instance' ) ).map( ( l ) => l.name );
-		e = { version: material.version, attrsVersion: geometry.attributesVersion, instanceMatrix: object.instanceMatrix, names, refs: names.map( ( n ) => geometry.attributes[ n ] ), vl };
+		e = { version: material.version, attrsVersion: geometry.attributesVersion, instanceColor: object.instanceColor, names, refs: names.map( ( n ) => geometry.attributes[ n ] ), vl };
 		vl.pipelines = new Map();
-		byMat.set( mkey, e );
+		entries.set( ekey, e );
 		return vl;
 
 	}
