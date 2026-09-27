@@ -38,6 +38,8 @@ It runs in waves of 4 builders, one place each, on the shared brief ([BRIEF.md](
 
 The shared space for inspiring each other is `.claude/wave2/` (local, absolute path): live notes, the cast register, and requests between builders.
 
+**Status:** all four merged (2026-09-27); the combined summary is in [WAVE2.md](WAVE2.md), and the cast register is committed as [CAST.md](CAST.md).
+
 ## Candidates for the next waves
 
 - **Harry the K's and the left field corner:**

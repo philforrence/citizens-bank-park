@@ -2,7 +2,7 @@ node_modules
 dist
 .DS_Store
 *.log
-stages
+/stages
 tools/osm/*.json
 tools/radio/.cache
 tools/body/.cache
