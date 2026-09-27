@@ -15,6 +15,21 @@ You walk in through the Third Base Gate and watch the replay, with TV cameras, t
 
 > "don't make fidelity and textured sacrifices, I LOOOOVE the details"
 
+## Wave 3: what's new (2026-09-27)
+
+**Everything in the wave-2 section below still applies.** For wave 3:
+- **Read [WAVE2.md](WAVE2.md)** for what wave 2 built, and the builders' notes `P0.md`, `A.md`, `B.md` and `C.md`.
+- **The shared space is now `/Users/phillipforrence/citizens-bank-park/.claude/wave3/`:** live notes, the cast register `CAST.md` (everyone so far is in it), and requests between builders.
+- **Hooks you can use:**
+  - `app.bowl.crowd.focus( key, { x, z, r, stand, arms } )`: the seated fans round a spot get up;
+  - `app.bowl.crowd.vacate( test )`: empty seats;
+  - the crowd's mood follows the game already (Crowd.js `mood()`);
+  - `app.phanatic.now`, and `director.phanatic.at( t )`;
+  - `app.sound.sample()` and `.spot()`;
+  - Cast.js's pool and helpers: `seat()`, `sign()`, `lookAt()`.
+- **The desk:** a shot's `hour` carries over to the shots after it in the same job, so set `hour` on every shot that needs one.
+- **The budget:** the whole park's CPU is now 5–7 ms a frame, mostly people. **Add no always-on per-frame CPU work beyond ~0.5 ms**, and prefer work that runs only when its place or moment is on.
+
 ## Wave 2: what's new (2026-09-27)
 
 **The owner, for this wave:** "tell them each to make a lot of grounded creative decisions that make every little world they're building more rich, think of sounds, interactions, textures, colors... anything that makes this more amazing to be in, tell them to inspire each other, really make this stadium alive and specific."

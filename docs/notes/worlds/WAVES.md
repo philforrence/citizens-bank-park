@@ -40,6 +40,17 @@ The shared space for inspiring each other is `.claude/wave2/` (local, absolute p
 
 **Status:** all four merged (2026-09-27); the combined summary is in [WAVE2.md](WAVE2.md), and the cast register is committed as [CAST.md](CAST.md).
 
+## Wave 3 (launched 2026-09-27: "enrich the world" as a whole)
+
+| Key | Work | Where |
+|---|---|---|
+| S | Sound: the park's whole soundscape | GameSound.js and `places/Sound*` |
+| R | The night's rituals and the celebration | `places/Rituals.js` and the Director's hooks |
+| L | Light and night | the lights, materials and night looks, `places/Night*` |
+| H | The people-CPU tune-up first, then Harry the K's and the left field corner | `places/Cast.js` etc., then `places/LeftField.js` (`leftfield`) |
+
+The shared space is `.claude/wave3/`.
+
 ## Candidates for the next waves
 
 - **Harry the K's and the left field corner:**
