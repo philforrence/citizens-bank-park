@@ -5,6 +5,9 @@ import { LiveTV } from './Concourse3BTV.js';
 import { nightState } from './Concourse3BPeople.js';
 import { Frame, STREET } from './leftfield/Frame.js';
 import { buildHarrys } from './leftfield/Harrys.js';
+import { HarrysPeople } from './leftfield/People.js';
+import { Cast } from './Cast.js';
+import { Tempo } from './Tempo.js';
 
 // The left field corner on the World Series nights, October 27 and 29, 2008 (H, wave 3): Harry the K's
 // Broadcast Bar & Grille under the scoreboard, upstairs on the Scoreboard Porch's level and downstairs at
@@ -46,6 +49,18 @@ export default class LeftField {
 
 		// everything the Kit built, in one draw
 		if ( this.kit ) this.group.add( this.kit.mesh( 'leftfield-things' ) );
+		// the people (Cast.js's pool): a troupe of them, skipped whole when the view's elsewhere, moved at the
+		// full rate only while some are seen (Tempo.js)
+		this.cast = new Cast( { parent: this.group, max: 300 } );
+		if ( this.harrys ) {
+
+			const [ cx, cz ] = this.F.field( - 2, - 8 );
+			this.cast.bounds = new Sphere( new Vector3( cx, 12, cz ), 32 );
+			this.people = new HarrysPeople( this, this.cast, this.harrys, this.F );
+
+		}
+
+		this._tempo = new Tempo( [ this.cast ] );
 		void people;
 
 	}
@@ -166,10 +181,24 @@ export default class LeftField {
 
 	}
 
-	update( dt, director ) {
+	update( dt, director, camera ) {
 
-		const ns = nightState( director );
-		if ( this.ownTV ) this.tv.update( dt, director, ns );
+		if ( ! director ) return;
+		const N = nightState( director );
+		if ( this.ownTV ) this.tv.update( dt, director, N );
+		// ---- the people, on the tempo (every frame while any are seen)
+		const cam = camera || this.app?.camera;
+		const sdt = this._tempo.step( dt, cam );
+		if ( sdt && this.people ) {
+
+			N.mood = this.bowl?.crowd?._mood;
+			const cf = cam ? this.field.toField( cam.position.x, cam.position.z ) : null;
+			this.people.catchUp = this._tempo.cut;
+			this.people.update( Math.min( sdt, 0.25 ), N, cf );
+
+		}
+
+		this.cast.update();
 
 	}
 
