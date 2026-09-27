@@ -83,12 +83,12 @@ function drawFair( ctx, w, h ) {
 		ctx.fillStyle = '#f2c230'; ctx.font = '800 50px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( '$15  •  RALLY TOWELS', W / 2, H * 0.74 );
 
 	} );
-	// 5: RUN the BASES (red, blue, and white baseball letters) on the green Citizens Bank band
+	// 5: AROUND the BASES (red, blue, and white baseball letters; the 2004 photo) on the green Citizens Bank band
 	row( 5, ( W, H ) => {
 
 		ctx.fillStyle = '#0b6b3a'; ctx.fillRect( 0, 0, W, H * 0.34 );
 		ctx.fillStyle = '#ffffff'; ctx.font = '600 58px "Frutiger", "Myriad Pro", sans-serif'; ctx.fillText( 'Citizens Bank', W / 2, H * 0.18 );
-		ctx.fillStyle = '#c8102e'; ctx.font = '900 110px Impact, "Arial Black", sans-serif'; ctx.fillText( 'RUN', W * 0.22, H * 0.68 );
+		ctx.fillStyle = '#c8102e'; ctx.font = '900 96px Impact, "Arial Black", sans-serif'; ctx.fillText( 'AROUND', W * 0.2, H * 0.68 );
 		ctx.fillStyle = '#1c3f94'; ctx.font = 'italic 800 70px Georgia, serif'; ctx.fillText( 'the', W * 0.42, H * 0.7 );
 		for ( const [ i, ch ] of [ ...'BASES' ].entries() ) {
 
@@ -100,6 +100,22 @@ function drawFair( ctx, w, h ) {
 		}
 
 	} );
+	// 9: the medallions, four across
+	for ( let i = 0; i < 4; i ++ ) {
+
+		ctx.save();
+		ctx.translate( i * 256 + 128, 9 * 256 + 128 );
+		ctx.fillStyle = [ '#c8102e', '#1c3f94', '#f4f1ea', '#00843d' ][ i ]; ctx.beginPath(); ctx.arc( 0, 0, 118, 0, Math.PI * 2 ); ctx.fill();
+		ctx.strokeStyle = '#f2c230'; ctx.lineWidth = 10; ctx.stroke();
+		ctx.fillStyle = i === 2 ? '#1c3f94' : '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+		ctx.font = [ 'italic 900 150px Georgia, serif', '900 60px "Helvetica Neue", Arial, sans-serif', '800 40px Georgia, serif', '600 38px "Frutiger", "Myriad Pro", sans-serif' ][ i ];
+		ctx.fillText( [ 'P', '1980', 'LIBERTY', 'Citizens' ][ i ], 0, i === 0 ? 8 : 0 );
+		if ( i === 1 ) { ctx.font = '700 22px "Helvetica Neue", Arial, sans-serif'; ctx.fillText( 'WORLD CHAMPIONS', 0, 50 ); }
+		if ( i === 2 ) { ctx.font = '700 30px Georgia, serif'; ctx.fillText( 'BELL', 0, 44 ); }
+		ctx.restore();
+
+	}
+
 	// 8: funnel cake
 	row( 8, ( W, H ) => {
 
@@ -241,8 +257,16 @@ export class Fair {
 			sq.tri( A, B, C, n, [ 0, 0.8 ], [ 1, 0.8 ], [ 1, 0.6 ] );
 			sq.tri( A, C, D, n, [ 0, 0.8 ], [ 1, 0.6 ], [ 0, 0.6 ] );
 			kbox( gx - 2.7, gx + 2.7, y0 - 0.15, y0, tiltBot - 0.2, tiltBot + 0.1, P.white );
-			// RUN the BASES and the green band over it
+			// AROUND the BASES and the green band over it
 			sign( 5, gx - 3.2, gx + 3.2, 5.7, 7.1, tiltTop - 0.1 );
+			// the round medallions round the board (the 2004 photo): the Phillies, 1980, the Bell, the bank
+			for ( const [ i, mx, my ] of [ [ 0, gx - 3.3, 4.9 ], [ 1, gx + 3.3, 4.9 ], [ 2, gx - 3.5, 3.0 ], [ 3, gx + 3.5, 3.0 ] ] ) {
+
+				const A = [ mx - 0.55, Y + my - 0.55, tiltTop + 0.35 ], B = [ mx + 0.55, Y + my - 0.55, tiltTop + 0.35 ], C = [ mx + 0.55, Y + my + 0.55, tiltTop + 0.35 ], D = [ mx - 0.55, Y + my + 0.55, tiltTop + 0.35 ];
+				sq.tri( A, B, C, [ 0, 0, 1 ], [ i / 4, 1 ], [ ( i + 1 ) / 4, 1 ], [ ( i + 1 ) / 4, 0.9 ] );
+				sq.tri( A, C, D, [ 0, 0, 1 ], [ i / 4, 1 ], [ ( i + 1 ) / 4, 0.9 ], [ i / 4, 0.9 ] );
+
+			}
 			// the kids' track: four lanes, low rails, a pad at each end
 			for ( let l = 0; l <= 4; l ++ ) {
 
@@ -295,8 +319,8 @@ export class Fair {
 	}
 	s.albedo = c; s.roughness = r; s.metalness = mt; s.emissive = e + c * night * 0.15;
 ` } );
-		const signMat = standard( { name: 'alley-fair-signs', roughness: 0.4, textures: { bpFair: tex }, side: 'double',
-			surface: 'let t = textureSample( bpFair, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.7; s.emissive = t * mix( 0.12, 0.7, smoothstep( 0.2, 0.8, frame.night ) );' } );
+		const signMat = standard( { name: 'alley-fair-signs', roughness: 0.4, alphaTest: 0.5, textures: { bpFair: tex }, side: 'double',
+			surface: 'let ta = textureSample( bpFair, smpAnisoClamp, in.uv ); let t = ta.rgb; s.alpha = ta.a; s.albedo = t * 0.7; s.emissive = t * mix( 0.12, 0.7, smoothstep( 0.2, 0.8, frame.night ) );' } );
 		for ( const m of [ mat, signMat ] ) m.underwaterLighting = 'none';
 		const km = new Mesh( q.geometry(), mat );
 		km.name = 'alley-fair';

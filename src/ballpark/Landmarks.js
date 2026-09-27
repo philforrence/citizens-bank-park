@@ -1020,6 +1020,9 @@ export class Landmarks {
 		this._discMat = this._discMat || standard( { name: 'alley-lamps', color: new Color( 0.5, 0.52, 0.54 ), roughness: 0.4, metalness: 0.6,
 			surface: 'if ( in.N.y < - 0.5 ) { s.emissive = vec3f( 1.0, 0.85, 0.6 ) * mix( 0.2, 3.0, smoothstep( 0.1, 0.7, frame.night ) ); }' } );
 		this._discMat.underwaterLighting = 'none';
+		this._lanternMat = this._lanternMat || standard( { name: 'alley-lanterns', color: new Color( 0.75, 0.74, 0.7 ), roughness: 0.3,
+			surface: 's.emissive = vec3f( 1.0, 0.88, 0.68 ) * mix( 0.15, 4.0, smoothstep( 0.1, 0.7, frame.night ) );' } );
+		this._lanternMat.underwaterLighting = 'none';
 		const zl = zFront + 6.5;
 		const [ belx, belz ] = fencePoint( 21, 488 );
 		this.alleyLamps = [];
@@ -1043,15 +1046,15 @@ export class Landmarks {
 			}
 			beam( greyPole, [ x, STREET, zl ], [ x, STREET + 7.5, zl ], 0.16 );
 			beam( greyPole, [ x - 0.6, STREET + 7.4, zl ], [ x + 0.6, STREET + 7.4, zl ], 0.08 );
-			// a PA horn and the three-tier disc lamp on top
+			// a PA horn
 			box( speakers, [ x, STREET + 6.9, zl + 0.3 ], [ 0.4, 0.45, 0.35 ] );
-			for ( let t = 0; t < 3; t ++ ) {
-
-				const lamp = new Mesh( new CylinderGeometry( 0.28 - t * 0.05, 0.34 - t * 0.05, 0.05, 16 ), this._discMat );
-				lamp.position.set( x, STREET + 7.75 + t * 0.18, zl );
-				this.group.add( lamp );
-
-			}
+			// the head (the 2008 photos): a frosted cylinder lantern under a flat grey disc shade
+			const lantern = new Mesh( new CylinderGeometry( 0.17, 0.17, 0.55, 16 ), this._lanternMat );
+			lantern.position.set( x, STREET + 7.78, zl );
+			this.group.add( lantern );
+			const shade = new Mesh( new CylinderGeometry( 0.52, 0.56, 0.05, 20 ), this._discMat );
+			shade.position.set( x, STREET + 8.08, zl );
+			this.group.add( shade );
 			for ( const side of [ - 1, 1 ] ) {
 
 				const bx0 = x + side * 0.12, bx1 = x + side * 1.0;
