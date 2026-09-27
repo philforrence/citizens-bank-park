@@ -23,15 +23,16 @@ export const RAIL = {
 	photog: 0, // a news photographer: parka, trousers, a beanie or a cap (by his seed)
 	fox: 1, // FOX's camera operator: black rain shell, black cap, headset
 	sound: 2, // the parabolic mic's sound man: grey hooded jacket, big headphones
-	ballGirl: 3, // Phillies ball girl: red jacket, white pants, red cap, ponytail
+	ballGirl: 3, // Phillies ball girl: pinstriped jersey, red sleeves, red track pants, the World Series cap, ponytail
 	batBoyPhi: 4, // Phillies bat boy: home pinstripes, red helmet
 	batBoyRay: 5, // Rays bat boy: road greys, navy helmet
-	crew: 6, // grounds crew: navy rain suit
-	crewChief: 7, // the head groundskeeper: navy jacket, khakis, Phillies cap
+	crew: 6, // grounds crew: red hooded rain jacket, khakis or navy rain pants
+	crewChief: 7, // the head groundskeeper's staff: red rain jacket, navy rain pants, red cap
 	security: 8, // event staff: yellow jacket, black trousers, black cap
 	police: 9, // Philadelphia police: navy jacket, navy trousers, the eight-point cap
 	kid: 10, // a kid at the front: red hoodie, jeans, a cap
 	fan: 11, // a grown-up fan at the front: by his seed
+	bikeCop: 12, // the police bike patrol: yellow hi-vis jacket, black trousers, bike helmet
 };
 
 // per-instance flags (bits)
@@ -145,18 +146,38 @@ export const POSES = {
 		shoulder: [ 0.2, 0.96, 0.02 ], elbow: [ 0.24, 0.73, - 0.1 ], wrist: [ 0.12, 0.63, - 0.27 ], hand: [ 0.08, 0.62, - 0.32 ],
 		mixer: [ 0, 0.58, - 0.3 ],
 	},
-	// on a stool down the line, hands on her knees, the glove on her left ...
+	// on her folding chair down the line, hands on her knees, the glove on her left ...
 	stool: {
-		...sitLegs( 0.62 ),
-		chest: [ 0, 1.18, 0.02 ], neck: [ 0, 1.25, 0.0 ], head: [ 0, 1.37, - 0.03 ],
-		shoulder: [ 0.2, 1.16, 0.02 ], elbow: [ 0.24, 0.92, - 0.12 ], wrist: [ 0.18, 0.76, - 0.33 ], hand: [ 0.16, 0.72, - 0.39 ],
+		...sitLegs( 0.46 ),
+		chest: [ 0, 1.02, 0.02 ], neck: [ 0, 1.09, 0.0 ], head: [ 0, 1.21, - 0.03 ],
+		shoulder: [ 0.2, 1.0, 0.02 ], elbow: [ 0.24, 0.76, - 0.12 ], wrist: [ 0.18, 0.6, - 0.33 ], hand: [ 0.16, 0.56, - 0.39 ],
 	},
 	// ... and forward on it, the glove down, ready for a ground ball
 	stoolReady: {
-		...sitLegs( 0.62 ),
-		chest: [ 0, 1.12, - 0.12 ], neck: [ 0, 1.18, - 0.18 ], head: [ 0, 1.29, - 0.24 ],
-		shoulder: [ 0.2, 1.1, - 0.12 ], elbow: [ 0.23, 0.87, - 0.25 ], wrist: [ 0.17, 0.72, - 0.4 ], hand: [ 0.15, 0.68, - 0.45 ],
-		'L:elbow': [ - 0.22, 0.86, - 0.3 ], 'L:wrist': [ - 0.16, 0.56, - 0.48 ], 'L:hand': [ - 0.14, 0.48, - 0.52 ],
+		...sitLegs( 0.46 ),
+		chest: [ 0, 0.96, - 0.12 ], neck: [ 0, 1.02, - 0.18 ], head: [ 0, 1.13, - 0.24 ],
+		shoulder: [ 0.2, 0.94, - 0.12 ], elbow: [ 0.23, 0.71, - 0.25 ], wrist: [ 0.17, 0.56, - 0.4 ], hand: [ 0.15, 0.52, - 0.45 ],
+		'L:elbow': [ - 0.22, 0.7, - 0.3 ], 'L:wrist': [ - 0.16, 0.4, - 0.48 ], 'L:hand': [ - 0.14, 0.32, - 0.52 ],
+	},
+	// on a police bike: in the saddle, hands on the bars, a pedal down ...
+	bikeRide: {
+		pelvis: [ 0, 0.97, 0.08 ], hip: [ 0.1, 0.95, 0.06 ], knee: [ 0.12, 0.62, - 0.26 ], ankle: [ 0.12, 0.2, - 0.12 ], toe: [ 0.12, 0.17, - 0.26 ],
+		'L:knee': [ - 0.12, 0.76, - 0.2 ], 'L:ankle': [ - 0.12, 0.42, 0.04 ], 'L:toe': [ - 0.12, 0.4, - 0.1 ],
+		chest: [ 0, 1.42, - 0.12 ], neck: [ 0, 1.48, - 0.16 ], head: [ 0, 1.6, - 0.2 ],
+		shoulder: [ 0.2, 1.4, - 0.12 ], elbow: [ 0.26, 1.2, - 0.3 ], wrist: [ 0.26, 1.07, - 0.44 ], hand: [ 0.26, 1.05, - 0.5 ],
+	},
+	// ... the other pedal down
+	bikeRide2: {
+		pelvis: [ 0, 0.97, 0.08 ], hip: [ 0.1, 0.95, 0.06 ], knee: [ 0.12, 0.76, - 0.2 ], ankle: [ 0.12, 0.42, 0.04 ], toe: [ 0.12, 0.4, - 0.1 ],
+		'L:knee': [ - 0.12, 0.62, - 0.26 ], 'L:ankle': [ - 0.12, 0.2, - 0.12 ], 'L:toe': [ - 0.12, 0.17, - 0.26 ],
+		chest: [ 0, 1.42, - 0.12 ], neck: [ 0, 1.48, - 0.16 ], head: [ 0, 1.6, - 0.2 ],
+		shoulder: [ 0.2, 1.4, - 0.12 ], elbow: [ 0.26, 1.2, - 0.3 ], wrist: [ 0.26, 1.07, - 0.44 ], hand: [ 0.26, 1.05, - 0.5 ],
+	},
+	// standing astride it, feet down either side, hands on the bars
+	bikeStraddle: {
+		hip: [ 0.11, 0.9, 0.02 ], knee: [ 0.18, 0.5, - 0.02 ], ankle: [ 0.25, 0.08, 0.02 ], toe: [ 0.27, 0.04, - 0.12 ],
+		chest: [ 0, 1.37, - 0.04 ], neck: [ 0, 1.44, - 0.07 ], head: [ 0, 1.57, - 0.08 ],
+		shoulder: [ 0.2, 1.36, - 0.04 ], elbow: [ 0.27, 1.18, - 0.22 ], wrist: [ 0.27, 1.07, - 0.42 ], hand: [ 0.27, 1.05, - 0.48 ],
 	},
 	// holding a ball at her side ...
 	ball: {
@@ -244,6 +265,7 @@ export const KINDS = {
 	walk: [ 'stand', 'stride', [] ],
 	batBoyWalk: [ 'stand', 'stride', [ 'bat' ] ],
 	batBoyBend: [ 'stand', 'bend', [ 'bat' ] ],
+	batBoyHand: [ 'stand', 'ball', [ 'ball' ] ],
 	crewPhone: [ 'phone', 'phoneShow', [ 'phone', 'radio' ] ],
 	crewRake: [ 'rake', 'rake', [ 'rakeTool' ] ],
 	crewStand: [ 'stand', 'fold', [] ],
@@ -251,6 +273,8 @@ export const KINDS = {
 	securityStand: [ 'fold', 'behind', [ 'radio' ] ],
 	police: [ 'behind', 'fold', [ 'belt', 'radio' ] ],
 	policeWalk: [ 'stand', 'stride', [ 'belt', 'radio' ] ],
+	bikeRide: [ 'bikeRide', 'bikeRide2', [ 'bike', 'radio' ] ],
+	bikeStand: [ 'bikeStraddle', 'bikeStraddle', [ 'bike', 'radio' ] ],
 	// no body: a TV camera's head on its pedestal, panning (yaw) and tilting (look) like a head does
 	tvHead: [ 'camHead', 'camHead', [ 'tvCamera' ], { body: false } ],
 	tvHeadBox: [ 'camHead', 'camHead', [ 'tvCameraBox' ], { body: false } ],
@@ -294,9 +318,11 @@ function buildPose( pose, gear, point, { body = true } = {} ) {
 	const G = ( name, s = 1 ) => J( name, s ) || point( name, s );
 	const pos = [], nrm = [], part = [], head = [], index = [];
 	let headMode = 0;
+	// where a vertex is up the trunk (0 the hips .. 1 the chest, 1.3 the neck), for what's printed on it
+	let torsoAt = null;
 	const vert = ( p, n, pt ) => {
 
-		pos.push( ...p ); nrm.push( ...n ); part.push( pt ); head.push( headMode );
+		pos.push( ...p ); nrm.push( ...n ); part.push( pt ); head.push( headMode ? 1 : torsoAt !== null ? 2 + torsoAt : 0 );
 		return pos.length / 3 - 1;
 
 	};
@@ -310,8 +336,10 @@ function buildPose( pose, gear, point, { body = true } = {} ) {
 		across = norm( across );
 		const depth = norm( cross( across, ax ) );
 		const base = pos.length / 3;
-		for ( const [ c, r ] of [ [ a, rA ], [ b, rB ] ] ) for ( let k = 0; k < n; k ++ ) {
+		const tr = torsoAt;
+		for ( const [ c, r, tt ] of [ [ a, rA, tr?.[ 0 ] ], [ b, rB, tr?.[ 1 ] ] ] ) for ( let k = 0; k < n; k ++ ) {
 
+			if ( tr ) torsoAt = tt;
 			const ang = ( k / n ) * Math.PI * 2 + Math.PI / n;
 			const d = add( mul( across, Math.cos( ang ) ), mul( depth, Math.sin( ang ) ) );
 			vert( add( c, add( mul( across, Math.cos( ang ) * r[ 0 ] ), mul( depth, Math.sin( ang ) * r[ 1 ] ) ) ), d, pt );
@@ -327,6 +355,7 @@ function buildPose( pose, gear, point, { body = true } = {} ) {
 
 		if ( capA ) {
 
+			if ( tr ) torsoAt = tr[ 0 ];
 			const c = vert( a, mul( ax, - 1 ), pt );
 			for ( let k = 0; k < n; k ++ ) index.push( c, base + ( k + 1 ) % n, base + k );
 
@@ -334,10 +363,13 @@ function buildPose( pose, gear, point, { body = true } = {} ) {
 
 		if ( capB ) {
 
+			if ( tr ) torsoAt = tr[ 1 ];
 			const c = vert( b, ax, pt );
 			for ( let k = 0; k < n; k ++ ) index.push( c, base + n + k, base + n + ( k + 1 ) % n );
 
 		}
+
+		torsoAt = tr;
 
 	};
 
@@ -401,8 +433,11 @@ function buildPose( pose, gear, point, { body = true } = {} ) {
 	}
 
 	const pelvis = J( 'pelvis' ), chest = J( 'chest' ), neck = J( 'neck' );
+	torsoAt = [ 0, 1 ];
 	tube( add( pelvis, [ 0, - 0.06, 0 ] ), chest, [ 0.17, 0.12 ], [ 0.2, 0.125 ], PART.torso, 8, true );
+	torsoAt = [ 1, 1.3 ];
 	tube( chest, neck, [ 0.2, 0.125 ], [ 0.065, 0.06 ], PART.torso, 8 );
+	torsoAt = null;
 	tube( J( 'shoulder', - 1 ), J( 'shoulder', 1 ), [ 0.07, 0.07 ], [ 0.07, 0.07 ], PART.sleeve, 6, true, true );
 	for ( const s of [ - 1, 1 ] ) {
 
@@ -612,6 +647,27 @@ const GEAR = {
 		tube( at( 0, 0.15, 0.36 ), at( 0, 0.14, - 0.55 ), [ 0.22, 0.2 ], [ 0.19, 0.18 ], PART.cover, 10, true );
 
 	} },
+	// a police mountain bike under him: black frame, the wheels, the bars at his hands, a rack with its
+	// bag behind the saddle (the same in both his poses: it doesn't pedal)
+	bike: { build( { tube, box } ) {
+
+		const W = 0.33, fr = [ 0, 0.34, - 0.56 ], bk = [ 0, 0.34, 0.5 ];
+		for ( const c of [ fr, bk ] ) for ( let k = 0; k < 14; k ++ ) {
+
+			const a0 = k / 14 * Math.PI * 2, a1 = ( k + 1 ) / 14 * Math.PI * 2;
+			tube( [ 0, c[ 1 ] + Math.sin( a0 ) * W, c[ 2 ] + Math.cos( a0 ) * W ], [ 0, c[ 1 ] + Math.sin( a1 ) * W, c[ 2 ] + Math.cos( a1 ) * W ], [ 0.025, 0.02 ], [ 0.025, 0.02 ], PART.dark, 4 );
+
+		}
+
+		const bb = [ 0, 0.3, - 0.05 ], st = [ 0, 0.86, 0.14 ], ht = [ 0, 0.84, - 0.44 ];
+		for ( const [ a, b ] of [ [ st, ht ], [ ht, bb ], [ st, bb ], [ bb, bk ], [ st, bk ], [ ht, fr ] ] ) tube( a, b, [ 0.022, 0.022 ], [ 0.022, 0.022 ], PART.dark, 5 );
+		tube( ht, [ 0, 1.02, - 0.47 ], [ 0.018, 0.018 ], [ 0.018, 0.018 ], PART.metal, 5 );
+		tube( [ - 0.3, 1.03, - 0.48 ], [ 0.3, 1.03, - 0.48 ], [ 0.013, 0.013 ], [ 0.013, 0.013 ], PART.dark, 5, true, true );
+		box( [ 0, 0.94, 0.12 ], [ 0, 0, - 1 ], [ 0, 1, 0 ], 0.26, 0.05, 0.13, PART.dark );
+		tube( st, [ 0, 0.93, 0.12 ], [ 0.015, 0.015 ], [ 0.015, 0.015 ], PART.metal, 5 );
+		box( [ 0, 0.9, 0.42 ], [ 0, 0, - 1 ], [ 0, 1, 0 ], 0.34, 0.16, 0.2, PART.dark );
+
+	} },
 	// a rake: the handle down from his hands, the head across at the ground
 	rakeTool: { build( { J, tube, box } ) {
 
@@ -644,7 +700,7 @@ export function kindGeometry( key ) {
 		}
 
 		morph[ i * 4 + 3 ] = a.part[ i ];
-		morphN[ i * 4 + 3 ] = a.head[ i ];
+		morphN[ i * 4 + 3 ] = a.head[ i ]; // 1 the head; 2..3.3 up the trunk; 0 the rest
 		headA.set( a.hc, i * 3 );
 
 	}
@@ -667,7 +723,7 @@ function railMaterial() {
 	const m = standard( {
 		name: 'rail-figures', roughness: 0.75, side: 'double',
 		attributes: { aMorph: 'vec4f', aMorphN: 'vec4f', aHead: 'vec3f', aWho: 'vec4f', aLook: 'vec4f' },
-		varyings: { vPart: 'f32', vWho: 'vec4f', vLook: 'vec4f', vLocal: 'vec3f', vHead: 'vec3f' },
+		varyings: { vPart: 'f32', vWho: 'vec4f', vLook: 'vec4f', vLocal: 'vec3f', vHead: 'vec3f', vTorso: 'vec2f' },
 		vertex: /* wgsl */`
 	// who: x the outfit, y a seed, z wet (0..1), w the morph toward the second pose
 	// look: x the head's turn, y its nod (radians), z the flags, w how stout (0..1)
@@ -688,7 +744,9 @@ function railMaterial() {
 	if ( pt == 11 && ( flags & 1024u ) != 0u ) { gone = true; }
 	// the head turns (about the neck) and nods on its own
 	o.vHead = v.position - v.aHead;
-	if ( v.aMorphN.w > 0.5 ) {
+	// up the trunk (and which way it faces: its front toward -z)
+	o.vTorso = vec2f( select( -1.0, v.aMorphN.w - 2.0, v.aMorphN.w > 1.5 ), n.z );
+	if ( v.aMorphN.w > 0.5 && v.aMorphN.w < 1.5 ) {
 		let hc = v.aHead + v.aMorph.xyz * m;
 		let piv = hc - vec3f( 0.0, 0.11, -0.01 );
 		let cy = cos( look.x ); let sy = sin( look.x ); let cp = cos( look.y ); let sp = sin( look.y );
@@ -752,13 +810,19 @@ function railMaterial() {
 	}
 	if ( o == 1 ) { torso = vec3f( 0.012 ); pants = vec3f( 0.02, 0.022, 0.03 ); capC = vec3f( 0.01 ); rough = 0.45; }
 	if ( o == 2 ) { torso = vec3f( 0.16, 0.16, 0.17 ); pants = vec3f( 0.02, 0.025, 0.05 ); rough = 0.5; }
-	if ( o == 3 ) { torso = red; pants = white; capC = red; rough = 0.55; }
+	// the ball girls: the pinstriped Phillies jersey over red sleeves, red track pants with the P and a
+	// white stripe, the navy World Series cap (Getty 83477166, Oct 27; the line, June 2008)
+	if ( o == 3 ) { torso = white; sleeve = red; pants = vec3f( 0.4, 0.02, 0.03 ); capC = vec3f( 0.03, 0.04, 0.09 ); pin = true; rough = 0.6; }
 	if ( o == 4 ) { torso = white; sleeve = red; pants = white; pin = true; helmet = true; capC = red; }
 	if ( o == 5 ) { torso = vec3f( 0.28, 0.28, 0.29 ); sleeve = navy; pants = vec3f( 0.28, 0.28, 0.29 ); helmet = true; capC = navy; }
-	if ( o == 6 ) { torso = vec3f( 0.02, 0.03, 0.08 ); pants = vec3f( 0.02, 0.028, 0.07 ); capC = vec3f( 0.02, 0.03, 0.08 ); rough = 0.4; shoe = vec3f( 0.05, 0.04, 0.03 ); }
-	if ( o == 7 ) { torso = vec3f( 0.015, 0.022, 0.06 ); pants = vec3f( 0.3, 0.25, 0.17 ); capC = red; rough = 0.5; shoe = vec3f( 0.08, 0.05, 0.03 ); }
+	// the grounds crew: red hooded rain jackets, khakis or navy rain pants, red caps (the 27th's photos)
+	if ( o == 6 ) { torso = vec3f( 0.4, 0.022, 0.03 ); pants = select( vec3f( 0.3, 0.25, 0.16 ), vec3f( 0.02, 0.025, 0.06 ), h.y > 0.6 ); capC = red; rough = 0.4; shoe = select( vec3f( 0.08, 0.05, 0.03 ), vec3f( 0.015 ), h.z > 0.5 ); }
+	// the head groundskeeper's own: the red rain jacket, navy rain pants, the red cap (Getty 83884311)
+	if ( o == 7 ) { torso = vec3f( 0.42, 0.024, 0.032 ); pants = vec3f( 0.02, 0.025, 0.06 ); capC = red; rough = 0.35; shoe = vec3f( 0.015 ); }
 	if ( o == 8 ) { torso = vec3f( 0.62, 0.55, 0.02 ); pants = vec3f( 0.02 ); capC = vec3f( 0.015 ); hiVis = true; rough = 0.5; }
 	if ( o == 9 ) { torso = vec3f( 0.01, 0.013, 0.035 ); pants = vec3f( 0.012, 0.015, 0.04 ); capC = vec3f( 0.01, 0.012, 0.03 ); rough = 0.5; }
+	// the police bike patrol: the yellow hi-vis jacket, black trousers, a black bike helmet
+	if ( o == 12 ) { torso = vec3f( 0.62, 0.55, 0.02 ); pants = vec3f( 0.015 ); capC = vec3f( 0.012 ); hiVis = true; helmet = true; rough = 0.45; }
 	if ( o == 10 ) { torso = red; pants = vec3f( 0.05, 0.08, 0.16 ); capC = red; rough = 0.85; }
 	if ( o == 11 ) {
 		torso = select( select( red, vec3f( 0.015 ), h.x > 0.55 ), vec3f( 0.5, 0.49, 0.46 ), h.x > 0.85 );
@@ -778,22 +842,35 @@ function railMaterial() {
 	if ( part == 0 ) {
 		// the Phillies' script across a ball girl's jacket; a hi-vis jacket's silver bands; FOX on a
 		// camera operator's back; a jacket's zip down the front
-		if ( o == 3 && L.y > 1.18 && L.y < 1.28 && L.z < -0.04 ) { c = mix( c, white, 0.8 ); }
+		// up the trunk (tv.x: 0 the hips, 1 the chest) and its front (tv.y < 0): the pinstripes, the
+		// Phillies script across the jersey, the placket
+		let tv = in.vs.vTorso;
+		let front = tv.y < -0.35;
+		if ( pin ) { c = c * ( 1.0 - 0.4 * step( 0.84, fract( ( L.x + L.z ) * 50.0 ) ) ); }
+		if ( ( o == 3 || o == 4 ) && front && abs( tv.x - 0.78 ) < 0.07 && abs( L.x ) < 0.13 && fract( L.x * 24.0 + tv.x * 6.0 ) < 0.5 ) { c = red; }
+		if ( ( o == 3 || o == 4 ) && front && abs( L.x ) < 0.008 && tv.x < 0.95 ) { c = c * 0.75; }
 		if ( hiVis && ( abs( L.y - 1.05 ) < 0.022 || abs( L.y - 1.2 ) < 0.022 ) ) { c = vec3f( 0.55 ); rough = 0.3; }
 		if ( hiVis ) { e = c * 0.06; }
 		if ( o == 1 && L.z > 0.05 && abs( L.y - 1.28 ) < 0.045 && abs( L.x ) < 0.08 ) { c = vec3f( 0.7 ); }
 		if ( ( o == 0 || o == 6 || o == 7 || o == 9 ) && L.z < -0.06 && abs( L.x ) < 0.006 ) { c = c * 0.5 + vec3f( 0.03 ); }
 		// a photographer's numbered vest over his coat
 		if ( ( flags & 128u ) != 0u ) { c = mix( vec3f( 0.04, 0.09, 0.25 ), vec3f( 0.3, 0.02, 0.03 ), step( 0.5, h.y ) ); rough = 0.6; }
-		// police: the badge, the shoulder patch
-		if ( o == 9 && L.z < -0.08 && abs( L.x + 0.09 ) < 0.02 && abs( L.y - 1.3 ) < 0.025 ) { c = vec3f( 0.6, 0.5, 0.2 ); rough = 0.2; }
+		// police: the badge over the heart, the name plate over the other pocket
+		if ( o == 9 && front && abs( L.x + 0.085 ) < 0.02 && abs( tv.x - 0.82 ) < 0.035 ) { c = vec3f( 0.6, 0.5, 0.2 ); rough = 0.2; }
+		if ( o == 9 && front && abs( L.x - 0.085 ) < 0.03 && abs( tv.x - 0.8 ) < 0.012 ) { c = vec3f( 0.5, 0.45, 0.3 ); rough = 0.2; }
+		// POLICE across a bike officer's back
+		if ( o == 12 && tv.y > 0.4 && abs( tv.x - 0.8 ) < 0.06 && abs( L.x ) < 0.12 ) { c = vec3f( 0.02 ); e = vec3f( 0.0 ); }
+		// the crew's Phillies P on the chest
+		if ( ( o == 6 || o == 7 ) && front && abs( L.x + 0.09 ) < 0.03 && abs( tv.x - 0.83 ) < 0.04 ) { c = vec3f( 0.75 ); }
 		if ( o == 4 || o == 5 ) { if ( L.z < -0.05 && abs( L.x ) < 0.008 ) { c = c * 0.7; } }
 	}
 	if ( part == 6 ) { c = sleeve; }
 	if ( part == 1 ) {
 		c = pants;
 		rough = 0.85;
-		if ( pin ) { c = c * ( 1.0 - 0.45 * step( 0.82, fract( ( L.x + L.z ) * 55.0 ) ) ); }
+		if ( pin && o != 3 ) { c = c * ( 1.0 - 0.45 * step( 0.82, fract( ( L.x + L.z ) * 55.0 ) ) ); }
+		// the ball girls' track pants: the white stripe down the outside of the leg
+		if ( o == 3 && abs( abs( L.x ) - 0.19 ) < 0.012 ) { c = white; }
 		// the bat boys' socks, high
 		if ( o == 4 && L.y < 0.36 ) { c = red; }
 		if ( o == 5 && L.y < 0.36 ) { c = navy; }
@@ -846,8 +923,10 @@ function railMaterial() {
 	if ( part == 11 ) { c = vec3f( 0.8, 0.79, 0.74 ); rough = 0.6; }
 	if ( part == 12 ) { c = vec3f( 0.05 ); e = vec3f( 0.55, 0.7, 0.85 ) * 0.9; rough = 0.1; }
 	if ( part == 13 ) {
-		// a rain cover: black nylon, or clear plastic (a grey sheen)
+		// a rain cover: black nylon, or clear plastic (a grey sheen); the TV cameras' olive or grey
+		// (heston 2986442231)
 		c = select( vec3f( 0.02 ), vec3f( 0.25, 0.26, 0.27 ), h.x > 0.6 );
+		if ( o == 1 ) { c = select( vec3f( 0.035, 0.05, 0.025 ), vec3f( 0.3, 0.3, 0.29 ), h.x > 0.55 ); }
 		rough = 0.25;
 	}
 	if ( part == 14 ) { c = vec3f( 0.25 ); rough = 0.3; }

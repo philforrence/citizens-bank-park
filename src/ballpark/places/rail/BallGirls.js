@@ -3,8 +3,9 @@ import { FOUL_TERRITORY } from '../../layout.js';
 import { RAIL, FLAG } from './RailFigures.js';
 import { put, rnd } from './Props.js';
 
-// The ball girls: one on a stool against the wall down each line, past the photographers' well, a
-// fielder's glove on her hand. She comes up off the stool when a foul is hooking her way and follows it
+// The ball girls: one on a folding chair against the wall down each line, past the photographers' well,
+// in the pinstriped jersey, red track pants and the World Series cap, a fielder's glove on her hand.
+// She comes forward on her chair when a foul is hooking her way and follows it
 // with her eyes. Once a night on each side, between innings, she gets up and walks along the wall to a
 // kid who's been hanging on the rail all game with his glove on, and tosses him a ball.
 //
@@ -31,19 +32,23 @@ export class BallGirls {
 			if ( n[ 0 ] * ( 0 - a[ 0 ] ) + n[ 1 ] * ( - 38.9 - a[ 1 ] ) < 0 ) n = [ - n[ 0 ], - n[ 1 ] ]; // n toward the field
 			const at = ( s, t ) => [ a[ 0 ] + u[ 0 ] * s + n[ 0 ] * t, a[ 1 ] + u[ 1 ] * s + n[ 1 ] * t ];
 			const faceField = Math.atan2( - n[ 0 ], - n[ 1 ] );
-			// her stool, a little out from the wall, turned in toward the infield
+			// her chair, a little out from the wall, turned in toward the infield
 			const stoolAt = at( 4.6, 0.55 );
 			const sit = Math.atan2( - ( 0 - stoolAt[ 0 ] ), - ( - 20 - stoolAt[ 1 ] ) );
-			put( group, new CylinderGeometry( 0.17, 0.17, 0.05, 14 ), M.red, [ stoolAt[ 0 ], 0.6, stoolAt[ 1 ] ], 0 );
-			for ( let k = 0; k < 4; k ++ ) {
+			// her black folding chair (the line, 2008: heston's and qparker71's photos)
+			const cs = Math.cos( sit ), sn = Math.sin( sit );
+			const at3 = ( lx, ly, lz ) => [ stoolAt[ 0 ] + lx * cs + lz * sn, ly, stoolAt[ 1 ] - lx * sn + lz * cs ];
+			put( group, new BoxGeometry( 0.42, 0.03, 0.4 ), M.black, at3( 0, 0.45, 0.02 ), sit, { shadow: true } );
+			put( group, new BoxGeometry( 0.42, 0.26, 0.025 ), M.black, at3( 0, 0.8, 0.24 ), sit, { rx: - 0.12 } );
+			for ( const lx of [ - 0.19, 0.19 ] ) {
 
-				const ang = k * Math.PI / 2 + 0.4;
-				put( group, new CylinderGeometry( 0.012, 0.014, 0.6, 6 ), M.metal, [ stoolAt[ 0 ] + Math.cos( ang ) * 0.12, 0.3, stoolAt[ 1 ] + Math.sin( ang ) * 0.12 ], 0, { rx: Math.sin( ang ) * 0.12, rz: - Math.cos( ang ) * 0.12 } );
+				put( group, new BoxGeometry( 0.02, 0.95, 0.02 ), M.black, at3( lx, 0.47, 0.13 ), sit, { rx: - 0.2 } );
+				put( group, new BoxGeometry( 0.02, 0.48, 0.02 ), M.black, at3( lx, 0.23, - 0.08 ), sit, { rx: 0.35 } );
 
 			}
 
-			// a towel over the stool's rung, her water bottle under it
-			put( group, new BoxGeometry( 0.28, 0.18, 0.01 ), M.white, [ stoolAt[ 0 ] + n[ 0 ] * - 0.13, 0.32, stoolAt[ 1 ] + n[ 1 ] * - 0.13 ], faceField );
+			// a towel over the chair's back, her water bottle under the seat
+			put( group, new BoxGeometry( 0.3, 0.2, 0.012 ), M.white, at3( 0.05, 0.84, 0.27 ), sit, { rx: - 0.12 } );
 			put( group, new CylinderGeometry( 0.035, 0.035, 0.22, 10 ), M.clear, [ stoolAt[ 0 ] - u[ 0 ] * 0.3, 0.11, stoolAt[ 1 ] - u[ 1 ] * 0.3 ], 0 );
 			// where she stands to toss it up, and the kid at the aisle end behind the wall there
 			const tossAt = at( 0.45, 0.55 );
@@ -94,7 +99,7 @@ export class BallGirls {
 			const { sit, walk, up, kid } = g;
 			sit.shown = true; walk.shown = false; up.shown = false;
 			g.ball.visible = false;
-			// on her stool: up on it, glove down, when a foul is hooking her way, her eyes on the ball
+			// on her chair: forward on it, glove down, when a foul is hooking her way, her eyes on the ball
 			const ball = S.ball;
 			const mine = ball && S.seg.foul && Math.sign( ball[ 0 ] ) === g.side && Math.abs( ball[ 0 ] ) > 6;
 			sit.morph += ( ( mine ? 1 : 0 ) - sit.morph ) * ( 1 - Math.exp( - dt * 6 ) );
@@ -109,8 +114,8 @@ export class BallGirls {
 			kid.flags = FLAG.cap | ( had ? 0 : FLAG.noBall );
 			kid.morph += ( 0 - kid.morph ) * ( 1 - Math.exp( - dt * 3 ) );
 			kid.look[ 0 ] = 0.3 * Math.sin( t * 0.3 + i );
-			// on the 27th her hood's up, over the cap
-			const wetFlags = S.first && S.rain > 0.55 ? FLAG.hood | FLAG.ponytail : FLAG.cap | FLAG.ponytail;
+			// the jersey and the cap in the rain too (on the 27th they danced with the Phanatic in it)
+			const wetFlags = FLAG.cap | FLAG.ponytail;
 			sit.flags = wetFlags;
 			walk.flags = wetFlags;
 			up.flags = wetFlags;

@@ -18,9 +18,24 @@ import { put, rnd } from './Props.js';
 
 export class Police {
 
-	constructor( { group, figs, M, bowl, people } ) {
+	constructor( { group, figs, M, bowl, people, field } ) {
 
 		this.figs = figs;
+		// ---- all game, a Philadelphia officer on the track at each dugout's end, where the roof meets the
+		// photographers' well, facing the field (heston 2986442231 / 2986442413, Game 3;
+		// puffygreenjacket 2983578054, the 27th)
+		this.cops = [];
+		for ( const d of field?.dugouts || [] ) {
+
+			const { a, ux, uz, nx, nz } = d;
+			const s = d.roof[ 1 ] + 0.3, t = - 1.25;
+			const x = a[ 0 ] + ux * s + nx * t, z = a[ 1 ] + uz * s + nz * t;
+			const yaw = Math.atan2( nx, nz ) + ( d.side === 'first' ? 0.5 : - 0.5 );
+			const f = figs.add( 'police', { x, z, yaw, outfit: RAIL.police, seed: d.side === 'first' ? 0.77 : 0.28, flags: FLAG.cap, stout: 0.6, scale: 1.02 } );
+			this.cops.push( f );
+
+		}
+
 		// ---- event staff on their stools
 		this.staff = [];
 		const F = FOUL_TERRITORY;
@@ -81,11 +96,16 @@ export class Police {
 			const seed = rnd( k * 3.3 + 0.7 );
 			const flags = rnd( k * 5.9 ) < 0.2 ? FLAG.helmet : FLAG.cap;
 			const scale = 0.95 + rnd( k * 2.2 ) * 0.12, stout = rnd( k * 8.8 ) * 0.9;
-			const walk = figs.add( 'policeWalk', { x: p[ 0 ], z: p[ 1 ], outfit: RAIL.police, seed, flags, scale, stout, shown: false } );
-			const stand = figs.add( 'police', { x: p[ 0 ], z: p[ 1 ], yaw: Math.atan2( - cx, - cz ), outfit: RAIL.police, seed, flags, scale, stout, shown: false } );
+			// down the third base line past the visitors' dugout, the bike patrol in their yellow jackets,
+			// astride their bikes (the Commons photo of the last out)
+			const bike = p[ 0 ] < - 33 && p[ 1 ] < - 10;
+			const walk = figs.add( bike ? 'bikeRide' : 'policeWalk', { x: p[ 0 ], z: p[ 1 ], outfit: bike ? RAIL.bikeCop : RAIL.police, seed, flags: bike ? FLAG.helmet : flags, scale, stout, shown: false } );
+			// ( a bike stands along the wall, its rider looking over his shoulder at the stands )
+			const along = Math.atan2( - dir[ 0 ], - dir[ 1 ] ) + ( rnd( k * 1.3 ) < 0.5 ? 0 : Math.PI );
+			const stand = figs.add( bike ? 'bikeStand' : 'police', { x: p[ 0 ], z: p[ 1 ], yaw: bike ? along : Math.atan2( - cx, - cz ), outfit: bike ? RAIL.bikeCop : RAIL.police, seed, flags: bike ? FLAG.helmet : flags, scale, stout, shown: false } );
 			// from the nearer corner: the right field one for the first base half, the left for the rest
 			const fromStart = s < L / 2;
-			this.line.push( { walk, stand, s, fromStart, phase: rnd( k ) * 6 } );
+			this.line.push( { walk, stand, s, fromStart, phase: rnd( k ) * 6, bike, crowdYaw: Math.atan2( - cx, - cz ) } );
 
 		}
 
@@ -117,6 +137,14 @@ export class Police {
 
 		}
 
+		// the officers at the dugouts' ends: parade rest, now and then the arms folded; an eye on the plate
+		this.cops.forEach( ( f, i ) => {
+
+			f.morph = Math.max( 0, Math.sin( S.t * 0.013 + i * 2 ) );
+			f.look[ 0 ] = ( i ? 0.6 : - 0.6 ) * Math.max( 0, Math.sin( S.t * 0.09 + i ) );
+			f.wet = S.first ? S.rain * 0.8 : 0;
+
+		} );
 		if ( ! this.line.length ) return;
 		// the police: out a little into the top of the 9th, in place well before the last out
 		if ( this.t0 == null ) {
@@ -132,8 +160,9 @@ export class Police {
 			o.walk.shown = false;
 			o.stand.shown = false;
 			if ( tau < o.delay ) continue;
-			// walking in single file along the track from their corner, then turned to face the stands
-			const go = ( tau - o.delay ) * 1.7;
+			// walking in single file along the track from their corner (the bikes riding in), then turned
+			// to face the stands
+			const go = ( tau - o.delay ) * ( o.bike ? 3.6 : 1.7 );
 			const dist = o.fromStart ? o.s : this.L - o.s;
 			if ( go < dist ) {
 
@@ -143,16 +172,16 @@ export class Police {
 				o.walk.x = p[ 0 ]; o.walk.z = p[ 1 ];
 				const d = o.fromStart ? dir : [ - dir[ 0 ], - dir[ 1 ] ];
 				o.walk.yaw = Math.atan2( - d[ 0 ], - d[ 1 ] );
-				o.phase += dt * 1.7 * 5.2;
-				o.walk.morph = Math.sin( o.phase ) * 0.85;
-				o.walk.y = Math.abs( Math.cos( o.phase ) ) * 0.025;
+				o.phase += dt * ( o.bike ? 7 : 1.7 * 5.2 );
+				o.walk.morph = Math.sin( o.phase ) * ( o.bike ? 1 : 0.85 );
+				o.walk.y = o.bike ? 0 : Math.abs( Math.cos( o.phase ) ) * 0.025;
 
 			} else {
 
 				o.stand.shown = true;
 				// parade rest; a few fold their arms as it goes on
-				o.stand.morph = Math.min( 1, Math.max( 0, ( go - dist ) / 60 ) ) * ( o.s % 3 < 1 ? 1 : 0 );
-				o.stand.look[ 0 ] = 0.35 * Math.sin( S.t * 0.15 + o.s );
+				o.stand.morph = o.bike ? 0 : Math.min( 1, Math.max( 0, ( go - dist ) / 60 ) ) * ( o.s % 3 < 1 ? 1 : 0 );
+				o.stand.look[ 0 ] = o.bike ? Math.max( - 1.2, Math.min( 1.2, wrap( o.crowdYaw - o.stand.yaw ) ) ) : 0.35 * Math.sin( S.t * 0.15 + o.s );
 
 			}
 
@@ -161,3 +190,11 @@ export class Police {
 	}
 
 }
+
+const wrap = ( a ) => {
+
+	while ( a > Math.PI ) a -= 2 * Math.PI;
+	while ( a < - Math.PI ) a += 2 * Math.PI;
+	return a;
+
+};

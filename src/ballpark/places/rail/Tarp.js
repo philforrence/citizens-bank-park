@@ -11,7 +11,8 @@ import { put } from './Props.js';
 // corners. A loose green canvas cover over it, tied down every 3 m, bunched and tied at the ends; along
 // its field side the long blue banner, WORLD SERIES '08 ON FOX, MLB's logo at each end (heston's 2008
 // World Series set, flickr 2987303394; Wikimedia's 'Players rushing field', Oct 29 2008: its MLB logo
-// and 'WORL...' past the 3B photo well). Flattened where it sits on the track, clay splashed up it,
+// and 'WORL...' past the 3B photo well; Getty 83571187 and puffygreenjacket 2983578054: on the third base
+// side, the cover a pale grey-green). Flattened where it sits on the track, clay splashed up it,
 // darker and shining in the rain. Built into Details2008's tarpRoll (which the pull shows and hides).
 
 const R = 0.6, H = 0.52, GAP = 0.72, LENGTH = 40;
@@ -192,10 +193,11 @@ export function buildTarpTube( parent, staticParent, M ) {
 
 	const P = tubePath();
 	if ( P.length < 2 ) return null;
-	const cover = standard( { name: 'tarp-tube-cover', color: new Color( 0.035, 0.085, 0.05 ), roughness: 0.75, modules: [ commonModule ],
+	// (pale grey-green: Getty 83571187, the 29th)
+	const cover = standard( { name: 'tarp-tube-cover', color: new Color( 0.14, 0.18, 0.15 ), roughness: 0.75, modules: [ commonModule ],
 		surface: /* wgsl */`
 	let sa = in.uv.x; let a = in.uv.y;
-	// green canvas: the weave up close, faded along the top where the weather gets it, grimy low down,
+	// grey-green canvas: the weave up close, faded along the top where the weather gets it, grimy low down,
 	// clay splashed up off the track, the creases of its folds
 	var c = mat.color * ( 0.88 + 0.12 * mx_noise_float2( vec2f( sa * 1.5, a * 6.0 ) ) );
 	c = c * mix( 1.0, 1.25, smoothstep( 0.4, 0.55, a ) * ( 1.0 - smoothstep( 0.6, 0.75, a ) ) );

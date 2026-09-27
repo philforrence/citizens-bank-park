@@ -4,8 +4,9 @@ import { tubePath } from './Tarp.js';
 import { put, rnd } from './Props.js';
 
 // The grounds crew, waiting by the tarp in the rain on the 27th. From the 3rd inning, as it came down
-// harder, they're out along the tube in their navy rain suits, hoods up, arms folded, rakes to lean on,
-// the drying agent stacked on a cart, ready to pull it. Sal, the assistant head groundskeeper (22 years
+// harder, they're out along the tube in their red hooded rain jackets and khakis or navy rain pants (the
+// 27th's photos: puffygreenjacket 2983582162, 2983578054; Getty 83884311), most hoods up, arms folded,
+// rakes to lean on, the drying agent (white bags printed in blue) stacked on a cart, ready to pull it. Sal, the assistant head groundskeeper (22 years
 // with the club, since the Vet), has the radar up on his BlackBerry: the band coming up from Delaware
 // is the whole night. Every so often he holds it out to show the man beside him. At the suspension
 // they're off to pull the tarp (that's the rituals' part); on the 29th, cold and dry, two of them wait
@@ -39,7 +40,7 @@ export class Crew {
 
 			const q = at( s, 1.45 + rnd( i * 3 ) * 0.4 );
 			const f = figs.add( kind, { x: q.x, z: q.z, yaw: q.face + turn, outfit, seed: rnd( i * 7.3 + 1 ), flags: FLAG.hood, stout: rnd( i * 2.2 ) * 0.9, scale: 0.95 + rnd( i * 5.1 ) * 0.1, shown: false } );
-			this.wet.push( { f, i, turn, face: q.face, chief: kind === 'crewPhone', rake: kind === 'crewRake' } );
+			this.wet.push( { f, i, turn, face: q.face, chief: kind === 'crewPhone', rake: kind === 'crewRake', hood: rnd( i * 9.7 ) < 0.65 } );
 
 		} );
 		// the pair on the 29th, by the tube's near end with their rakes
@@ -50,7 +51,7 @@ export class Crew {
 
 		} );
 
-		// the cart of drying agent (Diamond Dry: white bags, a red band), a spare rake, a leaf blower
+		// the cart of drying agent (white bags printed in blue), a spare rake
 		const c = at( 16.2, 1.5 ), d = at( 16.2, 2.5 );
 		const yaw = Math.atan2( d.x - c.x, d.z - c.z );
 		put( group, new BoxGeometry( 1.1, 0.35, 0.75 ), M.green, [ c.x, 0.45, c.z ], yaw, { shadow: true } );
@@ -65,7 +66,7 @@ export class Crew {
 			const bx = ( k % 3 - 1 ) * 0.33, bz = ( Math.floor( k / 3 ) - 0.5 ) * 0.34, by = 0.72 + ( k === 4 ? 0.12 : 0 );
 			const p = [ c.x + Math.cos( yaw ) * bx + Math.sin( yaw ) * bz, by, c.z - Math.sin( yaw ) * bx + Math.cos( yaw ) * bz ];
 			put( group, bagGeometry(), M.white, p, yaw + ( k * 0.37 ) % 0.4 );
-			put( group, new BoxGeometry( 0.31, 0.03, 0.2 ), M.red, [ p[ 0 ], by + 0.035, p[ 2 ] ], yaw + ( k * 0.37 ) % 0.4 );
+			put( group, new BoxGeometry( 0.31, 0.03, 0.2 ), M.blueTarp, [ p[ 0 ], by + 0.035, p[ 2 ] ], yaw + ( k * 0.37 ) % 0.4 );
 
 		}
 
@@ -85,7 +86,8 @@ export class Crew {
 			const f = w.f;
 			f.shown = standby;
 			f.wet = S.rain;
-			f.flags = FLAG.hood;
+			// most with the hood up; Sal's down, his red cap on (the head groundskeeper's way)
+			f.flags = w.chief || ! w.hood ? FLAG.cap : FLAG.hood;
 			if ( w.chief ) {
 
 				// the radar: down at it, then out at arm's length for the man beside him, and back

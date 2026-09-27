@@ -1,16 +1,17 @@
 import { Mesh, BufferGeometry, Float32BufferAttribute, CylinderGeometry, TorusGeometry, SphereGeometry, BoxGeometry, Color, mergeGeometries } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
+import { commonModule } from '../../../engine/render/wgsl/common.js';
 import { canvasTexture } from '../../geo.js';
-import { drawWorldSeriesLogo } from '../../Details2008.js';
+import { mlbLogo } from '../../Details2008.js';
 import { ON_DECK, boxFor } from '../../game/Plays.js';
 import { RAIL, FLAG } from './RailFigures.js';
 import { rnd, put } from './Props.js';
 
 // The on-deck circles and the bat boys.
 //
-// Each circle is a real mat now: a rubber-backed disc 5 ft across with the World Series logo, a black
-// edge, scuffed by spikes where the next hitter stands, clay tracked onto it, pine tar dripped on it and
-// rosin dust. On it, the on-deck hitter's things: the bat doughnut, the pine tar rag, the rosin bag, a
+// Each circle is a real mat now: a rubber-backed disc 5 ft across with the Series' Fall Classic logo, a
+// black edge, splattered with mud through the 27th (Getty 83458720), scuffed by spikes where the next
+// hitter stands, clay tracked onto it, pine tar dripped on it and rosin dust. On it, the on-deck hitter's things: the bat doughnut, the pine tar rag, the rosin bag, a
 // weighted bat.
 //
 // The bat boys stand at the dugouts' home ends. After any ball put in play, a walk or a hit batsman
@@ -43,6 +44,7 @@ export class OnDeck {
 			const seed = team === 'home' ? 0.31 : 0.12;
 			const walk = figs.add( 'batBoyWalk', { x: spot[ 0 ], z: spot[ 1 ], yaw: face, outfit, seed, flags: FLAG.noGear, scale: 0.97 } );
 			const bend = figs.add( 'batBoyBend', { x: spot[ 0 ], z: spot[ 1 ], yaw: face, outfit, seed, flags: FLAG.noGear, scale: 0.97, shown: false } );
+			const hand = figs.add( 'batBoyHand', { x: spot[ 0 ], z: spot[ 1 ], yaw: face, outfit, seed, flags: 0, scale: 0.97, shown: false } );
 			// the bat he goes for, on the ground by the plate
 			const bat = new Mesh( batGeometry(), M.wood );
 			bat.name = 'dropped-bat';
@@ -50,7 +52,7 @@ export class OnDeck {
 			bat.visible = false;
 			bat.castShadow = true;
 			group.add( bat );
-			this.boys[ team ] = { walk, bend, spot, face, bat, phase: 0 };
+			this.boys[ team ] = { walk, bend, hand, spot, face, bat, phase: 0 };
 
 		}
 
@@ -62,9 +64,23 @@ export class OnDeck {
 	_mats( group, M ) {
 
 		const tex = typeof OffscreenCanvas === 'undefined' ? null : canvasTexture( 512, 512, drawMat, 'onDeckMat' );
-		const mat = standard( { name: 'on-deck-mat', roughness: 0.75, color: new Color( 0.8, 0.8, 0.78 ), textures: tex ? { odMat: tex } : {},
-			surface: ( tex ? 's.albedo = textureSample( odMat, smpAnisoClamp, in.uv ).rgb * 0.82;' : '' ) + 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
+		// the mud: on the 27th the hitters' spikes and the rain splatter it with clay, heavier through the
+		// night (Getty 83458720, Oct 27); on the 29th a clean mat
+		const mat = standard( { name: 'on-deck-mat', roughness: 0.75, color: new Color( 0.8, 0.8, 0.78 ), textures: tex ? { odMat: tex } : {}, modules: [ commonModule ],
+			uniforms: { mud: [ 'f32', 0 ] },
+			surface: ( tex ? 's.albedo = textureSample( odMat, smpAnisoClamp, in.uv ).rgb * 0.82;' : '' ) + `
+	let q = in.uv * 2.0 - 1.0;
+	let n1 = mx_noise_float2( in.uv * 11.0 ) * 0.5 + 0.5;
+	let n2 = mx_noise_float2( in.uv * 47.0 + 3.0 ) * 0.5 + 0.5;
+	// heavier toward the edge the dirt comes in over, and in blots and flecks
+	let edge = smoothstep( 0.35, 1.0, length( q ) );
+	let m = smoothstep( 0.62, 0.72, n1 * 0.7 + n2 * 0.45 + edge * 0.25 - ( 1.0 - mat.mud ) * 0.8 );
+	s.albedo = mix( s.albedo, vec3f( 0.14, 0.07, 0.035 ) * ( 0.8 + 0.4 * n2 ), m );
+	s.roughness = mix( 0.75, 0.3, m * frame.wet ) * ( 1.0 - 0.4 * frame.wet );
+	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;
+` } );
 		mat.underwaterLighting = 'none';
+		this.matMat = mat;
 		for ( const side of [ 'home', 'away' ] ) {
 
 			const [ cx, cz ] = ON_DECK[ side ];
@@ -135,12 +151,64 @@ export class OnDeck {
 			this.fetches.push( { team, drop, t0: seg.t0 + 0.6, at, yaw: rnd( i * 3.1 ) * 6.28 } );
 
 		} );
+		// the plate umpire's balls: the fouls go into the stands, and every five or so the Phillies' bat
+		// boy runs him out a handful more, between batters (when he isn't out for a bat)
+		this.runs = [];
+		let fouls = 0;
+		for ( const seg of S ) {
+
+			if ( seg.kind === 'pitch' && seg.foul ) fouls ++;
+			if ( seg.kind === 'intro' || ( seg.kind === 'switch' && seg.snap?.inning === 6 && seg.snap?.half === 'bottom' ) ) fouls = 0;
+			if ( seg.kind !== 'walkup' || fouls < 5 ) continue;
+			const busy = this.fetches.some( ( f ) => f.team === 'home' && f.t0 < seg.t0 + 10 && f.t0 + 10 > seg.t0 );
+			if ( busy ) continue;
+			this.runs.push( { t0: seg.t0 + 0.4 } );
+			fouls = 0;
+
+		}
+
+	}
+
+	// the ball run: out to the plate umpire, the balls handed over, back
+	_run( B, R, t, dt ) {
+
+		const { walk, hand, spot } = B;
+		const to = [ 1.25, 2.35 ];
+		const dist = Math.hypot( to[ 0 ] - spot[ 0 ], to[ 1 ] - spot[ 1 ] );
+		const T1 = dist / 3.8, T2 = 1.4, T3 = dist / 3.4;
+		const tau = t - R.t0;
+		const out = Math.atan2( - ( to[ 0 ] - spot[ 0 ] ), - ( to[ 1 ] - spot[ 1 ] ) );
+		const walkTo = ( k, a, b, yaw, rate ) => {
+
+			walk.x = a[ 0 ] + ( b[ 0 ] - a[ 0 ] ) * k;
+			walk.z = a[ 1 ] + ( b[ 1 ] - a[ 1 ] ) * k;
+			walk.yaw = yaw;
+			B.phase += dt * rate;
+			walk.morph = Math.sin( B.phase ) * 1.2;
+			walk.y = Math.abs( Math.cos( B.phase ) ) * 0.045;
+
+		};
+
+		if ( tau < T1 ) walkTo( tau / T1, spot, to, out, 11 );
+		else if ( tau < T1 + T2 ) {
+
+			// the umpire's to his left: he holds them out, the ump takes them
+			walk.shown = false;
+			hand.shown = true;
+			hand.x = to[ 0 ]; hand.z = to[ 1 ];
+			hand.yaw = Math.atan2( - ( 0.35 - to[ 0 ] ), - ( 2.05 - to[ 1 ] ) );
+			const k = ( tau - T1 ) / T2;
+			hand.morph = Math.sin( Math.PI * Math.min( 1, k * 1.2 ) );
+			hand.flags = k > 0.55 ? FLAG.noBall : 0;
+
+		} else if ( tau < T1 + T2 + T3 ) walkTo( ( tau - T1 - T2 ) / T3, to, spot, out + Math.PI, 10 );
 
 	}
 
 	update( S, dt, director ) {
 
 		if ( ! this.fetches ) this._plan( director );
+		this.matMat.uniforms.mud.value = S.first ? 0.35 + 0.65 * S.progress : 0.08;
 		const t = S.t;
 		for ( const team of [ 'home', 'away' ] ) {
 
@@ -148,9 +216,10 @@ export class OnDeck {
 			// the trip under way (or the bat lying there waiting for him)
 			let F = null;
 			for ( const f of this.fetches ) if ( f.team === team && t >= f.drop && t < f.t0 + 14 ) F = f;
-			const { walk, bend, spot, face, bat } = B;
+			const { walk, bend, hand, spot, face, bat } = B;
 			walk.shown = true;
 			bend.shown = false;
+			hand.shown = false;
 			walk.flags = FLAG.noGear;
 			walk.x = spot[ 0 ]; walk.z = spot[ 1 ]; walk.y = 0; walk.yaw = face; walk.morph = 0;
 			// idle, he watches the plate: his head follows the hitter
@@ -203,8 +272,16 @@ export class OnDeck {
 
 			}
 
+			// the Phillies' boy's ball runs to the plate umpire
+			if ( team === 'home' && ! F ) {
+
+				const Rn = this.runs.find( ( r ) => t >= r.t0 && t < r.t0 + 10 );
+				if ( Rn ) this._run( B, Rn, t, dt );
+
+			}
+
 			// wet on the 27th (he's out in it)
-			walk.wet = bend.wet = S.first ? S.rain * 0.7 : 0;
+			walk.wet = bend.wet = hand.wet = S.first ? S.rain * 0.7 : 0;
 
 		}
 
@@ -243,6 +320,75 @@ function ragGeometry( k ) {
 
 }
 
+// the 2008 World Series' 'Fall Classic' logo, as on the on-deck mats (Getty 83458720): a diamond in a
+// yellow and blue border on green, MLB's logo at its top, WORLD SERIES across it in blue edged white,
+// the red ribbon FALL CLASSIC in yellow, 2008 in blue below
+function drawFallClassic( ctx, cx, cy, R ) {
+
+	ctx.save();
+	const dia = ( r ) => {
+
+		ctx.beginPath();
+		ctx.moveTo( cx, cy - r ); ctx.lineTo( cx + r, cy ); ctx.lineTo( cx, cy + r ); ctx.lineTo( cx - r, cy );
+		ctx.closePath();
+
+	};
+
+	dia( R );
+	ctx.fillStyle = '#f2ecd8';
+	ctx.fill();
+	ctx.lineWidth = R * 0.09;
+	ctx.strokeStyle = '#e9bd2c';
+	ctx.stroke();
+	dia( R * 0.9 );
+	ctx.fillStyle = '#86b04c';
+	ctx.fill();
+	ctx.lineWidth = R * 0.025;
+	ctx.strokeStyle = '#1d3f9e';
+	ctx.stroke();
+	mlbLogo( ctx, cx - R * 0.17, cy - R * 0.98, R * 0.34, R * 0.2 );
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.lineJoin = 'round';
+	const word = ( t, y, size, width ) => {
+
+		ctx.font = `900 ${ Math.round( size ) }px Georgia, "Times New Roman", serif`;
+		ctx.save();
+		ctx.translate( cx, y );
+		ctx.scale( width / ctx.measureText( t ).width, 1 );
+		ctx.lineWidth = size * 0.2;
+		ctx.strokeStyle = '#f7f4ea';
+		ctx.strokeText( t, 0, 0 );
+		ctx.fillStyle = '#1d3f9e';
+		ctx.fillText( t, 0, 0 );
+		ctx.lineWidth = size * 0.04;
+		ctx.strokeStyle = '#c9a44a';
+		ctx.strokeText( t, 0, 0 );
+		ctx.restore();
+
+	};
+
+	word( 'WORLD', cy - R * 0.36, R * 0.4, R * 1.25 );
+	word( 'SERIES', cy + R * 0.02, R * 0.46, R * 1.9 );
+	// the ribbon
+	ctx.fillStyle = '#c8202e';
+	ctx.beginPath();
+	ctx.moveTo( cx - R * 0.95, cy + R * 0.26 );
+	ctx.quadraticCurveTo( cx, cy + R * 0.42, cx + R * 0.95, cy + R * 0.26 );
+	ctx.lineTo( cx + R * 0.95, cy + R * 0.48 );
+	ctx.quadraticCurveTo( cx, cy + R * 0.64, cx - R * 0.95, cy + R * 0.48 );
+	ctx.closePath();
+	ctx.fill();
+	ctx.fillStyle = '#f2cf3a';
+	ctx.font = `800 ${ Math.round( R * 0.15 ) }px "Helvetica Neue", Arial, sans-serif`;
+	ctx.fillText( 'FALL CLASSIC', cx, cy + R * 0.46 );
+	ctx.fillStyle = '#1d3f9e';
+	ctx.font = `700 ${ Math.round( R * 0.24 ) }px Georgia, serif`;
+	ctx.fillText( '2008', cx, cy + R * 0.72 );
+	ctx.restore();
+
+}
+
 // the mat's face: the World Series logo on white, scuffed by spikes round where the next man stands,
 // clay tracked on, pine tar dripped, rosin dust
 function drawMat( ctx, w, h ) {
@@ -250,12 +396,7 @@ function drawMat( ctx, w, h ) {
 	const c = w / 2;
 	ctx.fillStyle = '#efece4';
 	ctx.fillRect( 0, 0, w, h );
-	ctx.save();
-	ctx.translate( c, c );
-	ctx.scale( 0.62, 0.62 );
-	ctx.translate( - w / 2, - h / 4 );
-	drawWorldSeriesLogo( ctx, w, h / 2, { clear: false } );
-	ctx.restore();
+	drawFallClassic( ctx, c, c * 1.02, c * 0.62 );
 	let s = 7;
 	const r = () => {
 

@@ -96,7 +96,8 @@ export class Wells {
 
 		const G = this.group, M = this.M;
 		pedestal( G, M, p, 1.32 );
-		const head = this.figs.add( box ? 'tvHeadBox' : 'tvHead', { ...xyz( p ), yaw: face, outfit: RAIL.fox, flags: 0, seed: 0.5 } );
+		// (its seed picks its rain cover: olive or grey, heston 2986442231)
+		const head = this.figs.add( box ? 'tvHeadBox' : 'tvHead', { ...xyz( p ), yaw: face, outfit: RAIL.fox, flags: 0, seed: rnd( p[ 0 ] * 3.1 + p[ 2 ] * 1.7 ) } );
 		const op = this.figs.add( 'tvCam', { ...xyz( p ), yaw: face, outfit: RAIL.fox, flags: FLAG.cap, seed: rnd( p[ 0 ] * 7 + p[ 2 ] ), stout: rnd( p[ 2 ] ) * 0.6 } );
 		this.cams.push( { head, op, x: p[ 0 ], y: p[ 1 ], z: p[ 2 ], face, yaw: face, pitch: 0, box, name } );
 
