@@ -790,6 +790,15 @@ export class BallparkApp {
 		// ---- input + player
 		if ( this.input.hit( 'KeyF' ) ) this.setFreeCam( ! this.freeCam );
 		if ( this.input.hit( 'KeyT' ) ) this.toggleTime();
+		// G: twice as fast, walking or flying (with Shift on top)
+		if ( this.input.hit( 'KeyG' ) ) {
+
+			this.fast = ! this.fast;
+			this.walker.speedScale = this.fly.speedScale = this.fast ? 2 : 1;
+			if ( this.ui ) this.ui.ui.toast( this.fast ? 'Double speed' : 'Normal speed' );
+
+		}
+
 		if ( this.input.hit( 'KeyL' ) ) {
 
 			const on = this.localLights.toggleFlashlight();

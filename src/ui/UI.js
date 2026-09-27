@@ -2142,6 +2142,7 @@ export class UI {
 						${ row( wasd, 'Move' ) }
 						${ row( mouse, 'Look around<small>Click to capture</small>' ) }
 						${ row( k( 'Shift' ), 'Sprint' ) }
+						${ row( k( 'G' ), 'Double speed<small>On or off; walking or flying</small>' ) }
 						${ row( k( 'Space' ), 'Jump' ) }
 					</section>
 					<section>

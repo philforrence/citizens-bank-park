@@ -129,7 +129,8 @@ export class Walker {
 		if ( wish.lengthSq() > 0 ) wish.normalize();
 
 		const sprint = inp.down( 'ShiftLeft' ) || inp.down( 'ShiftRight' );
-		const speed = sprint ? SPRINT : WALK;
+		// G doubles it (speedScale, BallparkApp)
+		const speed = ( sprint ? SPRINT : WALK ) * ( this.speedScale || 1 );
 		const accel = this.grounded ? 14 : 2.5;
 		const k = 1 - Math.exp( - accel * dt );
 		this.velocity.x += ( wish.x * speed - this.velocity.x ) * k;
