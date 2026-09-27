@@ -65,6 +65,7 @@ export default class ThirdBaseGate {
 		this.vendors = buildVendors( { group: this.group, cast: this.cast, colliders, field } );
 		for ( const [ x, z ] of this.vendors.carts ) this.obstacles.push( [ x, z, 1.4 ] );
 		this._police();
+		this._ticketless();
 		// FOX 29 live from the plaza (gate3b/TV.js)
 		this.tv = buildTV( { group: this.group, colliders, field, cast: this.cast } );
 		this.obstacles.push( ...this.tv.obstacles );
@@ -82,6 +83,52 @@ export default class ThirdBaseGate {
 			...this.store.edges.map( ( [ A, B, yy ] ) => [ A, B, yy, base + 0.02 ] ),
 		] );
 		this.clock = 0;
+
+	}
+
+	// ---------------------------------------------------------------- the ones without tickets
+
+	// Not everyone was going in. McFadden's, the saloon on the plaza with its own door, was packed with the
+	// ones who couldn't get a seat and wanted the next best thing: a line down the wall in the rain, the
+	// bouncer at the door with his flashlight on the IDs, a few out under the balloons with a cigarette,
+	// a knot at the windows watching the TVs over the bar. Out of the rain under the store's canopy, a group
+	// round a transistor radio with Harry Kalas on it. At the ticket windows on Pattison, the Will Call
+	// line before the game. They follow the game: a Phillies run and they're up with their arms in the air.
+	_ticketless() {
+
+		const C = this.cast, x0 = - 71.75;
+		const always = ( w ) => ! w.celebrate;
+		// the bouncer at the door, the line down the wall to the north
+		C.add( { at: [ x0 - 0.8, 76.3 ], face: [ x0 - 4, 76 ], act: 'stand', who: 'bouncer', props: [ 'flash' ], when: always, extra: { custom: ( c, dt, w, p ) => {
+
+			// an ID in the light, a look at the face, the nod
+			const k = Math.max( 0, Math.sin( c.t * 0.6 ) );
+			p.flexL = 0.5 + 0.3 * k; p.elbowL = 1.1; p.flexR = 0.55 * k; p.elbowR = 0.9; p.pitch = - 0.3 * k + 0.1 * ( 1 - k ); p.yaw = - 0.4 * k;
+
+		} } } );
+		for ( let k = 0; k < 11; k ++ ) {
+
+			const z = 74.2 - k * 0.78 + ( ( k * 37 ) % 7 ) * 0.02, x = x0 - 1.35 - ( ( k * 13 ) % 5 ) * 0.06;
+			C.add( { at: [ x, z ], face: [ x, z + 3 ], act: k % 4 === 1 ? 'talk' : k % 4 === 3 ? 'phone' : 'listen', reacts: true, when: always } );
+
+		}
+
+		// out under the balloons with a cigarette
+		for ( const [ z, act ] of [ [ 78.6, 'smoke' ], [ 79.4, 'smoke' ], [ 80.1, 'talk' ] ] ) C.add( { at: [ x0 - 1.4, z ], face: [ x0 - 1.4 + ( z > 79 ? - 0.5 : 0.6 ), z + ( z > 79 ? - 0.6 : 0.8 ) ], act, reacts: true, when: always } );
+		// at the windows, watching the TVs over the bar
+		for ( const [ z, woman ] of [ [ 82.2, false ], [ 82.9, true ], [ 83.7, false ], [ 85.0, false ] ] ) C.add( { at: [ x0 - 0.75, z ], face: [ x0 + 2, z ], act: 'window', who: { woman }, noRainGear: false, reacts: true, when: always } );
+		// under the store's canopy, out of the rain, round the radio
+		const S = this.store, n = S.nFront, d = S.along, dr = S.doors;
+		const at = ( a, o ) => [ dr[ 0 ] + d[ 0 ] * a + n[ 0 ] * o, dr[ 1 ] + d[ 1 ] * a + n[ 1 ] * o ];
+		const ring = at( - 1.8, 2.2 );
+		C.group( ring, 5, 0.75, { acts: [ 'phone', 'listen', 'listen', 'drink', 'listen' ], noRainGear: true, reacts: true, when: always } );
+		// the Will Call line at the ticket windows on Pattison (windows 1-3), before the game
+		for ( let k = 0; k < 9; k ++ ) {
+
+			const x = - 41.2 + ( k % 3 ) * 1.6, z = 92.6 + Math.floor( k / 3 ) * 0.8;
+			C.add( { at: [ x, z ], face: [ x, z - 3 ], act: k % 3 === 0 ? 'wait' : 'listen', when: ( w ) => w.rate > 0.25 + k * 0.05 } );
+
+		}
 
 	}
 
@@ -325,7 +372,8 @@ export default class ThirdBaseGate {
 
 		const spots = [];
 		const near = ( x, z, d ) => spots.some( ( [ a, b ] ) => Math.hypot( a - x, b - z ) < d );
-		for ( const [ x, z ] of app.exterior?.treeSpots || [] ) spots.push( [ x, z ] );
+		// (not the one Exterior put against McFadden's front, in its door's way)
+		for ( const [ x, z ] of app.exterior?.treeSpots || [] ) if ( ! ( x > - 73 && z > 60 && z < 90 ) ) spots.push( [ x, z ] );
 		const nPlaza = spots.length;
 		const crowns = app.complex?.group.children.find( ( m ) => m.name === 'trees-crowns' );
 		const trunks = app.complex?.group.children.find( ( m ) => m.name === 'trees-trunks' );
@@ -395,6 +443,22 @@ export default class ThirdBaseGate {
 	update( dt, director ) {
 
 		const w = night( director );
+		// the score: a run for the Phillies sets off a cheer, one for the Rays a groan (the ones following
+		// the game outside react: Cast's reacts)
+		const sc = w.seg?.snap?.score;
+		this.cheer = Math.max( 0, ( this.cheer || 0 ) - dt );
+		this.groan = Math.max( 0, ( this.groan || 0 ) - dt );
+		if ( sc && this._score && Math.abs( w.t - ( this._scoreT ?? w.t ) ) < 3 ) {
+
+			if ( sc.home > this._score.home ) this.cheer = 7;
+			if ( sc.away > this._score.away ) this.groan = 4;
+
+		}
+
+		if ( sc ) this._score = { ...sc };
+		this._scoreT = w.t;
+		w.cheer = w.celebrate ? 0 : this.cheer;
+		w.groan = this.groan;
 		const A = this.arrivals;
 		if ( A ) {
 

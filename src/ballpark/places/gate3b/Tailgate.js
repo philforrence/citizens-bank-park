@@ -154,7 +154,7 @@ export function buildTailgates( { group, cast } ) {
 		const { P } = G;
 		for ( const [ i, s ] of G.seats.entries() ) {
 
-			cast.add( { at: s, face: G.tv, act: 'sit', onRoad: true, noRainGear: true, props: i === 1 ? [ 'cup' ] : [], extra: { custom: ( c, dt, w, p ) => {
+			cast.add( { at: s, face: G.tv, act: 'sit', onRoad: true, noRainGear: true, reacts: true, props: i === 1 ? [ 'cup' ] : [], extra: { custom: ( c, dt, w, p ) => {
 
 				if ( w.celebrate ) {
 
@@ -178,7 +178,7 @@ export function buildTailgates( { group, cast } ) {
 			p.flexL = 0.4; p.elbowL = 1.4; c.f.props |= 1 << 7;
 
 		} } } );
-		cast.add( { at: P( - 0.6, - 2.3, 0 ).filter( ( _, i ) => i !== 1 ), face: G.tv, act: 'drink', onRoad: true, when: ( w ) => ! w.celebrate } );
+		cast.add( { at: P( - 0.6, - 2.3, 0 ).filter( ( _, i ) => i !== 1 ), face: G.tv, act: 'drink', onRoad: true, reacts: true, when: ( w ) => ! w.celebrate } );
 		cast.add( { at: P( 0.5, - 2.4, 0 ).filter( ( _, i ) => i !== 1 ), face: G.tv, act: 'talk', onRoad: true, who: { woman: true }, when: ( w ) => ! w.celebrate } );
 		cast.add( { at: P( 0.0, - 2.35, 0 ).filter( ( _, i ) => i !== 1 ), face: G.tv, act: 'jump', onRoad: true, when: ( w ) => w.celebrate } );
 

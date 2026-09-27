@@ -47,7 +47,7 @@ export class Cast {
 		const [ x, z ] = o.at;
 		const f = this.folk.add( { x, z, y: STREET + ( o.y || 0 ) + ( o.onRoad ? 0.012 : LIFT ), yaw: 0, look: d.look, props: d.props, scale: d.scale, seed: r() } );
 		if ( ! f ) return null;
-		const c = { f, act: o.act || 'stand', face: o.face, t: r() * 30, when: o.when, y0: ( o.y || 0 ) + ( o.onRoad ? 0.012 : LIFT ), base: d.props, umbrella: ( d.props & ( 1 << PROP.umbrella ) ) !== 0, rate: 0.7 + r() * 0.6, ...o.extra };
+		const c = { f, act: o.act || 'stand', face: o.face, t: r() * 30, when: o.when, reacts: !! o.reacts, y0: ( o.y || 0 ) + ( o.onRoad ? 0.012 : LIFT ), base: d.props, umbrella: ( d.props & ( 1 << PROP.umbrella ) ) !== 0, rate: 0.7 + r() * 0.6, ...o.extra };
 		this._aim( c );
 		this.list.push( c );
 		return c;
@@ -362,6 +362,26 @@ export class Cast {
 
 			f.props = props;
 			if ( c.custom ) c.custom( c, dt, w, p );
+			// the ones following the game (at McFadden's windows, round a radio, round a little TV in the
+			// lot): a run for the Phillies and they're up with their arms in the air, a hug, a high five;
+			// one for the Rays and it's hands on heads (w.cheer, w.groan: seconds left of it)
+			if ( c.reacts && ! f.ride ) {
+
+				if ( w.cheer > 0 ) {
+
+					const k = Math.min( 1, w.cheer / 1.5 );
+					p.flexL = 2.7 * k; p.abductL = - 0.3 * k; p.elbowL = 0.25; p.flexR = 2.7 * k; p.abductR = - 0.3 * k; p.elbowR = 0.25; p.pitch = 0.3 * k;
+					f.sit = 0;
+					f.y = STREET + c.y0 + Math.max( 0, Math.sin( c.t * 6.5 + f.seed * 9 ) ) * 0.26 * k;
+
+				} else if ( w.groan > 0 ) {
+
+					const k = Math.min( 1, w.groan / 1.0 );
+					p.flexL = 2.2 * k; p.abductL = 0.35 * k; p.elbowL = 2.3 * k; p.flexR = 2.2 * k; p.abductR = 0.35 * k; p.elbowR = 2.3 * k; p.pitch = - 0.4 * k; p.lean = 0.1 * k;
+
+				}
+
+			}
 
 		}
 
