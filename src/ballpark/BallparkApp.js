@@ -6,6 +6,7 @@ import { FrameUniforms } from '../engine/render/Frame.js';
 import { SceneLighting, surfaceModule } from '../engine/render/wgsl/lighting.js';
 
 import { Engine } from '../core/Engine.js';
+import { Profiler } from '../core/Profiler.js';
 import { Input } from '../core/Input.js';
 import { G } from '../core/Globals.js';
 import { SceneRenderer, LAYERS } from '../core/SceneRenderer.js';
@@ -239,6 +240,31 @@ export class BallparkApp {
 		// a summer afternoon in the city, not a humid tropical island
 		if ( this.haze ) this.haze.density.value = 1.0;
 		this.post = new PostFX( renderer, { sceneRenderer: this.sceneRenderer, camera, underwater: this.underwater, clouds: this.clouds, sunDir: this.atmosphere.sunDir, haze: this.haze } );
+		// ?profile: GPU timestamps for every pass (post passes, shadow cascades, the scene's passes), in
+		// this.profiler.result
+		if ( qs.has( 'profile' ) ) {
+
+			this.profiler = new Profiler( renderer, { enabled: true } );
+			this.post.profiler = this.profiler;
+			const mr = this.engine.meshRenderer, render = mr.render.bind( mr ), nodes = new Map();
+			mr.render = ( scene, pass ) => {
+
+				const key = pass.label || pass.kind;
+				let node = nodes.get( key );
+				if ( ! node ) {
+
+					node = {};
+					nodes.set( key, node );
+					this.profiler.track( 'mesh ' + key, node );
+
+				}
+
+				pass.timestampWrites = node.timestampWrites;
+				return render( scene, pass );
+
+			};
+
+		}
 		G.exposure.value = this.settings.exposure;
 		if ( qs.has( 'scale' ) ) this.settings.renderScale = Number( qs.get( 'scale' ) ) || 1;
 		this.setRenderScale( this.settings.renderScale );
@@ -747,6 +773,7 @@ export class BallparkApp {
 		}
 
 		this.bowl.crowd.update( this.director, dt, this._crowdRain || 0 );
+		this.bowl.crowd.lod( this.camera );
 		this.people.update( dt, this.director );
 
 		this.players.update();
@@ -773,6 +800,7 @@ export class BallparkApp {
 		if ( this.post.flare ) this.post.flare.kernel.dispatch( 1 );
 		this.post.render();
 		this.post.endFrame();
+		if ( this.profiler ) this.profiler.update( dt );
 		GPU.submit();
 
 		if ( this.ui ) this.ui.update( dt );

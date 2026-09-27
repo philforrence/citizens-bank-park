@@ -163,6 +163,8 @@ export class AirHaze {
 		}
 
 		if ( G.cameraUnderwater.value > 0.5 || this.enabled.value < 0.5 || this.shafts.value <= 0 || ! this.godRays ) fade = 0;
+		// after dark the key light is the stadium's banks, not a sun in the sky: no shafts from it
+		if ( G.night && G.night.value > 0.5 ) fade = 0;
 		this.ssFade.value = fade;
 		this.uniforms.fields.hasMedium.value = this.mediumTexture ? 1 : 0;
 

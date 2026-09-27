@@ -1,6 +1,7 @@
 import { BufferGeometry, BufferAttribute, Float32BufferAttribute, Mesh, Matrix3, Matrix4, Vector2, Vector3 } from '../engine/index.js';
 import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { Texture } from '../engine/gpu/Texture.js';
+import { GPU } from '../engine/gpu/GPU.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 
 // Small geometry helpers shared by the ballpark's builders.
@@ -84,11 +85,19 @@ export function canvasTexture( w, h, draw, label = 'canvas' ) {
 	const ctx = canvas.getContext( '2d', { willReadFrequently: true } );
 	draw( ctx, w, h );
 	const img = ctx.getImageData( 0, 0, w, h );
-	const tex = new Texture( { label, width: w, height: h, format: 'rgba8unorm-srgb', mips: true, usage: [ 'sample', 'copyDst' ], data: new Uint8Array( img.data.buffer ) } );
+	const tex = new Texture( { label, width: w, height: h, format: 'rgba8unorm-srgb', mips: true, usage: [ 'sample', 'copyDst', 'render' ], data: new Uint8Array( img.data.buffer ) } );
 	tex.getGPU();
 	generateMipmaps( tex );
 	tex.canvas = canvas;
 	return tex;
+
+}
+
+// a canvas texture redrawn: the canvas copied straight into it on the GPU (no read back through the CPU)
+export function refreshCanvasTexture( tex, canvas = tex.canvas ) {
+
+	GPU.device.queue.copyExternalImageToTexture( { source: canvas }, { texture: tex.getGPU(), premultipliedAlpha: false }, [ canvas.width, canvas.height ] );
+	generateMipmaps( tex );
 
 }
 

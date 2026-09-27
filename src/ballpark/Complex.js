@@ -5,7 +5,7 @@ import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
 import { beam, box, canvasTexture } from './geo.js';
 import { LEVELS } from './layout.js';
-import { BUILDINGS, LOTS, LAMPS, TREES, HIGHWAYS, RAIL, GRASS } from './data/complex.js';
+import * as OSM from './data/complex.js';
 import { NEIGHBOURS } from './data/surroundings.js';
 
 // The South Philadelphia Sports Complex and the blocks round it as they were in October 2008, from
@@ -15,6 +15,21 @@ import { NEIGHBOURS } from './data/surroundings.js';
 // viaducts, the rail yards, and the other venues modelled by hand: Lincoln Financial Field with its two
 // canopies, the Wachovia Center, and the Spectrum, which stood until 2010. Field frame, street level =
 // LEVELS.mainConcourse.
+
+
+// Only the park's own neighbourhood: its streets, lots, trees and lamps, the venues next door and the
+// highway ramps round them (within ~700 m); the rest of South Philadelphia is left to the haze (Center
+// City stays on the horizon, Surroundings.js)
+const CENTRE = [ 0, - 40 ];
+const dist = ( x, z ) => Math.hypot( x - CENTRE[ 0 ], z - CENTRE[ 1 ] );
+const near = ( P, R ) => P.some( ( [ x, z ] ) => dist( x, z ) < R );
+const BUILDINGS = OSM.BUILDINGS.filter( ( B ) => near( B.fp, 700 ) );
+const LOTS = OSM.LOTS.filter( ( P ) => near( P, 700 ) );
+const GRASS = OSM.GRASS.filter( ( P ) => near( P, 700 ) );
+const HIGHWAYS = OSM.HIGHWAYS.filter( ( w ) => near( w.pts, 700 ) );
+const RAIL = OSM.RAIL.filter( ( w ) => near( w.pts, 700 ) );
+const TREES = OSM.TREES.filter( ( [ x, z ] ) => dist( x, z ) < 600 );
+const LAMPS = OSM.LAMPS.filter( ( [ x, z ] ) => dist( x, z ) < 600 );
 
 const STREET = LEVELS.mainConcourse;
 const SODIUM = [ 1.0, 0.55, 0.2 ];

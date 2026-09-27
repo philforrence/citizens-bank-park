@@ -31,7 +31,9 @@ const STAND_UP = { elbow: [ 0.3, 1.64, 0.0 ], wrist: [ 0.31, 1.9, - 0.05 ], hand
 // parts (the shader colours by them)
 const P = { shirt: 0, pants: 1, skin: 2, head: 3, brim: 4, towel: 5, shoe: 6 };
 
-function fanGeometry() {
+// `lite`: the far version (fewer sides, no neck or hands, a coarser head): the same poses, ~40% of the
+// triangles, for fans too small on screen for the difference to show
+function fanGeometry( lite = false ) {
 
 	const pos = [], stand = [], sitUp = [], standUp = [], nrm = [], nrmS = [], part = [], index = [];
 	const side = ( j, s ) => [ j[ 0 ] * s, j[ 1 ], j[ 2 ] ];
@@ -113,23 +115,24 @@ function fanGeometry() {
 	};
 
 	// the trunk (a jacket over the shoulders), the neck
-	tube( 'pelvis', 'chest', 1, [ 0.17, 0.12 ], [ 0.2, 0.11 ], P.shirt, 8, true );
-	tube( 'chest', 'neck', 1, [ 0.12, 0.09 ], [ 0.055, 0.05 ], P.shirt, 8 );
+	tube( 'pelvis', 'chest', 1, [ 0.17, 0.12 ], [ 0.2, 0.11 ], P.shirt, lite ? 5 : 8, true );
+	if ( ! lite ) tube( 'chest', 'neck', 1, [ 0.12, 0.09 ], [ 0.055, 0.05 ], P.shirt, 8 );
 	// arms: sleeve to the wrist, the hand
 	for ( const s of [ - 1, 1 ] ) {
 
-		tube( 'shoulder', 'elbow', s, [ 0.06, 0.06 ], [ 0.05, 0.05 ], P.shirt );
-		tube( 'elbow', 'wrist', s, [ 0.05, 0.05 ], [ 0.042, 0.042 ], P.shirt );
-		tube( 'wrist', 'hand', s, [ 0.035, 0.02 ], [ 0.03, 0.018 ], P.skin );
-		tube( 'hip', 'knee', s, [ 0.085, 0.085 ], [ 0.06, 0.06 ], P.pants );
-		tube( 'knee', 'ankle', s, [ 0.058, 0.058 ], [ 0.05, 0.05 ], P.pants );
+		const n = lite ? 3 : 4;
+		tube( 'shoulder', 'elbow', s, [ 0.06, 0.06 ], [ 0.05, 0.05 ], P.shirt, n );
+		tube( 'elbow', 'wrist', s, [ 0.05, 0.05 ], [ 0.042, 0.042 ], P.shirt, n );
+		if ( ! lite ) tube( 'wrist', 'hand', s, [ 0.035, 0.02 ], [ 0.03, 0.018 ], P.skin );
+		tube( 'hip', 'knee', s, [ 0.085, 0.085 ], [ 0.06, 0.06 ], P.pants, n );
+		tube( 'knee', 'ankle', s, [ 0.058, 0.058 ], [ 0.05, 0.05 ], P.pants, n );
 
 	}
 
 	// the head: a low sphere round its centre in each pose (hair or a cap on top, the face in front)
 	{
 
-		const W = 8, H = 5, r = [ 0.082, 0.105, 0.098 ];
+		const W = lite ? 5 : 8, H = lite ? 3 : 5, r = [ 0.082, 0.105, 0.098 ];
 		const hc = [ SIT.head, STAND.head ];
 		const first = pos.length / 3;
 		for ( let j = 0; j <= H; j ++ ) for ( let i = 0; i < W; i ++ ) {
@@ -310,6 +313,8 @@ export class Crowd {
 	constructor() {
 
 		this.geometry = fanGeometry();
+		this.farGeometry = fanGeometry( true );
+		this.chunks = [];
 		this.material = crowdMaterial();
 		this.meshes = [];
 		this.count = 0;
@@ -327,20 +332,49 @@ export class Crowd {
 
 	}
 
-	// a crowd chunk on these seats (their matrices)
+	// a crowd chunk on these seats (their matrices): a near and a far version, one drawn at a time
 	addChunk( group, mats, name ) {
 
 		if ( ! mats.length ) return;
-		const mesh = new InstancedMesh( this.geometry, this.material, mats.length );
-		mats.forEach( ( m, i ) => mesh.setMatrixAt( i, m ) );
-		mesh.computeBoundingBox();
-		mesh.computeBoundingSphere();
-		mesh.name = name + '-crowd';
-		mesh.receiveShadow = true;
-		mesh.castShadow = false;
-		group.add( mesh );
-		this.meshes.push( mesh );
+		const make = ( geo, suffix ) => {
+
+			const mesh = new InstancedMesh( geo, this.material, mats.length );
+			mats.forEach( ( m, i ) => mesh.setMatrixAt( i, m ) );
+			mesh.computeBoundingBox();
+			mesh.computeBoundingSphere();
+			mesh.name = name + suffix;
+			mesh.receiveShadow = true;
+			mesh.castShadow = false;
+			group.add( mesh );
+			this.meshes.push( mesh );
+			return mesh;
+
+		};
+
+		const near = make( this.geometry, '-crowd' ), far = make( this.farGeometry, '-crowd-far' );
+		far.visible = false;
+		this.chunks.push( { near, far } );
 		this.count += mats.length;
+
+	}
+
+	// pick each chunk's version by how big its fans are on screen: the distance to the chunk against the
+	// camera's zoom (the center field camera's long lens sees the far stands in full)
+	lod( camera ) {
+
+		const k = Math.tan( ( camera.fov || 60 ) * Math.PI / 360 );
+		const c = this._c || ( this._c = new Vector3() );
+		for ( const ch of this.chunks ) {
+
+			const bs = ch.near.boundingSphere;
+			if ( ! bs ) continue;
+			c.copy( bs.center ).applyMatrix4( ch.near.matrixWorld );
+			const d = Math.max( 0, camera.position.distanceTo( c ) - bs.radius );
+			const far = d * k > 26;
+			ch.near.visible = ! far;
+			ch.far.visible = far;
+
+		}
 
 	}
 

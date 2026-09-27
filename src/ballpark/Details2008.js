@@ -3,7 +3,7 @@ import { moundHeight } from './Field.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
-import { canvasTexture, beam } from './geo.js';
+import { canvasTexture, beam, refreshCanvasTexture } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, LEVELS, BULLPENS, fencePoint } from './layout.js';
 import { ON_DECK } from './game/Plays.js';
@@ -469,9 +469,7 @@ export class Details2008 {
 		if ( ! this.ootCanvas ) return;
 		const ctx = this.ootCanvas.getContext( '2d' );
 		drawOutOfTown( ctx, this.ootCanvas.width, this.ootCanvas.height, st );
-		const img = ctx.getImageData( 0, 0, this.ootCanvas.width, this.ootCanvas.height );
-		this.ootTexture.upload( new Uint8Array( img.data.buffer ) );
-		generateMipmaps( this.ootTexture );
+		refreshCanvasTexture( this.ootTexture, this.ootCanvas );
 
 	}
 

@@ -1,7 +1,7 @@
 import { Group, Mesh } from '../engine/index.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
-import { canvasTexture } from './geo.js';
+import { canvasTexture, refreshCanvasTexture } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 
 // The fronts of the decks as they were for the 2008 World Series (from photos of Games 3-5):
@@ -400,11 +400,9 @@ function along( q, segs, a, b, y0, y1, off, u, v0, v1 ) {
 
 }
 
-function upload( tex, ctx, w, h ) {
+function upload( tex, ctx ) {
 
-	const img = ctx.getImageData( 0, 0, w, h );
-	tex.upload( new Uint8Array( img.data.buffer ) );
-	generateMipmaps( tex );
+	refreshCanvasTexture( tex, ctx.canvas );
 
 }
 

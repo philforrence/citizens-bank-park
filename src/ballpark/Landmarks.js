@@ -4,7 +4,7 @@ import * as Motions from './game/Motions.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
-import { canvasTexture, beam, box, box as boxQuads } from './geo.js';
+import { canvasTexture, refreshCanvasTexture, beam, box, box as boxQuads } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, LEVELS, fencePoint } from './layout.js';
 import { offsetPolyline } from './Bowl.js';
@@ -396,9 +396,7 @@ export class Landmarks {
 
 		const c = this.boardCanvas, ctx = c.getContext( '2d' );
 		drawBoard2008( ctx, c.width, c.height, state );
-		const img = ctx.getImageData( 0, 0, c.width, c.height );
-		this.scoreboardTexture.upload( new Uint8Array( img.data.buffer ) );
-		generateMipmaps( this.scoreboardTexture );
+		refreshCanvasTexture( this.scoreboardTexture, c );
 
 	}
 
