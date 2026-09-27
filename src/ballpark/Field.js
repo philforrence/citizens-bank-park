@@ -253,19 +253,52 @@ export class Field {
 	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;
 ` } );
 		// behind home plate the wall is red brick under a teal padded cap
-		const brick = standard( { name: 'backstop-brick', color: new Color( 0.26, 0.07, 0.04 ), roughness: 0.85,
+		// ---- W4 (rail): the backstop's brick, worn and lit. Its teal cushions are separate pads on top
+		// (places/FieldRail.js); behind them, in the gaps between the pads, the wall is dark
+		const brick = standard( { name: 'backstop-brick', color: new Color( 0.3, 0.085, 0.05 ), roughness: 0.85, modules: [ commonModule ],
 			surface: /* wgsl */`
 	let v = in.uv.y; let u = in.uv.x;
 	let row = floor( v / 0.075 );
 	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
-	let fr = clamp( fwidth( v ) / 0.075 * 1.5 - 0.25, 0.0, 1.0 );
-	let mortar = clamp( mix( step( 0.88, fract( v / 0.075 ) ), 0.12, fr ) + mix( step( 0.93, fract( bu ) ), 0.07, fr ), 0.0, 1.0 );
-	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, fr );
-	s.albedo = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
-	// the teal pad along the top
-	if ( v > ${ ( 4.5 * 0.3048 - 0.3 ).toFixed( 3 ) } ) { s.albedo = vec3f( 0.02, 0.13, 0.12 ); s.roughness = 0.6; }
-	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;
+	let cellB = vec2f( floor( bu ), row );
+	let hb = fract( sin( dot( cellB, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	let fr = clamp( max( fwidth( v ) / 0.075, fwidth( bu ) * 0.4 ) * 1.5 - 0.25, 0.0, 1.0 );
+	// the mortar joints (1 cm, raked back from the face) and their shadowed lip, box-filtered over the
+	// pixel (seen along the wall the joints crowd together: unfiltered they beat into moire fans)
+	let jv = fract( v / 0.075 );
+	let xv = v / 0.075; let wv = max( fwidth( xv ), 1e-4 );
+	let xa = xv - wv * 0.5; let xb = xv + wv * 0.5;
+	let mv = clamp( ( ( floor( xb ) * 0.12 + max( fract( xb ) - 0.88, 0.0 ) ) - ( floor( xa ) * 0.12 + max( fract( xa ) - 0.88, 0.0 ) ) ) / wv, 0.0, 1.0 );
+	let wu = max( fwidth( bu ), 1e-4 );
+	let ua = bu - wu * 0.5; let ub = bu + wu * 0.5;
+	let mu = clamp( ( ( floor( ub ) * 0.05 + max( fract( ub ) - 0.95, 0.0 ) ) - ( floor( ua ) * 0.05 + max( fract( ua ) - 0.95, 0.0 ) ) ) / wu, 0.0, 1.0 );
+	let mortar = mv + mu - mv * mu;
+	let lip = ( 1.0 - fr ) * ( smoothstep( 0.8, 0.88, jv ) * ( 1.0 - step( 0.88, jv ) ) );
+	// brick to brick: a few darker clinkers, a few pale ones, the fired colour moving through each
+	var tone = 0.8 + 0.32 * hb;
+	if ( hb > 0.93 ) { tone = 0.6; }
+	if ( hb < 0.05 ) { tone = 1.18; }
+	tone = mix( tone * ( 0.93 + 0.12 * mx_noise_float2( in.uv * vec2f( 9.0, 22.0 ) ) ), 0.97, fr );
+	var c = mix( mat.color * tone * vec3f( 1.0, 0.94 + 0.1 * fract( hb * 7.0 ), 1.0 ), vec3f( 0.46, 0.43, 0.38 ), mortar * 0.8 );
+	c = c * ( 1.0 - 0.35 * lip );
+	// the base: clay splashed up off the warning track, heaviest in the first hand's width
+	let splash = ( 1.0 - smoothstep( 0.02, 0.3, v ) ) * ( 0.55 + 0.45 * mx_noise_float2( in.uv * vec2f( 3.0, 11.0 ) ) );
+	c = mix( c, vec3f( 0.2, 0.07, 0.035 ), splash * 0.6 );
+	// balls in the dirt that got by the catcher: round grey smudges on the brick
+	let bc = floor( in.uv / vec2f( 0.9, 0.45 ) );
+	let bh = fract( sin( dot( bc, vec2f( 41.3, 17.9 ) ) ) * 43758.5453 );
+	let bp = ( in.uv - ( bc + vec2f( fract( bh * 5.3 ), fract( bh * 9.1 ) ) * 0.8 + 0.05 ) * vec2f( 0.9, 0.45 ) ) / vec2f( 0.045, 0.04 );
+	c = mix( c, vec3f( 0.3, 0.26, 0.22 ), ( 1.0 - smoothstep( 0.4, 1.0, length( bp ) ) ) * step( 0.55, bh ) * step( v, 1.0 ) * 0.5 );
+	// the rain on the 27th drove onto it: darker, the fired face a little glossy
+	c = c * ( 1.0 - 0.3 * frame.wet );
+	s.albedo = c;
+	s.roughness = mix( 0.85, 0.5, frame.wet * ( 1.0 - mortar ) );
+	// under the pads (seen only in the gaps between them) the wall is in shadow
+	if ( v > ${ ( 4.5 * 0.3048 - 0.33 ).toFixed( 3 ) } ) { s.albedo = vec3f( 0.01, 0.02, 0.02 ); s.roughness = 0.9; }
+	// under the lights it's one of the brightest things in the TV picture: the banks all round light it
+	s.emissive = s.albedo * vec3f( 1.0, 0.95, 0.88 ) * smoothstep( 0.2, 0.8, frame.night ) * 0.5;
 ` } );
+		// ---- end W4
 		const tealCap = standard( { name: 'backstop-cap', color: new Color( 0.02, 0.13, 0.12 ), roughness: 0.6, surface: 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
 		const trim = standard( { name: 'wall-trim', color: new Color( 0.75, 0.55, 0.02 ), roughness: 0.6 } );
 		const cap = standard( { name: 'wall-cap', color: new Color( 0.2, 0.2, 0.19 ), roughness: 0.8 } );
@@ -1356,7 +1389,9 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		name: 'field',
 		roughness: 0.95,
 		modules: [ module ],
-		uniforms: { fieldYaw: [ 'vec2f', new Vector2( Math.cos( yaw ), Math.sin( yaw ) ) ], wet: [ 'f32', 0 ] },
+		// ---- W4 (rail): chalkWear, how worn the chalk round the plate is (0 fresh .. 1: the 6th inning in
+		// the rain; places/FieldRail.js sets it from the replay's time)
+		uniforms: { fieldYaw: [ 'vec2f', new Vector2( Math.cos( yaw ), Math.sin( yaw ) ) ], wet: [ 'f32', 0 ], chalkWear: [ 'f32', 0 ] },
 		varyings: { vField: 'vec2f' },
 		vertex: 'o.vField = v.position.xz;',
 		surface: /* wgsl */`
@@ -1471,6 +1506,42 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		col = col * ( 1.0 + ( gran - 0.5 ) * 0.16 * near );
 		rough = 0.92;
 		// the edge of the grass: a soft lip, not a razor line
+		// ---- W4 (rail): the holes the hitters dig in the boxes (the back foot's deepest, the front
+		// foot's stride a shallow groove), the catcher's and the umpire's, deeper as the night goes; cleat
+		// prints round the plate up close
+		let cw = mat.chalkWear;
+		let hq = p - plate;
+		if ( length( hq ) < 3.5 ) {
+			var hole = 0.0;
+			for ( var hs = -1.0; hs <= 1.0; hs += 2.0 ) {
+				let backFoot = ( hq - vec2f( hs * 0.98, 0.42 ) ) / vec2f( 0.2, 0.3 );
+				let frontFoot = ( hq - vec2f( hs * 0.9, -0.42 ) ) / vec2f( 0.2, 0.34 );
+				hole = max( hole, ( 1.0 - smoothstep( 0.3, 1.0, length( backFoot ) ) ) * ( 0.45 + 0.55 * cw ) );
+				hole = max( hole, ( 1.0 - smoothstep( 0.3, 1.0, length( frontFoot ) ) ) * ( 0.25 + 0.45 * cw ) );
+			}
+			let catcher = ( hq - vec2f( 0.0, 1.35 ) ) / vec2f( 0.55, 0.28 );
+			hole = max( hole, ( 1.0 - smoothstep( 0.2, 1.0, length( catcher ) ) ) * ( 0.3 + 0.4 * cw ) );
+			let ump = ( hq - vec2f( 0.3, 2.1 ) ) / vec2f( 0.5, 0.3 );
+			hole = max( hole, ( 1.0 - smoothstep( 0.2, 1.0, length( ump ) ) ) * 0.25 );
+			hole = hole * ( 0.8 + 0.4 * mx_noise_float2( p * 6.0 ) );
+			// dug-up clay: darker, loose, damp at the bottom
+			col = mix( col, vec3f( 0.24, 0.1, 0.05 ) * ( 0.85 + 0.3 * mx_noise_float2( p * 25.0 ) ), clamp( hole, 0.0, 1.0 ) * 0.7 );
+			// the hole's rim of kicked-out clay, a shade lighter
+			col = col * ( 1.0 + 0.12 * smoothstep( 0.05, 0.3, hole ) * ( 1.0 - smoothstep( 0.3, 0.6, hole ) ) );
+			s.normal = normalize( s.normal + vec3f( mx_noise_float2( p * 8.0 ), 0.0, mx_noise_float2( p * 8.0 + 5.0 ) ) * 0.35 * hole );
+			// cleat prints: little rows of dark studs in pairs of ovals, scattered round the boxes
+			if ( fw < 0.01 ) {
+				let pc = floor( hq / 0.34 );
+				let ph = fract( sin( dot( pc, vec2f( 91.7, 23.3 ) ) ) * 43758.5453 );
+				let pa = ph * 6.283;
+				let lp = hq - ( pc + 0.5 ) * 0.34;
+				let rp = vec2f( lp.x * cos( pa ) - lp.y * sin( pa ), lp.x * sin( pa ) + lp.y * cos( pa ) );
+				let sole = 1.0 - smoothstep( 0.8, 1.0, length( rp / vec2f( 0.05, 0.13 ) ) );
+				let studs = step( 0.6, fract( rp.y / 0.035 ) ) * step( 0.3, fract( rp.x / 0.03 + 0.5 ) );
+				col = col * ( 1.0 - 0.25 * sole * studs * step( 0.45, ph ) * ( 1.0 - smoothstep( 0.004, 0.01, fw ) ) * ( 1.0 - smoothstep( 1.5, 3.2, length( hq ) ) ) );
+			}
+		}
+		// ---- end W4
 	}
 	if ( track ) {
 		col = vec3f( 0.25, 0.075, 0.045 ) * ( 0.9 + 0.12 * n1 ) * ( 0.9 + 0.15 * n3 );
@@ -1511,10 +1582,31 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 			chalk = max( chalk, bpBand( length( p - vec2f( sgn * 13.9, 4.6 ) ) - ${ f( 2.5 * FT ) }, lw, fw ) );
 		}
 	}
+	// ---- W4 (rail): the chalk round the plate wears away through the game: first where the hitters
+	// plant their feet and the catcher squats, then the inside lines where everyone steps across; what's
+	// left is broken, smeared with clay, and in the rain it runs
+	var chalkMud = 0.0;
+	if ( chalk > 0.0 && length( p - plate ) < 4.0 ) {
+		let cw = mat.chalkWear;
+		let hq = p - plate;
+		var rub = 0.0;
+		for ( var rs = -1.0; rs <= 1.0; rs += 2.0 ) {
+			rub = max( rub, 1.0 - smoothstep( 0.05, 0.3 + 0.35 * cw, length( ( hq - vec2f( rs * 0.98, 0.42 ) ) * vec2f( 1.0, 0.8 ) ) ) );
+			rub = max( rub, 0.85 * ( 1.0 - smoothstep( 0.05, 0.25 + 0.35 * cw, length( hq - vec2f( rs * 0.9, -0.42 ) ) ) ) );
+			// the inside line by the plate: stepped over all night
+			rub = max( rub, 0.7 * ( 1.0 - smoothstep( 0.1, 0.3 + 0.4 * cw, length( ( hq - vec2f( rs * 0.4, 0.1 ) ) * vec2f( 1.5, 0.7 ) ) ) ) );
+		}
+		rub = max( rub, 1.0 - smoothstep( 0.1, 0.45 + 0.4 * cw, length( ( hq - vec2f( 0.0, 1.35 ) ) * vec2f( 0.7, 1.0 ) ) ) );
+		let brk = mx_noise_float2( p * 11.0 ) * 0.5 + 0.5;
+		let erase = clamp( rub * ( 0.4 + 1.5 * cw ) + cw * 0.75 * ( mx_noise_float2( p * 2.5 + 7.0 ) * 0.5 + 0.5 ) - brk * 0.4, 0.0, 1.0 );
+		chalk = chalk * ( 1.0 - erase );
+		chalkMud = clamp( cw * 0.6 + erase * 0.5, 0.0, 1.0 );
+	}
 	if ( chalk > 0.0 ) {
-		col = mix( col, vec3f( 0.8, 0.8, 0.77 ) * ( 0.95 + 0.05 * n3 ), chalk );
+		col = mix( col, mix( vec3f( 0.8, 0.8, 0.77 ), vec3f( 0.62, 0.48, 0.4 ), chalkMud * 0.7 ) * ( 0.95 + 0.05 * n3 ), chalk );
 		rough = mix( rough, 0.8, chalk );
 	}
+	// ---- end W4
 
 	// ---- rain: darker and shinier as it soaks in; when it's pouring, water stands in the low spots of the
 	// infield dirt (round home plate and second base went under on October 27, 2008)
@@ -1523,13 +1615,49 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		let k = select( 0.2, 0.42, dirt || track );
 		col *= 1.0 - k * wet;
 		rough = mix( rough, rough * select( 0.45, 0.28, dirt || track ), wet );
+		// ---- W4 (rail): the water stands on the track too: along the foot of the wall, where the track
+		// runs down to its drains, and in its low spots; in the dirt round the plate and second. Where it
+		// stands it's a dark mirror, and while it's raining the drops ring it
+		var pud = 0.0;
 		if ( dirt ) {
 			let second = vec2f( 0.0, ${ f( - BASE * Math.SQRT2 ) } );
 			let low = 1.0 - smoothstep( 0.0, 7.0, min( length( p - plate ), length( p - second ) ) );
-			let pud = smoothstep( 0.66, 0.74, 0.35 + 0.35 * mx_noise_float2( p * 0.22 + 3.1 ) + 0.1 * mx_noise_float2( p * 1.3 ) + low * 0.55 - ( 1.0 - wet ) * 0.9 );
+			pud = smoothstep( 0.66, 0.74, 0.35 + 0.35 * mx_noise_float2( p * 0.22 + 3.1 ) + 0.1 * mx_noise_float2( p * 1.3 ) + low * 0.55 - ( 1.0 - wet ) * 0.9 );
+		}
+		if ( track && ! dirt ) {
+			let foot = 1.0 - smoothstep( 0.15, 1.3, - sd );
+			let lowSpot = smoothstep( 0.35, 0.75, mx_noise_float2( p * 0.3 + 11.0 ) * 0.5 + 0.5 );
+			pud = smoothstep( 0.62, 0.72, foot * 0.45 + lowSpot * 0.45 + 0.12 * mx_noise_float2( p * 2.1 ) - ( 1.0 - wet ) * 0.95 );
+		}
+		if ( pud > 0.0 ) {
 			col = mix( col, col * 0.3, pud );
 			rough = mix( rough, 0.03, pud );
+			// the rim of the puddle: wet sheen, a hint darker
+			col = col * ( 1.0 - 0.15 * smoothstep( 0.0, 0.5, pud ) * ( 1.0 - smoothstep( 0.5, 1.0, pud ) ) );
+			// its surface: flat, then ringed by the drops (the 27th: the rain's still falling)
+			var nrm = vec3f( 0.0, 1.0, 0.0 );
+			if ( wet > 0.45 && fw < 0.02 ) {
+				let rcp = p / 0.22;
+				let rbase = floor( rcp - 0.5 );
+				var d2 = vec2f( 0.0 );
+				for ( var ox = 0.0; ox <= 1.0; ox += 1.0 ) {
+					for ( var oz = 0.0; oz <= 1.0; oz += 1.0 ) {
+						let rcell = rbase + vec2f( ox, oz );
+						let hh = fract( sin( vec2f( dot( rcell, vec2f( 127.1, 311.7 ) ), dot( rcell, vec2f( 269.5, 183.3 ) ) ) ) * 43758.5453 );
+						let cen = ( rcell + 0.25 + hh * 0.5 ) * 0.22;
+						let life = fract( frame.time * ( 0.9 + 0.8 * hh.x ) + hh.y );
+						let dv = p - cen;
+						let dd = length( dv ) + 1e-4;
+						let rr = life * 0.1;
+						let ring = exp( - ( dd - rr ) * ( dd - rr ) / 0.00012 ) * ( 1.0 - life ) * ( 1.0 - life );
+						d2 += dv / dd * ring * cos( ( dd - rr ) * 180.0 );
+					}
+				}
+				nrm = normalize( vec3f( d2.x * 0.35, 1.0, d2.y * 0.35 ) );
+			}
+			s.normal = normalize( mix( s.normal, vec3f( nrm.x * cy + nrm.z * sy, nrm.y, - nrm.x * sy + nrm.z * cy ), pud ) );
 		}
+		// ---- end W4
 	}
 
 	// ---- outside the fence: the concrete apron (the stands go here)

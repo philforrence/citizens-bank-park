@@ -84,13 +84,41 @@ export class Details2008 {
 			ctx.restore();
 
 		}, 'onDeck' );
+		// ---- W4 (rail): paint sprayed into the grass, not a sticker on it: the blades come through it
+		// up close and it takes the mowing's light and dark; its stencilled edges a little ragged; and the
+		// rain on the 27th washes it out, pale and grey-green by the 29th (the Commons photo of the 29th:
+		// the World Series logo by the third base dugout faded). `fade` (0..1) is set by the rail
+		// (places/FieldRail.js) from the replay's time
+		this.paintMats = [];
 		const paint = ( tex, name ) => {
 
-			const m = standard( { name, roughness: 0.85, alphaTest: 0.4, textures: { bpPaint: tex }, surface: 'let t = textureSample( bpPaint, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.8;' } );
+			const m = standard( { name, roughness: 0.85, alphaTest: 0.4, textures: { bpPaint: tex }, modules: [ commonModule ], uniforms: { fade: [ 'f32', 0 ] },
+				surface: /* wgsl */`
+	let t = textureSample( bpPaint, smpAnisoClamp, in.uv );
+	let fw = length( fwidth( in.P.xz ) );
+	let near = 1.0 - smoothstep( 0.004, 0.03, fw );
+	// the blades: fine streaks, as the field's grass has them
+	let bl = mx_noise_float2( in.P.xz * vec2f( 230.0, 25.0 ) ) * 0.5 + 0.5;
+	let clump = mx_noise_float2( in.P.xz * 9.0 ) * 0.5 + 0.5;
+	let grass = vec3f( 0.13, 0.29, 0.05 ) * ( 0.85 + 0.3 * clump );
+	// how much paint there is: less where the blades part (up close), less as the rain washes it
+	let cover = clamp( 1.0 - mat.fade * ( 0.55 + 0.35 * clump ) - near * 0.35 * ( 1.0 - bl ), 0.0, 1.0 );
+	var c = mix( grass, t.rgb * 0.78 * ( 0.9 + 0.2 * bl ), cover );
+	// soaked, it darkens with the grass round it
+	c = c * ( 1.0 - 0.2 * frame.wet );
+	// the stencil's edge: overspray, ragged with the grass
+	s.alpha = t.a * ( 0.8 + 0.4 * mx_noise_float2( in.P.xz * 14.0 ) );
+	s.albedo = c;
+	s.roughness = 0.85;
+	s.emissive = c * smoothstep( 0.2, 0.8, frame.night ) * 0.35;
+` } );
 			m.underwaterLighting = 'none';
+			m.setDefine( 'DRY', 1 ); // it's grass: the field's own wet
+			this.paintMats.push( m );
 			return m;
 
 		};
+		// ---- end W4
 
 		// flat decals on the field: centre, size, which way their top faces (radians from -z, toward +x)
 		const decal = ( mat, [ cx, cz ], w, h, turn ) => {
@@ -263,19 +291,17 @@ export class Details2008 {
 		const cover = standard( { name: 'tarp-roll', color: new Color( 0.035, 0.08, 0.05 ), roughness: 0.4, modules: [ commonModule ],
 			surface: 's.albedo = mat.color * ( 0.85 + 0.2 * mx_noise_float3( in.P * 1.5 ) ) * ( 1.0 - 0.6 * step( 0.93, fract( dot( in.P.xz, vec2f( 0.7071 ) ) / 3.0 ) ) );' } );
 		cover.underwaterLighting = 'none';
-		const [ a, b ] = [ FOUL_TERRITORY[ 4 ], FOUL_TERRITORY[ 3 ] ];
-		const len = Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] );
-		const roll = new Mesh( new CylinderGeometry( 0.65, 0.65, len - 1, 24 ), cover );
-		const mx = ( a[ 0 ] + b[ 0 ] ) / 2, mz = ( a[ 1 ] + b[ 1 ] ) / 2;
-		const nx = - ( b[ 1 ] - a[ 1 ] ) / len, nz = ( b[ 0 ] - a[ 0 ] ) / len;
-		const sgn = nx * - mx + nz * ( - 40 - mz ) > 0 ? 1 : - 1;
-		roll.position.set( mx + nx * sgn * 1.0, 0.65, mz + nz * sgn * 1.0 );
-		roll.rotation.set( 0, - Math.atan2( b[ 1 ] - a[ 1 ], b[ 0 ] - a[ 0 ] ), Math.PI / 2 );
-		roll.castShadow = true;
-		roll.receiveShadow = true;
+		// ---- W4 (rail): the roll lies on the third base side, past the visitors' photographers' well
+		// toward the left field pole, under its canvas cover and the WORLD SERIES '08 ON FOX banner
+		// (heston 2987303394; the audit's HP08). The rail (places/rail/Tarp.js) builds it into this
+		// group; setTarp() still shows and hides it
+		const roll = new Group();
+		roll.name = 'tarp-roll';
 		roll.userData.dynamic = true; // shown and hidden
 		this.group.add( roll );
 		this.tarpRoll = roll;
+		void cover;
+		// ---- end W4
 
 		// the sheet: a grid over a 44 m square turned with the diamond, from behind the plate out past
 		// second; it drapes the mound, sags between, with folds
@@ -310,15 +336,15 @@ export class Details2008 {
 		const nrm = g.getAttribute( 'normal' );
 		if ( nrm.array[ 1 ] < 0 ) for ( let i = 0; i < nrm.array.length; i ++ ) nrm.array[ i ] = - nrm.array[ i ];
 		g.computeBoundingSphere();
-		// it comes off the roll on the first base side: u = 1 is the first base edge
+		// ---- W4 (rail): it comes off the roll on the third base side: u = 0 is the third base edge
 		this.tarpMat = standard( { name: 'tarp', color: new Color( 0.62, 0.64, 0.6 ), roughness: 0.3, side: 'double', modules: [ commonModule ],
 			uniforms: { pull: [ 'f32', 0 ] },
 			vertex: /* wgsl */`
 	// the part not yet pulled out is the roll, lying along the sheet's leading edge as it crosses
 	let k = mat.pull;
 	let front = 1.0 - k;
-	let out = step( front, v.uv.x );
-	let lx = ( front - 0.5 ) * ${ S.toFixed( 1 ) }; let lz = ( v.uv.y - 0.5 ) * ${ S.toFixed( 1 ) };
+	let out = step( front, 1.0 - v.uv.x );
+	let lx = ( 0.5 - front ) * ${ S.toFixed( 1 ) }; let lz = ( v.uv.y - 0.5 ) * ${ S.toFixed( 1 ) };
 	let rolled = vec3f( ${ c[ 0 ].toFixed( 2 ) } + ( lx - lz ) * ${ r2.toFixed( 5 ) }, 0.55, ${ c[ 1 ].toFixed( 2 ) } + ( lx + lz ) * ${ r2.toFixed( 5 ) } );
 	let p = mix( rolled, v.position, out );
 	v.useWorld = true;
@@ -683,7 +709,8 @@ function setUV( g, f ) {
 }
 
 // MLB's batter logo: a white silhouette between a blue and a red field, in a white keyline
-function mlbLogo( ctx, x, y, w, h ) {
+// ---- W4 (rail): exported (the rail draws it on its wall panels)
+export function mlbLogo( ctx, x, y, w, h ) {
 
 	ctx.save();
 	ctx.fillStyle = '#f4f2ec';
@@ -741,7 +768,8 @@ function star( ctx, cx, cy, r, color ) {
 // The 2008 World Series logo as it was painted on the grass (hesb/2986447135.jpg): WORLD SERIES in cream
 // serif letters, each on a navy field that follows the letters, a white outline round the whole shape,
 // the MLB batter logo in a white frame on top and 2008 in gold on a navy pill below. Grass all round.
-function drawWorldSeriesLogo( ctx, w, h, { clear = true } = {} ) {
+// ---- W4 (rail): exported (the rail draws it on its on-deck mats and wall panels)
+export function drawWorldSeriesLogo( ctx, w, h, { clear = true } = {} ) {
 
 	ctx.save();
 	if ( clear ) ctx.clearRect( 0, 0, w, h );
