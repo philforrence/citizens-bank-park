@@ -17,6 +17,14 @@
 
   The owner reviews before any wave 3.
 
+**Hosted (2026-09-27):**
+- **The repo:** https://github.com/philforrence/citizens-bank-park, public, default branch `ballpark`. `main` isn't pushed: it still has Tidewater's own deploy workflow.
+- **The site:** https://philforrence.github.io/citizens-bank-park/. `.github/workflows/deploy.yml` builds every `step-N` tag as a playable stage, plus a page listing them.
+- **To publish a new stage:**
+  1. commit its screenshot as `docs/stages/step-N.jpg`;
+  2. `git tag -a step-N -m "Title" -m "Description"`;
+  3. `git push origin ballpark step-N` (three tags or fewer per push, or GitHub skips the trigger), or run `gh workflow run deploy.yml --ref ballpark`.
+
 **Done today:**
 - **Decisions:** section 7 of the plan was answered (recorded there).
 - **The GPU is solved:**
