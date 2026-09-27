@@ -99,10 +99,11 @@ const CHEST_CELL = 40; // the chest prints start at this atlas cell
 
 // ---------------------------------------------------------------- the figure's geometry
 
-// lod 0: the near figure; lod 1: the far one (fewer sides, no joints' rounds, a plain hand, no nose)
+// lod 0: the near figure; lod 1: the far one (fewer sides, no joints' rounds, a plain hand, no nose);
+// lod 2: the distant one (a few pixels tall: the fewest sides, nothing in hand)
 function figureGeometry( lod = 0 ) {
 
-	const fine = lod === 0, N8 = fine ? 8 : 5, N6 = fine ? 6 : 4;
+	const fine = lod === 0, tiny = lod === 2, N8 = fine ? 8 : tiny ? 3 : 5, N6 = fine ? 6 : tiny ? 3 : 4;
 
 	const pos = [], nrm = [], info = [], index = [];
 	const sub = ( a, b ) => [ a[ 0 ] - b[ 0 ], a[ 1 ] - b[ 1 ], a[ 2 ] - b[ 2 ] ];
@@ -257,13 +258,13 @@ function figureGeometry( lod = 0 ) {
 	loft( B.spine, PART.torso, [
 		[ 0.83, 0.172, 0.118, 0.012 ], [ 0.95, 0.168, 0.112, 0.01 ], [ 1.06, 0.164, 0.11, 0.008 ], [ 1.17, 0.172, 0.114, 0.006 ],
 		[ 1.28, 0.186, 0.118, 0.012 ], [ 1.36, 0.196, 0.108, 0.022 ], [ 1.42, 0.17, 0.085, 0.028 ], [ 1.465, 0.09, 0.062, 0.03 ],
-	], fine ? 12 : 7, true, true );
+	], fine ? 12 : tiny ? 5 : 7, true, true );
 	// the hips and seat (the pelvis), under the trunk's hem
-	loft( B.pelvis, PART.pants, [ [ 0.74, 0.16, 0.1, 0.012 ], [ 0.86, 0.168, 0.11, 0.012 ], [ 0.97, 0.16, 0.105, 0.012 ] ], fine ? 10 : 6, true, false );
+	loft( B.pelvis, PART.pants, [ [ 0.74, 0.16, 0.1, 0.012 ], [ 0.86, 0.168, 0.11, 0.012 ], [ 0.97, 0.16, 0.105, 0.012 ] ], fine ? 10 : tiny ? 4 : 6, true, false );
 	// the neck
 	tube( B.head, PART.neck, [ 0, 1.4, 0.03 ], [ 0, 1.54, 0.02 ], [ 0.052, 0.05 ], [ 0.046, 0.046 ], N6 );
 	// the head, the nose, a cap's brim, a knit hat's pom-pom, long hair down the back
-	ellipsoid( B.head, PART.head, J.head, HEAD_R, fine ? 14 : 8, fine ? 9 : 6 );
+	ellipsoid( B.head, PART.head, J.head, HEAD_R, fine ? 14 : tiny ? 5 : 8, fine ? 9 : tiny ? 4 : 6 );
 	if ( fine ) {
 
 		const h = J.head, tip = [ 0, h[ 1 ] - 0.022, h[ 2 ] - HEAD_R[ 2 ] - 0.022 ];
@@ -310,7 +311,7 @@ function figureGeometry( lod = 0 ) {
 	}
 
 	// a poncho: a bell of plastic from the shoulders to the knees, over everything (the spine bone)
-	loft( B.spine, PART.poncho, [ [ 0.6, 0.29, 0.22, 0.02 ], [ 0.85, 0.27, 0.2, 0.02 ], [ 1.12, 0.262, 0.175, 0.015 ], [ 1.36, 0.245, 0.14, 0.025 ], [ 1.44, 0.17, 0.105, 0.03 ], [ 1.49, 0.07, 0.068, 0.03 ] ], fine ? 14 : 8, false, false );
+	loft( B.spine, PART.poncho, [ [ 0.6, 0.29, 0.22, 0.02 ], [ 0.85, 0.27, 0.2, 0.02 ], [ 1.12, 0.262, 0.175, 0.015 ], [ 1.36, 0.245, 0.14, 0.025 ], [ 1.44, 0.17, 0.105, 0.03 ], [ 1.49, 0.07, 0.068, 0.03 ] ], fine ? 14 : tiny ? 5 : 8, false, false );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
 	loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], fine ? 12 : 7, false, false );
 	loft( B.spine, PART.vest, [ [ 0.98, 0.178, 0.122, 0.01 ], [ 1.17, 0.18, 0.124, 0.006 ], [ 1.3, 0.194, 0.128, 0.012 ], [ 1.4, 0.18, 0.1, 0.024 ] ], fine ? 12 : 7, false, false );
@@ -325,7 +326,7 @@ function figureGeometry( lod = 0 ) {
 		for ( const id of HAND_PROPS[ L ] ) {
 
 			// far off only the things that show at a distance
-			if ( ! fine && ! [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove ].includes( id ) ) continue;
+			if ( tiny || ( ! fine && ! [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove ].includes( id ) ) ) continue;
 
 			const part = 32 + id;
 			if ( id === PROP.beer || id === PROP.soda ) {
@@ -1076,15 +1077,20 @@ export class Cast {
 		this.order = new Uint32Array( max );
 		this.orderNear = new Uint32Array( max );
 		this.orderFar = new Uint32Array( max );
+		this.orderTiny = new Uint32Array( max );
 		this.orderBuf = new StorageBuffer( { label: 'castOrder', count: max, type: 'u32' } );
 		this.orderNearBuf = new StorageBuffer( { label: 'castOrderNear', count: max, type: 'u32' } );
 		this.orderFarBuf = new StorageBuffer( { label: 'castOrderFar', count: max, type: 'u32' } );
+		this.orderTinyBuf = new StorageBuffer( { label: 'castOrderTiny', count: max, type: 'u32' } );
 		this.near = 22;
+		this.far = 60;
 		this.atlas = drawAtlas();
 		this.material = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderNearBuf, this.atlas );
 		this.materialFar = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderFarBuf, this.atlas );
+		this.materialTiny = castMaterial( this.poseBuf, this.prevBuf, this.lookBuf, this.orderTinyBuf, this.atlas );
 		this.geometry = figureGeometry( 0 );
 		this.geometryFar = figureGeometry( 1 );
+		this.geometryTiny = figureGeometry( 2 );
 		const I = new Matrix4();
 		const make = ( geo, mat, name ) => {
 
@@ -1103,6 +1109,7 @@ export class Cast {
 
 		this.mesh = make( this.geometry, this.material, 'cast' );
 		this.meshFar = make( this.geometryFar, this.materialFar, 'cast-far' );
+		this.meshTiny = make( this.geometryTiny, this.materialTiny, 'cast-distant' );
 		// a soft shadow on the floor under each (the concourse's light comes from everywhere at once)
 		const blob = new PlaneGeometry( 1, 1 );
 		blob.rotateX( - Math.PI / 2 );
@@ -1174,8 +1181,8 @@ export class Cast {
 		// last frame's poses become the previous ones
 		this.prev.set( this.pose );
 		const P = this.pose;
-		let drawn = 0, nNear = 0, nFar = 0;
-		const n2 = this.near * this.near;
+		let drawn = 0, nNear = 0, nFar = 0, nTiny = 0;
+		const n2 = this.near * this.near, f2 = this.far * this.far;
 		for ( const p of this.list ) {
 
 			const o = p.slot * POSE * 4, a = p.pose;
@@ -1197,8 +1204,10 @@ export class Cast {
 			P[ o + 28 ] = a.spread; P[ o + 29 ] = a.breath; P[ o + 30 ] = a.blink; P[ o + 31 ] = 0;
 			this.order[ drawn ++ ] = p.slot;
 			const dx = cam ? p.x - cam[ 0 ] : 0, dz = cam ? p.z - cam[ 2 ] : 0;
-			if ( dx * dx + dz * dz < n2 ) this.orderNear[ nNear ++ ] = p.slot;
-			else this.orderFar[ nFar ++ ] = p.slot;
+			const e2 = dx * dx + dz * dz;
+			if ( e2 < n2 ) this.orderNear[ nNear ++ ] = p.slot;
+			else if ( e2 < f2 ) this.orderFar[ nFar ++ ] = p.slot;
+			else this.orderTiny[ nTiny ++ ] = p.slot;
 			// someone who's just appeared has no motion from last frame
 			if ( p.fresh ) {
 
@@ -1214,16 +1223,19 @@ export class Cast {
 		if ( ! drawn ) this.order[ drawn ++ ] = none;
 		if ( ! nNear ) this.orderNear[ nNear ++ ] = none;
 		if ( ! nFar ) this.orderFar[ nFar ++ ] = none;
+		if ( ! nTiny ) this.orderTiny[ nTiny ++ ] = none;
 		this.drawn = drawn;
 		this.drawnNear = nNear;
 		this.mesh.count = nNear;
 		this.meshFar.count = nFar;
+		this.meshTiny.count = nTiny;
 		this.blobs.count = drawn;
 		this.poseBuf.write( P );
 		this.prevBuf.write( this.prev );
 		this.orderBuf.write( this.order.subarray( 0, Math.max( 4, drawn ) ) );
 		this.orderNearBuf.write( this.orderNear.subarray( 0, Math.max( 4, nNear ) ) );
 		this.orderFarBuf.write( this.orderFar.subarray( 0, Math.max( 4, nFar ) ) );
+		this.orderTinyBuf.write( this.orderTiny.subarray( 0, Math.max( 4, nTiny ) ) );
 
 	}
 

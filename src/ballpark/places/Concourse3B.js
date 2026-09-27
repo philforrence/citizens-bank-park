@@ -57,7 +57,7 @@ export default class Concourse3B {
 		this.cast = new Cast( { parent: this.group, max: 360 } );
 		// where the cast is (for ?focus=, which drops what's wholly outside its circle)
 		const mid = this.W.at( S_END / 2, 40 );
-		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
+		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
 		this.people = new ConcoursePeople( { cast: this.cast, walkway: this.W, concourse, bowl, sEnd: S_END, obstacles: this.obstacles, carts: this.carts, seed: 1027 } );
 		this.stories = new Stories( this.people );
 		// steam off the grills and the urns and the cups, and people's breath
