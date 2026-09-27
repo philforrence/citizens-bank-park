@@ -4,6 +4,7 @@ import { ANNOUNCE } from '../game/Suspension.js';
 import { Roll } from './rituals/Roll.js';
 import { Seats } from './rituals/Seats.js';
 import { Press } from './rituals/Press.js';
+import { Fireworks } from './rituals/Fireworks.js';
 
 // The night's rituals and the celebration, on the replay's timeline. The people on the field (the
 // grounds crew, the umpires, the players, the coaches) are the players' rig, posed by the Director from
@@ -15,6 +16,7 @@ import { Press } from './rituals/Press.js';
 //   rituals/Seats.js    the stands emptying into the rain on the 27th and filling again on the 29th
 //   rituals/Press.js    the photographers, the TV handhelds and the boom mic out of the wells at the
 //                       last out, round the pile and then after their men
+//   rituals/Fireworks.js the gerbs off the scoreboard and the Liberty Bell, the shells over the outfield
 //
 // Everything is a function of director.t (director.night() for which night it is), so scrubbing agrees.
 export default class Rituals {
@@ -29,6 +31,7 @@ export default class Rituals {
 		this.roll = new Roll( this.group );
 		this.seats = new Seats( { bowl, field } );
 		this.press = new Press( { group: this.group } );
+		this.fireworks = new Fireworks( this.group );
 		this._lastT = null;
 
 	}
@@ -45,6 +48,7 @@ export default class Rituals {
 		const seg = director.segmentAt( t );
 		const cel = seg.kind === 'celebrate' ? t - seg.t0 : null;
 		this.press.update( cel, director.actors, jumped ? 0 : dt );
+		this.fireworks.update( cel );
 
 	}
 
