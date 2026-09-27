@@ -37,7 +37,7 @@ export const POSITIONS = {
 // the dugouts' fronts (the home team in the first base dugout) and the bullpens
 const mid = ( [ a, b ] ) => [ ( a[ 0 ] + b[ 0 ] ) / 2, ( a[ 1 ] + b[ 1 ] ) / 2 ];
 export const DUGOUT = { home: mid( DUGOUTS.first ), away: mid( DUGOUTS.third ) };
-export const BULLPEN = { home: polar( 6, 425 ), away: polar( 6, 450 ) };
+export const BULLPEN = { home: polar( 6, 425 ), away: polar( 6, 436 ) }; // the Phillies' lower pen, the visitors' upper one
 export const ON_DECK = { home: [ 13.9, 4.6 ], away: [ - 13.9, 4.6 ] };
 
 // the batter's box: a right-handed batter stands on the third base side

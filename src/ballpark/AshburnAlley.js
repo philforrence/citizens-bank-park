@@ -83,7 +83,7 @@ export function memoryLane( parent, walls, thick = 0.6 ) {
 
 	};
 
-	const COLS = 3, ROWS = 2, CW = 640, CH = 460;
+	const COLS = 4, ROWS = 2, CW = 640, CH = 460;
 	const tex = canvasTexture( CW * COLS, CH * ROWS, ( ctx ) => {
 
 		PANELS.forEach( ( draw, i ) => {
@@ -426,6 +426,29 @@ const PANELS = [
 		ctx.fillStyle = '#b09670'; ctx.beginPath(); ctx.ellipse( w * 0.45, h * 0.9, 90, 22, 0, 0, Math.PI * 2 ); ctx.fill();
 		player( ctx, w * 0.45, h * 0.8, 1.7, { armL: 2.9, armR: - 2.9, stride: 0.25, letters: 'Phillies' } );
 		player( ctx, w * 0.82, h * 0.95, 1.3, { armL: 2.4, armR: - 2.7, stride: 0.2, letters: 'Phillies' } );
+
+	} ),
+	// ---- W3 (Alley): the Vet's years and 1993 (the 2008 photo at the rail: a "1971 - 2003" panel with a big round
+	// photograph medallion)
+	panel( '1993', 'Macho Row', 'Dykstra, Kruk, Daulton and Schilling: from last place to the pennant, and a World Series against Toronto.', ( ctx, w, h ) => {
+
+		// a scruffy team picture: two rows, caps askew, a pennant held up
+		ctx.fillStyle = '#b8a07a'; ctx.fillRect( 0, h * 0.72, w, h );
+		for ( let i = 0; i < 6; i ++ ) player( ctx, 30 + i * 58, h * 0.7, 1.0, { armL: 0.3, armR: - 0.25, stride: 0.04, letters: 'Phillies' } );
+		for ( let i = 0; i < 5; i ++ ) player( ctx, 58 + i * 58, h * 0.99, 1.15, { armL: i === 2 ? 2.8 : 0.2, armR: i === 2 ? - 2.8 : - 0.2, stride: 0.05, letters: 'Phillies' } );
+		ctx.fillStyle = '#efe6d0'; ctx.beginPath(); ctx.moveTo( w * 0.42, h * 0.3 ); ctx.lineTo( w * 0.62, h * 0.36 ); ctx.lineTo( w * 0.42, h * 0.42 ); ctx.fill();
+
+	} ),
+	panel( '1971 - 2003', 'Veterans Stadium', 'Thirty-three seasons at Broad and Pattison: three pennants (1980, 1983, 1993), the 1980 champions, and the Vet\'s last game on September 28, 2003.', ( ctx, w, h ) => {
+
+		// the round medallion: the Vet's bowl from above in a sepia circle, a ring round it
+		ctx.fillStyle = '#8f7757'; ctx.fillRect( 0, 0, w, h );
+		const cx = w / 2, cy = h / 2, r = Math.min( w, h ) * 0.44;
+		ctx.fillStyle = '#cdb893'; ctx.beginPath(); ctx.arc( cx, cy, r, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = '#6d5a40'; ctx.beginPath(); ctx.ellipse( cx, cy, r * 0.82, r * 0.72, 0, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = '#a89068'; ctx.beginPath(); ctx.ellipse( cx, cy, r * 0.55, r * 0.46, 0, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = '#c9b48f'; ctx.beginPath(); ctx.moveTo( cx, cy + r * 0.3 ); ctx.lineTo( cx + r * 0.25, cy + r * 0.05 ); ctx.lineTo( cx, cy - r * 0.2 ); ctx.lineTo( cx - r * 0.25, cy + r * 0.05 ); ctx.closePath(); ctx.fill();
+		ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc( cx, cy, r, 0, Math.PI * 2 ); ctx.stroke();
 
 	} ),
 ];

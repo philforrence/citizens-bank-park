@@ -10,7 +10,9 @@
 // (Scope.js): with a place in ?only= the whole park is built (it may use any part) and only the parts
 // named are drawn, e.g. ?only=gate,exterior,people.
 import FieldRail from './FieldRail.js';
+import AshburnAlley2008 from './AshburnAlley2008.js';
 
 export const PLACES = [
 	[ 'rail', FieldRail ],
+	[ 'alley', AshburnAlley2008 ],
 ];

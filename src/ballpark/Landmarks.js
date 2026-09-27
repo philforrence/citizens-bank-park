@@ -18,6 +18,9 @@ import { Phanavision, FACE_W, FACE_H, LAMPS, VIDEO } from './Phanavision.js';
 // the ivy-covered batter's eye. Field frame, in the Field's group.
 
 const STREET = LEVELS.mainConcourse;
+// the rooftop bleachers' spans along the roofs in right-center (x, field frame): clear of the retired numbers'
+// house on the roof left of them (x 4 to 16); the Alley puts their fans in them (AshburnAlley2008.js)
+export const BLEACHERS = [ [ 17, 30 ], [ 36, 60 ] ];
 
 export class Landmarks {
 
@@ -466,6 +469,10 @@ export class Landmarks {
 	let mortar = clamp( mix( step( 0.88, fract( in.P.y / 0.075 ) ), 0.12, fr ) + mix( step( 0.93, fract( bu ) ), 0.07, max( fb, fr ) ), 0.0, 1.0 );
 	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, max( fr, fb ) );
 	s.albedo = mix( mat.color * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
+	// after dark the light banks' spill on the fronts that face the field (CR06: the center field backdrop
+	// went black), a little on the rest
+	let toField = max( dot( normalize( in.N ), vec3f( ${ Math.sin( this.field.group.rotation.y ).toFixed( 4 ) }, 0.0, ${ Math.cos( this.field.group.rotation.y ).toFixed( 4 ) } ) ), 0.0 );
+	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * ( 0.05 + 0.3 * toField );
 `,
 		} );
 		const trim = standard( { name: 'alley-trim', color: new Color( 0.55, 0.5, 0.42 ), roughness: 0.7 } );
@@ -495,7 +502,8 @@ export class Landmarks {
 			const ry = STREET + Hb + 0.15, rz = zBack + D - 0.05;
 			for ( const yy of [ ry + 1.07, ry + 0.12 ] ) beam( railQ, [ x0, yy, rz ], [ x1, yy, rz ], 0.05 );
 			for ( let xx = x0; xx <= x1; xx += 0.12 ) beam( railQ, [ xx, ry + 0.12, rz ], [ xx, ry + 1.07, rz ], 0.018 );
-			for ( let xx = x0 + 3; xx < x1 - 2; xx += 5.5 ) umbrellas.push( [ xx, ry, zBack + D - 2.6 ] );
+			// (not on the rooftop bleachers: BLEACHERS below)
+			for ( let xx = x0 + 3; xx < x1 - 2; xx += 5.5 ) if ( ! BLEACHERS.some( ( [ a, b ] ) => xx > a - 1 && xx < b + 1 ) ) umbrellas.push( [ xx, ry, zBack + D - 2.6 ] );
 			const wpos = this.field.toWorld( cx, cz );
 			this.colliders.addBox( new Vector3( wpos.x, this.field.y0 + STREET + Hb / 2, wpos.z ), new Vector3( w / 2, Hb / 2, D / 2 ), this.field.group.rotation.y, { tag: 'ashburn-alley', walkable: true } );
 
@@ -559,7 +567,7 @@ export class Landmarks {
 				} );
 
 			}, 'retired' );
-			const m = standard( { name: 'retired-numbers', roughness: 0.7, alphaTest: 0.3, textures: { bpNums: tex }, surface: 'let t = textureSample( bpNums, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.8;' } );
+			const m = standard( { name: 'retired-numbers', roughness: 0.7, alphaTest: 0.3, textures: { bpNums: tex }, surface: 'let t = textureSample( bpNums, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.8; s.emissive = t.rgb * smoothstep( 0.2, 0.8, frame.night ) * 0.45;' } );
 			m.underwaterLighting = 'none';
 			const q = new Quads();
 			const x0 = cx - bw / 2 + 0.4, x1 = cx + bw / 2 - 0.4, y0 = by + 0.3, y1 = by + bh - 0.5, z = zRoof + 2.52;
@@ -595,22 +603,22 @@ export class Landmarks {
 		this._clock( - 7, zRoof, STREET + Hb, brick );
 
 		// the Richie Ashburn statue on the Alley: the posed bronze (his swing, the follow-through) on a
-		// polished dark granite plinth with its plate
+		// low grey granite plinth with its plate (10 ft of bronze on a low plinth: the research's photos)
 		const bronze = standard( { name: 'ashburn-bronze', color: new Color( 0.2, 0.12, 0.05 ), roughness: 0.35, metalness: 0.9, modules: [ commonModule ],
 			surface: 'let n = mx_noise_float3( in.P * 2.5 ) * 0.5 + 0.5; s.albedo = mix( mat.color, vec3f( 0.06, 0.1, 0.07 ), smoothstep( 0.7, 0.95, n ) * 0.5 ) * ( 0.8 + 0.3 * mx_noise_float3( in.P * 9.0 ) );' } );
-		const granite = standard( { name: 'ashburn-granite', color: new Color( 0.03, 0.03, 0.032 ), roughness: 0.2, metalness: 0.1 } );
+		const granite = standard( { name: 'ashburn-granite', color: new Color( 0.2, 0.2, 0.21 ), roughness: 0.3, metalness: 0.05, modules: [ commonModule ], surface: 's.albedo = mat.color * ( 0.8 + 0.35 * mx_noise_float3( in.P * 14.0 ) ); s.roughness = 0.25;' } );
 		for ( const m of [ bronze, granite ] ) m.underwaterLighting = 'none';
 		const ash = new Group();
 		ash.position.set( - 2, STREET, zBack + D + 3.5 );
-		const ped = new Mesh( new BoxGeometry( 1.8, 1.5, 1.8 ), granite );
-		ped.position.y = 0.75;
+		const ped = new Mesh( new BoxGeometry( 2.2, 0.6, 2.2 ), granite );
+		ped.position.y = 0.3;
 		ped.castShadow = true;
 		ash.add( ped );
 		const pose = Motions.swing( 0.45 );
 		pose.head = [ - 0.2, 0.4 ];
 		const fig = new Mesh( bakePose( pose ), bronze );
-		fig.position.y = 1.5;
-		fig.scale.setScalar( 1.15 );
+		fig.position.y = 0.6;
+		fig.scale.setScalar( 1.6 ); // 10 ft of bronze
 		fig.castShadow = true;
 		ash.add( fig );
 		const plate = canvasTexture( 512, 160, ( ctx, w, h ) => {
@@ -623,7 +631,7 @@ export class Landmarks {
 		}, 'ashburnPlate' );
 		const pm = standard( { name: 'ashburn-plate', roughness: 0.3, metalness: 0.4, textures: { bpPlate: plate }, surface: 's.albedo = textureSample( bpPlate, smpAnisoClamp, in.uv ).rgb;' } );
 		pm.underwaterLighting = 'none';
-		ash.add( new Mesh( quadUV( 1.4, 0.44, 0.7, - 0.905 ), pm ) );
+		ash.add( new Mesh( quadUV( 1.2, 0.38, 0.1, - 1.105 ), pm ) );
 		ash.rotation.y = Math.PI;
 		this.group.add( ash );
 
@@ -637,7 +645,7 @@ export class Landmarks {
 		for ( const m of [ concrete, plank, alum, blueRail ] ) m.underwaterLighting = 'none';
 		const cq = new Quads(), pq = new Quads(), aq = new Quads(), rq = new Quads();
 		const RD = 0.85, RR = 0.4, rows = 7;
-		for ( const [ x0, x1 ] of [ [ 2, 30 ], [ 36, 60 ] ] ) {
+		for ( const [ x0, x1 ] of BLEACHERS ) {
 
 			const y0 = STREET + Hb, zf = zBack + D - 0.2;
 			const aisles = [ x0 + ( x1 - x0 ) / 3, x0 + 2 * ( x1 - x0 ) / 3 ];
@@ -708,13 +716,44 @@ export class Landmarks {
 
 		// each stand its own sign (drawn in its own style), a menu board over an open counter onto a
 		// lit kitchen, a flat dark canopy with downlights over it, and TVs on the piers between
+		// The Alley's stands in October 2008, bay by bay from the left field end. What was there: Phillies.com's
+		// concessions guide as captured on 2008-10-06 (the Alley Store, Planet Hoagie behind 147, Hatfield
+		// Grill, the Phanatic Phood stand, Tony Luke's, Chickie's & Pete's "by the bullpens", Neighborhood
+		// Pizza's Seasons Pizza, Rick's Steaks, Brewerytown, Old City Creamery's Turkey Hill soft serve in
+		// little batting helmets). Where: the 2008 photos (Tony Luke's left of the batter's eye; a red-awning
+		// stand over the Wall of Fame; Seasons, Rick's and Brewerytown side by side under the rooftop
+		// bleachers). Bull's BBQ has its own tent at the end (places/alley/Bulls.js).
 		const vendors = [
-			[ "BULL'S BBQ", ( c, W, H ) => {
+			[ 'THE ALLEY STORE', ( c, W, H ) => {
 
-				c.fillStyle = '#4a120a'; c.fillRect( 0, 0, W, H );
-				c.strokeStyle = '#e8b04a'; c.lineWidth = 6; c.strokeRect( 10, 10, W - 20, H - 20 );
-				c.fillStyle = '#f2c14e'; c.font = '900 84px Georgia, serif'; c.fillText( "BULL'S", W * 0.36, H * 0.5 );
-				c.font = 'italic 800 60px Georgia, serif'; c.fillText( 'BBQ', W * 0.72, H * 0.55 );
+				// the team store: red, the Phillies script, OFFICIAL PHILLIES MERCHANDISE
+				c.fillStyle = '#c8102e'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#ffffff'; c.font = 'italic 800 70px Georgia, serif'; c.fillText( 'Phillies', W * 0.3, H * 0.48 );
+				c.font = '900 56px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'ALLEY STORE', W * 0.7, H * 0.48, W * 0.5 );
+				c.font = '700 26px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'OFFICIAL PHILLIES MERCHANDISE  •  WORLD SERIES 2008', W / 2, H * 0.82, W - 60 );
+
+			} ],
+			[ 'PLANET HOAGIE', ( c, W, H ) => {
+
+				c.fillStyle = '#1d6b34'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#f5c400'; c.beginPath(); c.arc( 80, H / 2, 38, 0, Math.PI * 2 ); c.fill();
+				c.strokeStyle = '#f5c400'; c.lineWidth = 6; c.beginPath(); c.ellipse( 80, H / 2, 62, 16, - 0.3, 0, Math.PI * 2 ); c.stroke();
+				c.fillStyle = '#ffffff'; c.font = '900 72px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'PLANET HOAGIE', W * 0.57, H * 0.53, W - 190 );
+
+			} ],
+			[ 'HATFIELD GRILL', ( c, W, H ) => {
+
+				c.fillStyle = '#b3121f'; c.fillRect( 0, 0, W, H );
+				c.strokeStyle = '#ffffff'; c.lineWidth = 5; c.strokeRect( 10, 10, W - 20, H - 20 );
+				c.fillStyle = '#ffffff'; c.font = 'italic 800 88px Georgia, serif'; c.fillText( 'Hatfield', W * 0.4, H * 0.5 );
+				c.font = '900 50px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'GRILL', W * 0.8, H * 0.54 );
+
+			} ],
+			[ 'PHANATIC PHOOD', ( c, W, H ) => {
+
+				c.fillStyle = '#2e8b3a'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#f7d117'; c.font = '900 76px "Arial Rounded MT Bold", "Helvetica Neue", Arial, sans-serif'; c.fillText( 'PHANATIC PHOOD', W / 2, H * 0.46, W - 60 );
+				c.fillStyle = '#ffffff'; c.font = '700 30px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'KIDS’ MEALS  •  PHUN SIZE', W / 2, H * 0.8 );
 
 			} ],
 			[ "TONY LUKE'S", ( c, W, H ) => {
@@ -731,18 +770,15 @@ export class Landmarks {
 				c.font = '700 34px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'CRAB FRIES', W * 0.57, H * 0.76 );
 
 			} ],
-			[ 'PLANET HOAGIE', ( c, W, H ) => {
-
-				c.fillStyle = '#1d6b34'; c.fillRect( 0, 0, W, H );
-				c.fillStyle = '#f5c400'; c.beginPath(); c.arc( 80, H / 2, 38, 0, Math.PI * 2 ); c.fill();
-				c.strokeStyle = '#f5c400'; c.lineWidth = 6; c.beginPath(); c.ellipse( 80, H / 2, 62, 16, - 0.3, 0, Math.PI * 2 ); c.stroke();
-				c.fillStyle = '#ffffff'; c.font = '900 72px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'PLANET HOAGIE', W * 0.57, H * 0.53, W - 190 );
-
-			} ],
 			[ 'SEASONS PIZZA', ( c, W, H ) => {
 
-				c.fillStyle = '#f2e8cf'; c.fillRect( 0, 0, W, H );
-				c.fillStyle = '#c8102e'; c.font = '900 80px Georgia, serif'; c.fillText( 'SEASONS PIZZA', W / 2, H * 0.54, W - 60 );
+				// the white box sign, the red script, the yellow and green crescent
+				c.fillStyle = '#f4f1ea'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#f2b705'; c.beginPath(); c.arc( 110, H / 2, 52, 0, Math.PI * 2 ); c.fill();
+				c.fillStyle = '#2e7d32'; c.beginPath(); c.arc( 128, H / 2 - 6, 46, 0, Math.PI * 2 ); c.fill();
+				c.fillStyle = '#f4f1ea'; c.beginPath(); c.arc( 140, H / 2 - 10, 40, 0, Math.PI * 2 ); c.fill();
+				c.fillStyle = '#c8102e'; c.font = 'italic 800 84px Georgia, serif'; c.fillText( 'Seasons', W * 0.45, H * 0.52 );
+				c.font = '800 64px Georgia, serif'; c.fillText( 'Pizza', W * 0.8, H * 0.54 );
 
 			} ],
 			[ "RICK'S STEAKS", ( c, W, H ) => {
@@ -768,6 +804,24 @@ export class Landmarks {
 				c.fillStyle = '#f7e6c0'; c.font = '900 76px Georgia, serif'; c.fillText( 'BREWERYTOWN', W / 2, H * 0.42, W - 60 );
 
 			} ],
+			[ 'OLD CITY CREAMERY', ( c, W, H ) => {
+
+				// cream, the name in brown serif, Turkey Hill's red under it, a little helmet sundae
+				c.fillStyle = '#f3e9d2'; c.fillRect( 0, 0, W, H );
+				c.fillStyle = '#5a3220'; c.font = '700 64px Georgia, serif'; c.fillText( 'Old City Creamery', W * 0.55, H * 0.42, W - 200 );
+				c.fillStyle = '#c8102e'; c.font = '800 30px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'TURKEY HILL SOFT SERVE', W * 0.55, H * 0.76 );
+				c.fillStyle = '#c8102e'; c.beginPath(); c.arc( 90, H * 0.6, 40, Math.PI, 0 ); c.fill(); c.fillRect( 50, H * 0.6, 100, 10 );
+				c.fillStyle = '#f7f1e3'; c.beginPath(); c.arc( 90, H * 0.36, 30, 0, Math.PI * 2 ); c.fill();
+
+			} ],
+			[ 'HATFIELD GRILL', ( c, W, H ) => {
+
+				c.fillStyle = '#b3121f'; c.fillRect( 0, 0, W, H );
+				c.strokeStyle = '#ffffff'; c.lineWidth = 5; c.strokeRect( 10, 10, W - 20, H - 20 );
+				c.fillStyle = '#ffffff'; c.font = 'italic 800 88px Georgia, serif'; c.fillText( 'Hatfield', W * 0.4, H * 0.5 );
+				c.font = '900 50px "Helvetica Neue", Arial, sans-serif'; c.fillText( 'GRILL', W * 0.8, H * 0.54 );
+
+			} ],
 		];
 		const SH = 176;
 		const signs = canvasTexture( 1024, SH * vendors.length, ( ctx, W ) => {
@@ -786,7 +840,7 @@ export class Landmarks {
 
 		}, 'alleySigns' );
 		const signMat = standard( { name: 'alley-signs', roughness: 0.4, textures: { bpAlley: signs },
-			surface: 'let t = textureSample( bpAlley, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.55; s.emissive = t * mix( 0.2, 0.6, frame.night );' } );
+			surface: 'let t = textureSample( bpAlley, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.55; s.emissive = t * mix( 0.22, 1.5, smoothstep( 0.1, 0.7, frame.night ) );' } );
 		// the canopy: dark, flat, downlights in its underside
 		const awning = standard( { name: 'alley-canopy', color: new Color( 0.045, 0.028, 0.024 ), roughness: 0.6, side: 'double', modules: [ commonModule ],
 			surface: `
@@ -930,7 +984,7 @@ export class Landmarks {
 			ctx.fillStyle = '#ffffff';
 			ctx.textAlign = 'center';
 			ctx.font = '600 20px "Helvetica Neue", Arial, sans-serif';
-			ctx.fillText( '1948 - 1962', W / 2, 32 );
+			ctx.fillText( '\u2190  .308    CF    2,574  \u2192', W / 2, 32 );
 			ctx.font = '800 46px "Helvetica Neue", Arial, sans-serif';
 			ctx.fillText( 'ASHBURN', W / 2, 74 );
 			ctx.font = '600 26px "Helvetica Neue", Arial, sans-serif';
@@ -950,25 +1004,61 @@ export class Landmarks {
 		}, 'alleyBanner' );
 		const bannerMat = standard( { name: 'alley-banners', roughness: 0.8, side: 'double', textures: { bpBan: banner },
 			surface: '// both faces read the right way round\n\tlet buv = select( vec2f( 1.0 - in.uv.x, in.uv.y ), in.uv, in.front ); s.albedo = textureSample( bpBan, smpAnisoClamp, buv ).rgb * 0.8;' } );
-		const bq = new Quads(), greyPole = new Quads(), speakers = new Quads();
+		const bq = new Quads(), greyPole = new Quads(), speakers = new Quads(), secQ = new Quads();
+		// the sections' numbers on the posts, left field to right ("147 | 148" in a 2008 photo; the rest
+		// follow the park's numbering round the outfield)
+		const SECTIONS = [ '140  |  141', '142  |  143', '144  |  145', '146  |  147', '147  |  148', '101  |  102', '103  |  104', '105  |  106', 'ROOFTOP', 'RF GATE' ];
+		const secTex = canvasTexture( 256, 640, ( ctx, W ) => {
+
+			SECTIONS.forEach( ( t, i ) => {
+
+				ctx.fillStyle = '#0f6b3a'; ctx.fillRect( 0, i * 64, W, 64 );
+				ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.strokeRect( 4, i * 64 + 4, W - 8, 56 );
+				ctx.fillStyle = '#ffffff'; ctx.font = '700 34px "Helvetica Neue", Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+				ctx.fillText( t, W / 2, i * 64 + 33 );
+
+			} );
+
+		}, 'alleySections' );
+		const secMat = standard( { name: 'alley-section-signs', roughness: 0.5, side: 'double', textures: { bpSec: secTex }, surface: 'let t = textureSample( bpSec, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.75; s.emissive = t * smoothstep( 0.2, 0.8, frame.night ) * 0.25;' } );
 		this._discMat = this._discMat || standard( { name: 'alley-lamps', color: new Color( 0.5, 0.52, 0.54 ), roughness: 0.4, metalness: 0.6,
 			surface: 'if ( in.N.y < - 0.5 ) { s.emissive = vec3f( 1.0, 0.85, 0.6 ) * mix( 0.2, 3.0, smoothstep( 0.1, 0.7, frame.night ) ); }' } );
 		this._discMat.underwaterLighting = 'none';
+		this._lanternMat = this._lanternMat || standard( { name: 'alley-lanterns', color: new Color( 0.75, 0.74, 0.7 ), roughness: 0.3,
+			surface: 's.emissive = vec3f( 1.0, 0.88, 0.68 ) * mix( 0.15, 4.0, smoothstep( 0.1, 0.7, frame.night ) );' } );
+		this._lanternMat.underwaterLighting = 'none';
 		const zl = zFront + 6.5;
+		const [ belx, belz ] = fencePoint( 21, 488 );
+		this.alleyLamps = [];
 		for ( let x = - 58; x <= 58; x += 12 ) {
 
-			if ( Math.abs( x + 2 ) < 5 ) continue;
-			beam( greyPole, [ x, STREET, zl ], [ x, STREET + 7.5, zl ], 0.16 );
-			beam( greyPole, [ x - 0.6, STREET + 7.4, zl ], [ x + 0.6, STREET + 7.4, zl ], 0.08 );
-			// a PA horn and the three-tier disc lamp on top
-			box( speakers, [ x, STREET + 6.9, zl + 0.3 ], [ 0.4, 0.45, 0.35 ] );
-			for ( let t = 0; t < 3; t ++ ) {
+			// none by the statue, nor against the Liberty Bell's tower (it has its own lights)
+			if ( Math.abs( x + 2 ) < 5 || Math.hypot( x - belx, zl - belz ) < 6 ) continue;
+			this.alleyLamps.push( [ x, zl ] );
+			// a green street-style sign on the post for the sections near it, both faces
+			{
 
-				const lamp = new Mesh( new CylinderGeometry( 0.28 - t * 0.05, 0.34 - t * 0.05, 0.05, 16 ), this._discMat );
-				lamp.position.set( x, STREET + 7.75 + t * 0.18, zl );
-				this.group.add( lamp );
+				const r = this.alleyLamps.length - 1, v0 = r / 10, v1 = ( r + 1 ) / 10;
+				for ( const f of [ 1, - 1 ] ) {
+
+					const zz = zl + 0.1 * f, [ L, R ] = f > 0 ? [ x - 0.5, x + 0.5 ] : [ x + 0.5, x - 0.5 ];
+					secQ.tri( [ L, STREET + 2.45, zz ], [ R, STREET + 2.45, zz ], [ R, STREET + 2.85, zz ], [ 0, 0, f ], [ 0, v1 ], [ 1, v1 ], [ 1, v0 ] );
+					secQ.tri( [ L, STREET + 2.45, zz ], [ R, STREET + 2.85, zz ], [ L, STREET + 2.85, zz ], [ 0, 0, f ], [ 0, v1 ], [ 1, v0 ], [ 0, v0 ] );
+
+				}
 
 			}
+			beam( greyPole, [ x, STREET, zl ], [ x, STREET + 7.5, zl ], 0.16 );
+			beam( greyPole, [ x - 0.6, STREET + 7.4, zl ], [ x + 0.6, STREET + 7.4, zl ], 0.08 );
+			// a PA horn
+			box( speakers, [ x, STREET + 6.9, zl + 0.3 ], [ 0.4, 0.45, 0.35 ] );
+			// the head (the 2008 photos): a frosted cylinder lantern under a flat grey disc shade
+			const lantern = new Mesh( new CylinderGeometry( 0.17, 0.17, 0.55, 16 ), this._lanternMat );
+			lantern.position.set( x, STREET + 7.78, zl );
+			this.group.add( lantern );
+			const shade = new Mesh( new CylinderGeometry( 0.52, 0.56, 0.05, 20 ), this._discMat );
+			shade.position.set( x, STREET + 8.08, zl );
+			this.group.add( shade );
 			for ( const side of [ - 1, 1 ] ) {
 
 				const bx0 = x + side * 0.12, bx1 = x + side * 1.0;
@@ -998,32 +1088,18 @@ export class Landmarks {
 
 		}
 
-		// the Alley's floor: concrete banded in brick pavers
-		const floor = standard( { name: 'alley-floor', color: new Color( 0.3, 0.13, 0.08 ), roughness: 0.75, modules: [ commonModule ],
-			surface: /* wgsl */`
-	let p = in.P.xz;
-	let band = abs( fract( p.x / 8.0 ) - 0.5 ) * 8.0 > 3.3;
-	var c = vec3f( 0.44, 0.42, 0.38 ) * ( 0.92 + 0.1 * fract( sin( dot( floor( p / 1.5 ), vec2f( 41.3, 17.7 ) ) ) * 7543.21 ) );
-	if ( band ) {
-		let f = fract( vec2f( p.x / 0.2, p.y / 0.1 + 0.5 * floor( p.x / 0.2 ) ) );
-		let fw = clamp( fwidth( p.x ) * 30.0 - 0.3, 0.0, 1.0 );
-		c = mix( mat.color * ( 0.85 + 0.25 * mx_noise_float2( floor( p / 0.2 ) ) ), vec3f( 0.3, 0.28, 0.26 ), mix( clamp( step( 0.9, f.x ) + step( 0.85, f.y ), 0.0, 1.0 ), 0.2, fw ) * 0.6 );
-	}
-	s.albedo = c * ( 0.9 + 0.12 * mx_noise_float2( p * 0.3 ) );
-` } );
-		const fl = new Quads();
-		const fx0 = blocks[ 0 ][ 0 ] - 2, fx1 = blocks[ blocks.length - 1 ][ 1 ] + 2;
-		fl.add( [ fx0, STREET + 0.012, zFront ], [ fx1, STREET + 0.012, zFront ], [ fx1, STREET + 0.012, zFront + 8.5 ], [ fx0, STREET + 0.012, zFront + 8.5 ], [ 0, 1, 0 ] );
+		// (the Alley's floor, the brick promenade out to the rail, is the place's: places/alley/Promenade.js)
+		this.alleyFront = zFront;
 
 		const woodMat = this._alleyWood || ( this._alleyWood = standard( { name: 'picnic-wood', color: new Color( 0.3, 0.18, 0.09 ), roughness: 0.8 } ) );
 		const greyMat = standard( { name: 'alley-poles', color: new Color( 0.26, 0.28, 0.3 ), roughness: 0.45, metalness: 0.7 } );
 		const blackMat = standard( { name: 'alley-speakers', color: new Color( 0.02, 0.02, 0.022 ), roughness: 0.6 } );
-		for ( const [ g, m, name ] of [ [ greyPole, greyMat, 'alley-poles' ], [ speakers, blackMat, 'alley-speakers' ], [ q, signMat, 'alley-signs' ], [ aw, awning, 'alley-awnings' ], [ glow, kitchen, 'alley-kitchens' ], [ metal, steel, 'alley-steel' ], [ bq, bannerMat, 'alley-banners' ], [ wood, woodMat, 'picnic-tables' ], [ fl, floor, 'alley-floor' ] ] ) {
+		for ( const [ g, m, name ] of [ [ greyPole, greyMat, 'alley-poles' ], [ speakers, blackMat, 'alley-speakers' ], [ q, signMat, 'alley-signs' ], [ aw, awning, 'alley-awnings' ], [ glow, kitchen, 'alley-kitchens' ], [ metal, steel, 'alley-steel' ], [ bq, bannerMat, 'alley-banners' ], [ wood, woodMat, 'picnic-tables' ], [ secQ, secMat, 'alley-section-signs' ] ] ) {
 
 			m.underwaterLighting = 'none';
 			const mesh = new Mesh( g.geometry(), m );
 			mesh.name = name;
-			mesh.castShadow = m !== floor && m !== kitchen;
+			mesh.castShadow = m !== kitchen;
 			mesh.receiveShadow = true;
 			this.group.add( mesh );
 
@@ -1056,22 +1132,7 @@ export class Landmarks {
 
 			}
 
-			// 7:08, about when the gates open
-			const hand = ( ang, len, wd ) => {
-
-				ctx.save();
-				ctx.translate( w / 2, h / 2 );
-				ctx.rotate( ang );
-				ctx.fillStyle = '#1c2b5a';
-				ctx.fillRect( - wd / 2, - len, wd, len + 22 );
-				ctx.restore();
-
-			};
-
-			hand( ( 7 + 8 / 60 ) / 12 * Math.PI * 2, 100, 20 );
-			hand( 8 / 60 * Math.PI * 2, 140, 13 );
-			ctx.fillStyle = '#1c2b5a';
-			ctx.beginPath(); ctx.arc( w / 2, h / 2, 14, 0, Math.PI * 2 ); ctx.fill();
+			// (the hands are their own meshes: they keep the replay's time, see setClock)
 
 		}, 'clock' );
 		// October 2008: a blue backlit Sherwin-Williams box sign under the clock
@@ -1089,8 +1150,9 @@ export class Landmarks {
 		const fm = standard( { name: 'clock-face', roughness: 0.5, textures: { bpClock: face }, surface: 'let t = textureSample( bpClock, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.85; s.emissive = t * 0.5 * frame.night;' } );
 		const sm = standard( { name: 'clock-sign', roughness: 0.4, alphaTest: 0.5, textures: { bpSign: mab }, surface: 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ); s.albedo = t.rgb * 0.85; s.alpha = t.a; s.emissive = t.rgb * 0.45 * frame.night;' } );
 		for ( const m of [ fm, sm ] ) m.underwaterLighting = 'none';
-		const pier = new Mesh( new BoxGeometry( 4, 5, 3 ), brick );
-		pier.position.set( x, y + 2.5, z );
+		// (the pier a brick pylon standing on the Alley in the gap between the buildings, up past the roofs)
+		const pier = new Mesh( new BoxGeometry( 4, y + 5 - STREET, 3 ), brick );
+		pier.position.set( x, ( STREET + y + 5 ) / 2, z );
 		this.group.add( pier );
 		// the truss: four posts, girts and X bracing from the pier up to the face
 		const S = 4.6, fy = y + 10.2, fz = z + 0.4;
@@ -1132,6 +1194,39 @@ export class Landmarks {
 		this.group.add( back );
 		add( fm, S, S, fy );
 		add( sm, 5.0, 1.56, ( t0 + t1 ) / 2 );
+		// the hands, navy bars over the face on a hub, turned by the replay's clock (places/AshburnAlley2008.js
+		// sets it every frame; 7:08, about when the gates open, until then)
+		const handMat = standard( { name: 'clock-hands', color: new Color( 0.012, 0.025, 0.09 ), roughness: 0.45, metalness: 0.3,
+			surface: 's.emissive = s.albedo * frame.night * 0.3;' } );
+		handMat.underwaterLighting = 'none';
+		this.clockHands = [ [ S * 0.2, 0.18, 0.06 ], [ S * 0.29, 0.12, 0.1 ] ].map( ( [ len, wd, dz ] ) => {
+
+			const pivot = new Group();
+			pivot.position.set( x, fy, fz + dz );
+			pivot.userData.dynamic = true;
+			const bar = new Mesh( new BoxGeometry( wd, len + 0.2, 0.03 ), handMat );
+			bar.position.y = len / 2 - 0.1;
+			bar.castShadow = true;
+			pivot.add( bar );
+			this.group.add( pivot );
+			return pivot;
+
+		} );
+		const hub = new Mesh( new CylinderGeometry( 0.13, 0.13, 0.06, 16 ), handMat );
+		hub.rotation.x = Math.PI / 2;
+		hub.position.set( x, fy, fz + 0.13 );
+		this.group.add( hub );
+		this.setClock( 7 + 8 / 60 );
+
+	}
+
+	// the clock's hands at this time of day (hours, 0..24)
+	setClock( hours ) {
+
+		if ( ! this.clockHands ) return;
+		const [ hr, min ] = this.clockHands;
+		hr.rotation.z = - ( hours % 12 ) / 12 * Math.PI * 2;
+		min.rotation.z = - ( hours % 1 ) * Math.PI * 2;
 
 	}
 
@@ -1303,8 +1398,9 @@ function star( ctx, cx, cy, r, color ) {
 
 // ---------------------------------------------------------------- flags
 
-// The flags over Ashburn Alley on their poles: the Stars and Stripes on the tallest, Pennsylvania,
-// Philadelphia, the Phillies, the ballpark's and the 2007 National League East champions' pennant. The
+// The flags over Ashburn Alley on their poles (the photos of October 27, 2008, and the Inquirer: the Stars and
+// Stripes on both poles flanking the clock, "we fly two American flags"), Pennsylvania,
+// Philadelphia, the red 1980 World Champions flag and the white 2007 National League East champions' one. The
 // cloth is moved in the vertex shader: it streams downwind and ripples, hanging slack as the wind drops.
 // `wind` is [ x, z ] (field frame, the way it blows) and a strength 0..1.
 const FLAG_ROWS = 6;
@@ -1317,7 +1413,7 @@ class Flags {
 		const tex = canvasTexture( 512, 320 * FLAG_ROWS / 2, ( ctx, w, h ) => {
 
 			const rh = h / FLAG_ROWS;
-			const draws = [ drawPA, drawUS, drawBallpark, drawPhilly, drawPhillies, drawPennant ];
+			const draws = [ drawPA, drawUS, drawBallpark, drawPhilly, drawChamps, drawPennant ];
 			draws.forEach( ( f, i ) => {
 
 				ctx.save();
@@ -1330,9 +1426,9 @@ class Flags {
 
 		}, 'flags' );
 		const pos = [], local = [], pole = [], index = [];
-		// which flag on which pole, left to right: PA, Philadelphia, the US flag (the tallest), the Phillies,
-		// the ballpark, the pennant
-		const rows = [ 0, 3, 1, 4, 2, 5 ];
+		// which flag on which pole, left to right (October 27, 2008: two U.S. flags on the poles either side of
+		// the clock, the bigger on the taller): PA, the U.S., the U.S., Philadelphia, 1980's red, 2007's white
+		const rows = [ 0, 1, 1, 3, 4, 5 ];
 		poles.forEach( ( P, k ) => {
 
 			const top = P.y0 + P.h - 0.3;
@@ -1510,6 +1606,24 @@ function drawPhillies( ctx, w, h ) {
 	ctx.fillStyle = '#d01c2c';
 	ctx.fillText( 'Phillies', 0, 6, w - 40 );
 	ctx.restore();
+
+}
+
+// the red flag of the 1980 world champions: the year, WORLD CHAMPIONS, the Phillies' old P
+function drawChamps( ctx, w, h ) {
+
+	ctx.fillStyle = '#b8102a';
+	ctx.fillRect( 0, 0, w, h );
+	ctx.strokeStyle = '#f7f5ef';
+	ctx.lineWidth = 8;
+	ctx.strokeRect( 10, 10, w - 20, h - 20 );
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillStyle = '#f7f5ef';
+	ctx.font = '900 72px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( '1980', w / 2, h * 0.38 );
+	ctx.font = '800 28px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( 'WORLD CHAMPIONS', w / 2, h * 0.72, w - 40 );
 
 }
 
