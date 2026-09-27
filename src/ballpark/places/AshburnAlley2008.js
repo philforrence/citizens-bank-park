@@ -14,6 +14,7 @@ import { SIGNS } from './alley/Signs.js';
 import { Bulls } from './alley/Bulls.js';
 import { Fair } from './alley/Fair.js';
 import { MemoryLane } from './alley/MemoryLane.js';
+import { allStarWalk } from './alley/AllStarWalk.js';
 
 // Ashburn Alley and the bullpens on the World Series nights, October 27 and 29, 2008: the park's living
 // room. The promenade behind center field (its bricks and the All-Star Walk in them, the Wall of Fame,
@@ -79,6 +80,8 @@ export default class AshburnAlley2008 {
 
 		const counters = ( L?.alleyStands || [] ).map( ( s ) => [ s.mid[ 0 ], s.mid[ 1 ] + 1.6 ] );
 		this.floor = promenade( this.group, { pit: this.bowl.pit, x0: X0, x1: X1, zBack: this.zFront, lamps: L?.alleyLamps || [], counters, plaza: [ - 62.3, - 146.4 ] } );
+		// the All-Star Walk's granite markers down the middle of it (clear of the statue)
+		this.allStars = allStarWalk( this.group, { z: this.zFront + 4.6, x0: - 60, x1: 58, avoid: [ [ - 4, 0 ] ] } );
 
 	}
 
