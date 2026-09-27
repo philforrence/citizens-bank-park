@@ -1,10 +1,15 @@
 import { Mesh, BufferGeometry, Float32BufferAttribute, Color, Vector2, Vector4 } from '../../engine/index.js';
 import { standard } from '../../materials/Materials.js';
+import { StorageBuffer } from '../../engine/gpu/Texture.js';
 
 // Rain round the camera: streaks falling through a box that moves with you (each drop wraps inside it),
 // leaning with the wind, faint in the distance. `amount` 0..1 thins them out.
 const N = 14000;
 const BOX = [ 44, 26, 44 ]; // m
+// ---- W2 (concourse): the cover map's size (cells): the height of the top of whatever's overhead, per
+// cell, in the field frame (setCover)
+const COVER = 400 * 400;
+// ---- end W2
 
 export class Rain {
 
@@ -33,6 +38,9 @@ export class Rain {
 		g.setAttribute( 'aCorner', new Float32BufferAttribute( corner, 2 ) );
 		g.setIndex( index );
 		g.boundingSphere = null;
+		// ---- W2 (concourse): where it can't rain (under the decks, inside the stands): see setCover
+		this.coverBuf = new StorageBuffer( { label: 'rainCover', count: COVER / 4, type: 'vec4f' } );
+		// ---- end W2
 		this.material = standard( {
 			name: 'rain', color: new Color( 0.8, 0.82, 0.86 ), transparent: true, depthWrite: false, side: 'double', lit: false,
 			uniforms: {
@@ -40,7 +48,11 @@ export class Rain {
 				// the light banks (world, w = 1 if used): drops between you and a bank light up
 				l0: [ 'vec4f', new Vector4() ], l1: [ 'vec4f', new Vector4() ], l2: [ 'vec4f', new Vector4() ], l3: [ 'vec4f', new Vector4() ],
 				l4: [ 'vec4f', new Vector4() ], l5: [ 'vec4f', new Vector4() ], l6: [ 'vec4f', new Vector4() ], l7: [ 'vec4f', new Vector4() ],
+				// ---- W2 (concourse): the cover map: world to field (cos, sin, the field's y, on), its grid (x0, z0, cell, nx)
+				coverXf: [ 'vec4f', new Vector4() ], coverGrid: [ 'vec4f', new Vector4( 0, 0, 1, 1 ) ],
+				// ---- end W2
 			},
+			storage: { rainCover: this.coverBuf },
 			attributes: { aSeed: 'vec4f', aCorner: 'vec2f' },
 			varyings: { vA: 'f32', vY: 'f32', vLit: 'f32' },
 			vertex: /* wgsl */`
@@ -68,6 +80,20 @@ export class Rain {
 	v.prevWorldPos = wp - fall * frame.dt;
 	let d = length( p - cam );
 	o.vA = step( v.aSeed.w, mat.amount ) * smoothstep( 0.4 + 0.45 * focus, 2.0 + 0.55 * focus, d ) * ( 1.0 - smoothstep( focus + 14.0, focus + 22.0, d ) );
+	// ---- W2 (concourse): no rain under a roof: below the top of what's overhead at its spot
+	if ( mat.coverXf.w > 0.5 ) {
+		let fx = p.x * mat.coverXf.x - p.z * mat.coverXf.y;
+		let fz = p.x * mat.coverXf.y + p.z * mat.coverXf.x;
+		let gx = floor( ( fx - mat.coverGrid.x ) / mat.coverGrid.z );
+		let gz = floor( ( fz - mat.coverGrid.y ) / mat.coverGrid.z );
+		let n = mat.coverGrid.w;
+		if ( gx >= 0.0 && gz >= 0.0 && gx < n && gz < f32( ${ COVER } ) / n ) {
+			let i = u32( gx + gz * n );
+			let top = rainCover[ i / 4u ][ i % 4u ];
+			if ( p.y - mat.coverXf.z < top ) { o.vA = 0.0; }
+		}
+	}
+	// ---- end W2
 	o.vY = v.aCorner.y;
 	// forward scattering: a drop in front of a bank (seen against it) glows
 	let ray = normalize( p - cam );
@@ -95,6 +121,26 @@ export class Rain {
 		scene.add( this.mesh );
 
 	}
+
+	// ---- W2 (concourse): the cover map: heights (field frame, above the field) of the top of whatever is
+	// overhead, nx by COVER / nx cells of `cell` metres from ( x0, z0 ); the field frame's turn (cos, sin of
+	// the field group's yaw) and height (its y in the world). places/Concourse3B.js builds it.
+	setCover( heights, { x0, z0, cell, nx, cos, sin, y0 } ) {
+
+		const d = new Float32Array( COVER ).fill( - 1e4 );
+		d.set( heights.subarray( 0, COVER ) );
+		this.coverBuf.write( d );
+		this.material.uniforms.coverXf.value.set( cos, sin, y0, 1 );
+		this.material.uniforms.coverGrid.value.set( x0, z0, cell, nx );
+
+	}
+
+	static get coverCells() {
+
+		return COVER;
+
+	}
+	// ---- end W2
 
 	// the light banks' world positions (up to 8)
 	setLights( list ) {
