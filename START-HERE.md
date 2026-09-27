@@ -1,26 +1,16 @@
-# 🛑 START HERE: where we left off
+# 🛑 START HERE: where we are
 
-**Paused: Sunday 2026-09-27 afternoon, on branch `ballpark`, while little-worlds wave 1 merged.** The owner disconnected.
+**Sunday 2026-09-27: little-worlds wave 1 is merged and waiting on the owner's review.** Branch `ballpark`.
 
-## Where things stand
+- **All four places are merged:** W1 the Third Base Gate, W2 the main concourse, W3 Ashburn Alley and the bullpens, W4 the field-level rail.
+- **The combined park:** loads clean, plays through the last out, `npm test` passes.
+- **The combined summary:** [docs/notes/worlds/WAVE1.md](docs/notes/worlds/WAVE1.md). It covers what each built, the costs under exclusive, the systems to reuse, the name collisions, the flagged problems and the pictures asked for. Each builder's notes are in `docs/notes/worlds/W1.md` … `W4.md`.
+- **Next:**
+  - the owner reviews the park;
+  - then, before wave 2, merge the three new figure systems (W1's Folk, W3's Folk, W2's Cast) into one;
+  - then pick wave 2's places ([WAVES.md](docs/notes/worlds/WAVES.md) has the candidates).
 
-**Little worlds, wave 1** ([docs/notes/worlds/WAVES.md](docs/notes/worlds/WAVES.md)): four builders, one place each.
-- **Merged into `ballpark`, loads clean:**
-  - W4: the field-level rail;
-  - W3: Ashburn Alley and the bullpens;
-  - W1: the Third Base Gate and its plaza.
-- **W2, the main concourse (home to third), was told to wind down.** Its branch is `worktree-agent-a325dfc3c8aaab891`, 22+ commits.
-  - If it isn't merged yet (check `git log ballpark --oneline | grep "Merge W2"`), merge it next.
-  - Resolve `src/ballpark/places/index.js` by keeping every entry.
-  - Load it through the desk and check it: the builder fixed a crash at the last out just before the stop.
-- **Each builder's notes** are in `docs/notes/worlds/W1.md` … `W4.md`, on their branches and now merged. They cover the evidence, the invented characters, the costs, the problems flagged elsewhere, and the pictures the owner could supply.
-
-**Next, when we reconnect:**
-1. Finish merging W2.
-2. Profile the combined park under the lock's exclusive mode; each place has a ~1 ms budget.
-3. Take a review set of each place: day, night and rain, 1280×800, the gate near first pitch.
-4. Write `docs/notes/worlds/WAVE1.md`: what each place built and which systems to reuse. There are now **two** new figure systems, W1's `gate3b/Folk` and W3's `alley/Folk.js`, plus People.js; they want merging into one.
-5. **Show the owner the combined park.** Launch no next wave until they've reviewed it.
+  **Launch nothing until the owner says so.**
 
 **Done today:**
 - **Decisions:** section 7 of the plan was answered (recorded there).

@@ -1,13 +1,8 @@
 # Citizens Bank Park: notes for Claude
 
-## 🛑 Where we left off (2026-09-27, afternoon)
+## Where we are (2026-09-27)
 
-The owner disconnected while little-worlds wave 1 was merging.
-**Read [START-HERE.md](START-HERE.md) first:**
-- it says what's merged and what's left (W2, the concourse);
-- after that: profile, the review set, then show the owner the combined park;
-- **no next wave until the owner has reviewed it.**
-
+Little-worlds wave 1 is merged and **waiting on the owner's review before the next wave**. [START-HERE.md](START-HERE.md) has the summary.
 The plan is [docs/PLAN.md](docs/PLAN.md), the GPU rules are in [docs/GPU.md](docs/GPU.md), and the worlds loop is in [docs/notes/worlds/WAVES.md](docs/notes/worlds/WAVES.md).
 
 ## Standing rules
