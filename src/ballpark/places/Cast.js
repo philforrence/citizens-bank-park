@@ -74,7 +74,7 @@ const B = { pelvis: 0, spine: 1, head: 2, uarm: [ 3, 4 ], farm: [ 5, 6 ], thigh:
 export const PART = {
 	torso: 0, pants: 1, hand: 2, head: 3, brim: 4, pompom: 5, neck: 6, sleeve: 7, shoe: 8, poncho: 9, hairCard: 10, nose: 11, apron: 12, vest: 13,
 	// ---- P0: worn gear and a hat with its own shape
-	bag: 14, pack: 15, radio: 16, lanyard: 17, campaign: 18,
+	bag: 14, pack: 15, radio: 16, credential: 17, campaign: 18,
 };
 
 // What's in a hand (pose.propL / propR). Upright ones stay level whatever the arm does (a cup, a tray, an
@@ -97,15 +97,16 @@ export const PROP = {
 	photo: 33, // a glossy 8 x 10 held flat (var: its cell, sign())
 	cigarette: 34, // between the fingers, the tip lit
 	radio: 35, // a transistor radio with its aerial up (left hand)
+	thermos: 36, // a green steel vacuum flask, its cup for a lid (the tailgaters, the long line)
 };
 const UPRIGHT = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.bag, PROP.cottonCandy, PROP.waterIce, PROP.peanuts, PROP.beers,
-	PROP.umbrella, PROP.sign, PROP.scanner, PROP.flashlight, PROP.mic, PROP.tickets, PROP.cowbell, PROP.tongs, PROP.pennant, PROP.photo, PROP.radio ];
+	PROP.umbrella, PROP.sign, PROP.scanner, PROP.flashlight, PROP.mic, PROP.tickets, PROP.cowbell, PROP.tongs, PROP.pennant, PROP.photo, PROP.radio, PROP.thermos ];
 // which props each hand can hold (the geometry is built once per hand)
 const HAND_PROPS = [
 	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.glove, PROP.bag, PROP.scorebook, PROP.peanuts, PROP.programs, PROP.money, PROP.hotdog, PROP.ticket, PROP.cottonCandy,
-		PROP.towel, PROP.program, PROP.sandwich, PROP.flashlight, PROP.photo, PROP.radio ], // left
+		PROP.towel, PROP.program, PROP.sandwich, PROP.flashlight, PROP.photo, PROP.radio, PROP.thermos ], // left
 	[ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.program, PROP.phone, PROP.towel, PROP.sandwich, PROP.waterIce, PROP.cottonCandy, PROP.hotdog, PROP.money, PROP.beers, PROP.ticket, PROP.pencil, PROP.camera,
-		PROP.peanuts, PROP.bag, PROP.umbrella, PROP.furled, PROP.sign, PROP.scanner, PROP.mic, PROP.tickets, PROP.cowbell, PROP.tongs, PROP.pennant, PROP.photo, PROP.cigarette ], // right
+		PROP.peanuts, PROP.bag, PROP.umbrella, PROP.furled, PROP.sign, PROP.scanner, PROP.mic, PROP.tickets, PROP.cowbell, PROP.tongs, PROP.pennant, PROP.photo, PROP.cigarette, PROP.thermos ], // right
 ];
 // the props that show past the near figure (the rest are too small to read there)
 const FAR_PROPS = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove,
@@ -128,7 +129,7 @@ export const POSE = 8;
 //      the black stripe, 7 camo) | shoes <<3 (0 white sneakers, 1 black, 2 tan boots, 3 brown, 4 grey) |
 //      hat <<6 (HAT) | poncho <<11 (0 none, 1 clear, 2 red, 3 white, 4 yellow, 5 orange, 6 a grey trash
 //      bag, 7 a clear one shared with the one on the left) | scarf <<14 (0 none, 1 red and white, 2 grey,
-//      3 black) | gloves <<16 | gear <<17 (GEAR bits)
+//      3 black) | gloves <<16 | (bit 18: B's ticket lanyard, look.lanyard) | gear <<19 (GEAR bits)
 //   w: a seed (0..65535) for the small things
 export const TOP = {
 	jacket: 0, hoodie: 1, homeJersey: 2, nameTee: 3, fleece: 4, puffer: 5, leather: 6, work: 7, powder: 8, rays: 9,
@@ -169,7 +170,7 @@ export const CHEST = { none: 0, script: 1, block: 2, champs: 3, rays: 4, staff: 
 	fox: 12, // FOX 29
 };
 // worn gear (look.gear: these bits OR'd)
-export const GEAR = { messenger: 1, backpack: 2, radio: 4, lanyard: 8 };
+export const GEAR = { messenger: 1, backpack: 2, radio: 4, credential: 8 };
 
 // the backs: [ name, number ] cells in the atlas (1..), the words across a back (40..), then the chest prints (64..)
 export const BACKS = [
@@ -475,10 +476,10 @@ function figureGeometry( lod = 0 ) {
 		// a radio clipped at the left shoulder, its aerial
 		boxAt( B.spine, PART.radio, [ - 0.12, 1.34, - 0.118 ], [ 0.027, 0.05, 0.017 ] );
 		boxAt( B.spine, PART.radio, [ - 0.105, 1.42, - 0.118 ], [ 0.004, 0.035, 0.004 ] );
-		// a lanyard round the neck and the credential on it
-		quad( B.spine, PART.lanyard, [ - 0.06, 1.445, - 0.07 ], [ - 0.045, 1.45, - 0.075 ], [ 0.006, 1.25, - 0.121 ], [ - 0.008, 1.25, - 0.121 ] );
-		quad( B.spine, PART.lanyard, [ 0.045, 1.45, - 0.075 ], [ 0.06, 1.445, - 0.07 ], [ 0.008, 1.25, - 0.121 ], [ - 0.006, 1.25, - 0.121 ] );
-		boxAt( B.spine, PART.lanyard, [ 0, 1.2, - 0.123 ], [ 0.045, 0.055, 0.003 ] );
+		// a lanyard round the neck and the credential on it (staff, the press)
+		quad( B.spine, PART.credential, [ - 0.06, 1.445, - 0.07 ], [ - 0.045, 1.45, - 0.075 ], [ 0.006, 1.25, - 0.121 ], [ - 0.008, 1.25, - 0.121 ] );
+		quad( B.spine, PART.credential, [ 0.045, 1.45, - 0.075 ], [ 0.06, 1.445, - 0.07 ], [ 0.008, 1.25, - 0.121 ], [ - 0.006, 1.25, - 0.121 ] );
+		boxAt( B.spine, PART.credential, [ 0, 1.2, - 0.123 ], [ 0.045, 0.055, 0.003 ] );
 
 	}
 
@@ -681,6 +682,12 @@ function figureGeometry( lod = 0 ) {
 				// the hand is up at the mouth)
 				tube( bone, part, add( h, [ - 0.025 * s, - 0.06, - 0.01 ] ), add( h, [ - 0.025 * s, - 0.06, 0.07 ] ), [ 0.004, 0.004 ], [ 0.004, 0.004 ], 4, false, true );
 
+			} else if ( id === PROP.thermos ) {
+
+				// the flask held round its middle, the cup screwed on over the stopper
+				cyl( bone, part, add( g, [ 0, - 0.08, 0 ] ), 0.042, 0.042, 0.24, 8, false );
+				cyl( bone, part, add( g, [ 0, 0.16, 0 ] ), 0.046, 0.044, 0.07, 8 );
+
 			} else if ( id === PROP.radio ) {
 
 				// a transistor radio held at the chest, the aerial up
@@ -854,7 +861,7 @@ function castMaterial( pool ) {
 	let top = lk.y & 31u;
 	let hat = ( lz >> 6u ) & 31u;
 	let poncho = ( lz >> 11u ) & 7u;
-	let gear = ( lz >> 17u ) & 15u;
+	let gear = ( lz >> 19u ) & 15u;
 	let hairStyle = ( lx >> 6u ) & 3u;
 	let k = slot * ${ POSE }u;
 	let a3 = c3Pose[ k + 3u ];
@@ -876,7 +883,7 @@ function castMaterial( pool ) {
 	} else if ( part == ${ PART.bag }u ) { gone = ( gear & ${ GEAR.messenger }u ) == 0u || poncho > 0u;
 	} else if ( part == ${ PART.pack }u ) { gone = ( gear & ${ GEAR.backpack }u ) == 0u;
 	} else if ( part == ${ PART.radio }u ) { gone = ( gear & ${ GEAR.radio }u ) == 0u;
-	} else if ( part == ${ PART.lanyard }u ) { gone = ( gear & ${ GEAR.lanyard }u ) == 0u || poncho > 0u;
+	} else if ( part == ${ PART.credential }u ) { gone = ( gear & ${ GEAR.credential }u ) == 0u || poncho > 0u;
 	} else if ( part == ${ PART.campaign }u ) { gone = hat != ${ HAT.campaign }u;
 	}
 	if ( gone ) {
@@ -898,7 +905,7 @@ function castMaterial( pool ) {
 	var n = v.normal;
 	// the build: a belly, broad shoulders, a woman's narrower shoulders and fuller hips; a kid's big head
 	let onTrunk = part == ${ PART.torso }u || part == ${ PART.pants }u || part == ${ PART.apron }u || part == ${ PART.vest }u || part == ${ PART.poncho }u
-		|| part == ${ PART.bag }u || part == ${ PART.pack }u || part == ${ PART.radio }u || part == ${ PART.lanyard }u;
+		|| part == ${ PART.bag }u || part == ${ PART.pack }u || part == ${ PART.radio }u || part == ${ PART.credential }u;
 	if ( onTrunk ) {
 		let belly = select( select( select( 0.0, 0.3, build == 1u ), 0.55, build == 2u ), 1.0, build == 3u );
 		let bump = smoothstep( 0.86, 1.08, q.y ) * smoothstep( 1.36, 1.14, q.y );
@@ -1293,7 +1300,7 @@ function castMaterial( pool ) {
 		rough = 0.75;
 	}
 	if ( part == ${ PART.radio }u ) { c = vec3f( 0.02 ); rough = 0.4; if ( L.y > 1.385 && L.y < 1.395 ) { c = vec3f( 0.6, 0.02, 0.02 ); e = vec3f( 0.8, 0.02, 0.02 ) * nk; } }
-	if ( part == ${ PART.lanyard }u ) {
+	if ( part == ${ PART.credential }u ) {
 		c = vec3f( 0.3, 0.02, 0.03 );
 		if ( L.y < 1.26 ) { c = select( vec3f( 0.75, 0.74, 0.7 ), vec3f( 0.08, 0.1, 0.3 ), L.y > 1.235 ); if ( abs( L.x + 0.015 ) < 0.012 && abs( L.y - 1.2 ) < 0.018 ) { c = skin; } }
 		rough = 0.5;
@@ -1406,6 +1413,7 @@ function castMaterial( pool ) {
 		if ( id == ${ PROP.tongs }u ) { c = vec3f( 0.5, 0.5, 0.52 ); metal = 0.9; rough = 0.3; }
 		if ( id == ${ PROP.pennant }u ) { c = select( vec3f( 0.25, 0.17, 0.08 ), vec3f( 0.36, 0.02, 0.03 ), pl.y > ${ ( J.hand[ 1 ] + 0.23 ).toFixed( 3 ) } && pl.z < ${ ( J.hand[ 2 ] - 0.03 ).toFixed( 3 ) } ); rough = 0.9; if ( abs( pl.y - ${ ( J.hand[ 1 ] + 0.33 ).toFixed( 3 ) } ) < 0.015 && pl.z < ${ ( J.hand[ 2 ] - 0.08 ).toFixed( 3 ) } ) { c = vec3f( 0.75 ); } }
 		if ( id == ${ PROP.cigarette }u ) { c = select( vec3f( 0.75 ), vec3f( 0.6, 0.35, 0.1 ), pl.z < ${ ( J.hand[ 2 ] + 0.0 ).toFixed( 3 ) } ); if ( pl.z > ${ ( J.hand[ 2 ] + 0.06 ).toFixed( 3 ) } ) { c = vec3f( 0.3, 0.05, 0.0 ); e = vec3f( 2.5, 0.5, 0.05 ) * ( 0.6 + 0.4 * sin( frame.time * 3.0 + g.y * 20.0 ) ); } rough = 0.9; }
+		if ( id == ${ PROP.thermos }u ) { c = select( vec3f( 0.08, 0.16, 0.08 ), vec3f( 0.3 ), pl.y > ${ ( J.hand[ 1 ] + 0.095 ).toFixed( 3 ) } ); metal = 0.4; rough = 0.45; }
 		if ( id == ${ PROP.radio }u ) { c = select( vec3f( 0.3, 0.02, 0.03 ), vec3f( 0.6 ), pl.y > ${ ( J.hand[ 1 ] + 0.02 ).toFixed( 3 ) } ); metal = 0.3; rough = 0.4; }
 	}
 	// the rain on them: shoulders, caps and hoods darker and glossy on the 27th
@@ -1619,7 +1627,7 @@ export function packLook( o ) {
 	const x = ( o.skin & 7 ) | ( ( o.hair & 7 ) << 3 ) | ( ( o.hairStyle & 3 ) << 6 ) | ( ( o.facial & 7 ) << 8 ) | ( ( o.glasses ? 1 : 0 ) << 11 )
 		| ( ( o.female ? 1 : 0 ) << 12 ) | ( ( o.age & 3 ) << 13 ) | ( ( o.build & 3 ) << 15 );
 	const y = ( o.top & 31 ) | ( ( o.color & 31 ) << 5 ) | ( ( o.sleeves & 31 ) << 10 ) | ( ( o.back & 127 ) << 15 ) | ( ( o.chest & 15 ) << 22 );
-	const z = ( o.pants & 7 ) | ( ( o.shoes & 7 ) << 3 ) | ( ( o.hat & 31 ) << 6 ) | ( ( o.poncho & 7 ) << 11 ) | ( ( o.scarf & 3 ) << 14 ) | ( ( o.gloves ? 1 : 0 ) << 16 ) | ( ( o.gear & 15 ) << 17 );
+	const z = ( o.pants & 7 ) | ( ( o.shoes & 7 ) << 3 ) | ( ( o.hat & 31 ) << 6 ) | ( ( o.poncho & 7 ) << 11 ) | ( ( o.scarf & 3 ) << 14 ) | ( ( o.gloves ? 1 : 0 ) << 16 ) | ( ( o.lanyard ? 1 : 0 ) << 18 ) | ( ( o.gear & 15 ) << 19 );
 	return [ x >>> 0, y >>> 0, z >>> 0, ( o.seed ?? Math.floor( Math.random() * 65536 ) ) & 65535 ];
 
 }
@@ -1988,8 +1996,12 @@ export class Cast {
 	get meshFar() { return this.pool.meshes[ 1 ]; }
 	get meshTiny() { return this.pool.meshes[ 2 ]; }
 	get blobs() { return this.pool.blobs; }
-	get near() { return NEAR_FRAC; }
-	get far() { return TINY_FRAC; }
+	// (the figures are picked by how tall someone stands on the screen, the lens's zoom included: a troupe's
+	// near / far are kept for the callers that set them, and not needed)
+	get near() { return this._near ?? NEAR_FRAC; }
+	set near( v ) { this._near = v; }
+	get far() { return this._far ?? TINY_FRAC; }
+	set far( v ) { this._far = v; }
 
 	// someone new: a look (packLook's fields) and a pose to start from
 	add( look ) {
