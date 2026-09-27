@@ -319,7 +319,7 @@ export class People {
 			// behind the counter (the Alley's kitchens are painted into their windows: there the staff stand
 			// in the window itself, behind the counter's front)
 			const inset = st.inset ?? 0.6;
-			const staff = [ - 1, 1 ].map( ( k ) => this._add( ROLE.staff, mid[ 0 ] + u[ 0 ] * k * 1.6 - n[ 0 ] * inset, STREET, mid[ 1 ] + u[ 1 ] * k * 1.6 - n[ 1 ] * inset, yaw ) );
+			const staff = ( st.staff || [ - 1.6, 1.6 ] ).map( ( k ) => this._add( ROLE.staff, mid[ 0 ] + u[ 0 ] * k - n[ 0 ] * inset, STREET, mid[ 1 ] + u[ 1 ] * k - n[ 1 ] * inset, yaw ) );
 			// the line: up to eight people out from the counter, facing it
 			const line = [];
 			for ( let q = 0; q < 8; q ++ ) {
