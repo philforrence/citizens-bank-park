@@ -5,6 +5,7 @@ import { RailFigures } from './rail/RailFigures.js';
 import { railMaterials } from './rail/Props.js';
 import { Wells } from './rail/Wells.js';
 import { OnDeck } from './rail/OnDeck.js';
+import { BallGirls } from './rail/BallGirls.js';
 
 // The rail: field level round home plate and the dugouts, the strip every TV shot sees. The backstop,
 // the camera wells, the front rows and the dugout surrounds, the on-deck circles and foul territory down
@@ -36,6 +37,8 @@ export default class FieldRail {
 		this.wells = new Wells( ctx );
 		// the on-deck mats and the hitters' things on them, the bat boys
 		this.onDeck = new OnDeck( ctx );
+		// the ball girls down the lines, and the kids waiting on the rail for a ball
+		this.ballGirls = new BallGirls( ctx );
 		this.figs.build();
 		this.state = {};
 
@@ -95,6 +98,7 @@ export default class FieldRail {
 		this.plate.uniforms.dirt.value = ( 1 - Math.exp( - since / ( S.first ? 90 : 200 ) ) ) * ( S.first ? 1 : 0.7 );
 		this.wells.update( S, dt );
 		this.onDeck.update( S, dt, director );
+		this.ballGirls.update( S, dt, director );
 		this.figs.update();
 
 	}
