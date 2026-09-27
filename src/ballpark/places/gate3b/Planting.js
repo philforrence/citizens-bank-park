@@ -16,7 +16,7 @@ export function plantBeds( group, beds, seed = 3 ) {
 	const r = rng( seed ), m = new Mesher();
 	for ( const [ x, z, R, y ] of beds ) {
 
-		const n = Math.round( R * R * 7 );
+		const n = Math.round( R * R * 11 );
 		for ( let i = 0; i < n; i ++ ) {
 
 			const a = r() * Math.PI * 2, d = Math.sqrt( r() ) * ( R - 0.45 );
@@ -24,8 +24,8 @@ export function plantBeds( group, beds, seed = 3 ) {
 			if ( u < 0.4 ) {
 
 				// fountain grass: arching blades from a clump
-				const s = 0.7 + r() * 0.4;
-				for ( let k = 0; k < 11; k ++ ) {
+				const s = 0.8 + r() * 0.5;
+				for ( let k = 0; k < 14; k ++ ) {
 
 					const q = r() * Math.PI * 2, lean = 0.3 + r() * 0.5, len = ( 0.55 + r() * 0.35 ) * s;
 					const tip = [ px + Math.cos( q ) * lean * len, y + len * ( 1 - lean * 0.4 ), pz + Math.sin( q ) * lean * len ];
@@ -38,10 +38,10 @@ export function plantBeds( group, beds, seed = 3 ) {
 
 				// a mound: a mum covered in flowers, or a low shrub; little faces over a dome
 				const mum = u < 0.75, col = 1 + Math.floor( r() * 4 ) * 0.2 + 0.05;
-				const R2 = mum ? 0.22 + r() * 0.08 : 0.3 + r() * 0.12;
-				for ( let k = 0; k < ( mum ? 16 : 12 ); k ++ ) {
+				const R2 = mum ? 0.24 + r() * 0.1 : 0.32 + r() * 0.12;
+				for ( let k = 0; k < ( mum ? 26 : 16 ); k ++ ) {
 
-					const q = r() * Math.PI * 2, ph = r() * 1.2, sz = mum ? 0.09 : 0.16;
+					const q = r() * Math.PI * 2, ph = r() * 1.2, sz = mum ? 0.13 : 0.2;
 					const c = [ px + Math.cos( q ) * Math.sin( ph ) * R2, y + Math.cos( ph ) * R2 * 0.8, pz + Math.sin( q ) * Math.sin( ph ) * R2 ];
 					const nrm = [ Math.cos( q ) * Math.sin( ph ), Math.cos( ph ), Math.sin( q ) * Math.sin( ph ) ];
 					const t1 = [ - Math.sin( q ) * sz, 0, Math.cos( q ) * sz ], t2 = [ - Math.cos( q ) * Math.cos( ph ) * sz, Math.sin( ph ) * sz, - Math.sin( q ) * Math.cos( ph ) * sz ];
