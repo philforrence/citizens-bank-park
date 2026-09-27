@@ -116,6 +116,17 @@ export class Aisles {
 
 	}
 
+	// Is the Phanatic on this aisle (A's place: app.phanatic.plan.aisles, [ { t0, t1, head } ], the aisles
+	// he goes down and when)? Then it's kept clear: the vendors wait up top, nobody goes for a beer.
+	blocked( key, N ) {
+
+		const plan = this.place.app?.phanatic?.plan?.aisles;
+		if ( ! plan?.length ) return false;
+		const [ ax, , az ] = this.seats.aisle( key, 33.2 );
+		return plan.some( ( a ) => N.t > a.t0 - 20 && N.t < a.t1 + 5 && a.head && Math.hypot( ( a.head.x ?? a.head[ 0 ] ) - ax, ( a.head.z ?? a.head[ 2 ] ) - az ) < 3 );
+
+	}
+
 	// the fans of the place in row r near aisle `key`, from the aisle in: [ fan, ... ] (stops at a seat the
 	// place hasn't got)
 	chain( key, r, side ) {
@@ -176,7 +187,7 @@ export class Aisles {
 
 			// (the aisle's kept clear for them until they're in)
 			if ( key === 'ED' && P && N.first && N.inning <= 2 && ! P[ 0 ].arrived ) continue;
-			if ( N.t < this.nextRun[ key ] ) continue;
+			if ( N.t < this.nextRun[ key ] || this.blocked( key, N ) ) continue;
 			this.nextRun[ key ] = N.t + 70 + 120 * hash( N.t * 0.37 + ( key === 'ED' ? 1 : 2 ) );
 			if ( N.celebrate || N.tense > 0.3 || N.suspended || ( ! N.first && N.inning >= 9 ) ) continue;
 			if ( N.half === 'bottom' && ! N.between && hash( N.t ) < 0.6 ) continue;
@@ -409,7 +420,7 @@ function* vendor( w, N0 ) {
 		const night = N.first ? 27 : 29;
 		const kind = w.o.gear[ night ];
 		// the beer's sold to the start of the 9th (the Inquirer, Oct 29), and in the 9th nobody's selling
-		if ( N.celebrate || ( ! N.first && N.inning >= 9 ) ) {
+		if ( N.celebrate || ( ! N.first && N.inning >= 9 ) || A.blocked( w.aisle, N ) ) {
 
 			w.shown = false;
 			yield* wait( w, 5 );
@@ -442,6 +453,8 @@ function* vendor( w, N0 ) {
 				if ( called < 5 ) w.mouth = 0;
 
 			} );
+			// the Phanatic coming down: back up out of his way
+			if ( A.blocked( w.aisle, w.N ) ) break;
 			// a hand up in this row, one side of the aisle or the other? (the chain of the place's fans
 			// from the aisle in)
 			w.side = hash( r * 3.1 + w.N.t * 0.05 ) < 0.5 ? 1 : - 1;
@@ -743,6 +756,8 @@ function* beerRun( run, i ) {
 	yield* walkTo( w, top );
 	w.shown = false;
 	yield* wait( w, 60 + 70 * hash( t0 * 0.1 + s.x ) );
+	// (not while the Phanatic's on the aisle)
+	while ( A.blocked( run.key, w.N ) ) yield;
 	// back with two beers (a hot chocolate on the 27th, some of them), down to his row
 	const cocoa = w.N.first && hash( t0 ) < 0.5;
 	w.props = [ 0, cocoa ? PROP.cocoa : PROP.beers ];
