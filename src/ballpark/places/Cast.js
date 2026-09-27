@@ -741,7 +741,6 @@ fn c3Rx( a: f32 ) -> mat3x3f { let c = cos( a ); let s = sin( a ); return mat3x3
 fn c3Ry( a: f32 ) -> mat3x3f { let c = cos( a ); let s = sin( a ); return mat3x3f( c, 0.0, - s, 0.0, 1.0, 0.0, s, 0.0, c ); }
 fn c3Rz( a: f32 ) -> mat3x3f { let c = cos( a ); let s = sin( a ); return mat3x3f( c, s, 0.0, - s, c, 0.0, 0.0, 0.0, 1.0 ); }
 
-struct C3Pose { p: array<vec4f, ${ POSE }> };
 struct C3Out { p: vec3f, n: vec3f };
 
 // is this prop upright (level whatever the hand does)?
@@ -751,18 +750,14 @@ fn c3Upright( id: u32 ) -> bool {
 
 // A vertex of the figure (q, its normal n, rest pose) posed: turned about each joint in its bone's chain,
 // then placed (the person's spot, yaw and scale), in the field frame. (The props not in hand never get
-// here: they're folded away before the rig.)
-fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, P: C3Pose ) -> C3Out {
-	let at = P.p[ 0 ];
-	let a1 = P.p[ 1 ];
-	let a2 = P.p[ 2 ];
+// here: they're folded away before the rig.) The pose's rows come in as they're needed, the arm's already
+// the one on this vertex's side (no array to index: nothing spilled to memory)
+fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, at: vec4f, a1: vec4f, a2: vec4f, headPitch: f32, arm: vec4f, legs: vec4f, spread: f32 ) -> C3Out {
 	var q = q0;
 	var n = n0;
 	let walk = a1.z;
 	let ph = a1.y;
 	// the legs: the stride (the knee bends through the swing), and whatever the pose adds
-	let legs = P.p[ 6 ];
-	let extra = P.p[ 7 ];
 	if ( bone >= 7u && bone <= 10u ) {
 		let right = bone == 8u || bone == 10u;
 		let s = select( - 1.0, 1.0, right );
@@ -776,17 +771,19 @@ fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, P: C3Pose ) -> C3Out {
 			q = R * ( q - kn ) + kn;
 			n = R * n;
 		}
-		let R = c3Rz( s * extra.x ) * c3Rx( hipP );
+		let R = c3Rz( s * spread ) * c3Rx( hipP );
 		q = R * ( q - hip ) + hip;
 		n = R * n;
 	}
-	// the upper body: the arms (and what they hold), the head, turned with the spine
+	// the upper body: the arms (and what they hold), the head, turned with the spine (the trunk's turn
+	// worked out only for the vertices above the hips)
+	let upper = bone != 0u && ( bone < 7u || bone > 10u );
 	let spine = ${ f3( J.spine ) };
-	let Rs = c3Ry( a2.y ) * c3Rz( a2.z ) * c3Rx( - a2.x );
+	var Rs = mat3x3f( 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 );
+	if ( upper ) { Rs = c3Ry( a2.y ) * c3Rz( a2.z ) * c3Rx( - a2.x ); }
 	if ( ( bone >= 3u && bone <= 6u ) || bone >= 11u ) {
 		let right = bone == 4u || bone == 6u || bone == 12u;
 		let s = select( - 1.0, 1.0, right );
-		let arm = select( P.p[ 4 ], P.p[ 5 ], right );
 		let sh = vec3f( ${ J.shoulder[ 0 ].toFixed( 3 ) } * s, ${ J.shoulder[ 1 ].toFixed( 3 ) }, ${ J.shoulder[ 2 ].toFixed( 3 ) } );
 		let el = vec3f( ${ J.elbow[ 0 ].toFixed( 3 ) } * s, ${ J.elbow[ 1 ].toFixed( 3 ) }, ${ J.elbow[ 2 ].toFixed( 3 ) } );
 		let Re = c3Rx( arm.w );
@@ -818,7 +815,7 @@ fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, P: C3Pose ) -> C3Out {
 	} else if ( bone == 1u || bone == 2u ) {
 		if ( bone == 2u ) {
 			let neck = ${ f3( J.neck ) };
-			let Rh = c3Ry( a2.w ) * c3Rx( - P.p[ 3 ].x );
+			let Rh = c3Ry( a2.w ) * c3Rx( - headPitch );
 			q = Rh * ( q - neck ) + neck;
 			n = Rh * n;
 		}
@@ -974,21 +971,20 @@ function castMaterial( pool ) {
 		if ( part == ${ PART.brim }u && hat == ${ HAT.police }u ) { q = vec3f( q.x, q.y + 0.004, headC.z + ( q.z - headC.z ) * 0.85 ); }
 	}
 	if ( part == ${ PART.brim }u && hat == ${ HAT.capBack }u ) { q = vec3f( - ( q.x - headC.x ), q.y, - ( q.z - headC.z ) ) + headC; n = vec3f( - n.x, n.y, - n.z ); }
-	var P0: C3Pose;
-	for ( var i = 0u; i < ${ POSE }u; i ++ ) { P0.p[ i ] = c3Pose[ k + i ]; }
-	let r0 = c3Rig( q, n, bone, part, P0 );
+	// this vertex's arm (the left's row or the right's)
+	let armRow = k + select( 4u, 5u, bone == 4u || bone == 6u || bone == 12u );
+	let at = c3Pose[ k ];
+	let r0 = c3Rig( q, n, bone, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Pose[ armRow ], c3Pose[ k + 6u ], a7.x );
 	v.useWorld = true;
 	v.worldPos = ( v.model * vec4f( r0.p, 1.0 ) ).xyz;
 	v.worldNormal = normalize( ( v.model * vec4f( r0.n, 0.0 ) ).xyz );
 	if ( lod == 0u ) {
 		// the near ones rigged again in last frame's pose: the arms' and legs' own motion for the TAA
-		var P1: C3Pose;
-		for ( var i = 0u; i < ${ POSE }u; i ++ ) { P1.p[ i ] = c3Prev[ k + i ]; }
-		let r1 = c3Rig( q, n, bone, part, P1 );
+		let r1 = c3Rig( q, n, bone, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Prev[ armRow ], c3Prev[ k + 6u ], c3Prev[ k + 7u ].x );
 		v.prevWorldPos = ( v.prevModel * vec4f( r1.p, 1.0 ) ).xyz;
 	} else {
 		// further off, only where they've walked
-		let moved = P0.p[ 0 ].xyz - c3Prev[ k ].xyz;
+		let moved = at.xyz - c3Prev[ k ].xyz;
 		v.prevWorldPos = ( v.prevModel * vec4f( r0.p - moved, 1.0 ) ).xyz;
 	}
 	o.vLocal = q;
