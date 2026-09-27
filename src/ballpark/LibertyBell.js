@@ -556,7 +556,10 @@ function toll( sound, vol, side ) {
 	const f = 155.6 * ( side ? 1.0 : 0.997 );
 	const out = ctx.createGain();
 	out.gain.value = vol;
-	out.connect( sound.master );
+	// ---- S: the ring out of the park's speakers, with the bowl's echo (phillies.com, 2007-08: "its ring
+	// can be heard throughout the park"); straight out if the soundscape isn't there
+	out.connect( sound.buses?.pa || sound.master );
+	// ---- end S
 	if ( sound.reverb ) out.connect( sound.reverb );
 	for ( const [ r, a, decay ] of [ [ 0.5, 0.3, 7 ], [ 1, 0.55, 5 ], [ 1.19, 0.4, 3.5 ], [ 1.5, 0.22, 2.5 ], [ 2, 0.5, 3 ], [ 2.51, 0.16, 1.6 ], [ 2.66, 0.14, 1.4 ], [ 3.01, 0.12, 1.2 ], [ 4.07, 0.06, 0.8 ], [ 5.2, 0.03, 0.5 ] ] ) {
 

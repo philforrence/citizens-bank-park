@@ -17,7 +17,7 @@
 
 import { REL } from '../../game/Motions.js';
 
-const WALKUP = 6, CHANGE = 18, SWITCH = 24, SET = 3.0;
+const WALKUP = 6, CHANGE = 18, SWITCH = 24, SET = 3.0, SPLIT = 0.55;
 
 // the stars get the loudest hellos (and the Rays' the loudest boos)
 const STAR = { home: [ 'Utley', 'Howard', 'Rollins', 'Hamels', 'Burrell', 'Victorino', 'Lidge' ], away: [ 'Upton', 'Crawford', 'Pena', 'Longoria' ] };
@@ -30,12 +30,15 @@ export function buildPlan( director ) {
 	let seed = 5;
 	const rnd = () => ( seed = ( seed * 16807 ) % 2147483647 ) / 2147483647;
 	const pick = ( a ) => a[ Math.floor( rnd() * a.length ) ];
-	// the suspension: the break after the top of the 6th (the tarp comes on; the 29th begins in it)
+	// the suspension: the break after the top of the 6th (the tarp comes on; the 29th begins in it, 55% of
+	// the way through: R's split, director.night())
 	const susp = S.find( ( s ) => s.kind === 'switch' && s.snap.inning === 6 && s.snap.half === 'bottom' );
-	const night2 = susp ? susp.t0 + 12 : Infinity;
+	const night2 = susp ? susp.t0 + susp.dur * SPLIT : Infinity;
 	const plays = g.plays;
 	const subsOf = ( pi ) => ( plays[ pi ]?.events || [] ).filter( ( e ) => e.t === 'action' && /offensive_substitution/.test( e.kind || '' ) );
 	// the organ's between-innings tunes, rotated (Music.js has them), the rain's on the 27th
+	// the first man up for each side is "Leading off for the Phillies..." (Baker's own formula)
+	const led = new Set();
 	const tunes = { dry: [ 'hatdance', 'hottime', 'saints', 'entertainer', 'stars', 'sweetgeorgia', 'turkey', 'yessir' ], wet: [ 'rainrain', 'singin', 'hatdance', 'saints' ] };
 	let tuneI = 0, wetI = 0;
 
@@ -62,7 +65,9 @@ export function buildPlan( director ) {
 			for ( const pr of prs ) add( t0 - 2.2, 'pa', { key: `run-${ pr.player }-${ pr.replaced }` } );
 			// a pitching change before he bats: he's announced after it
 			const at = n && n.kind === 'change' ? n.t0 + n.dur - 5.2 : t0 + ( prs.length ? 2.2 : 0.8 );
-			add( at, 'pa', { key: ph ? `bat-${ id }-ph-${ ph.replaced }` : `bat-${ id }` } );
+			const lead = ! led.has( sn.batting ) && ! ph;
+			led.add( sn.batting );
+			add( at, 'pa', { key: ph ? `bat-${ id }-ph-${ ph.replaced }` : lead ? `lead-${ id }` : `bat-${ id }` } );
 			// the Phillies' batters walk up to their music (ducked under Baker's call); the Rays' to boos
 			if ( home ) add( at - 0.6, 'walkup', { id, until: ( n && n.kind === 'change' ? n.t0 + n.dur : t0 + WALKUP ) + 2.5 } );
 			const star = STAR[ home ? 'home' : 'away' ].includes( who?.last );
@@ -89,14 +94,21 @@ export function buildPlan( director ) {
 
 			if ( s === susp ) {
 
-				// the 27th: play suspended, the tarp out; then (the 29th) welcome back
+				// the 27th: the tarp out, the rain delay, then play suspended ("a collective groan", the
+				// Inquirer, Oct 28); the 29th: the park filling, the welcome back just before the first pitch.
+				// Scaled to however long the break is (R makes it 140 s: the 27th's 77, the 29th's 63)
+				const L27 = night2 - t0, L29 = s.dur - L27;
 				add( t0 + 1.0, 'tarp' );
-				add( t0 + 3.5, 'pa', { key: 'suspended' } );
-				add( t0 + 4.5, 'fans', { what: 'boo', level: 0.7 } );
+				if ( L27 > 40 ) add( t0 + 9, 'pa', { key: 'rain-delay' } );
+				const said = t0 + Math.max( 3.5, L27 * 0.55 );
+				add( said, 'pa', { key: 'suspended' } );
+				add( said + 2.5, 'fans', { what: 'groan', level: 1.4 } );
+				add( said + 3.5, 'fans', { what: 'boo', level: 0.5 } );
 				add( night2, 'night2' );
-				add( night2 + 1.5, 'pa', { key: 'welcome-29' } );
-				add( night2 + 7.5, 'fans', { what: 'cheer', level: 2.5 } );
-				add( night2 + 9.5, 'chant', { what: 'letsgo', from: pick( [ - 60, 40, 120 ] ), cycles: 3 } );
+				const back = night2 + Math.max( 1.5, L29 - 22 );
+				add( back, 'pa', { key: 'welcome-29' } );
+				add( back + 9.5, 'fans', { what: 'cheer', level: 2.5 } );
+				add( back + 12, 'chant', { what: 'letsgo', from: pick( [ - 60, 40, 120 ] ), cycles: 3 } );
 				continue;
 
 			}
@@ -109,7 +121,7 @@ export function buildPlan( director ) {
 			// the home half: the Phillies come in to bat; the top: they take the field, and the park stands
 			if ( sn.half === 'top' ) add( t0 + 1.2, 'fans', { what: 'cheer', level: sn.inning >= 8 ? 1.8 : 1 } );
 			// the PA's between-innings business
-			const biz = { '3bottom': 'rain-reminder', '5top': 'last-call', '8top': 'attendance', '2bottom': 'foul-balls', '4top': 'no-tarp' }[ sn.inning + sn.half ];
+			const biz = { '3bottom': 'rain-reminder', '8top': 'attendance', '2bottom': 'foul-balls', '4top': 'no-throw' }[ sn.inning + sn.half ];
 			if ( biz ) add( t0 + 12, 'pa', { key: biz } );
 
 		}
@@ -186,9 +198,12 @@ export function buildPlan( director ) {
 
 		if ( s.kind === 'celebrate' ) {
 
+			// the pile: nothing but the roar for the first half minute; then the organ's fanfare, Baker, and
+			// (R's ~300 s) the park singing through the rest of it
 			add( t0 + 0.3, 'celebrate' );
-			add( t0 + 24, 'pa', { key: 'champions' } );
-			add( t0 + 34, 'music', { tune: 'happydays', until: t0 + s.dur, vol: 1 } );
+			add( t0 + Math.min( 30, s.dur * 0.35 ), 'music', { tune: 'champions', until: t0 + Math.min( 30, s.dur * 0.35 ) + 16, vol: 1 } );
+			add( t0 + Math.min( 50, s.dur * 0.6 ), 'pa', { key: 'champions' } );
+			if ( s.dur > 120 ) add( t0 + 70, 'music', { tune: 'saints', until: t0 + 100, vol: 0.9 } );
 
 		}
 

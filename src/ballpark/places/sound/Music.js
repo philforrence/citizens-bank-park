@@ -31,7 +31,7 @@ export class Music {
 		this.parts = [];
 		this.onYell = null;
 		// Baker talks over it: down while he does
-		pa.onSay = ( dur ) => this.duck( dur );
+		pa.onSay = ( dur, key, delay ) => this.duck( dur, delay );
 
 	}
 
@@ -87,9 +87,9 @@ export class Music {
 	}
 
 	// under the PA: the organ and the walk-ups down while he talks, back up after
-	duck( dur ) {
+	duck( dur, delay = 0 ) {
 
-		const t = this.sound.ctx.currentTime, g = this.bus.gain;
+		const t = this.sound.ctx.currentTime + delay, g = this.bus.gain;
 		g.cancelScheduledValues( t );
 		g.setTargetAtTime( 0.3, t, 0.08 );
 		g.setTargetAtTime( 1, t + dur + 0.2, 0.35 );

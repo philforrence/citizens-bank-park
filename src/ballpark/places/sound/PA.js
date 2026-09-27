@@ -144,7 +144,7 @@ export class PA {
 			const r = await fetch( DIR + 'index.json' );
 			if ( ! r.ok ) return;
 			this.index = await r.json();
-			for ( const [ key, e ] of Object.entries( this.index ) ) this.sound.sample( 'pa-' + key, DIR + e.f );
+			this._look = 0;
 
 		} catch ( e ) {
 
@@ -161,19 +161,51 @@ export class PA {
 
 	}
 
-	say( key, { vol = 1 } = {} ) {
+	// the clips are fetched a minute and a half ahead of the replay (about 25 KB a line, a megabyte in
+	// all), and anything asked for by name (want)
+	want( key ) {
+
+		const e = this.index[ key ];
+		if ( e && ! this._asked?.has( key ) ) {
+
+			( this._asked ||= new Set() ).add( key );
+			this.sound.sample( 'pa-' + key, DIR + e.f );
+
+		}
+
+	}
+
+	_ahead( t ) {
+
+		const E = this.app.soundscape?.plan?.events;
+		if ( ! E ) return;
+		for ( const e of E ) {
+
+			if ( e.t < t - 5 ) continue;
+			if ( e.t > t + 90 ) break;
+			if ( e.kind === 'pa' ) this.want( e.key );
+
+		}
+
+	}
+
+	// he never talks over himself: a line that comes while he's still at it waits its turn (a few seconds
+	// at most, else it's let go)
+	say( key, { vol = 1, wait = 5 } = {} ) {
 
 		const S = this.sound, ctx = S.ctx, b = S.buffers[ 'pa-' + key ];
 		if ( ! b ) return false;
+		const now = ctx.currentTime, at = Math.max( now, this.busyUntil + 0.35 );
+		if ( at - now > wait ) return false;
 		const src = ctx.createBufferSource();
 		src.buffer = b;
 		const g = ctx.createGain();
 		g.gain.value = LEVEL * vol;
 		src.connect( g ).connect( this.input );
-		src.start();
+		src.start( at );
 		this.cur = src;
-		this.busyUntil = ctx.currentTime + b.duration;
-		this.onSay?.( b.duration, key );
+		this.busyUntil = at + b.duration;
+		this.onSay?.( b.duration, key, at - now );
 		return true;
 
 	}
@@ -192,6 +224,13 @@ export class PA {
 	}
 
 	update( dt, director, camera ) {
+
+		if ( this._look !== undefined && ( this._look -= dt ) <= 0 ) {
+
+			this._look = 2;
+			this._ahead( director.t );
+
+		}
 
 		if ( this.space.version !== this._ver ) {
 
