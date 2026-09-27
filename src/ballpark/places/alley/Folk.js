@@ -356,7 +356,8 @@ function castPose( name ) {
 	const J = ( n, s = 1 ) => joint( P, n, s );
 	const tilt = ( a, b ) => Math.atan2( - ( b[ 2 ] - a[ 2 ] ), b[ 1 ] - a[ 1 ] );
 	const lean = tilt( J( 'pelvis' ), J( 'chest' ) ) - tilt( BASE.pelvis, BASE.chest );
-	const headPitch = - ( tilt( J( 'neck' ), J( 'head' ) ) - tilt( BASE.neck, BASE.head ) - lean ) * 0.8;
+	// (Cast's head pitch is down +: a head carried forward of the neck looks down)
+	const headPitch = ( tilt( J( 'neck' ), J( 'head' ) ) - tilt( BASE.neck, BASE.head ) - lean ) * 0.8;
 	const leg = ( s ) => {
 
 		const hp = J( 'hip', s ), kn = J( 'knee', s ), an = J( 'ankle', s );
