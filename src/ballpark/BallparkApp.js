@@ -775,6 +775,7 @@ export class BallparkApp {
 		this.bowl.crowd.update( this.director, dt, this._crowdRain || 0 );
 		this.bowl.crowd.lod( this.camera );
 		this.people.update( dt, this.director );
+		this.landmarks.update( dt, this.director, this.sound );
 
 		this.players.update();
 		if ( this.gameHUD ) this.gameHUD.refresh();
