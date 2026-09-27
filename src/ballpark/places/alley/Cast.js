@@ -3,6 +3,7 @@ import { standard } from '../../../materials/Materials.js';
 import { LEVELS } from '../../layout.js';
 import { TOP, HAT, PANTS } from './Folk.js';
 import { SIGN } from './Signs.js';
+import { lookAt } from '../Cast.js';
 
 // The Alley's people on the two nights, and what they do as the replay goes. Invented, all of them, in
 // the spirit of the photographs: the rail over the visitors' pen packed three deep on the 29th, thinned
@@ -435,6 +436,8 @@ export class Cast {
 
 		}
 
+		// (P0) the rail near him watches the ball go up to Josh
+		lookAt( 'alley-toss', this.ball.visible ? { x: this.ball.position.x, y: this.ball.position.y, z: this.ball.position.z, r: 9, k: 0.85 } : null );
 		// the walkers
 		for ( const p of this.walkers ) {
 			// at the last out they stop where they are (the party takes over: this.party)
