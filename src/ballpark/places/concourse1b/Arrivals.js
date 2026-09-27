@@ -191,7 +191,7 @@ export class Arrivals1B {
 			bag: r() < 0.32, habit: Math.floor( r() * 4 ), order: r(), towel: false, checked: false, bagT: 0,
 			// an umbrella for some on the 27th (the ones not in ponchos): up out in the rain, furled under the
 			// canopy (umbrellas were allowed in, 2008's guide)
-			umbrella: ns.first && ! wet.poncho && r() < 0.3,
+			umbrella: ns.first && ! wet.poncho && r() < 0.3, leaving: false,
 		};
 		return a;
 
@@ -355,6 +355,39 @@ export class Arrivals1B {
 
 	}
 
+	// out through the gate: from the concourse's side, past the bag tables' ends between the fins, across
+	// the plaza and off the way they came (a source's path the other way); umbrellas going up as they step
+	// out from under the canopy
+	_leave( a ) {
+
+		const r = this.r;
+		const L = this.lanes[ Math.floor( r() * this.lanes.length ) ];
+		const s = L.sc + 0.95 + ( r() - 0.5 ) * 0.3;
+		const src = this._source();
+		const back = src.path.map( ( q ) => [ q[ 0 ], q[ 1 ] ] ).reverse();
+		const out = this._P( s, 6.5 );
+		const pts = [ this._P( s + ( r() - 0.5 ) * 3, - 9.5 - r() * 3 ), this._P( s, - 1.0 ), out, ...this._route( out, back[ 0 ] ).slice( 1 ), ...back.slice( 1 ) ];
+		const off = ( r() - 0.5 ) * 2.2;
+		a.path = pts.map( ( q, i ) => i < 3 ? q : [ q[ 0 ] + off, q[ 1 ] + off * 0.3 ] );
+		a.lens = [];
+		a.total = 0;
+		for ( let i = 0; i < a.path.length - 1; i ++ ) {
+
+			const l = Math.hypot( a.path[ i + 1 ][ 0 ] - a.path[ i ][ 0 ], a.path[ i + 1 ][ 1 ] - a.path[ i ][ 1 ] );
+			a.lens.push( l );
+			a.total += l;
+
+		}
+
+		a.s = 0;
+		a.lane = null;
+		a.mode = 'walk';
+		a.leaving = true;
+		a.umbrella = a.umbrella || r() < 0.2;
+		a.p.x = a.path[ 0 ][ 0 ]; a.p.z = a.path[ 0 ][ 1 ];
+
+	}
+
 	// ---------------------------------------------------------------- time
 
 	// everyone where they'd be at this moment (after a jump in the replay)
@@ -406,6 +439,18 @@ export class Arrivals1B {
 	update( dt, ns, t ) {
 
 		this.time += dt;
+		// the suspension on the 27th: the lines turned round, out through the gate into the rain
+		this.outCarry = ( this.outCarry || 0 ) + ( ns.suspended ? 3.2 : 0 ) * dt;
+		while ( this.outCarry >= 1 ) {
+
+			this.outCarry -= 1;
+			const a = this._fan( ns );
+			if ( ! a ) break;
+			this._leave( a );
+			this.walkers.push( a );
+
+		}
+
 		// new arrivals
 		this.carry += arrivalRate( ns, t ) * dt;
 		while ( this.carry >= 1 ) {
@@ -458,6 +503,14 @@ export class Arrivals1B {
 		}
 
 		if ( i >= a.lens.length ) {
+
+			// out and gone (the ones leaving at the suspension)
+			if ( a.leaving ) {
+
+				this._free( a );
+				return;
+
+			}
 
 			// arrived: into the line
 			const L = a.lane;
