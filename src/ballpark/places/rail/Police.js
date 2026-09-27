@@ -8,7 +8,8 @@ import { put, rnd } from './Props.js';
 // Security on the warning track, and the police at the end.
 //
 // All game, event staff sit on stools on the track at the dugouts' far ends and down the lines, in their
-// yellow jackets with the radio on the shoulder, facing the stands: their job is the fans, not the game
+// royal-blue jackets and caps and khakis with the radio on the shoulder (on the 27th in blue hooded
+// ponchos: qparker71 2841666973, puffygreenjacket 2983578054), facing the stands: their job is the fans, not the game
 // (though Tom, at the Phillies' end, has watched every pitch of it over his shoulder).
 //
 // In the top of the 9th on the 29th, Philadelphia police come out from the corners and file along the
@@ -33,6 +34,23 @@ export class Police {
 			const yaw = Math.atan2( nx, nz ) + ( d.side === 'first' ? 0.5 : - 0.5 );
 			const f = figs.add( 'police', { x, z, yaw, outfit: RAIL.police, seed: d.side === 'first' ? 0.77 : 0.28, flags: FLAG.cap, stout: 0.6, scale: 1.02 } );
 			this.cops.push( f );
+
+		}
+
+		// ---- late on the 29th, a line of officers up on the visitors' dugout roof, facing the crowd
+		// (puffygreenjacket 2994329550, 'Security on the Dugout', 9:32 pm)
+		this.roof = [];
+		for ( const d of field?.dugouts || [] ) {
+
+			if ( d.side !== 'third' ) continue;
+			const { a, ux, uz, nx, nz } = d;
+			const s0 = d.roof[ 0 ] + 0.6, s1 = d.roof[ 1 ] - 0.6, n = 9;
+			for ( let k = 0; k < n; k ++ ) {
+
+				const s = s0 + ( s1 - s0 ) * ( k + 0.5 ) / n, t = 2.2 + ( rnd( k * 7.7 ) - 0.5 ) * 0.4;
+				this.roof.push( figs.add( 'police', { x: a[ 0 ] + ux * s + nx * t, y: 1.75, z: a[ 1 ] + uz * s + nz * t, yaw: Math.atan2( - nx, - nz ) + ( rnd( k * 3.9 ) - 0.5 ) * 0.4, outfit: RAIL.police, seed: rnd( k * 6.1 + 3 ), flags: FLAG.cap, stout: rnd( k * 1.7 ) * 0.9, scale: 0.96 + rnd( k * 2.9 ) * 0.1, shown: false } ) );
+
+			}
 
 		}
 
@@ -133,7 +151,7 @@ export class Police {
 			w.sit.look[ 0 ] = w.i === 0 ? 0.9 * Math.max( 0, Math.sin( S.t * 0.05 ) ) : 0.5 * Math.sin( S.t * 0.2 + w.i * 2 );
 			w.stand.morph = 0.5 + 0.5 * Math.sin( S.t * 0.3 + w.i );
 			w.sit.wet = w.stand.wet = S.first ? S.rain * 0.8 : 0;
-			w.sit.flags = w.stand.flags = S.first && S.rain > 0.6 ? FLAG.hood : FLAG.cap;
+			w.sit.flags = w.stand.flags = S.first ? FLAG.hood : FLAG.cap;
 
 		}
 
@@ -143,6 +161,15 @@ export class Police {
 			f.morph = Math.max( 0, Math.sin( S.t * 0.013 + i * 2 ) );
 			f.look[ 0 ] = ( i ? 0.6 : - 0.6 ) * Math.max( 0, Math.sin( S.t * 0.09 + i ) );
 			f.wet = S.first ? S.rain * 0.8 : 0;
+
+		} );
+		// up on the visitors' dugout roof from the 8th on the 29th
+		const late = ! S.first && ( S.inning >= 8 || S.celebrate );
+		this.roof.forEach( ( f, i ) => {
+
+			f.shown = late;
+			f.morph = i % 3 === 1 ? 1 : 0;
+			f.look[ 0 ] = 0.4 * Math.sin( S.t * 0.11 + i * 1.3 );
 
 		} );
 		if ( ! this.line.length ) return;

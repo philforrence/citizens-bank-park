@@ -28,8 +28,8 @@ export const RAIL = {
 	batBoyRay: 5, // Rays bat boy: road greys, navy helmet
 	crew: 6, // grounds crew: red hooded rain jacket, khakis or navy rain pants
 	crewChief: 7, // the head groundskeeper's staff: red rain jacket, navy rain pants, red cap
-	security: 8, // event staff: yellow jacket, black trousers, black cap
-	police: 9, // Philadelphia police: navy jacket, navy trousers, the eight-point cap
+	security: 8, // event staff: royal-blue polo or jacket, blue cap, khakis (a blue poncho in the rain)
+	police: 9, // Philadelphia police: black jacket and trousers, the eight-point cap
 	kid: 10, // a kid at the front: red hoodie, jeans, a cap
 	fan: 11, // a grown-up fan at the front: by his seed
 	bikeCop: 12, // the police bike patrol: yellow hi-vis jacket, black trousers, bike helmet
@@ -819,8 +819,11 @@ function railMaterial() {
 	if ( o == 6 ) { torso = vec3f( 0.4, 0.022, 0.03 ); pants = select( vec3f( 0.3, 0.25, 0.16 ), vec3f( 0.02, 0.025, 0.06 ), h.y > 0.6 ); capC = red; rough = 0.4; shoe = select( vec3f( 0.08, 0.05, 0.03 ), vec3f( 0.015 ), h.z > 0.5 ); }
 	// the head groundskeeper's own: the red rain jacket, navy rain pants, the red cap (Getty 83884311)
 	if ( o == 7 ) { torso = vec3f( 0.42, 0.024, 0.032 ); pants = vec3f( 0.02, 0.025, 0.06 ); capC = red; rough = 0.35; shoe = vec3f( 0.015 ); }
-	if ( o == 8 ) { torso = vec3f( 0.62, 0.55, 0.02 ); pants = vec3f( 0.02 ); capC = vec3f( 0.015 ); hiVis = true; rough = 0.5; }
-	if ( o == 9 ) { torso = vec3f( 0.01, 0.013, 0.035 ); pants = vec3f( 0.012, 0.015, 0.04 ); capC = vec3f( 0.01, 0.012, 0.03 ); rough = 0.5; }
+	// event staff: royal-blue polo or jacket, blue cap, khakis (qparker71 2841666973); on the 27th a
+	// royal-blue hooded rain poncho over it (puffygreenjacket 2983578054)
+	if ( o == 8 ) { torso = vec3f( 0.02, 0.06, 0.32 ); pants = vec3f( 0.3, 0.25, 0.16 ); capC = vec3f( 0.02, 0.05, 0.25 ); rough = select( 0.7, 0.3, hood ); }
+	// Philadelphia police: black jacket and trousers, the black 8-point cap (a few the white one)
+	if ( o == 9 ) { torso = vec3f( 0.01, 0.012, 0.02 ); pants = vec3f( 0.012, 0.014, 0.025 ); capC = select( vec3f( 0.01, 0.012, 0.02 ), vec3f( 0.7, 0.7, 0.68 ), h.x > 0.75 ); rough = 0.5; }
 	// the police bike patrol: the yellow hi-vis jacket, black trousers, a black bike helmet
 	if ( o == 12 ) { torso = vec3f( 0.62, 0.55, 0.02 ); pants = vec3f( 0.015 ); capC = vec3f( 0.012 ); hiVis = true; helmet = true; rough = 0.45; }
 	if ( o == 10 ) { torso = red; pants = vec3f( 0.05, 0.08, 0.16 ); capC = red; rough = 0.85; }
@@ -927,6 +930,11 @@ function railMaterial() {
 		// (heston 2986442231)
 		c = select( vec3f( 0.02 ), vec3f( 0.25, 0.26, 0.27 ), h.x > 0.6 );
 		if ( o == 1 ) { c = select( vec3f( 0.035, 0.05, 0.025 ), vec3f( 0.3, 0.3, 0.29 ), h.x > 0.55 ); }
+		// the photographers': clear plastic, grey nylon or a camo sleeve (Getty 95648968)
+		if ( o == 0 && h.x <= 0.6 ) {
+			c = select( vec3f( 0.14, 0.14, 0.15 ), vec3f( 0.08, 0.07, 0.04 ) * ( 0.7 + 0.6 * step( 0.5, fract( sin( dot( floor( L.xz * 30.0 + L.y * 20.0 ), vec2f( 12.9, 78.2 ) ) ) * 43758.5 ) ) ), h.x > 0.35 );
+			rough = 0.6;
+		}
 		rough = 0.25;
 	}
 	if ( part == 14 ) { c = vec3f( 0.25 ); rough = 0.3; }

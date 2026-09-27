@@ -1,4 +1,4 @@
-import { Mesh, BufferGeometry, Float32BufferAttribute, CylinderGeometry, BoxGeometry, Color } from '../../../engine/index.js';
+import { Mesh, BufferGeometry, Float32BufferAttribute, CylinderGeometry, BoxGeometry, TorusGeometry, Color } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
 import { RAIL, FLAG } from './RailFigures.js';
 import { rnd, put, cable, stool, hardCase, rollerBag, laptop, pedestal } from './Props.js';
@@ -10,10 +10,12 @@ import { rnd, put, cable, stool, hardCase, rollerBag, laptop, pedestal } from '.
 // aimed at the plate, its sound man on a case with the mixer on his knees and the cans on.
 //
 // At each far end: FOX's low first / third base camera with its big box lens, then the photographers,
-// packed in: a front row on tall stools with the long glass (white Canons, black Nikons) on monopods
+// packed in (heston 2986442231 / 2986442413, Game 3; Getty 95648968, the same well in the 2009 Series'
+// rain): a front row on tall stools with the long glass (white Canons, black Nikons) on monopods
 // poked between the rails, a row standing behind shooting over their heads, one changing lenses, one
-// checking the back of his camera; hard cases, rolling bags, a laptop moving pictures to the desk, a
-// coffee on the ledge; on the 27th the cameras in their rain covers and the men in their hoods.
+// checking the back of his camera; hard cases, rolling bags, a laptop moving pictures to the desk (ours:
+// no photo shows one), a coffee on the ledge, coils of cable; on the 27th the cameras in their rain
+// covers and the men in their hoods.
 //
 // Invented, where the record is silent (their names are ours):
 //   - Ed, the AP's veteran, grey beard and a watch cap, his tenth Series, on the stool nearest home
@@ -86,6 +88,17 @@ export class Wells {
 			put( group, new CylinderGeometry( 0.06, 0.06, 0.34, 10 ), M.white, P( len - 3.1, 2.2, FLOOR + 0.3 + 0.17 ), 0 );
 			put( group, new CylinderGeometry( 0.045, 0.035, 0.13, 10 ), M.paper, P( len - 1.5, 2.1, FLOOR + 0.3 + 0.065 ), 0 );
 			put( group, new CylinderGeometry( 0.048, 0.048, 0.012, 10 ), M.red, P( len - 1.5, 2.1, FLOOR + 0.3 + 0.13 ), 0 );
+			// coils of orange and yellow extension cord in the corner, an Anvil road case, and at the
+			// well's end a yellow cable crossover down onto the track (Getty 83571199, the 29th)
+			for ( const [ mat, s, t ] of [ [ M.orange, len - 0.45, 2.3 ], [ M.yellow, len - 0.5, 1.4 ] ] ) {
+
+				for ( let k = 0; k < 7; k ++ ) put( group, new TorusGeometry( 0.2 + 0.015 * rnd( k + s ), 0.011, 5, 20 ), mat, P( s + ( rnd( k * 3 + s ) - 0.5 ) * 0.05, t + ( rnd( k * 5 + t ) - 0.5 ) * 0.05, FLOOR + 0.012 + k * 0.02 ), 0, { rx: Math.PI / 2 + ( rnd( k ) - 0.5 ) * 0.15 } );
+
+			}
+
+			put( group, new BoxGeometry( 0.62, 0.48, 0.46 ), M.case, P( len - 2.5, 1.2, FLOOR + 0.24 ), face + 0.1, { shadow: true } );
+			for ( const dy of [ 0.01, 0.47 ] ) put( group, new BoxGeometry( 0.64, 0.025, 0.48 ), M.metal, P( len - 2.5, 1.2, FLOOR + dy ), face + 0.1 );
+			put( group, new BoxGeometry( 0.5, 0.05, 0.9 ), M.yellow, P( len - 0.45, - 0.35, 0.025 ), face );
 
 		}
 
@@ -188,7 +201,7 @@ export class Wells {
 		const seed = veteran ? 0.901 : inquirer ? 0.207 : rnd( k * 5.3 );
 		const f = this.figs.add( kind, { ...xyz( p ), yaw: face, outfit: RAIL.photog, flags, seed, stout: rnd( k * 2.1 ) * 0.8, scale: 0.94 + rnd( k * 4.4 ) * 0.12 } );
 		this.photogs.push( {
-			f, x: p[ 0 ], z: p[ 2 ], face, base: flags, hoodie: rnd( k * 6.6 ) < 0.45,
+			f, x: p[ 0 ], z: p[ 2 ], face, base: flags, hoodie: rnd( k * 6.6 ) < 0.45, keepCover: rnd( k * 4.9 ) < 0.35,
 			// his subject between the plays: the plate or the mound
 			subject: rnd( k * 8.8 ) < 0.65 ? [ 0, - 0.2 ] : [ 0, - 18.3 ],
 			lag: 0.4 + rnd( k * 1.9 ) * 0.8, phase: rnd( k * 7.7 ) * 40, changer, sit: kind === 'photoSit',
@@ -255,7 +268,8 @@ export class Wells {
 			// his head: down at the camera's back when he's checking it
 			f.look[ 1 ] = p.sit ? f.morph * 0.35 : p.changer ? 0.45 : f.morph * 0.1;
 			// the 27th: rain covers on the glass, hoods up on some
-			f.flags = p.base | wetFlags | ( S.first && p.hoodie ? FLAG.hood : 0 );
+			// (some keep the clear bag on the 29th too: it's cold and blowing, and it's on: Getty 83571199)
+			f.flags = p.base | wetFlags | ( p.keepCover ? FLAG.cover : 0 ) | ( S.first && p.hoodie ? FLAG.hood : 0 );
 			if ( S.first && p.hoodie ) f.flags &= ~ ( FLAG.cap | FLAG.beanie );
 			f.wet = S.first ? S.rain * 0.9 : 0;
 

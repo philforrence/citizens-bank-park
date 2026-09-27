@@ -60,6 +60,7 @@ export function railMaterials() {
 		nylon: mk( 'rail-nylon', [ 0.05, 0.052, 0.058 ], 0.85 ),
 		cable: mk( 'rail-cable', [ 0.01, 0.01, 0.01 ], 0.5 ),
 		orange: mk( 'rail-orange', [ 0.7, 0.2, 0.02 ], 0.5 ),
+		yellow: mk( 'rail-yellow', [ 0.75, 0.55, 0.02 ], 0.5 ),
 		white: mk( 'rail-white', [ 0.74, 0.73, 0.7 ], 0.55 ),
 		paper: mk( 'rail-paper', [ 0.8, 0.79, 0.75 ], 0.8 ),
 		wood: mk( 'rail-wood', [ 0.45, 0.3, 0.16 ], 0.45 ),
