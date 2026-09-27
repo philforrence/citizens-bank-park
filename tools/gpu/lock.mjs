@@ -18,7 +18,8 @@
 // stale, and the head breaks it, when its pid has died or it has been held past its --max (default 180 s).
 // A ticket is dropped when its pid has died or it hasn't been refreshed for 30 s (a waiter refreshes its
 // ticket every poll). --exclusive (for profiling) holds up to 20 min and, before starting, waits (up to 2
-// min) until no headless Chrome outside the lock is running, so the numbers are honest. Every take and release is
+// min) until no headless Chrome outside the lock is running, so the numbers are honest (a Chrome under
+// the holder or under a process waiting in the queue takes part, and isn't waited for). Every take and release is
 // logged to /tmp/gpu-render.log. GPU_LOCK_DIR moves all three (tests).
 import { mkdirSync, rmSync, readFileSync, writeFileSync, readdirSync, utimesSync, statSync, appendFileSync, renameSync } from 'node:fs';
 import { spawn, execFileSync } from 'node:child_process';
@@ -141,7 +142,9 @@ function tickets() {
 
 }
 
-// headless Chromes not started under this lock (the other sessions' renderers): --exclusive waits for them
+// headless Chromes outside the lock (renderers that don't take part): --exclusive waits for them. A
+// Chrome under the holder, or under anyone waiting in the queue, takes part: it isn't drawing (it's
+// waiting its turn), so it's not waited for
 function foreignChromes() {
 
 	let ps = '';
@@ -155,10 +158,10 @@ function foreignChromes() {
 
 	}
 
-	const mine = holder();
+	const members = [ holder()?.pid, ...tickets().map( ( t ) => t.pid ) ].filter( Boolean );
 	// the browser processes (not their helpers) of headless Chromes
 	return ps.split( '\n' ).filter( ( l ) => /--headless/.test( l ) && /chrom/i.test( l ) && ! /--type=/.test( l ) )
-		.map( ( l ) => Number( l.trim().split( /\s+/ )[ 0 ] ) ).filter( ( pid ) => ! mine || ! descendantOf( pid, mine.pid ) );
+		.map( ( l ) => Number( l.trim().split( /\s+/ )[ 0 ] ) ).filter( ( pid ) => ! members.some( ( m ) => descendantOf( pid, m ) ) );
 
 }
 

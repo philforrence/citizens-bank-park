@@ -119,6 +119,46 @@ export class QA {
 
 	}
 
+	// GPU time per frame and the costliest passes (timestamp queries, captured as core/Bench.js does):
+	// `warm` frames to settle, then `frames` measured back to back, the replay paused. For the
+	// coordinator, under the GPU lock's exclusive mode (a desk job with "exclusive": true): with anything
+	// else rendering the numbers are noise.
+	async profile( { frames = 120, warm = 40, dt = 1 / 60, top = 14 } = {} ) {
+
+		const { Bench } = await import( '../core/Bench.js' );
+		const b = this._bench || ( this._bench = new Bench( this.app ) );
+		if ( ! b.enabled ) return { error: 'no timestamp queries on this GPU' };
+		const d = this.app.director, was = d?.playing;
+		if ( d ) d.playing = false;
+		try {
+
+			await b._frames( warm, dt );
+			b.frames = [];
+			b._capture = true;
+			const t0 = performance.now();
+			await b._frames( frames, dt );
+			const wall = ( performance.now() - t0 ) / frames;
+			b._capture = false;
+			for ( let k = 0; k < 50 && b.frames.length < frames; k ++ ) await new Promise( ( r ) => setTimeout( r, 20 ) );
+			const fs = b.frames.slice();
+			const gpus = fs.map( ( f ) => f.gpu ).sort( ( x, y ) => x - y );
+			const passes = new Map();
+			for ( const f of fs ) for ( const [ k, v ] of f.passes ) passes.set( k, ( passes.get( k ) || 0 ) + v / fs.length );
+			const r2 = ( v ) => Math.round( v * 100 ) / 100;
+			return {
+				gpu: r2( gpus.reduce( ( x, y ) => x + y, 0 ) / gpus.length ), gpuMedian: r2( gpus[ gpus.length >> 1 ] ), wall: r2( wall ), cpu: r2( this.app.cpuMs ), frames: fs.length,
+				passes: Object.fromEntries( [ ...passes ].sort( ( x, y ) => y[ 1 ] - x[ 1 ] ).slice( 0, top ).map( ( [ k, v ] ) => [ k, r2( v ) ] ) ),
+			};
+
+		} finally {
+
+			b._capture = false;
+			if ( d ) d.playing = was;
+
+		}
+
+	}
+
 	// what was built and how long it took
 	info() {
 

@@ -26,7 +26,10 @@
 //       "look": [ [ 12, 1.6, 30 ], [ 0, 1, 0 ], 50 ],  ... or eye, target (field frame) and fov
 //       "js": "__app.bowl.group.visible = false",  anything else first (its value is in the result)
 //       "frames": 32,                           frames rendered before the shot (QA.still)
-//       "format": "jpg"                         jpg (default) or png
+//       "format": "jpg",                        jpg (default) or png
+//       "cpuprofile": { "frames": 60 }          a CPU profile of that many more frames: the costliest
+//                                               functions per frame in the result, the profile itself
+//                                               beside the image (open it in DevTools)
 //     } ]
 //   }
 //
@@ -409,6 +412,28 @@ class Desk {
 
 				}, s ) );
 				if ( value !== null ) result.values[ name ] = value;
+				// where the CPU's time goes in a frame: a sampled profile of more frames (saved for DevTools)
+				if ( s.cpuprofile ) {
+
+					const cdp = await page.createCDPSession();
+					await cdp.send( 'Profiler.enable' );
+					await cdp.send( 'Profiler.setSamplingInterval', { interval: 200 } );
+					await cdp.send( 'Profiler.start' );
+					const n = s.cpuprofile.frames || 60;
+					const ms = await page.evaluate( async ( n ) => {
+
+						const t0 = performance.now();
+						await window.__qa.still( { frames: n, cut: false } );
+						return ( performance.now() - t0 ) / n;
+
+					}, n );
+					const { profile } = await cdp.send( 'Profiler.stop' );
+					await cdp.detach();
+					writeFileSync( join( out, `${ name }.cpuprofile` ), JSON.stringify( profile ) );
+					result.values[ name + ':cpu' ] = { msPerFrame: Math.round( ms * 100 ) / 100, ...summarizeProfile( profile, n, s.cpuprofile.top || 25 ) };
+
+				}
+
 				const fmt = s.format === 'png' ? 'png' : 'jpeg';
 				const path = join( out, `${ name }.${ fmt === 'png' ? 'png' : 'jpg' }` );
 				await page.screenshot( fmt === 'png' ? { path } : { path, type: 'jpeg', quality: 85 } );
@@ -445,6 +470,43 @@ class Desk {
 		return result;
 
 	}
+
+}
+
+// a CPU profile's costliest functions, in ms per frame: by self time and by total (inclusive) time
+function summarizeProfile( profile, frames, top ) {
+
+	const byId = new Map( profile.nodes.map( ( n ) => [ n.id, n ] ) );
+	const parent = new Map();
+	for ( const n of profile.nodes ) for ( const c of n.children || [] ) parent.set( c, n.id );
+	const key = ( n ) => {
+
+		const f = n.callFrame;
+		return `${ f.functionName || '(anonymous)' } ${ ( f.url || '' ).split( '/' ).pop().split( '?' )[ 0 ] }:${ f.lineNumber + 1 }`;
+
+	};
+	const self = new Map(), total = new Map();
+	const skip = /^\((root|program|idle|garbage collector)\)/;
+	for ( let i = 0; i < profile.samples.length; i ++ ) {
+
+		const dt = ( profile.timeDeltas[ i + 1 ] ?? 0 ) / 1000;
+		let id = profile.samples[ i ];
+		const k0 = key( byId.get( id ) );
+		self.set( k0, ( self.get( k0 ) || 0 ) + dt );
+		const seen = new Set();
+		for ( ; id !== undefined; id = parent.get( id ) ) {
+
+			const k = key( byId.get( id ) );
+			if ( seen.has( k ) ) continue;
+			seen.add( k );
+			total.set( k, ( total.get( k ) || 0 ) + dt );
+
+		}
+
+	}
+
+	const list = ( m ) => Object.fromEntries( [ ...m ].filter( ( [ k ] ) => ! skip.test( k ) ).sort( ( a, b ) => b[ 1 ] - a[ 1 ] ).slice( 0, top ).map( ( [ k, v ] ) => [ k, Math.round( v / frames * 100 ) / 100 ] ) );
+	return { self: list( self ), total: list( total ), gc: Math.round( ( self.get( '(garbage collector) :0' ) || 0 ) / frames * 100 ) / 100 };
 
 }
 
