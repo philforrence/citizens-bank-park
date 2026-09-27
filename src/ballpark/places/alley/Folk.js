@@ -433,9 +433,10 @@ function build( pose ) {
 	};
 
 	const pelvis = J( 'pelvis', 1 ), chest = J( 'chest', 1 ), neck = J( 'neck', 1 );
-	tube( add( pelvis, [ 0, - 0.06, 0 ] ), chest, [ 0.17, 0.12 ], [ 0.2, 0.125 ], PART.top, 8, true );
-	tube( chest, neck, [ 0.2, 0.125 ], [ 0.065, 0.058 ], PART.top, 8 );
-	tube( J( 'shoulder', - 1 ), J( 'shoulder', 1 ), [ 0.072, 0.072 ], [ 0.072, 0.072 ], PART.top, 6, true, true );
+	tube( add( pelvis, [ 0, - 0.06, 0 ] ), chest, [ 0.17, 0.12 ], [ 0.2, 0.125 ], PART.top, 10, true );
+	tube( chest, neck, [ 0.2, 0.125 ], [ 0.065, 0.058 ], PART.top, 10 );
+	// (the shoulders' yoke slimmer, and rounder bodies, so up close they read less like boxes)
+	tube( J( 'shoulder', - 1 ), J( 'shoulder', 1 ), [ 0.058, 0.062 ], [ 0.058, 0.062 ], PART.top, 8, true, true );
 	tube( neck, add( neck, [ 0, 0.07, 0 ] ), [ 0.056, 0.05 ], [ 0.05, 0.048 ], PART.skin, 6 );
 	// a coat's (or a poncho's) skirt from the hips to the knees: collapsed in the shader for everyone else
 	const knees = mul( add( J( 'knee', 1 ), J( 'knee', - 1 ) ), 0.5 );

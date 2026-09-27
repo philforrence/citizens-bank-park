@@ -256,6 +256,34 @@ export class Cast {
 
 		}
 
+		// the 27th: the rain drives them in under the stands' canopies, two and three together between the
+		// counters' lines, on the phone, stamping their feet, waiting it out
+		for ( let x = - 58.5; x < 58; x += 5.1 + r() * 3 ) {
+
+			if ( x > - 9 && x < 3 ) continue; // the gap by the statue: no canopy
+			for ( let k = 0; k < 2 + Math.floor( r() * 2 ); k ++ ) {
+
+				const p = add( r() < 0.3 ? 'photo' : 'pockets', { x: x + k * 0.55, z: zFront + 0.75 + r() * 0.4, yaw: ( r() - 0.5 ) * 2.4 }, fan( r, { poncho: r() < 0.5 } ), { nights: 1, k: 1 } );
+				p.role = 'huddle';
+
+			}
+
+		}
+
+		// the 29th's last out: strangers in the middle of the walk hugging, arms up, jumping (shown then)
+		for ( let i = 0; i < 18; i ++ ) {
+
+			const x = - 52 + i * 6.2 + ( r() - 0.5 ) * 2, z = zFront + 4.2 + ( r() - 0.5 ) * 3;
+			if ( Math.abs( x + 2 ) < 3 ) continue;
+			for ( const k of [ 0, 1 ] ) {
+
+				const p = add( 'cheer', { x: x + k * 0.5, z, yaw: k ? Math.PI / 2 + 0.3 : - Math.PI / 2 - 0.3 }, fan( r ), { nights: 2, k: 1 } );
+				p.role = 'party';
+
+			}
+
+		}
+
 		// the ball: a Rays bullpen catcher tosses one up to Danny between halves on the 29th
 		this.ball = new Mesh( new SphereGeometry( 0.037, 10, 8 ), standard( { name: 'alley-toss-ball', color: new Color( 0.8, 0.79, 0.75 ), roughness: 0.5 } ) );
 		this.ball.userData.dynamic = true;
@@ -305,7 +333,7 @@ export class Cast {
 		const jump = ( p ) => Math.max( 0, Math.sin( now * 7 + p.seed * 30 ) ) * 0.14;
 		for ( const p of this.people ) {
 
-			p.visible = ( p.nights & night ) !== 0 && ! ( leaving > 0 && p.seed < leaving * 0.8 && p.role !== 'walt' && p.role !== 'heckler' );
+			p.visible = ( p.nights & night ) !== 0 && ! ( leaving > 0 && p.seed < leaving * 0.8 && p.role !== 'walt' && p.role !== 'heckler' ) && ( p.role !== 'party' || cel );
 			if ( ! p.visible ) continue;
 			p.y = p.base.y;
 			const excited = cel ? 1 : phillies ? Math.max( 0, 1 - since / 9 ) : 0;
@@ -402,7 +430,9 @@ export class Cast {
 
 		// the walkers
 		for ( const p of this.walkers ) {
-
+			// at the last out they stop where they are (the party takes over: this.party)
+			if ( cel ) p.visible = false;
+			if ( ! p.visible ) continue;
 			if ( ! p.visible ) continue;
 			const W = p.walk;
 			// the suspension: everyone heads for the gates (toward left field)

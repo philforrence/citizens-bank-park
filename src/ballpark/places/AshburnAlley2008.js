@@ -67,9 +67,10 @@ export default class AshburnAlley2008 {
 			// (the funnel cake stand by the clock's pylons and the statue, as the research found it)
 			carts: [ [ - 40.5, - 132.5, 0 ], [ - 28.5, - 132.5, 1 ], [ - 16.5, - 132.8, 2 ], [ 42.5, - 132.5, 3 ], [ - 4.5, - 135.4, 4 ] ],
 			cans: [ [ - 51, zf + 1.3 ], [ - 37, zf + 1.3 ], [ - 25.3, zf + 1.3 ], [ 11.3, zf + 1.3 ], [ 20.7, zf + 1.3 ], [ 44, zf + 1.3 ], [ 52, zf + 1.3 ], [ - 60, - 133 ], [ 28, - 131.5 ] ],
-			atm: [ 32.8, zf + 1.7 ], gamesAt: [ 63.3, zf + 0.9 ],
+			atm: [ 31.4, zf + 1.4 ], gamesAt: [ 63.3, zf + 0.9 ],
 		} );
 		this._bleacherFans();
+		this._roofStair();
 		this.folk.build();
 
 	}
@@ -82,6 +83,60 @@ export default class AshburnAlley2008 {
 		this.floor = promenade( this.group, { pit: this.bowl.pit, x0: X0, x1: X1, zBack: this.zFront, lamps: L?.alleyLamps || [], counters, plaza: [ - 62.3, - 146.4 ] } );
 		// the All-Star Walk's granite markers down the middle of it (clear of the statue)
 		this.allStars = allStarWalk( this.group, { z: this.zFront + 4.6, x0: - 60, x1: 58, avoid: [ [ - 4, 0 ] ] } );
+
+	}
+
+	// ---------------------------------------------------------------- up to the roof
+
+	// The steel stair up to the rooftop bleachers (the 2008 photos: maroon stringers, galvanized rails,
+	// climbing beside the buildings in right-center, the green ATM at its foot): here in the gap between
+	// the two buildings, from the Alley up the gap's depth to a landing onto the bleachers' back row.
+	_roofStair() {
+
+		const x0 = 33.3, x1 = 35.1, zTop = - 150.2, n = 27, rise = 4.65 / n, run = ( zTop - this.zFront ) / n; // run < 0 (toward -z)
+		const q = new Quads(), rq = new Quads();
+		const steel = standard( { name: 'roof-stair-steel', color: new Color( 0.12, 0.03, 0.03 ), roughness: 0.6, metalness: 0.4 } );
+		const treadMat = standard( { name: 'roof-stair-treads', color: new Color( 0.32, 0.33, 0.34 ), roughness: 0.6, metalness: 0.6 } );
+		for ( const m of [ steel, treadMat ] ) m.underwaterLighting = 'none';
+		const tq = new Quads();
+		for ( let k = 1; k <= n; k ++ ) {
+
+			const y = STREET + k * rise, z0 = this.zFront + ( k - 1 ) * run, z1 = z0 + run;
+			tq.add( [ x0, y, z0 ], [ x1, y, z0 ], [ x1, y, z1 ], [ x0, y, z1 ], [ 0, 1, 0 ] );
+			tq.add( [ x0, y - 0.04, z0 ], [ x1, y - 0.04, z0 ], [ x1, y, z0 ], [ x0, y, z0 ], [ 0, 0, 1 ] );
+			const w = this.field.toWorld( ( x0 + x1 ) / 2, ( z0 + z1 ) / 2 );
+			this.colliders.addBox( new Vector3( w.x, this.field.y0 + y - 0.1, w.z ), new Vector3( ( x1 - x0 ) / 2, 0.1, Math.abs( run ) / 2 ), this.field.group.rotation.y, { tag: 'roof-stair', walkable: true } );
+
+		}
+
+		// the landing across to the bleachers' building, and the stringers, posts and rails
+		const yT = STREET + 4.65;
+		tq.add( [ x0, yT, zTop ], [ 36.2, yT, zTop ], [ 36.2, yT, zTop - 0.3 ], [ x0, yT, zTop - 0.3 ], [ 0, 1, 0 ] );
+		tq.add( [ x0, yT, zTop + 1.2 ], [ 36.2, yT, zTop + 1.2 ], [ 36.2, yT, zTop ], [ x0, yT, zTop ], [ 0, 1, 0 ] );
+		for ( const x of [ x0 - 0.05, x1 + 0.05 ] ) {
+
+			beam( q, [ x, STREET, this.zFront ], [ x, yT, zTop ], 0.1 );
+			beam( rq, [ x, STREET + 0.95, this.zFront ], [ x, yT + 0.95, zTop ], 0.05 );
+			for ( let k = 0; k <= n; k += 4 ) {
+
+				const y = STREET + k * rise, z = this.zFront + k * run;
+				beam( rq, [ x, y, z ], [ x, y + 0.95, z ], 0.045 );
+
+			}
+
+		}
+
+		beam( q, [ 36.2, yT - 0.2, zTop + 1.2 ], [ x0, yT - 0.2, zTop + 1.2 ], 0.12 );
+		beam( rq, [ x0, yT + 0.95, zTop + 1.2 ], [ 36.1, yT + 0.95, zTop + 1.2 ], 0.05 );
+		for ( const [ g, m, name ] of [ [ q, steel, 'roof-stair' ], [ rq, this.galv, 'roof-stair-rails' ], [ tq, treadMat, 'roof-stair-treads' ] ] ) {
+
+			const mesh = new Mesh( g.geometry(), m );
+			mesh.name = name;
+			mesh.castShadow = true;
+			mesh.receiveShadow = true;
+			this.group.add( mesh );
+
+		}
 
 	}
 

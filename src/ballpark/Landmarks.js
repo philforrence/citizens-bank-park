@@ -1143,8 +1143,9 @@ export class Landmarks {
 		const fm = standard( { name: 'clock-face', roughness: 0.5, textures: { bpClock: face }, surface: 'let t = textureSample( bpClock, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.85; s.emissive = t * 0.5 * frame.night;' } );
 		const sm = standard( { name: 'clock-sign', roughness: 0.4, alphaTest: 0.5, textures: { bpSign: mab }, surface: 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ); s.albedo = t.rgb * 0.85; s.alpha = t.a; s.emissive = t.rgb * 0.45 * frame.night;' } );
 		for ( const m of [ fm, sm ] ) m.underwaterLighting = 'none';
-		const pier = new Mesh( new BoxGeometry( 4, 5, 3 ), brick );
-		pier.position.set( x, y + 2.5, z );
+		// (the pier a brick pylon standing on the Alley in the gap between the buildings, up past the roofs)
+		const pier = new Mesh( new BoxGeometry( 4, y + 5 - STREET, 3 ), brick );
+		pier.position.set( x, ( STREET + y + 5 ) / 2, z );
 		this.group.add( pier );
 		// the truss: four posts, girts and X bracing from the pier up to the face
 		const S = 4.6, fy = y + 10.2, fz = z + 0.4;
