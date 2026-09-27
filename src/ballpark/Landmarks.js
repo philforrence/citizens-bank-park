@@ -1187,23 +1187,18 @@ export class Landmarks {
 
 	// Behind the center field fence from Monty's Angle to 401: ivy over the brick up to Ashburn Alley, and
 	// a bed of evergreens at its foot.
+	// The batter's eye in 2008: three overlapping terracotta brick walls stepping up toward center (the
+	// left one low, the middle one tallest, the right one set back), three big ragged masses of ivy on
+	// them, a bed of rounded boxwood and juniper at their foot, a cast-stone cap. From behind the 409 corner
+	// to right-center; the pit's wall either side is plain brick.
 	_battersEye() {
 
-		const ivy = standard( {
-			name: 'ivy', color: new Color( 0.022, 0.06, 0.025 ), roughness: 0.92, modules: [ commonModule ],
-			surface: /* wgsl */`
-	let p = in.P;
-	let n = mx_noise_float3( p * 2.3 ) * 0.5 + mx_noise_float3( p * 7.1 ) * 0.3 + mx_noise_float3( p * 0.6 ) * 0.4;
-	s.albedo = mat.color * ( 0.75 + 0.6 * n );
-	s.normal = normalize( in.N + vec3f( mx_noise_float3( p * 9.0 ), mx_noise_float3( p * 9.0 + 3.1 ), mx_noise_float3( p * 9.0 + 7.7 ) ) * 0.35 );
-`,
-		} );
-		const shrub = standard( { name: 'evergreens', color: new Color( 0.02, 0.06, 0.025 ), roughness: 0.9, modules: [ commonModule ],
-			surface: 's.albedo = mat.color * ( 0.7 + 0.6 * mx_noise_float3( in.P * 3.0 ) );' } );
-		for ( const m of [ ivy, shrub ] ) m.underwaterLighting = 'none';
-		// the same line the pit's wall takes there (Bowl: 7 m behind the fence from 387 to 401)
 		const line = offsetPolyline( this.bowl._fenceLine( 3, 8 ), 7 - 0.12, [ 0, 0 ] );
-		const q = new Quads();
+		const deg = ( x, z ) => Math.atan2( x, - z ) * 180 / Math.PI;
+		const topAt = ( d ) => d < - 5 || d > 8 ? STREET : d < - 1 ? STREET + 0.9 : d < 5 ? STREET + 2.8 : STREET + 2.2;
+		const q = new Quads(), cap = new Quads(), bush = [];
+		let u = 0;
+		const ivyAt = [];
 		for ( let i = 0; i < line.length - 1; i ++ ) {
 
 			const [ ax, az ] = line[ i ], [ bx, bz ] = line[ i + 1 ];
@@ -1216,40 +1211,98 @@ export class Landmarks {
 
 			}
 
-			q.add( [ ax, 0, az ], [ bx, 0, bz ], [ bx, STREET, bz ], [ ax, STREET, az ], [ nx, 0, nz ] );
-			// a stand of evergreens and junipers at the foot of the wall: irregular heights and shapes, a few
-			// tall spruces among low spreading junipers, stacked tiers of cones leaning a little
-			const n = Math.floor( len / 1.9 );
+			const n = Math.max( 1, Math.ceil( len ) );
 			for ( let k = 0; k < n; k ++ ) {
 
-				const r1 = Math.abs( Math.sin( ( ax + k * 7.1 ) * 12.9898 + az * 3.3 ) * 43758.5453 ) % 1, r2 = Math.abs( Math.sin( ( k + 1 ) * 78.233 + ax ) * 12543.21 ) % 1;
-				const t = ( k + 0.3 + 0.4 * r2 ) / n;
-				const off = 0.9 + 1.4 * r1;
-				const x = ax + ( bx - ax ) * t + nx * off, z = az + ( bz - az ) * t + nz * off;
-				const tall = r1 > 0.72;
-				const h = tall ? 4.2 + 1.6 * r2 : 1.4 + 1.6 * r2;
-				const rad = tall ? 1.1 + 0.3 * r2 : 1.0 + 0.7 * r1;
-				const tiers = tall ? 4 : 2;
-				for ( let j = 0; j < tiers; j ++ ) {
+				const t0 = k / n, t1 = ( k + 1 ) / n;
+				const x0 = ax + ( bx - ax ) * t0, z0 = az + ( bz - az ) * t0, x1 = ax + ( bx - ax ) * t1, z1 = az + ( bz - az ) * t1;
+				const d = deg( ( x0 + x1 ) / 2, ( z0 + z1 ) / 2 ), top = topAt( d );
+				// the right wall stands a little back
+				const back = d >= 5 && d <= 8 ? - 0.6 : 0;
+				const X0 = x0 - nx * back, Z0 = z0 - nz * back, X1 = x1 - nx * back, Z1 = z1 - nz * back;
+				q.add( [ X0, 0, Z0 ], [ X1, 0, Z1 ], [ X1, top, Z1 ], [ X0, top, Z0 ], [ nx, 0, nz ], u + len * t0, u + len * t1 );
+				if ( top > STREET ) {
 
-					const f = j / tiers;
-					const c = new Mesh( new ConeGeometry( rad * ( 1 - f * 0.55 ), h * ( 0.6 - f * 0.12 ), 9 ), shrub );
-					c.position.set( x + ( r2 - 0.5 ) * 0.2 * j, h * ( 0.3 + f * 0.55 ), z + ( r1 - 0.5 ) * 0.2 * j );
-					c.rotation.set( ( r1 - 0.5 ) * 0.12, r2 * 6.28, ( r2 - 0.5 ) * 0.12 );
-					c.castShadow = true;
-					c.receiveShadow = true;
-					this.group.add( c );
+					cap.add( [ X0 + nx * 0.05, top, Z0 + nz * 0.05 ], [ X1 + nx * 0.05, top, Z1 + nz * 0.05 ], [ X1 - nx * 0.6, top, Z1 - nz * 0.6 ], [ X0 - nx * 0.6, top, Z0 - nz * 0.6 ], [ 0, 1, 0 ] );
+					cap.add( [ X0 + nx * 0.05, top - 0.3, Z0 + nz * 0.05 ], [ X1 + nx * 0.05, top - 0.3, Z1 + nz * 0.05 ], [ X1 + nx * 0.05, top, Z1 + nz * 0.05 ], [ X0 + nx * 0.05, top, Z0 + nz * 0.05 ], [ nx, 0, nz ] );
+
+				}
+
+				// the shrub bed at its foot
+				if ( d > - 6 && d < 9 && k % 2 === 0 ) {
+
+					const r = Math.abs( Math.sin( ( x0 + k ) * 12.9898 + z0 * 3.3 ) * 43758.5453 ) % 1;
+					bush.push( [ ( x0 + x1 ) / 2 + nx * ( 0.9 + 0.8 * r ), ( z0 + z1 ) / 2 + nz * ( 0.9 + 0.8 * r ), 0.6 + 0.6 * r, 1.2 + 1.3 * ( ( r * 7.3 ) % 1 ) ] );
 
 				}
 
 			}
 
+			// where the three ivy masses hang (u along the wall): the sample nearest each one's bearing
+			[ [ - 2.5, 7 ], [ 1.5, 9 ], [ 6.2, 7 ] ].forEach( ( [ dd, w ], j ) => {
+
+				for ( let k = 0; k < n * 4; k ++ ) {
+
+					const t = ( k + 0.5 ) / ( n * 4 ), x = ax + ( bx - ax ) * t, z = az + ( bz - az ) * t;
+					const e = Math.abs( deg( x, z ) - dd );
+					if ( ( ! ivyAt[ j ] || e < ivyAt[ j ][ 3 ] ) && topAt( deg( x, z ) ) > STREET ) ivyAt[ j ] = [ u + len * t, w, topAt( deg( x, z ) ) - 0.8, e ];
+
+				}
+
+			} );
+
+			u += len;
+
 		}
 
-		const m = new Mesh( q.geometry(), ivy );
-		m.name = 'batters-eye-ivy';
+		const masses = [ 0, 1, 2 ].map( ( j ) => ivyAt[ j ] || [ - 1000, 1, 0 ] );
+		const brick = standard( {
+			name: 'batters-eye-brick', color: new Color( 0.33, 0.1, 0.065 ), roughness: 0.85, modules: [ commonModule ],
+			surface: /* wgsl */`
+	let u = in.uv.x; let v = in.uv.y;
+	let row = floor( v / 0.075 );
+	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
+	let fr = clamp( fwidth( v ) / 0.075 * 1.5 - 0.25, 0.0, 1.0 );
+	let fb = clamp( fwidth( bu ) * 1.5 - 0.25, 0.0, 1.0 );
+	let mortar = clamp( mix( step( 0.88, fract( v / 0.075 ) ), 0.12, fr ) + mix( step( 0.93, fract( bu ) ), 0.07, max( fb, fr ) ), 0.0, 1.0 );
+	let tone = mix( 0.82 + 0.3 * fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 ), 0.97, max( fr, fb ) );
+	var c = mix( mat.color * tone, vec3f( 0.5, 0.44, 0.38 ), mortar * 0.8 );
+	// a control joint every 4.5 m
+	c = c * ( 1.0 - 0.25 * step( 0.99, fract( u / 4.5 ) ) );
+	// the ivy: three masses, their edges ragged
+	var ivy = 0.0;
+	${ masses.map( ( [ mu, mw, mtop ] ) => `ivy = max( ivy, smoothstep( 1.0, 0.8, length( vec2f( ( u - ${ mu.toFixed( 2 ) } ) / ${ ( mw / 2 ).toFixed( 2 ) }, ( v - ${ ( ( mtop ) / 2 ).toFixed( 2 ) } ) / ${ ( mtop / 2 + 0.4 ).toFixed( 2 ) } ) ) + ( mx_noise_float2( vec2f( u, v ) * 0.8 ) - 0.1 ) * 0.5 ) );` ).join( '\n\t' ) }
+	let leaf = 0.7 + 0.5 * mx_noise_float3( in.P * 6.0 ) + 0.25 * mx_noise_float3( in.P * 1.3 );
+	c = mix( c, mix( vec3f( 0.035, 0.07, 0.022 ), vec3f( 0.1, 0.14, 0.05 ), smoothstep( 0.3, 1.0, leaf ) ) * leaf, ivy );
+	s.albedo = c;
+	s.roughness = mix( 0.85, 0.7, ivy );
+	if ( ivy > 0.5 ) { s.normal = normalize( in.N + vec3f( mx_noise_float3( in.P * 9.0 ), mx_noise_float3( in.P * 9.0 + 3.1 ), mx_noise_float3( in.P * 9.0 + 7.7 ) ) * 0.4 ); }
+	// under the lights: the spill from the banks
+	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.3;
+`,
+		} );
+		const stone = standard( { name: 'batters-eye-cap', color: new Color( 0.5, 0.44, 0.36 ), roughness: 0.7 } );
+		const shrub = standard( { name: 'boxwood', color: new Color( 0.03, 0.06, 0.025 ), roughness: 0.9, modules: [ commonModule ],
+			surface: 's.albedo = mat.color * ( 0.7 + 0.6 * mx_noise_float3( in.P * 3.0 ) ); s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.25;' } );
+		for ( const m of [ brick, stone, shrub ] ) m.underwaterLighting = 'none';
+		const m = new Mesh( q.geometry(), brick );
+		m.name = 'batters-eye';
 		m.receiveShadow = true;
+		m.castShadow = true;
 		this.group.add( m );
+		this.group.add( new Mesh( cap.geometry(), stone ) );
+		// rounded clumps: boxwood low in front, juniper taller behind
+		const clump = new SphereGeometry( 1, 12, 8 );
+		for ( const [ x, z, r, h ] of bush ) {
+
+			const c = new Mesh( clump, shrub );
+			c.position.set( x, h * 0.45, z );
+			c.scale.set( r * 1.3, h * 0.55, r * 1.3 );
+			c.castShadow = true;
+			c.receiveShadow = true;
+			this.group.add( c );
+
+		}
 
 	}
 
