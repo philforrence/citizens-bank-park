@@ -46,6 +46,7 @@ import { GameHUD } from './game/GameHUD.js';
 import { Radio } from './game/Radio.js';
 import { GameSound } from './game/GameSound.js';
 import { Rain } from './game/Rain.js';
+import { rainCover } from './RainCover.js';
 import { GAME } from './data/game-2008-ws5.js';
 import { FOOTPRINT, LEVELS } from './layout.js';
 import { Walker } from './Walker.js';
@@ -208,6 +209,9 @@ export class BallparkApp {
 
 		}
 
+		// the rain kept out from under the decks and the stands, from whatever's in scope (RainCover.js), before
+		// the batching takes the bowl's meshes apart
+		const cover = time( 'rainCover', () => rainCover( F, [ B.group, this.exterior?.group, this.concourse?.group ] ) );
 		// the hundreds of little static meshes merged by material into a few draws
 		const batched = time( 'batching', () => batchStatic( this.field.group ) );
 		console.info( `static batching: ${ batched.before } meshes into ${ batched.after }` );
@@ -223,6 +227,7 @@ export class BallparkApp {
 			this.director.onCue = ( cue ) => this._cue( cue );
 			this.rain = new Rain( scene );
 			this.rain.setLights( this.bowl.lightSources().map( ( l ) => l.position ) );
+			this.rain.setCover( cover.heights, cover );
 			if ( qs.has( 't' ) ) this.director.seek( Number( qs.get( 't' ) ) );
 			if ( qs.has( 'play' ) ) this.director.seek( this.director.timeOfPlay( Number( qs.get( 'play' ) ) ) );
 			if ( qs.has( 'paused' ) ) this.director.playing = false;
