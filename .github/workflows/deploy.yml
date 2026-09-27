@@ -2,9 +2,10 @@ name: Deploy to GitHub Pages
 
 # Publishes every stage (git tags step-1, step-2, ...) as its own playable copy, plus a page listing
 # them: see tools/build-stages.mjs
+# (no branch trigger: a push to ballpark doesn't change the site, a new stage tag does; three tags or
+# fewer per push, or GitHub skips the trigger. By hand: gh workflow run deploy.yml --ref ballpark)
 on:
   push:
-    branches: [ main ]
     tags: [ 'step-*' ]
   workflow_dispatch:
 
