@@ -390,7 +390,16 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwFanPose {
 	// the reaction reaches each fan in turn, spreading out from where it happened
 	let rip = cw.ripple;
 	let tau = rip.w - length( seat.xz - rip.xy ) * rip.z - h.y * 0.45;
-	let M = mix( cw.moodA, cw.moodB, smoothstep( 0.0, 0.7 + h.z * 0.8, tau ) );
+	var M = mix( cw.moodA, cw.moodB, smoothstep( 0.0, 0.7 + h.z * 0.8, tau ) );
+	// a local reaction (Crowd.focus): the fans round something up and cheering, easing off to the edge
+	for ( var k = 0u; k < 4u; k ++ ) {
+		let f = cw.focus[ k ];
+		if ( f.z > 0.0 ) {
+			let w = 1.0 - smoothstep( f.z * 0.55, f.z, length( seat.xz - f.xy ) );
+			M.x = max( M.x, cw.focusMood[ k ].x * w );
+			M.y = max( M.y, cw.focusMood[ k ].y * w );
+		}
+	}
 	let A1 = cw.act1;
 	let A3 = cw.act3;
 	let calm = ( 1.0 - M.x ) * ( 1.0 - A1.z );
@@ -842,6 +851,8 @@ export class Crowd {
 		this.params = new UniformBlock( 'CrowdParams', {
 			moodA: [ 'vec4f', new Vector4() ], moodB: [ 'vec4f', new Vector4() ], ripple: [ 'vec4f', new Vector4( 0, 0, 0.02, 99 ) ],
 			act1: [ 'vec4f', new Vector4() ], act3: [ 'vec4f', new Vector4() ], misc: [ 'vec4f', new Vector4( 0, 0.016, 0, 0 ) ],
+			// the local reactions (focus()): where (world x, z) and how far, and how much (stand, arms up)
+			focus: [ 'vec4f[4]', new Float32Array( 16 ) ], focusMood: [ 'vec4f[4]', new Float32Array( 16 ) ],
 		} );
 		this.materials = [ 0, 1, 2 ].map( ( k ) => crowdMaterial( k, this.poseBuf, this.lookBuf ) );
 		this.geometry = this.geometries[ 0 ];
@@ -1021,9 +1032,54 @@ export class Crowd {
 		U.moodB.value.set( M.stand, M.cheer, M.towel, M.jump );
 		U.act1.value.set( M.clap, 0, 0, 0 );
 		U.misc.value.set( this.time, dt, rain, this.count );
+		this._focusUpdate( dt );
 		if ( ! this.count ) return;
 		if ( ! this._kernel ) this._seat();
 		this._kernel.dispatch( Math.ceil( this.count / 64 ) );
+
+	}
+
+	// A local reaction: the seated fans within r metres of ( x, z ) (the field frame) get up (stand, 0..1)
+	// and raise their arms (arms, 0..1), easing off toward the edge; e.g. round the Phanatic dancing on a
+	// dugout roof, or where his hot dogs land. By key, up to four at once: call it again to move it, and
+	// with null to let them sit back down. The fans rise and settle over a second or so, each by his own
+	// threshold (not everyone gets up), and the Rays fans don't.
+	focus( key, spec ) {
+
+		const F = this._foci ||= new Map();
+		const e = F.get( key );
+		if ( spec ) F.set( key, { w: e ? e.w : 0, ...spec, on: true } );
+		else if ( e ) e.on = false;
+
+	}
+
+	_focusUpdate( dt ) {
+
+		const F = this._foci;
+		if ( ! F || ! F.size && ! this._focusLive ) return;
+		const f = new Float32Array( 16 ), m = new Float32Array( 16 ), k = 1 - Math.exp( - dt * 2.5 );
+		let i = 0;
+		for ( const [ key, e ] of F ) {
+
+			e.w += ( ( e.on ? 1 : 0 ) - e.w ) * k;
+			if ( ! e.on && e.w < 0.01 ) {
+
+				F.delete( key );
+				continue;
+
+			}
+
+			if ( i >= 4 ) continue;
+			const p = this.toWorld ? this.toWorld( e.x, e.z ) : { x: e.x, z: e.z };
+			f.set( [ p.x, p.z, e.r || 10, 0 ], i * 4 );
+			m.set( [ ( e.stand ?? 0.7 ) * e.w, ( e.arms ?? 0.4 ) * e.w, 0, 0 ], i * 4 );
+			i ++;
+
+		}
+
+		this._focusLive = F.size > 0;
+		this.params.set( 'focus', f );
+		this.params.set( 'focusMood', m );
 
 	}
 

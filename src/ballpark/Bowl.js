@@ -83,6 +83,7 @@ export class Bowl {
 		this.materials = standsMaterials();
 		this.crowd = this.materials.crowd = new Crowd();
 		this.crowd.off = ! crowd;
+		this.crowd.toWorld = ( x, z ) => field.toWorld( x, z );
 		const worldYaw = field.group.rotation.y;
 		this.ctx = {
 			toWorld: ( x, z ) => field.toWorld( x, z ),
