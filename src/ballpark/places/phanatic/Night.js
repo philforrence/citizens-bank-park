@@ -689,7 +689,10 @@ function nightTwo( ctx ) {
 	// on it as the Rays walk out, and at them (flickr 3006436555, "Phanatic Taunting the Rays"), and off
 	{
 
-		const L = susp.dur, tz = susp.t0 + L * 0.55;
+		// ---- R (rituals): the suspension's 29th part is longer now (the tarp comes off first, the crew work
+		// the infield): out on the four-wheeler as the crew finish and the Rays come out
+		const L = susp.dur, tz = susp.t0 + L * 0.55 + ( L > 60 ? 30 : 0 );
+		// ---- end R
 		const into = nearTrack( - 66, - 74 );
 		const parkAt = [ - 38, - 62 ];
 		const way = new Way( [ [ into[ 0 ] - 4, 0, into[ 1 ] - 4 ], [ into[ 0 ], 0, into[ 1 ] ], [ - 55, 0, - 72 ], [ - 45, 0, - 64 ], [ parkAt[ 0 ], 0, parkAt[ 1 ] ] ] );

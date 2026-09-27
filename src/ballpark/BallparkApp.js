@@ -52,6 +52,9 @@ import { FOOTPRINT, LEVELS } from './layout.js';
 import { Walker } from './Walker.js';
 import { Scope } from './Scope.js';
 import { PLACES } from './places/index.js';
+// ---- R (rituals)
+import { tarpState } from './game/TarpPlan.js';
+// ---- end R
 
 const _up = new Vector3( 0, 1, 0 );
 
@@ -569,10 +572,18 @@ export class BallparkApp {
 		const { inning, half } = seg.snap;
 		// the suspension: the break after the top of the 6th on October 27, the crew pulls the tarp over
 		// the infield in the first seconds of it (it's off again when play resumes on the 29th)
-		const susp = seg.kind === 'switch' && inning === 6 && half === 'bottom';
-		this.details?.setTarp( susp ? MathUtils.smoothstep( d.t - seg.t0, 2, 11 ) * ( 1 - MathUtils.smoothstep( d.t - seg.t0, seg.dur - 6, seg.dur - 1 ) ) : 0 );
+		// ---- R (rituals): the tarp follows the rituals' plan (game/TarpPlan.js: swung out from the wall and
+		// pushed across by the crew, the roll thinning; wound back up on the 29th), the stowed tube on the wall
+		// only while it's there; and the 27th's rain goes on through its part of the suspension (the delay)
+		const N = d.night ? d.night( d.t ) : null;
+		const tarp = tarpState( N );
+		this.details?.setTarp( tarp.pull );
+		if ( this.details?.tarpRoll ) this.details.tarpRoll.visible = tarp.stowed;
+		const rollY = this.details?.tarpMat?.uniforms?.rollY;
+		if ( rollY ) rollY.value = tarp.r;
+		// ---- end R
 		// progress through the first night, 0 (first pitch) .. 1 (the suspension)
-		const firstNight = inning < 6 || ( inning === 6 && half === 'top' );
+		const firstNight = inning < 6 || ( inning === 6 && half === 'top' ) || !! N?.delay;
 		const k = firstNight ? Math.min( 1, ( ( inning - 1 ) * 2 + ( half === 'top' ? 0 : 1 ) ) / 10 ) : 0;
 		const rain = firstNight ? 0.3 + 0.7 * k : 0;
 		const wet = firstNight ? 0.35 + 0.65 * k : 0.25;
@@ -834,7 +845,11 @@ export class BallparkApp {
 			if ( Math.abs( dT ) > 1 + dt * this.director.speed ) this.post?.cut();
 			this._lastDirT = this.director.t;
 			this.radio.speed = this.director.speed;
-			this.radio.sync( this.director.t, this.director.playing );
+			// ---- R (rituals): the radio track is on the old clock (a 24 s suspension): silent through the rest
+			// of the delay
+			const rt = this.director.radioTime ? this.director.radioTime( this.director.t ) : this.director.t;
+			this.radio.sync( rt ?? this.director.t, this.director.playing && rt !== null );
+			// ---- end R
 			this._weather();
 			this._scoreboard( dt );
 

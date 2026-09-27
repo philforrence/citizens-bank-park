@@ -12,6 +12,10 @@ import { Police } from './rail/Police.js';
 import { buildWalls } from './rail/Walls.js';
 import { Drips } from './rail/Drips.js';
 
+// ---- R (rituals): which night: the 27th runs SPLIT of the way into the suspension (Director.night())
+const director_night = ( d, t, susp ) => d.night ? d.night( t ).night === 27 : t < susp.t0;
+// ---- end R
+
 // The rail: field level round home plate and the dugouts, the strip every TV shot sees. The backstop,
 // the camera wells, the front rows and the dugout surrounds, the on-deck circles and foul territory down
 // to the bags, on the two nights of Game 5 (the 27th in the cold, driving rain, the 29th cold and dry).
@@ -83,7 +87,9 @@ export default class FieldRail {
 		S.half = half;
 		S.susp = seg === this._susp;
 		// the 27th: the top of the 1st to the top of the 6th; its rain growing to a downpour
-		S.first = t < this._susp.t0;
+		// ---- R (rituals): and on through the rain delay, the 27th's part of the suspension
+		S.first = director_night( d, t, this._susp );
+		// ---- end R
 		const k = S.first ? Math.min( 1, ( ( inning - 1 ) * 2 + ( half === 'top' ? 0 : 1 ) ) / 10 ) : 0;
 		S.rain = S.first ? 0.3 + 0.7 * k : 0;
 		S.wet = S.first ? 0.35 + 0.65 * k : 0.12;

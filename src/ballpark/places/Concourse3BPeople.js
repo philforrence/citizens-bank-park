@@ -33,9 +33,12 @@ export function nightState( d ) {
 	if ( ! d ) return { busy: 0.8, first: true, rain: 0.5, suspended: false, celebrate: false, top: true, between: false, t: 0, inning: 5, half: 'top', snap: {} };
 	const seg = d.segmentAt( d.t );
 	const s = seg.snap || {};
-	const suspended = seg.kind === 'switch' && s.inning === 6 && s.half === 'bottom';
+	// ---- R (rituals): the suspension's break is the 27th's rain delay for its first part (Director.night());
+	// the rest is the 29th, the park filling for the resumption
+	const suspended = seg.kind === 'switch' && s.inning === 6 && s.half === 'bottom' && ( d.night ? d.night( d.t ).night === 27 : true );
+	// ---- end R
 	// the 27th: from the first pitch to the suspension (the rain delay is the 27th's last half hour)
-	const first = s.inning < 6 || ( s.inning === 6 && s.half === 'top' ) || ( suspended && d.t - seg.t0 < seg.dur - 4 );
+	const first = s.inning < 6 || ( s.inning === 6 && s.half === 'top' ) || suspended;
 	const k = first ? Math.min( 1, ( ( s.inning - 1 ) * 2 + ( s.half === 'top' ? 0 : 1 ) ) / 10 ) : 0;
 	const between = seg.kind === 'switch' || seg.kind === 'intro' || seg.kind === 'change';
 	const celebrate = seg.kind === 'celebrate';

@@ -41,6 +41,21 @@ import { programKiosk, caricatureCorner, cartSigns, cartTop } from './concourse1
 // field level's front line.
 const STREET = LEVELS.mainConcourse;
 
+// ---- R (rituals): the replay's time on the clock the scenes were written to (a 24 s suspension whose
+// end opened the 29th's gates): the 27th's part of the longer break maps to its start, the 29th's part
+// runs from the old gates' opening, and everything after the resumption is as before
+function oldClock( d, t ) {
+
+	if ( ! d?.night ) return t;
+	const S = d.suspension, split = d.night( t ).split;
+	if ( t < S.t0 ) return t;
+	if ( t < split ) return S.t0 + 0.5;
+	if ( t < S.t0 + S.dur ) return t - ( split - ( S.t0 + 24 ) );
+	return t - ( S.dur - 24 );
+
+}
+// ---- end R
+
 export default class Concourse1B {
 
 	constructor( { app, field, bowl, people, colliders } ) {
@@ -656,7 +671,10 @@ export default class Concourse1B {
 		this.people.update( dt, ns );
 		this.stories.update( dt, ns );
 		this.tailgates.update( dt, ns, this.people.react );
-		this.scenes?.update( dt, ns, t );
+		// ---- R (rituals): the scenes' windows are on the replay's old clock (a 24 s suspension, the 80 s
+		// celebration): the 29th's gates open at the suspension's split now, and all after moved on
+		this.scenes?.update( dt, ns, oldClock( director, t ) );
+		// ---- end R
 		this.arrivals?.update( dt, ns, t );
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
 		this._phanatic();

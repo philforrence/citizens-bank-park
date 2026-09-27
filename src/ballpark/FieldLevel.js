@@ -270,7 +270,9 @@ export class FieldLevel {
 		// the Phillies' bench (and pen) run out to the pile at the last out; both teams went in to the
 		// clubhouses in the rain delay
 		const cel = seg?.kind === 'celebrate';
-		const susp = seg?.kind === 'switch' && seg.snap?.inning === 6 && seg.snap?.half === 'bottom';
+		// ---- R (rituals): in the clubhouses only through the 27th's part of the suspension
+		const susp = seg?.kind === 'switch' && seg.snap?.inning === 6 && seg.snap?.half === 'bottom' && ( director.night ? director.night( director.t ).delay : true );
+		// ---- end R
 		this.figs.setGroup( 'phiBench', ! cel && ! susp );
 		this.figs.setGroup( 'rayBench', ! susp );
 		this.figs.update();
