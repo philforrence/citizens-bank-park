@@ -9,6 +9,7 @@ import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, LEVELS, fencePoint } from './layout.js';
 import { offsetPolyline } from './Bowl.js';
 import { LibertyBell } from './LibertyBell.js';
+import { memoryLane } from './AshburnAlley.js';
 
 // The ballpark's landmarks round the outfield: the main scoreboard in left field (152 x 86 ft since 2023,
 // its steel topping out 143 ft above the field), the Liberty Bell sign in right-center (35 x 50 ft, 100 ft
@@ -1118,8 +1119,9 @@ export class Landmarks {
 
 		const line = offsetPolyline( this.bowl._fenceLine( 3, 8 ), 7 - 0.12, [ 0, 0 ] );
 		const deg = ( x, z ) => Math.atan2( x, - z ) * 180 / Math.PI;
-		const topAt = ( d ) => d < - 5 || d > 8 ? STREET : d < - 1 ? STREET + 0.9 : d < 5 ? STREET + 2.8 : STREET + 2.2;
-		const q = new Quads(), cap = new Quads(), bush = [];
+		// the tall middle wall from behind the 409 corner on to 401 (the bullpens take the rest)
+		const topAt = ( d ) => d < - 5 || d > 8 ? STREET : d < - 4.2 ? STREET + 0.9 : d < 5 ? STREET + 2.8 : STREET + 2.2;
+		const q = new Quads(), cap = new Quads(), bush = [], walls = [];
 		let u = 0;
 		const ivyAt = [];
 		for ( let i = 0; i < line.length - 1; i ++ ) {
@@ -1146,6 +1148,8 @@ export class Landmarks {
 				q.add( [ X0, 0, Z0 ], [ X1, 0, Z1 ], [ X1, top, Z1 ], [ X0, top, Z0 ], [ nx, 0, nz ], u + len * t0, u + len * t1 );
 				if ( top > STREET ) {
 
+					walls.push( { a: [ X0, Z0 ], b: [ X1, Z1 ], n: [ nx, nz ], top, u0: u + len * t0, u1: u + len * t1 } );
+
 					cap.add( [ X0 + nx * 0.05, top, Z0 + nz * 0.05 ], [ X1 + nx * 0.05, top, Z1 + nz * 0.05 ], [ X1 - nx * 0.6, top, Z1 - nz * 0.6 ], [ X0 - nx * 0.6, top, Z0 - nz * 0.6 ], [ 0, 1, 0 ] );
 					cap.add( [ X0 + nx * 0.05, top - 0.3, Z0 + nz * 0.05 ], [ X1 + nx * 0.05, top - 0.3, Z1 + nz * 0.05 ], [ X1 + nx * 0.05, top, Z1 + nz * 0.05 ], [ X0 + nx * 0.05, top, Z0 + nz * 0.05 ], [ nx, 0, nz ] );
 
@@ -1162,7 +1166,7 @@ export class Landmarks {
 			}
 
 			// where the three ivy masses hang (u along the wall): the sample nearest each one's bearing
-			[ [ - 2.5, 7 ], [ 1.5, 9 ], [ 6.2, 7 ] ].forEach( ( [ dd, w ], j ) => {
+			[ [ - 3.6, 5.5 ], [ - 1.7, 6 ], [ 0.1, 4 ] ].forEach( ( [ dd, w ], j ) => {
 
 				for ( let k = 0; k < n * 4; k ++ ) {
 
@@ -1226,6 +1230,9 @@ export class Landmarks {
 			this.group.add( c );
 
 		}
+
+		// its back in the Alley: Memory Lane
+		memoryLane( this.group, walls );
 
 	}
 
