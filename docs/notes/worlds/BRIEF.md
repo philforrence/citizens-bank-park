@@ -15,6 +15,29 @@ You walk in through the Third Base Gate and watch the replay, with TV cameras, t
 
 > "don't make fidelity and textured sacrifices, I LOOOOVE the details"
 
+## Wave 2: what's new (2026-09-27)
+
+**The owner, for this wave:** "tell them each to make a lot of grounded creative decisions that make every little world they're building more rich, think of sounds, interactions, textures, colors... anything that makes this more amazing to be in, tell them to inspire each other, really make this stadium alive and specific."
+
+- **Read what wave 1 built first:** [WAVE1.md](WAVE1.md) (the systems to reuse, and what each place did), [SCOUT.md](SCOUT.md) (why your place was chosen), and the four builders' notes, `W1.md` to `W4.md`.
+- **Think in every sense**, and specific to that night:
+  - **sound:** calls, machines, music, the crowd near you, rain on a canopy;
+  - **interactions:** people with each other, with the game and with you walking by;
+  - **textures and colours:** the wear, the wet, the 2008 palette, what the lights do to them after dark;
+  - **time:** the rain on the 27th, the suspension, the cold dry 29th, the last out.
+- **Inspire each other** through the shared space at `/Users/phillipforrence/citizens-bank-park/.claude/wave2/` (read its README):
+  - keep your live notes in `NOTES-<KEY>.md`;
+  - read the others' every hour or so, and let your place answer theirs;
+  - name people only from the one register, `CAST.md`.
+- **People: use `src/ballpark/places/Cast.js`,** W2's close-up figure system: painted faces, 2008 fan clothing with correct name and number backs, props, 3 LODs. Don't build another figure system.
+  - P0 is moving everyone onto it this wave, and keeps its public API stable.
+  - If you need something it lacks (a pose, a prop, a uniform), add it to Cast.js in a marked block, and note it for P0 in `ASK-<KEY>.md`.
+  - The Phanatic is the exception: he uses the players' rig (`game/Players.js`, `KIND.phanatic`).
+- **Sound in a place:** `app.sound.sample( name, url | ( ctx ) => buffer )` and `app.sound.spot( name, worldPosition, { loop, vol, ref } )`, then `.move()`, `.set()` and `.stop()`. See GameSound.js.
+  - Recorded clips must be CC0: search Freesound's CC0 filter (`tools/audio/` has helpers), put them under `public/audio/places/<place>/` as small mp3s, and credit them in CREDITS.md.
+  - Or synthesize the sound in code, or use Piper TTS (as `tools/radio` does) for calls and voices.
+- **Photographic surfaces:** `tools/textures/fetch.mjs` and `imageTexture()`. See "Tools" below.
+
 ## Your job: one place, built out in depth
 
 You own **one place** (your prompt names it). Make it feel like you're standing there on that night: the things, the people, what they're doing and saying with their hands, the wear, the weather on everything.

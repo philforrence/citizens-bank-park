@@ -27,6 +27,17 @@ It runs in waves of 4 builders, one place each, on the shared brief ([BRIEF.md](
 
 **Status:** all four merged (2026-09-27), the combined summary is in [WAVE1.md](WAVE1.md), and it's waiting on the owner's review.
 
+## Wave 2 (launched 2026-09-27, chosen by the scouting in [SCOUT.md](SCOUT.md))
+
+| Key | Work | Module |
+|---|---|---|
+| P0 | One people system: the gate and the Alley moved onto Cast.js, the duplicates removed, the plaza's and concourse's people back to ~1 ms, the cast register (CAST.md) | `places/Cast.js` and the wave-1 places |
+| A | The Phillie Phanatic, park-wide | `places/Phanatic.js` (`phanatic`) |
+| B | Behind home plate, the TV backdrop: the Diamond Club, the aisles' vendors and life, the suites, the booths | `places/BehindHome.js` (`home`) |
+| C | The main concourse on the 1B side, and the First Base Gate | `places/Concourse1B.js` (`concourse1b`) |
+
+The shared space for inspiring each other is `.claude/wave2/` (local, absolute path): live notes, the cast register, and requests between builders.
+
 ## Candidates for the next waves
 
 - **Harry the K's and the left field corner:**
