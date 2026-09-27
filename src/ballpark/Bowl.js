@@ -877,6 +877,7 @@ export class Bowl {
 		for ( const m of [ glass, frame ] ) m.underwaterLighting = 'none';
 		glass.setDefine( 'DRY', 1 );
 		const g = new Quads(), f = new Quads();
+		const under = new Quads(), back = new Quads(); // ---- L (H07)
 		const B = offsetPolyline( P, depth, [ 0, - 40 ] );
 		let u = 0;
 		for ( let i = 0; i < P.length - 1; i ++ ) {
@@ -907,12 +908,30 @@ export class Bowl {
 			f.add( [ ax, ceiling - 0.3, az ], [ bx, ceiling - 0.3, bz ], [ bx, ceiling + 0.2, bz ], [ ax, ceiling + 0.2, az ], [ nx, 0, nz ] );
 			f.add( [ P[ i ][ 0 ], y, P[ i ][ 1 ] ], [ P[ i + 1 ][ 0 ], y, P[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], y, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], y, B[ i ][ 1 ] ], [ 0, 1, 0 ] );
 			f.add( [ P[ i ][ 0 ], ceiling, P[ i ][ 1 ] ], [ P[ i + 1 ][ 0 ], ceiling, P[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], ceiling, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], ceiling, B[ i ][ 1 ] ], [ 0, - 1, 0 ] );
+			// ---- L (H07): the suite level's underside over the main concourse. The floor was one-sided, so
+			// from the concourse you looked up through it at the unlit underside of the suites' ceiling: a
+			// black slab by day and night. Its own soffit now: girders, ribbed deck, strip lights
+			under.add( [ P[ i ][ 0 ], y - 0.45, P[ i ][ 1 ] ], [ P[ i + 1 ][ 0 ], y - 0.45, P[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], y - 0.45, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], y - 0.45, B[ i ][ 1 ] ], [ 0, - 1, 0 ] );
+			// and their back: the suites were open boxes behind, so from the concourse you looked up into
+			// them, at the underside of their ceilings. The corridor wall behind them, in precast
+			back.add( [ B[ i ][ 0 ], y - 0.45, B[ i ][ 1 ] ], [ B[ i + 1 ][ 0 ], y - 0.45, B[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], ceiling + 0.2, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], ceiling + 0.2, B[ i ][ 1 ] ], [ - nx, 0, - nz ] );
+			// ---- end L
 			this._walkable( P[ i ], P[ i + 1 ], B[ i + 1 ], B[ i ], y, 'suites' );
 
 		}
 
 		this._railing( B, y, 'suites-back' );
 
+		// ---- L (H07): the underside, in the stands' concrete (its soffit shading faces down)
+		const um = new Mesh( under.geometry(), this.materials.concrete );
+		um.name = 'suite-underside';
+		um.receiveShadow = true;
+		this.group.add( um );
+		const bm = new Mesh( back.geometry(), this.materials.fascia );
+		bm.name = 'suite-back';
+		bm.receiveShadow = true;
+		this.group.add( bm );
+		// ---- end L
 		for ( const [ q, m, name ] of [ [ g, glass, 'suite-glass' ], [ f, frame, 'suite-frame' ] ] ) {
 
 			const mesh = new Mesh( q.geometry(), m );
