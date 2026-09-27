@@ -289,6 +289,11 @@ export class People {
 		this._s = new Vector3();
 		this._up = new Vector3( 0, 1, 0 );
 		this._seed = 1;
+		// ---- W2 (concourse): a place can take a stretch of the concourse over with its own people
+		// (places/Concourse3B.js): hiders are ( x, z ) => true where People's own figures at street level
+		// aren't drawn
+		this.hiders = [];
+		// ---- end W2
 		this._stands( [ ...( concourse?.standSpots || [] ), ...( landmarks?.alleyStands || [] ) ] );
 		this._walkway( bowl );
 		this._aisles( bowl );
@@ -604,7 +609,10 @@ export class People {
 		let n = 0;
 		for ( const p of this.list ) {
 
-			if ( ! p.visible ) {
+			// ---- W2 (concourse): not drawn where a place has its own people (see this.hiders)
+			const hidden = this.hiders.length > 0 && Math.abs( p.y - STREET ) < 0.6 && this.hiders.some( ( h ) => h( p.x, p.z ) );
+			// ---- end W2
+			if ( ! p.visible || hidden ) {
 
 				p.px = undefined;
 				continue;

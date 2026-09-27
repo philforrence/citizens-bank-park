@@ -1,5 +1,10 @@
-import { Group, Matrix4, Vector3 } from '../../engine/index.js';
+import { Group, Matrix4, Vector3, Sphere } from '../../engine/index.js';
 import { LEVELS } from '../layout.js';
+import { Cast } from './Cast.js';
+import { Walkway } from './Concourse3BKit.js';
+import { ConcoursePeople, nightState, RAIL_D, FRONT_D } from './Concourse3BPeople.js';
+import { Kit, trashCan, recycleBin, condiments, cart, programTable } from './Concourse3BProps.js';
+import { rng } from './Concourse3BKit.js';
 
 // The main concourse from behind home plate round to the third base side (sections 123 to 135): the
 // walk in from the Third Base Gate to your seat, at street level, under the suite level and open to the
@@ -17,15 +22,159 @@ export const S_END = 118;
 
 export default class Concourse3B {
 
-	constructor( { app, field, bowl } ) {
+	constructor( { app, field, bowl, people } ) {
 
 		this.app = app;
 		this.field = field;
 		this.bowl = bowl;
 		this.group = new Group();
 		this.group.name = 'concourse3b';
-		this.concourse = app?.concourse;
-		this._cover = null;
+		const concourse = this.concourse = app?.concourse;
+		this.W = new Walkway( bowl.path );
+		// what's in the way on the floor: the club level's columns down the middle of the walkway (and the
+		// Arcade's at the rail past 134), [ s, d, radius ]
+		this.obstacles = [];
+		this._columns();
+		// the things on the floor (one draw), before the people (the lines bend round them)
+		this.kit = new Kit();
+		this._bins();
+		this._carts();
+		this.group.add( this.kit.mesh() );
+		// the people: the cast (drawn here), and People.js's own figures handed over to it in this stretch
+		this.cast = new Cast( { parent: this.group, max: 360 } );
+		// where the cast is (for ?focus=, which drops what's wholly outside its circle)
+		const mid = this.W.at( S_END / 2, 40 );
+		for ( const m of [ this.cast.mesh, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
+		this.people = new ConcoursePeople( { cast: this.cast, walkway: this.W, concourse, bowl, sEnd: S_END, obstacles: this.obstacles, carts: this.carts, seed: 1027 } );
+		people?.hiders?.push( ( x, z ) => this.covers( x, z ) );
+		// the rain's cover: built now, before the static batching takes the bowl's meshes apart
+		const t0 = performance.now();
+		this._cover = this._rainCover();
+		this.coverMs = Math.round( performance.now() - t0 );
+
+	}
+
+	// is ( x, z ) in this stretch of the concourse (from the top of the seats out to the stands' backs)?
+	covers( x, z ) {
+
+		// a quick box first: the stretch is behind home plate and down the third base side
+		if ( x > 1.5 || z < - 30 ) return false;
+		const [ s, d ] = this.W.toSD( x, z );
+		return s > - 0.5 && s < S_END + 0.5 && d > RAIL_D - 0.6 && d < 62;
+
+	}
+
+	_columns() {
+
+		const W = this.W;
+		const seen = [];
+		this.bowl.group.traverse( ( o ) => {
+
+			if ( ! o.isMesh || o.material?.name !== 'columns' ) return;
+			const [ s, d ] = W.toSD( o.position.x, o.position.z );
+			if ( s > - 10 && s < S_END + 10 && d > RAIL_D - 1 && d < FRONT_D - 1 ) seen.push( [ s, d, 0.5 ] );
+
+		} );
+		this.obstacles.push( ...seen );
+		this.columns = seen;
+
+	}
+
+	// The trash cans: red Phillies cans with a blue recycling bin beside each, in the gaps between the
+	// stands and against every other column down the middle; a condiment station beside each grill's and
+	// market's line, where the hot dogs and the cheesesteaks come out
+	_bins() {
+
+		const K = this.kit, W = this.W, r = rng( 77 );
+		const units = ( this.concourse?.units || [] ).filter( ( U ) => {
+
+			const [ s ] = W.toSD( U.mid[ 0 ], U.mid[ 1 ] );
+			return s > - 4 && s < S_END + 4;
+
+		} );
+		const place = ( x, z, rad ) => {
+
+			const [ s, d ] = W.toSD( x, z );
+			this.obstacles.push( [ s, d, rad ] );
+
+		};
+
+		for ( const U of units ) {
+
+			if ( ! U.gap || U.last ) continue;
+			// in front of the gap to the next stand, facing the walkway
+			const n = U.n, a = U.a;
+			const o = [ U.gap[ 0 ] + n[ 0 ] * 0.45, U.gap[ 1 ] + n[ 1 ] * 0.45 ];
+			const P = Kit.frame( o, a, n );
+			trashCan( K, P, - 0.32, 0, r );
+			recycleBin( K, P, 0.32, 0 );
+			place( o[ 0 ], o[ 1 ], 0.7 );
+
+		}
+
+		this.columns.forEach( ( [ s, d ], i ) => {
+
+			if ( i % 2 || d < 38 ) return;
+			// on the rail side of the column
+			const w = W.at( s, d - 0.72 );
+			const P = Kit.frame( [ w.x, w.z ], [ w.ux, w.uz ], [ w.nx, w.nz ] );
+			trashCan( K, P, 0, 0, r );
+			this.obstacles.push( [ s, d - 0.72, 0.35 ] );
+
+		} );
+
+		for ( const U of units ) {
+
+			const food = typeof U.what === 'string' && [ 'cobblestone', 'hatfield', 'market', 'schmitter' ].includes( U.what );
+			if ( ! food ) continue;
+			// beside the line, out at the stand's edge, facing the walkway
+			const side = ( U.sec % 2 ) ? 1 : - 1;
+			const o = [ U.mid[ 0 ] + U.a[ 0 ] * side * 3.15 + U.n[ 0 ] * 1.5, U.mid[ 1 ] + U.a[ 1 ] * side * 3.15 + U.n[ 1 ] * 1.5 ];
+			condiments( K, Kit.frame( o, U.a, U.n ), 0, 0, r );
+			place( o[ 0 ], o[ 1 ], 0.75 );
+
+		}
+
+	}
+
+	// The carts, where the 2008 concessions guide put the portables on this stretch: Nachos behind 122
+	// and 134, Philadelphia Water Ice behind 132 (by the Third Base Gate), Cotton Candy / Lemonade /
+	// Popcorn behind 128; and on a 47-degree night a hot chocolate and coffee cart behind 130 (that one's
+	// a guess). Each stands on the line of the columns, between two of them, facing the rail side where
+	// the people walk; a program seller's table just in from the gate, and another behind home plate.
+	_carts() {
+
+		const K = this.kit, W = this.W, r = rng( 91 );
+		const cols = this.columns.map( ( c ) => c[ 0 ] ).sort( ( a, b ) => a - b );
+		// the middle of the gap between the columns nearest s
+		const between = ( s ) => {
+
+			for ( let i = 0; i < cols.length - 1; i ++ ) if ( cols[ i ] <= s && s <= cols[ i + 1 ] ) return ( cols[ i ] + cols[ i + 1 ] ) / 2;
+			return s;
+
+		};
+
+		this.carts = [];
+		const put = ( kind, s0, d = 40.9, table = false ) => {
+
+			const s = table ? s0 : between( s0 );
+			const w = W.at( s, d );
+			// facing the rail side (toward the field): its front ( +z ) is -d
+			const n = [ w.nx, w.nz ], a = [ - w.ux, - w.uz ];
+			const P = Kit.frame( [ w.x, w.z ], a, n );
+			if ( table ) programTable( K, P, r ); else cart( K, P, kind, r );
+			this.obstacles.push( [ s, d, table ? 0.75 : 1.0 ] );
+			this.carts.push( { kind, s, d, x: w.x, z: w.z, n, u: a } );
+
+		};
+
+		put( 'nachos', 9 );
+		put( 'cottonCandy', 43 );
+		put( 'cocoa', 52 );
+		put( 'waterIce', 77 );
+		put( 'nachos', 92 );
+		put( 'programs', 69.5, 44.0, true );
+		put( 'programs', 2.5, 43.2, true );
 
 	}
 
@@ -89,17 +238,29 @@ export default class Concourse3B {
 
 		// the rain's cover, once the rain exists (it's made after the places)
 		const rain = this.app?.rain;
-		if ( rain?.setCover && ! this._coverSet ) {
+		if ( rain?.setCover && this._cover ) {
 
-			const t0 = performance.now();
-			const cover = this._rainCover();
-			rain.setCover( cover.heights, cover );
-			this._coverSet = true;
-			this.coverMs = Math.round( performance.now() - t0 );
+			rain.setCover( this._cover.heights, this._cover );
+			this._cover = null;
 
 		}
 
-		void director;
+		const ns = nightState( director );
+		this.night = ns;
+		// on arriving (and after a jump in the replay) the concourse has been going a while: a minute of it
+		// run through quickly, so the lines and the walkers are where they'd be
+		const t = director ? director.t : 0;
+		if ( ! this._warm || Math.abs( t - this._lastT ) > 30 ) {
+
+			for ( let i = 0; i < 240; i ++ ) this.people.update( 0.25, ns );
+			this._warm = true;
+			for ( const p of this.cast.list ) p.fresh = true;
+
+		}
+
+		this._lastT = t;
+		this.people.update( dt, ns );
+		this.cast.update();
 
 	}
 
