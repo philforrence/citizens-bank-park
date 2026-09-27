@@ -8,6 +8,7 @@ import { canvasTexture, refreshCanvasTexture, beam, box, box as boxQuads } from 
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, LEVELS, fencePoint } from './layout.js';
 import { offsetPolyline } from './Bowl.js';
+import { LibertyBell } from './LibertyBell.js';
 
 // The ballpark's landmarks round the outfield: the main scoreboard in left field (152 x 86 ft since 2023,
 // its steel topping out 143 ft above the field), the Liberty Bell sign in right-center (35 x 50 ft, 100 ft
@@ -402,152 +403,19 @@ export class Landmarks {
 
 	// ---------------------------------------------------------------- the Liberty Bell
 
+	// the neon bell on its tower in right-center (see LibertyBell.js): it swings and tolls for a Phillies
+	// home run and the last out
 	_libertyBell() {
 
-		const [ x, z ] = fencePoint( 21, 488 );
-		const g = this._facingHome( x, z );
-		const H = 50 * FT, W = 35 * FT, y0 = STREET + 100 * FT;
-		// the mast: a maroon steel lattice up to the bell
-		lattice( g, this.steel, 0, 1.6, STREET, y0 + 2, 3.4 );
+		this.bell = new LibertyBell( { parent: this.group, at: fencePoint( 21, 488 ), steel: this.steel, field: this.field, colliders: this.colliders } );
+		this.bellSign = this.bell.group;
 
-		// under the bell: a broad maroon lattice frame carrying Citizens Bank / Park in big green channel
-		// letters (white returns) with the bank's logo
-		const FW = 20, FH = 10.5, fy = y0 - FH - 1.2, fz = 0.2;
-		const fq = new Quads();
-		for ( const fx of [ - FW / 2, - FW / 6, FW / 6, FW / 2 ] ) beam( fq, [ fx, fy, fz ], [ fx, fy + FH, fz ], 0.4 );
-		for ( const yy of [ fy, fy + FH / 2, fy + FH ] ) beam( fq, [ - FW / 2, yy, fz ], [ FW / 2, yy, fz ], 0.4 );
-		for ( let k = 0; k < 3; k ++ ) {
+	}
 
-			const xa = - FW / 2 + k * FW / 3, xb = xa + FW / 3;
-			for ( const [ ya, yb ] of [ [ fy, fy + FH / 2 ], [ fy + FH / 2, fy + FH ] ] ) {
+	// every frame: the bell (it rings from the replay's time)
+	update( dt, director, sound ) {
 
-				beam( fq, [ xa, ya, fz ], [ xb, yb, fz ], 0.18 );
-				beam( fq, [ xb, ya, fz ], [ xa, yb, fz ], 0.18 );
-
-			}
-
-		}
-
-		const frameMesh = new Mesh( fq.geometry(), this.steel );
-		frameMesh.castShadow = true;
-		g.add( frameMesh );
-		const letters = canvasTexture( 1024, 540, ( ctx, w, h ) => {
-
-			ctx.clearRect( 0, 0, w, h );
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.lineJoin = 'round';
-			const line = ( t, y, size ) => {
-
-				ctx.font = `700 ${ size }px "Helvetica Neue", Helvetica, Arial, sans-serif`;
-				ctx.lineWidth = 14;
-				ctx.strokeStyle = '#f2f4f0';
-				ctx.strokeText( t, w / 2, y, w - 30 );
-				ctx.fillStyle = '#17a05d';
-				ctx.fillText( t, w / 2, y, w - 30 );
-
-			};
-
-			line( 'Citizens Bank', h * 0.5, 150 );
-			line( 'Park', h * 0.83, 150 );
-			// the logo over them: a green disc with the white eight-point star
-			const ex = w / 2, ey = h * 0.17, r = 62;
-			ctx.fillStyle = '#17a05d';
-			ctx.beginPath(); ctx.arc( ex, ey, r, 0, Math.PI * 2 ); ctx.fill();
-			ctx.fillStyle = '#ffffff';
-			ctx.beginPath();
-			for ( let i = 0; i < 16; i ++ ) {
-
-				const a = i * Math.PI / 8, rr = i % 2 ? r * 0.32 : r * 0.78;
-				ctx.lineTo( ex + Math.cos( a ) * rr, ey + Math.sin( a ) * rr );
-
-			}
-
-			ctx.closePath(); ctx.fill();
-
-		}, 'bellLetters' );
-		const letterMat = standard( { name: 'bell-letters', roughness: 0.4, alphaTest: 0.35, textures: { bpNeon: letters },
-			surface: 'let t = textureSample( bpNeon, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.6; s.emissive = t.rgb * vec3f( 0.6, 1.0, 0.75 ) * mix( 0.25, 2.2, frame.night );' } );
-		const backMat = standard( { name: 'bell-letter-backs', color: new Color( 0.1, 0.022, 0.022 ), roughness: 0.6, alphaTest: 0.35, side: 'double', textures: { bpNeon: letters },
-			surface: 'let t = textureSample( bpNeon, smpAnisoClamp, in.uv ); s.alpha = t.a;' } );
-		for ( const m of [ letterMat, backMat ] ) m.underwaterLighting = 'none';
-		const LW = FW - 1, LH = LW * 540 / 1024;
-		g.add( new Mesh( quadUV( LW, LH, fy + ( FH - LH ) / 2, - 0.6 ), letterMat ) );
-		for ( let k = 1; k <= 3; k ++ ) g.add( new Mesh( quadUV( LW, LH, fy + ( FH - LH ) / 2, - 0.6 + k * 0.13 ), backMat ) );
-
-		// the bell: white steel, a lattice inside its silhouette; three rings of lights round the outline,
-		// bands at the lip and the shoulder, the crack and the clapper in lights; the yoke on top
-		const half = [ [ 0.0, 1.0 ], [ 0.13, 0.99 ], [ 0.2, 0.95 ], [ 0.22, 0.86 ], [ 0.25, 0.7 ], [ 0.29, 0.52 ], [ 0.35, 0.35 ], [ 0.43, 0.2 ], [ 0.5, 0.1 ], [ 0.5, 0.06 ] ];
-		const BH = H * 0.86;
-		const widthAt = ( v ) => {
-
-			for ( let i = 0; i < half.length - 1; i ++ ) {
-
-				const [ u0, v0 ] = half[ i ], [ u1, v1 ] = half[ i + 1 ];
-				if ( v <= v0 && v >= v1 ) return ( u0 + ( u1 - u0 ) * ( v0 - v ) / ( v0 - v1 ) ) * W;
-
-			}
-
-			return 0;
-
-		};
-
-		const outlineAt = ( k, z ) => {
-
-			const pts = [];
-			for ( const [ u, v ] of half.slice().reverse() ) pts.push( new Vector3( - u * W * k, y0 + ( 0.06 + ( v - 0.06 ) * ( 1 - ( 1 - k ) * 0.5 ) ) * BH, z ) );
-			for ( const [ u, v ] of half.slice( 1 ) ) pts.push( new Vector3( u * W * k, y0 + ( 0.06 + ( v - 0.06 ) * ( 1 - ( 1 - k ) * 0.5 ) ) * BH, z ) );
-			return new CatmullRomCurve3( pts, true );
-
-		};
-
-		const lights = standard( { name: 'bell-lights', color: new Color( 0.9, 0.85, 0.7 ), roughness: 0.4,
-			surface: 's.emissive = vec3f( 1.0, 0.86, 0.55 ) * mix( 0.35, 3.0, smoothstep( 0.1, 0.7, frame.night ) );' } );
-		const white = standard( { name: 'bell-steel', color: new Color( 0.72, 0.72, 0.68 ), roughness: 0.45, metalness: 0.4 } );
-		for ( const m of [ lights, white ] ) m.underwaterLighting = 'none';
-		for ( const k of [ 1, 0.95, 0.9 ] ) g.add( new Mesh( new TubeGeometry( outlineAt( k, - 0.3 ), 200, 0.2, 8, true ), lights ) );
-		const bq = new Quads();
-		// the lattice: horizontal members every 1.3 m, vertical every 1.4 m, inside the silhouette
-		for ( let v = 0.08; v < 0.97; v += 1.3 / BH ) {
-
-			const wv = widthAt( v ) * 0.93;
-			if ( wv > 0.3 ) beam( bq, [ - wv, y0 + v * BH, 0 ], [ wv, y0 + v * BH, 0 ], 0.12 );
-
-		}
-
-		for ( let x = - W * 0.49; x <= W * 0.49; x += 1.4 ) {
-
-			let vTop = 0;
-			for ( let v = 0.06; v <= 1.0; v += 0.01 ) if ( widthAt( v ) * 0.93 >= Math.abs( x ) ) vTop = v;
-			if ( vTop > 0.1 ) beam( bq, [ x, y0 + 0.07 * BH, 0 ], [ x, y0 + vTop * BH, 0 ], 0.1 );
-
-		}
-
-		const bellSteel = new Mesh( bq.geometry(), white );
-		bellSteel.castShadow = true;
-		g.add( bellSteel );
-		for ( const v of [ 0.12, 0.2, 0.84 ] ) {
-
-			const wv = widthAt( v ) * 0.93;
-			const band = new CatmullRomCurve3( [ new Vector3( - wv, y0 + v * BH, - 0.35 ), new Vector3( wv, y0 + v * BH, - 0.35 ) ] );
-			g.add( new Mesh( new TubeGeometry( band, 20, 0.16, 6, false ), lights ) );
-
-		}
-
-		const crack = new CatmullRomCurve3( [ [ 0.05, 0.08 ], [ 0.02, 0.2 ], [ 0.07, 0.32 ], [ 0.03, 0.45 ], [ 0.06, 0.55 ] ].map( ( [ u, v ] ) => new Vector3( u * W, y0 + v * BH, - 0.4 ) ) );
-		g.add( new Mesh( new TubeGeometry( crack, 40, 0.2, 6, false ), lights ) );
-		const yq = new Quads();
-		beam( yq, [ - W * 0.32, y0 + H * 0.93, 0 ], [ W * 0.32, y0 + H * 0.93, 0 ], 1.1 );
-		beam( yq, [ - W * 0.32, y0 + H * 0.93, 0 ], [ - W * 0.36, y0 + H * 0.8, 0 ], 0.6 );
-		beam( yq, [ W * 0.32, y0 + H * 0.93, 0 ], [ W * 0.36, y0 + H * 0.8, 0 ], 0.6 );
-		beam( yq, [ 0, y0 + H * 0.86, 0 ], [ 0, y0 + H * 0.93, 0 ], 0.5 );
-		const yoke = new Mesh( yq.geometry(), this.steel );
-		yoke.castShadow = true;
-		g.add( yoke );
-		const clapper = new Mesh( new SphereGeometry( 0.9, 12, 10 ), lights );
-		clapper.position.set( 0, y0 - 0.2, - 0.3 );
-		g.add( clapper );
-		this.bellSign = g;
+		this.bell?.update( dt, director, sound );
 
 	}
 
@@ -1356,44 +1224,6 @@ export class Landmarks {
 			c.castShadow = true;
 			c.receiveShadow = true;
 			this.group.add( c );
-
-		}
-
-	}
-
-}
-
-// A square steel lattice mast in `g`: legs `w` apart round ( x, z ), from y0 to y1, braced every `step` m
-function lattice( g, mat, x, z, y0, y1, w, step = 3 ) {
-
-	const h = y1 - y0;
-	const leg = new BoxGeometry( 0.28, h, 0.28 );
-	for ( const [ lx, lz ] of [ [ - 1, - 1 ], [ 1, - 1 ], [ - 1, 1 ], [ 1, 1 ] ] ) {
-
-		const m = new Mesh( leg, mat );
-		m.position.set( x + lx * w / 2, y0 + h / 2, z + lz * w / 2 );
-		m.castShadow = true;
-		g.add( m );
-
-	}
-
-	for ( let y = y0 + step; y < y1 - 1; y += step ) {
-
-		for ( const [ bw, bd, px, pz ] of [ [ w, 0.14, 0, - w / 2 ], [ w, 0.14, 0, w / 2 ], [ 0.14, w, - w / 2, 0 ], [ 0.14, w, w / 2, 0 ] ] ) {
-
-			const m = new Mesh( new BoxGeometry( bw, 0.14, bd ), mat );
-			m.position.set( x + px, y, z + pz );
-			g.add( m );
-
-		}
-
-		// the diagonals on the two faces you see
-		for ( const side of [ - 1, 1 ] ) {
-
-			const d = new Mesh( new BoxGeometry( 0.1, Math.hypot( w, step ), 0.1 ), mat );
-			d.position.set( x, y - step / 2, z + side * w / 2 );
-			d.rotation.z = side * Math.atan2( w, step );
-			g.add( d );
 
 		}
 
