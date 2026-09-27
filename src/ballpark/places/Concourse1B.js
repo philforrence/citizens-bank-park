@@ -13,6 +13,8 @@ import { Walk1B } from './concourse1b/Walk.js';
 import { People1B, GATE_S, S_END } from './concourse1b/People.js';
 import { buildGate1B } from './concourse1b/Gate.js';
 import { Arrivals1B } from './concourse1b/Arrivals.js';
+import { Prints } from './concourse1b/Prints.js';
+import { programKiosk, caricatureCorner, cartSigns, cartTop } from './concourse1b/Things.js';
 
 // The main concourse on the first base side, behind home plate round to the right field corner (sections
 // 122 to 108), and the First Base Gate: the other half of the walkable ring, and the other way in. It was
@@ -49,12 +51,18 @@ export default class Concourse1B {
 		this.w2 = app?.places?.find( ( p ) => p.name === 'concourse3b' ) || null;
 		this.obstacles = [];
 		this._columns();
+		// the First Base Gate open for the game
+		this.gate = buildGate1B( { group: this.group, exterior: app?.exterior, colliders, field } );
 		this.kit = this._kit();
+		this.prints = new Prints();
 		this._bins();
 		this._carts();
 		this._tvs();
 		this._lights();
+		this._hung();
+		this._fronts();
 		this.group.add( this.kit.mesh( 'concourse1b-props' ) );
+		this.group.add( this.prints.mesh() );
 		// the floor on the night
 		const doors = ( concourse?.doors || [] ).map( ( D ) => this.W.toSD( D.x, D.z ) ).filter( ( [ s ] ) => s > - 2 && s < S_END + 2 );
 		this.floor = floorSkin( this.W, { sEnd: S_END, gate: [ GATE_S + 3, 54 ], doors, lamps: this.lamps,
@@ -66,8 +74,7 @@ export default class Concourse1B {
 		const mid = this.W.at( S_END / 2, 40 );
 		for ( const m of [ this.cast.mesh, this.cast.meshFar, this.cast.meshTiny, this.cast.blobs ] ) m.boundingSphere = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.55 + 60 );
 		this.people = new People1B( { cast: this.cast, walkway: this.W, concourse, bowl, obstacles: this.obstacles, carts: this.carts, seed: 1029 } );
-		// the First Base Gate open for the game, and the fans coming in through it
-		this.gate = buildGate1B( { group: this.group, exterior: app?.exterior, colliders, field } );
+		// the fans coming in through the gate
 		if ( this.gate ) {
 
 			this._takeOverGate( people );
@@ -218,12 +225,31 @@ export default class Concourse1B {
 		};
 
 		this.carts = [];
+		const Pr = this.prints;
 		const put = ( kind, brand, s0, d = 40.9 ) => {
 
 			const s = s0 < 90 ? between( s0 ) : s0;
 			const w = W.at( s, d );
 			const n = [ w.nx, w.nz ], a = [ - w.ux, - w.uz ];
-			cart( K, this._frame( w ), kind, r, false );
+			const P = this._frame( w );
+			// W2's carts where the kind's theirs; this side's own signs and tops on the others
+			const own = [ 'hatfieldCart', 'phood' ].includes( brand ), beer = brand === 'draft' || brand === 'bottles';
+			cart( K, P, own ? 'plain' : kind, r, false );
+			if ( own ) cartTop( Pr, K, P, brand );
+			// (the beer carts keep W2's tub of ice; their signs are this side's)
+			if ( own || beer ) cartSigns( Pr, P, brand, beer ? 0.05 : 0.035 );
+
+			if ( brand === 'waterIce' ) {
+
+				// on a 47-degree night: HOT CHOCOLATE $3.00 in marker, taped over the sign, an urn on the lid
+				Pr.panel( P, 0.42, 0.95 + 1.35, 0.045, 0.42, 0.31, 'cocoaSign' );
+				Pr.panel( P, - 0.3, 0.56, 0.4 + 0.014, 0.36, 0.27, 'cocoaSign' );
+				K.use( 'steel' ).cyl( P, - 0.35, - 0.1, 0.95 + 0.22, 0.95 + 0.72, 0.13, 0.13, 12 );
+				K.use( 'rubber' ).box( P, - 0.35, 0.95 + 0.34, 0.06, 0.05, 0.06, 0.06 );
+				for ( let i = 0; i < 3; i ++ ) K.use( 'cup' ).cyl( P, 0.05 + i * 0.09, 0.2, 0.95 + 0.22, 0.95 + 0.5 - i * 0.04, 0.035, 0.045, 8 );
+
+			}
+
 			this.obstacles.push( [ s, d, 1.0 ] );
 			this.carts.push( { kind: brand, s, d, x: w.x, z: w.z, n, u: a } );
 
@@ -238,6 +264,25 @@ export default class Concourse1B {
 		put( 'beer', 'draft', 108.5, 40.6 );
 		put( 'beer', 'bottles', 125, 40.6 );
 		put( 'cottonCandy', 'cottonCandy', 146, 40.6 );
+		// the World Series program kiosk in the walkway behind 115-116 (Getty 83600062, Game 3), and Gus
+		{
+
+			const s = 51.5, d = 37.3, w = W.at( s, d );
+			programKiosk( Pr, K, this._frame( w ) );
+			this.obstacles.push( [ s, d, 1.25 ] );
+			this.carts.push( { kind: 'programs', s, d, x: w.x, z: w.z, n: [ w.nx, w.nz ], u: [ - w.ux, - w.uz ] } );
+
+		}
+
+		// the caricaturist's corner, against the wall between the Creamery and the Market (109-110)
+		{
+
+			const s = 119.2, d = 42.9, w = W.at( s, d );
+			caricatureCorner( Pr, this._frame( w ) );
+			this.caricature = { s, d, x: w.x, z: w.z, n: [ w.nx, w.nz ], u: [ - w.ux, - w.uz ] };
+			this.obstacles.push( [ s, d - 0.4, 1.3 ], [ s - 1.2, d + 0.3, 0.6 ] );
+
+		}
 
 	}
 
@@ -339,6 +384,91 @@ export default class Concourse1B {
 				this.lamps.push( [ s, d ] );
 
 			}
+
+		}
+
+	}
+
+	// a frame facing fwd ( [ x, z ], unit ), its right-hand side worked out (right x up = fwd)
+	_facing( o, fwd ) {
+
+		return Kit.frame( o, [ fwd[ 1 ], - fwd[ 0 ] ], fwd );
+
+	}
+
+	// What hangs over this side: the players' banners in the trusses (a photo in a navy frame, a red
+	// nameplate in cream serif caps, as the 2008 photos show them on the other side): Utley over the First
+	// Base Gate's way in and Hamels over its turnstiles, as Rollins and Feliz hang over the Third Base
+	// Gate's; Howard behind 116-117 (where a 2010 photo has him), Victorino by 120, Werth by 111, Myers by
+	// 108-109. The Coca-Cola pole banners on the columns' walkway faces. The directional signs: behind
+	// 108-109 (a 2010 photo there: RAMP TO ALL LEVELS, ADVANCE TICKETS, GUEST SERVICES, FIRST BASE GATE),
+	// and at the gate's way in, facing the turnstiles.
+	_hung() {
+
+		const Pr = this.prints, K = this.kit, W = this.W, top = 11.5;
+		const along = ( s, d ) => {
+
+			const w = W.at( s, d );
+			return this._facing( [ w.x, w.z ], [ - w.ux, - w.uz ] );
+
+		};
+
+		for ( const [ cell, s, d, y ] of [ [ 'utley', 70.5, 47.4, 8.4 ], [ 'hamels', 80.5, 51.2, 7.7 ], [ 'howard', 46, 46.4, 8.5 ], [ 'victorino', 21, 46.4, 8.5 ], [ 'werth', 99, 46.6, 8.4 ], [ 'myers', 133, 46.6, 8.4 ] ] ) {
+
+			const P = along( s, d );
+			Pr.sheet( P, 0, y, 0, 3.4, 4.25, cell );
+			K.use( 'navy' ).box( P, 0, y + 2.17, 0, 3.5, 0.08, 0.06 );
+			for ( const x of [ - 1.5, 1.5 ] ) K.use( 'grey' ).box( P, x, ( y + 2.2 + top ) / 2, 0, 0.012, top - y - 2.2, 0.012 );
+
+		}
+
+		// the pole banners: on the walkway's side of a column (the field's side where the columns run down
+		// the middle; the concourse's where they stand on the rail)
+		for ( const [ cell, s0 ] of [ [ 'pole8', 22.3 ], [ 'pole6', 38.8 ], [ 'pole28', 64.9 ], [ 'pole54', 104.6 ], [ 'pole11', 128.1 ] ] ) {
+
+			const col = this.columns.find( ( c ) => Math.abs( c[ 0 ] - s0 ) < 0.8 );
+			if ( ! col ) continue;
+			const rail = col[ 1 ] < 35, w = W.at( col[ 0 ], col[ 1 ] + ( rail ? 0.37 : - 0.37 ) );
+			const P = this._facing( [ w.x, w.z ], rail ? [ - w.nx, - w.nz ] : [ w.nx, w.nz ] );
+			Pr.sheet( P, 0, 4.7, 0, 0.8, 2.1, cell );
+			for ( const y of [ 3.62, 5.78 ] ) K.use( 'grey' ).box( P, 0, y, 0, 0.84, 0.03, 0.03 );
+
+		}
+
+		// the directional signs, each one-sided (the arrows are for one way of walking)
+		{
+
+			const w = W.at( 124, 42.6 );
+			const P = this._facing( [ w.x, w.z ], [ w.ux, w.uz ] );
+			Pr.box( P, 0, 4.3, 0, 1.3, 1.95, 0.04, 'wayRF' );
+			for ( const x of [ - 0.5, 0.5 ] ) K.use( 'grey' ).box( P, x, ( 5.3 + top ) / 2, 0, 0.015, top - 5.3, 0.015 );
+
+		}
+
+		if ( this.gate ) {
+
+			const g = this.gate, c = g.P( 0, - 10.5 );
+			const P = this._facing( [ c[ 0 ], c[ 2 ] ], g.n );
+			Pr.box( P, 0, 4.4, 0, 1.3, 1.95, 0.04, 'wayGate' );
+			for ( const x of [ - 0.5, 0.5 ] ) K.use( 'grey' ).box( P, x, ( 5.4 + top ) / 2, 0, 0.015, top - 5.4, 0.015 );
+
+		}
+
+	}
+
+	// The stands' fronts as they were: the South Philadelphia Market's illustrated header (the April 2008
+	// photo of one: SOUTH PHILADELPHIA over a sunburst, 9TH ST. MARKET on a ribbon, the Italian Market's
+	// panel, a vendor in his apron) over the generic name band Concourse.js gives every market
+	_fronts() {
+
+		const Pr = this.prints;
+		for ( const { U } of this._units() ) {
+
+			if ( U.what !== 'market' ) continue;
+			const P = Kit.frame( U.mid, U.a, U.n );
+			Pr.panel( P, 0, 3.76, 0.075, 7.56, 0.9, 'market' );
+			// its edges: a navy return round the panel's thickness
+			Pr.use( 'navy' ).box( P, 0, 3.76, 0.06, 7.6, 0.94, 0.02 );
 
 		}
 
