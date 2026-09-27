@@ -1,16 +1,21 @@
 # 🛑 START HERE: where we are
 
-**Sunday 2026-09-27: little-worlds wave 1 is merged and waiting on the owner's review.** Branch `ballpark`.
+**Sunday 2026-09-27: little-worlds wave 2 is running** (launched after the owner's go-ahead). Branch `ballpark`.
 
-- **All four places are merged:** W1 the Third Base Gate, W2 the main concourse, W3 Ashburn Alley and the bullpens, W4 the field-level rail.
-- **The combined park:** loads clean, plays through the last out, `npm test` passes.
-- **The combined summary:** [docs/notes/worlds/WAVE1.md](docs/notes/worlds/WAVE1.md). It covers what each built, the costs under exclusive, the systems to reuse, the name collisions, the flagged problems and the pictures asked for. Each builder's notes are in `docs/notes/worlds/W1.md` … `W4.md`.
-- **Next:**
-  - the owner reviews the park;
-  - then, before wave 2, merge the three new figure systems (W1's Folk, W3's Folk, W2's Cast) into one;
-  - then pick wave 2's places ([WAVES.md](docs/notes/worlds/WAVES.md) has the candidates).
+- **Wave 1** (the gate, the concourse, the Alley, the rail) is merged; see [docs/notes/worlds/WAVE1.md](docs/notes/worlds/WAVE1.md).
+- **Wave 2**, chosen by the scouting in [SCOUT.md](docs/notes/worlds/SCOUT.md):
+  - **P0:** one people system (onto Cast.js), the budget fixed, the name collisions renamed;
+  - **A:** the Phillie Phanatic;
+  - **B:** behind home plate, the TV backdrop;
+  - **C:** the 1B concourse and the First Base Gate.
+- **The builders' branches** are `worktree-agent-*`. They share live notes and one cast register in `.claude/wave2/` (local).
+- **When they're all done: merge everything** (keep every entry in `places/index.js`). Then:
+  1. load it clean, and profile it under exclusive;
+  2. commit `.claude/wave2/CAST.md` as `docs/notes/worlds/CAST.md`;
+  3. write `WAVE2.md`;
+  4. show the owner.
 
-  **Launch nothing until the owner says so.**
+  The owner reviews before any wave 3.
 
 **Done today:**
 - **Decisions:** section 7 of the plan was answered (recorded there).
