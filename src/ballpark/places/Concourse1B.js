@@ -15,6 +15,7 @@ import { buildGate1B } from './concourse1b/Gate.js';
 import { Arrivals1B } from './concourse1b/Arrivals.js';
 import { Prints } from './concourse1b/Prints.js';
 import { Stories1B } from './concourse1b/Stories.js';
+import { Sounds1B } from './concourse1b/Sounds.js';
 import { programKiosk, caricatureCorner, cartSigns, cartTop } from './concourse1b/Things.js';
 
 // The main concourse on the first base side, behind home plate round to the right field corner (sections
@@ -90,6 +91,8 @@ export default class Concourse1B {
 		this.steam.mesh.name = 'concourse1b-steam';
 		this._steamers();
 		people?.hiders?.push( ( x, z ) => this.covers( x, z ) );
+		// what it sounds like (set up once the park's sound exists)
+		this.sounds = new Sounds1B( this );
 
 	}
 
@@ -528,6 +531,7 @@ export default class Concourse1B {
 		this.arrivals?.update( dt, ns, t );
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
 		this.cast.update( cam );
+		this.sounds.update( dt, ns, camF );
 		if ( this.ownTV ) this.tv.update( dt, director, ns );
 		// the floor: wet on the 27th (wetter as it pours), dry prints on the 29th, the litter piling up
 		const U = this.floor.material.uniforms;

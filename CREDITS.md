@@ -113,3 +113,11 @@ Piper (https://github.com/rhasspy/piper, MIT): the en_US-joe-medium voice (CC0 d
 play-by-play and en_US-norman-medium (public-domain LibriVox recordings) for the colour, mixed with an
 AM-radio treatment by `tools/radio/build-audio.py` into `public/audio/radio/game5.mp3`. It is not the
 real 2008 broadcast.
+
+## The first base concourse's voices (concourse1b)
+
+The vendors', staff's and fans' calls in `public/audio/places/concourse1b/` are voiced offline with Piper
+(https://github.com/rhasspy/piper, MIT) by `tools/audio/concourse1b-calls.py`: the en_US voices joe,
+mike and kathleen (CC0) and norman, bryce, john, kristin and ljspeech (public domain), per their model
+cards. The sizzle, register, scanner, turnstile, rain-on-steel and murmur sounds there are synthesized
+in code (`src/ballpark/places/concourse1b/Sounds.js`).
