@@ -1,4 +1,7 @@
-import { Group, Matrix4, Vector3, Sphere } from '../../engine/index.js';
+import { Group, Mesh, BufferGeometry, Float32BufferAttribute, Matrix4, Vector3, Sphere } from '../../engine/index.js';
+import { standard } from '../../materials/Materials.js';
+import { LiveTV } from './Concourse3BTV.js';
+import { floorSkin } from './Concourse3BFloor.js';
 import { LEVELS } from '../layout.js';
 import { Cast } from './Cast.js';
 import { Walkway } from './Concourse3BKit.js';
@@ -39,7 +42,13 @@ export default class Concourse3B {
 		this.kit = new Kit();
 		this._bins();
 		this._carts();
+		this._tvs();
 		this.group.add( this.kit.mesh() );
+		// the floor on the night: the wet, the prints, the spills, the litter
+		const doors = ( concourse?.doors || [] ).map( ( D ) => this.W.toSD( D.x, D.z ) ).filter( ( [ s ] ) => s > - 2 && s < S_END + 2 );
+		this.floor = floorSkin( this.W, { sEnd: S_END, gate: [ 73.2, 60 ], doors,
+			spills: [ [ 65, 43.4, 1.3 ], [ 63.4, 42.3, 0.6 ], [ 67.2, 41.8, 0.45 ], [ 17.4, 43.6, 0.5 ], [ 56.3, 43.2, 0.45 ], [ 47, 30.7, 0.5 ], [ 22, 30.6, 0.4 ], [ 88, 30.8, 0.4 ] ] } );
+		this.group.add( this.floor );
 		// the people: the cast (drawn here), and People.js's own figures handed over to it in this stretch
 		this.cast = new Cast( { parent: this.group, max: 360 } );
 		// where the cast is (for ?focus=, which drops what's wholly outside its circle)
@@ -160,7 +169,7 @@ export default class Concourse3B {
 			const s = table ? s0 : between( s0 );
 			const w = W.at( s, d );
 			// facing the rail side (toward the field): its front ( +z ) is -d
-			const n = [ w.nx, w.nz ], a = [ - w.ux, - w.uz ];
+			const n = [ w.nx, w.nz ], a = [ w.ux, w.uz ];
 			const P = Kit.frame( [ w.x, w.z ], a, n );
 			if ( table ) programTable( K, P, r ); else cart( K, P, kind, r );
 			this.obstacles.push( [ s, d, table ? 0.75 : 1.0 ] );
@@ -175,6 +184,83 @@ export default class Concourse3B {
 		put( 'nachos', 92 );
 		put( 'programs', 69.5, 44.0, true );
 		put( 'programs', 2.5, 43.2, true );
+
+	}
+
+	// The TVs: one over each stand (so the line can follow the game) and over each restroom's doors, a
+	// 42-inch flat in a black bezel sitting on the unit's roof, tipped down toward the walkway; all
+	// showing the broadcast (Concourse3BTV.js), as do the TVs hung along the concourse (Concourse.js),
+	// which this feeds
+	_tvs() {
+
+		const K = this.kit, W = this.W;
+		this.tv = new LiveTV();
+		this.concourse?.group.traverse( ( o ) => {
+
+			if ( o.isMesh && o.material?.name === 'concourse-tv' ) this.tv.feed( o.material.bindings?.bpTV?.texture );
+
+		} );
+		const pos = [], nrm = [], uv = [];
+		const units = ( this.concourse?.units || [] ).filter( ( U ) => {
+
+			const [ s ] = W.toSD( U.mid[ 0 ], U.mid[ 1 ] );
+			return s > - 2 && s < S_END + 2;
+
+		} );
+		const w = 0.93, h = 0.53, tilt = 0.2;
+		for ( const U of units ) {
+
+			const P = Kit.frame( U.mid, U.a, U.n );
+			// a bracket up from the roof, the bezel, the screen tipped down to the walkway
+			const y0 = 4.42, z0 = 0.1;
+			K.use( 'lid' ).box( P, 0, 4.3, - 0.1, 0.1, 0.2, 0.1 );
+			const c = ( x, y ) => P( x, y0 + y * Math.cos( tilt ), z0 + y * Math.sin( tilt ) );
+			const back = ( x, y ) => P( x, y0 + y * Math.cos( tilt ) + 0.06 * Math.sin( tilt ), z0 + y * Math.sin( tilt ) - 0.06 * Math.cos( tilt ) );
+			K.use( 'lid' );
+			const bw = w / 2 + 0.03, bh = h + 0.03;
+			K.quad( back( - bw, - 0.03 ), back( bw, - 0.03 ), back( bw, bh ), back( - bw, bh ), P.dir( 0, - Math.sin( tilt ), - Math.cos( tilt ) ) );
+			for ( const [ a, b ] of [ [ [ - bw, - 0.03 ], [ bw, - 0.03 ] ], [ [ bw, - 0.03 ], [ bw, bh ] ], [ [ bw, bh ], [ - bw, bh ] ], [ [ - bw, bh ], [ - bw, - 0.03 ] ] ] ) {
+
+				const nx = a[ 1 ] === b[ 1 ] ? 0 : Math.sign( a[ 0 ] ), ny = a[ 0 ] === b[ 0 ] ? 0 : Math.sign( a[ 1 ] - h / 2 );
+				K.quad( c( ...a ), c( ...b ), back( ...b ), back( ...a ), P.dir( nx, ny, 0 ) );
+
+			}
+
+			K.quad( c( - bw, - 0.03 ), c( bw, - 0.03 ), c( w / 2, 0 ), c( - w / 2, 0 ), P.dir( 0, Math.sin( tilt ), Math.cos( tilt ) ) );
+			K.quad( c( - w / 2, h ), c( w / 2, h ), c( bw, bh ), c( - bw, bh ), P.dir( 0, Math.sin( tilt ), Math.cos( tilt ) ) );
+			K.quad( c( - bw, - 0.03 ), c( - w / 2, 0 ), c( - w / 2, h ), c( - bw, bh ), P.dir( 0, Math.sin( tilt ), Math.cos( tilt ) ) );
+			K.quad( c( w / 2, 0 ), c( bw, - 0.03 ), c( bw, bh ), c( w / 2, h ), P.dir( 0, Math.sin( tilt ), Math.cos( tilt ) ) );
+			// the screen, a hair in front of the bezel's face
+			const f = ( x, y ) => P( x, y0 + y * Math.cos( tilt ) - 0.004 * Math.sin( tilt ) * - 1, z0 + y * Math.sin( tilt ) + 0.004 );
+			const n = P.dir( 0, Math.sin( tilt ), Math.cos( tilt ) );
+			for ( const [ a, b, cc ] of [ [ [ - 1, 0 ], [ 1, 0 ], [ 1, 1 ] ], [ [ - 1, 0 ], [ 1, 1 ], [ - 1, 1 ] ] ] ) {
+
+				// wound to face the walkway (the canvas's x runs to the right facing it: along a)
+				for ( const [ x, y ] of [ a, b, cc ] ) {
+
+					pos.push( ...f( x * w / 2, y * h ) );
+					nrm.push( ...n );
+					uv.push( ( x + 1 ) / 2, 1 - y );
+
+				}
+
+			}
+
+		}
+
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		g.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
+		g.setAttribute( 'uv', new Float32BufferAttribute( uv, 2 ) );
+		g.computeBoundingBox();
+		g.computeBoundingSphere();
+		const mat = standard( { name: 'concourse3b-tv', roughness: 0.15, side: 'double', textures: { c3bTV: this.tv.texture },
+			surface: 'let t = textureSample( c3bTV, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.06; s.emissive = t * 1.1;' } );
+		mat.underwaterLighting = 'none';
+		mat.setDefine( 'DRY', 1 );
+		const mesh = new Mesh( g, mat );
+		mesh.name = 'concourse3b-tv';
+		this.group.add( mesh );
 
 	}
 
@@ -261,6 +347,13 @@ export default class Concourse3B {
 		this._lastT = t;
 		this.people.update( dt, ns );
 		this.cast.update();
+		this.tv.update( dt, director, ns );
+		// the floor: wet on the 27th (wetter as it pours), dry prints on the 29th, the litter piling up
+		const U = this.floor.material.uniforms;
+		const game = ns.inning ? Math.min( 1, ( ( ns.inning - 1 ) * 2 + ( ns.half === 'top' ? 0 : 1 ) ) / 17 ) : 0.3;
+		U.rainK.value = ns.first || ns.suspended ? 0.35 + 0.65 * ns.rain : 0.12;
+		U.dryK.value = ns.first ? 0 : 1;
+		U.litterK.value = 0.25 + 0.6 * game + ( ns.celebrate ? 0.3 : 0 ) + ( ns.suspended ? 0.2 : 0 );
 
 	}
 
