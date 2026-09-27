@@ -33,6 +33,7 @@ You walk in through the Third Base Gate and watch the replay, with TV cameras, t
   - P0 is moving everyone onto it this wave, and keeps its public API stable.
   - If you need something it lacks (a pose, a prop, a uniform), add it to Cast.js in a marked block, and note it for P0 in `ASK-<KEY>.md`.
   - The Phanatic is the exception: he uses the players' rig (`game/Players.js`, `KIND.phanatic`).
+- **Your own people in the stands:** `app.bowl.crowd.vacate( ( seat ) => bool )` empties the seats you pick (seat = the world position), so you can sit Cast figures there. Don't edit Crowd.js.
 - **Sound in a place:** `app.sound.sample( name, url | ( ctx ) => buffer )` and `app.sound.spot( name, worldPosition, { loop, vol, ref } )`, then `.move()`, `.set()` and `.stop()`. See GameSound.js.
   - Recorded clips must be CC0: search Freesound's CC0 filter (`tools/audio/` has helpers), put them under `public/audio/places/<place>/` as small mp3s, and credit them in CREDITS.md.
   - Or synthesize the sound in code, or use Piper TTS (as `tools/radio` does) for calls and voices.

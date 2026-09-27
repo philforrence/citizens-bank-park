@@ -427,6 +427,8 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwFanPose {
 	if ( sg != 0u ) { keep |= 1u << 9u; }
 	if ( ( hairStyle == 1u || hairStyle == 3u ) && ! hood && ! capped ) { keep |= 1u << 10u; }
 	if ( blanket == 1u ) { keep |= 1u << 11u; }
+	// a seat given to someone else (Crowd.vacate): nobody here
+	if ( ( act >> 31u ) == 1u ) { keep = 0u; }
 	let flags = keep | select( 0u, 1u << 12u, hood ) | select( 0u, 1u << 13u, hat == 3u || hat == 7u ) | select( 0u, 1u << 14u, hairStyle == 3u ) | select( 0u, 1u << ${ PONCHO_BIT }u, poncho );
 
 	var o: CwFanPose;
@@ -1025,6 +1027,36 @@ export class Crowd {
 
 	}
 
+	// Empty the seats a test picks: test( seat ) with the seat's world position (a Vector3-like {x, y, z})
+	// returns true to leave it empty, for a place that puts its own person there (a Cast figure, a
+	// featured fan). Any time: applied when the fans are seated, or at once if they are.
+	vacate( test ) {
+
+		( this._vacate ||= [] ).push( test );
+		if ( this._ids ) this._writeIds();
+
+	}
+
+	_writeIds() {
+
+		const ids = this._ids, seats = this._seats, p = { x: 0, y: 0, z: 0 };
+		let n = 0;
+		for ( let f = 0; f < this.count; f ++ ) {
+
+			p.x = seats[ f * 4 ];
+			p.y = seats[ f * 4 + 1 ];
+			p.z = seats[ f * 4 + 2 ];
+			const empty = ( this._vacate || [] ).some( ( t ) => t( p ) );
+			ids[ f * 4 + 2 ] = empty ? ( ids[ f * 4 + 2 ] | 0x80000000 ) >>> 0 : ids[ f * 4 + 2 ] & 0x7fffffff;
+			if ( empty ) n ++;
+
+		}
+
+		this.vacated = n;
+		this.idsBuf.write( ids );
+
+	}
+
 	// once the stands are built (the first frame): who each fan is and where he sits, into the buffers
 	// the compute pass reads, and the pass itself
 	_seat() {
@@ -1046,8 +1078,10 @@ export class Crowd {
 
 		}
 
-		this.idsBuf.write( ids );
+		this._ids = ids;
+		this._seats = seats;
 		this.seatsBuf.write( seats );
+		this._writeIds();
 		this._kernel = new ComputeKernel( {
 			label: 'crowd', modules: [ cwHashModule ], workgroupSize: [ 64, 1, 1 ],
 			bindings: {
