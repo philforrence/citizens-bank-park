@@ -1,6 +1,8 @@
 import { Quaternion, Euler } from '../../engine/index.js';
 import * as M from './Motions.js';
 import { POSITIONS, BASES, MOUND, DUGOUT, BULLPEN, ON_DECK, boxFor, sprayToField, pitchPath, fallbackPfx, battedBall, throwPath, basePath, dist, lerp2, yawTo } from './Plays.js';
+import { look as lookFor } from './Looks.js';
+import { ROLE, DIRT } from './Players.js';
 
 // The replay. The whole game is laid out in advance as a timeline of segments (teams taking the field,
 // walk-ups, pitches, balls in play, pitching changes, the celebration), each with the state of the game at
@@ -22,6 +24,12 @@ const hash = ( n ) => {
 
 	const s = Math.sin( n * 12.9898 ) * 43758.5453;
 	return s - Math.floor( s );
+
+};
+const ease01 = ( x ) => {
+
+	const t = Math.min( 1, Math.max( 0, x ) );
+	return t * t * ( 3 - 2 * t );
 
 };
 
@@ -235,6 +243,41 @@ export class Director {
 			plan: this._planCelebration( lastPlay ),
 			cues: [ [ 0.3, { say: `Swing and a miss! The Philadelphia Phillies are World Series champions!`, champions: true } ] ],
 		} );
+
+		// the slides (for the dirt on the seat of their pants): the base stealers, and the runners who
+		// took two bases or more on a hit
+		this.slides = new Map();
+		const slid = ( id, t ) => ( this.slides.get( id ) || this.slides.set( id, [] ).get( id ) ).push( t );
+		for ( const sg of segs ) {
+
+			for ( const a of sg.acts || [] ) for ( const mv of a.moves ) if ( /stolen|caught/.test( a.e.kind || '' ) ) slid( mv.id, sg.t0 + 2 );
+			if ( sg.kind === 'inplay' ) for ( const r of sg.plan.runners ) if ( ( r.to - r.from >= 2 && r.to < 4 ) || r.out ) slid( r.id, sg.t0 + r.tArrive );
+
+		}
+
+	}
+
+	// How dirty a player's uniform has got (Players.js: DIRT bits + the amount): it builds through the
+	// night (the first night's rain-soaked clay faster), where it shows by what he plays (the catcher all
+	// over, the infielders' knees and fronts, a pitcher's drag knee) and by his slides. The 29th starts
+	// with clean uniforms.
+	_dirt( id, seg ) {
+
+		const s = seg.snap, info = this.game.players[ id ];
+		if ( ! s || ! info ) return 0;
+		const night2 = s.inning > 6 || ( s.inning === 6 && s.half === 'bottom' );
+		const halves = night2 ? ( s.inning - 6 ) * 2 + ( s.half === 'bottom' ? 0 : - 1 ) : ( s.inning - 1 ) * 2 + ( s.half === 'bottom' ? 1 : 0 );
+		const pos = Object.keys( s.defense || {} ).find( ( k ) => s.defense[ k ] === id ) || info.pos;
+		let bits = 0, k = 0.5;
+		if ( pos === 'C' ) { bits = DIRT.knees | DIRT.seat; k = 1.3; }
+		else if ( pos === 'P' ) { bits = info.throws === 'L' ? DIRT.dragL : DIRT.dragR; k = 0.9; }
+		else if ( pos === 'SS' || pos === '2B' || pos === '3B' ) { bits = DIRT.knees | DIRT.front; k = 0.9; }
+		else if ( pos === '1B' ) { bits = DIRT.knees; k = 0.7; }
+		else bits = DIRT.knees;
+		let amount = ( 0.1 + Math.max( 0, halves ) * ( night2 ? 0.07 : 0.09 ) ) * k;
+		const t0 = night2 ? ( this._night2 ??= this.segments.find( ( q ) => q.snap && q.snap.inning === 6 && q.snap.half === 'bottom' ).t0 ) : 0;
+		for ( const t of this.slides.get( id ) || [] ) if ( t <= this.t && t >= t0 ) { bits |= DIRT.seat; amount += 0.3; }
+		return bits + Math.min( 0.95, amount );
 
 	}
 
@@ -557,13 +600,45 @@ export class Director {
 		const runners = ( s.bases || [] ).some( Boolean );
 		const r2 = Math.SQRT1_2;
 		const crew = [
-			[ - 1, [ 0.35, 2.05 ], pitching ? M.umpSet( lt ) : M.stand( lt + 1 ), 2 ],
+			[ - 1, [ 0.35, 2.05 ], pitching ? M.umpSet( lt ) : M.stand( lt + 1 ), ROLE.bag | ( seg.kind === 'inplay' ? 0 : ROLE.mask ) ],
 			[ - 2, [ 19.4 + 2.2 * r2 + 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ], pitching ? M.umpReady( lt ) : M.stand( lt + 2 ) ],
 			[ - 3, runners ? [ - 4.5, - 22.5 ] : [ - 3.5, - 32.5 ], pitching ? M.umpReady( lt ) : M.stand( lt + 3 ) ],
 			[ - 4, [ - 19.4 - 2.2 * r2 - 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ], pitching ? M.umpReady( lt ) : M.stand( lt + 4 ) ],
 			[ - 5, [ - 70 * r2 - 1.2, - 70 * r2 + 1.2 ], M.stand( lt + 5 ) ],
 			[ - 6, [ 70 * r2 + 1.2, - 70 * r2 + 1.2 ], M.stand( lt + 6 ) ],
 		];
+		// the calls: the plate umpire's called strike (strike three punched out, a swinging third strike
+		// hammered), both arms up on a foul; the base umpires' outs at their bags; the line umpire's twirl on
+		// a home run
+		if ( seg.kind === 'pitch' ) {
+
+			const e = seg.ev, tc = lt - PACE.set - M.REL - seg.path.toCatcher;
+			const three = e.count[ 1 ] >= 3;
+			if ( tc > 0 && ( e.call === 'C' || ( three && ( e.call === 'S' || e.call === 'W' || e.call === 'T' ) ) ) ) crew[ 0 ][ 2 ] = M.umpStrike( tc, three );
+			const tf = lt - PACE.set - M.REL - seg.path.flight;
+			if ( seg.foul && tf > 0.2 && ! three ) crew[ 0 ][ 2 ] = M.umpArmsUp( tf - 0.2 );
+
+		} else if ( seg.kind === 'inplay' ) {
+
+			for ( const r of seg.plan.runners ) {
+
+				const tr = lt - ( r.out && r.tOut != null ? r.tOut : r.tArrive );
+				if ( ! r.out || tr < 0 || tr > 1.8 ) continue;
+				const b = ( r.out ? ( r.to || r.from + 1 ) : r.to ) % 4;
+				const u = b === 1 ? 1 : b === 2 ? 2 : b === 3 ? 3 : 0;
+				crew[ u ][ 2 ] = M.umpCall( tr, true );
+
+			}
+
+			if ( seg.plan.hr && lt > seg.plan.bb.time && lt < seg.plan.bb.time + 4 ) {
+
+				const to = seg.plan.bb.at( seg.plan.bb.time );
+				crew[ to[ 0 ] < 0 ? 4 : 5 ][ 2 ] = M.umpTwirl( lt - seg.plan.bb.time );
+
+			}
+
+		}
+
 		for ( const [ id, at, pose, role ] of crew ) {
 
 			pose.glove = false;
@@ -571,6 +646,14 @@ export class Director {
 			this.act( id, at[ 0 ], at[ 1 ], yawTo( at, look ), pose, { role: role || 0 } );
 
 		}
+
+	}
+
+	// his height over the rig's 6'2" (poses are in his own, scaled, frame)
+	_height( id ) {
+
+		const s = this.slots.get( id );
+		return s ? s.look.height || 1 : lookFor( id ).height || 1;
 
 	}
 
@@ -585,34 +668,56 @@ export class Director {
 	_sync() {
 
 		const P = this.game.players;
+		const snap = this.now ? this.now.snap : null;
+		const kind = this.now ? this.now.seg.kind : '';
 		for ( const [ id, a ] of this.actors ) {
 
 			let s = this.slots.get( id );
 			if ( ! s ) {
 
-				const info = id < 0 ? { side: 'ump', num: '', throws: 'R' } : P[ id ] || { side: 'home', num: '', throws: 'R' };
-				s = this.players.add( { team: info.side, number: info.num, gloveHand: info.throws === 'L' ? 'R' : 'L', skin: Math.floor( hash( id ) * 4 ), name: info.last } );
-				s.seed = hash( id * 1.3 + 7 );
+				// a player by his id; the umpires (negative ids) and the other people on the field (string
+				// ids, `who` given by the scene) bring their own looks
+				const num = typeof id === 'number' ? id : String( id ).split( '' ).reduce( ( h, ch ) => ( h * 31 + ch.charCodeAt( 0 ) ) % 100003, 7 );
+				const info = a.who || ( num < 0 ? { side: 'ump', num: '', throws: 'R', look: String( id ) } : P[ id ] ) || { side: 'home', num: '', throws: 'R' };
+				s = this.players.add( { team: info.side, number: info.num, gloveHand: info.throws === 'L' ? 'R' : 'L', name: info.last, look: lookFor( info.look ?? id, hash( num ) ), back: info.back } );
+				s.seed = hash( num * 1.3 + 7 );
 				this.slots.set( id, s );
 
 			}
 
-			// what he wears: the batter and the runners their helmets, the catcher his gear (not in the
-			// dogpile: the mask comes off)
-			const snap = this.now ? this.now.snap : null;
+			// what he wears: the batter and the runners their helmets (with the flaps his helmet has) and
+			// batting gloves, the batter an elbow guard on his front arm if he wears one; the catcher his
+			// gear, the skull cap and the mitt (the mask while he's down behind the plate); the first
+			// baseman his mitt; fielders now and then with their batting gloves in the back pocket. In the
+			// dogpile it's all off.
 			let role = 0;
-			if ( snap && this.now.seg.kind !== 'celebrate' ) {
+			if ( snap && kind !== 'celebrate' && typeof id === 'number' && id > 0 ) {
 
-				if ( id === snap.batter || ( snap.bases || [] ).includes( id ) || a.pose?.bat ) role |= 1;
-				if ( snap.defense && id === snap.defense.C && a.pose && ! a.pose.bat ) role |= 3;
+				const L = s.look;
+				if ( id === snap.batter || ( snap.bases || [] ).includes( id ) || a.pose?.bat ) {
+
+					role |= ROLE.helmet | ROLE.bgloves;
+					role |= ( L.flaps & 1 ? ROLE.flapL : 0 ) | ( L.flaps & 2 ? ROLE.flapR : 0 );
+					if ( id === snap.batter && L.elbow ) role |= snap.bats === 'L' ? ROLE.elbowR : ROLE.elbowL;
+
+				} else if ( snap.defense ) {
+
+					if ( id === snap.defense.C ) role |= ROLE.gear | ROLE.ccap | ROLE.mittC;
+					else if ( id === snap.defense[ '1B' ] ) role |= ROLE.mitt1B;
+					if ( id !== snap.defense.P && id !== snap.defense.C && s.seed > 0.45 ) role |= ROLE.pocket;
+
+				}
 
 			}
 
 			if ( a.role != null ) role = a.role;
+			if ( a.roleAdd ) role |= a.roleAdd;
 			s.role = role;
 			s.visible = true;
 			s.x = a.x; s.z = a.z; s.yaw = a.yaw; s.y = a.y || 0; s.tilt = a.tilt || null;
 			s.pose = a.pose;
+			if ( a.dirt != null ) s.dirt = a.dirt;
+			else if ( typeof id === 'number' && id > 0 && this.now ) s.dirt = this._dirt( id, this.now.seg );
 
 		}
 
@@ -641,7 +746,7 @@ export class Director {
 
 		const id = snap.defense.C;
 		if ( ! id ) return;
-		this.act( id, POSITIONS.C[ 0 ], POSITIONS.C[ 1 ], 0, M.catcherCrouch( lt, glove ) );
+		this.act( id, POSITIONS.C[ 0 ], POSITIONS.C[ 1 ], 0, M.catcherCrouch( lt, glove ), { roleAdd: ROLE.mask } );
 
 	}
 
@@ -658,11 +763,12 @@ export class Director {
 
 	}
 
-	_batter( snap, pose ) {
+	// `off`: metres back out of the box, away from the plate (stepping out between pitches)
+	_batter( snap, pose, off = 0 ) {
 
 		const [ x, z ] = boxFor( snap.bats );
 		const left = snap.bats === 'L';
-		this.act( snap.batter, x, z, left ? Math.PI / 2 : - Math.PI / 2, left ? M.mirror( pose ) : pose );
+		this.act( snap.batter, x + ( left ? off : - off ), z + off * 0.3, left ? Math.PI / 2 : - Math.PI / 2, left ? M.mirror( pose ) : pose );
 
 	}
 
@@ -789,8 +895,20 @@ export class Director {
 		// the release point in the pitcher's frame (he faces +z: his x is the field's -x, his -z the field's +z)
 		let relLocal = [ root[ 0 ] - rel[ 0 ], rel[ 1 ] - 0.25, root[ 1 ] - rel[ 2 ] ];
 		if ( lefty ) relLocal = [ - relLocal[ 0 ], relLocal[ 1 ], relLocal[ 2 ] ];
+		// (his frame is scaled by his height)
+		relLocal = relLocal.map( ( v ) => v / this._height( pid ) );
 		let pp;
-		if ( d < 0 ) pp = lt < 1.2 ? M.stand( lt ) : M.blend( M.stand( lt ), M.pitcherSet(), Math.min( 1, ( lt - 1.2 ) / 0.6 ) );
+		// before it: on the rubber, leaning in for the sign (now and then shaking one off), the nod, then
+		// he comes set
+		const shakes = hash( seg.t0 ) < 0.22;
+		if ( d < 0 ) {
+
+			if ( lt < 0.9 ) pp = M.stand( lt );
+			else if ( lt < 1.3 ) pp = M.blend( M.stand( lt ), M.lookIn( lt ), ease01( ( lt - 0.9 ) / 0.4 ) );
+			else if ( lt < 2.2 ) pp = M.lookIn( lt, ( lt - 1.8 ) / 0.3, shakes ? ( lt - 1.3 ) / 0.45 : 0 );
+			else pp = M.blend( M.lookIn( lt ), M.pitcherSet(), ease01( ( lt - 2.2 ) / 0.5 ) );
+
+		}
 		else pp = M.delivery( d, relLocal );
 		this.act( pid, root[ 0 ], root[ 1 ], Math.PI, lefty ? M.mirror( pp ) : pp, { y: 0.25 } );
 
@@ -804,9 +922,16 @@ export class Director {
 		const flight = seg.path.flight, toC = seg.path.toCatcher;
 		// the catcher's glove goes to where the ball will cross his plane
 		const catchAt = seg.path.at( toC );
-		const glove = [ catchAt[ 0 ] - POSITIONS.C[ 0 ], catchAt[ 1 ], catchAt[ 2 ] - POSITIONS.C[ 1 ] ];
+		const ch = this._height( s.defense.C );
+		const glove = [ ( catchAt[ 0 ] - POSITIONS.C[ 0 ] ) / ch, catchAt[ 1 ] / ch, ( catchAt[ 2 ] - POSITIONS.C[ 1 ] ) / ch ];
 		const gk = Math.min( 1, Math.max( 0, ( tb + 0.35 ) / 0.3 ) );
-		this._catcher( s, lt, gk > 0 ? [ - 0.08 + ( glove[ 0 ] + 0.08 ) * gk, 0.72 + ( glove[ 1 ] - 0.72 ) * gk, - 0.48 + ( glove[ 2 ] + 0.48 ) * gk ] : null );
+		// the catcher puts down the sign while the pitcher leans in, then gives the target
+		if ( d < 0 && lt > 1.15 && lt < 2.25 && s.defense.C ) {
+
+			const k = Math.min( 1, ( lt - 1.15 ) / 0.2, ( 2.25 - lt ) / 0.2 );
+			this.act( s.defense.C, POSITIONS.C[ 0 ], POSITIONS.C[ 1 ], 0, M.blend( M.catcherCrouch( lt ), M.catcherSigns( lt ), k ), { roleAdd: ROLE.mask } );
+
+		} else this._catcher( s, lt, gk > 0 ? [ - 0.08 + ( glove[ 0 ] + 0.08 ) * gk, 0.72 + ( glove[ 1 ] - 0.72 ) * gk, - 0.48 + ( glove[ 2 ] + 0.48 ) * gk ] : null );
 		if ( tb >= - 0.02 && tb < flight ) this.ballAt = seg.path.at( Math.max( 0, tb ) );
 		else if ( tb >= flight && ! seg.foul && ! e.inPlay ) {
 
@@ -828,17 +953,28 @@ export class Director {
 
 		}
 
-		// the batter
+		// the batter: back in from stepping out after the last pitch (the gloves' straps tugged, a tap of
+		// the plate), the stance, the swing or the take; after a pitch that doesn't end it he steps out
+		const stepIn = s.balls + s.strikes > 0 && lt < 1.7;
+		const stance = stepIn ? ( lt < 1.0 ? M.adjustGloves( lt ) : lt < 1.35 ? M.blend( M.adjustGloves( lt ), M.tapPlate( lt - 1.0 ), ease01( ( lt - 1.0 ) / 0.35 ) ) : M.blend( M.tapPlate( lt - 1.0 ), M.batterStance( lt ), ease01( ( lt - 1.35 ) / 0.35 ) ) ) : M.batterStance( lt );
+		const inOff = stepIn ? 0.55 * ( 1 - ease01( ( lt - 0.6 ) / 0.6 ) ) : 0;
+		const [ eb, es ] = e.count;
+		const goesOn = ! e.inPlay && eb < 4 && es < 3 && e.call !== 'H';
+		const out = goesOn ? ease01( ( tb - toC - 0.9 ) / 0.8 ) : 0;
+		let bp;
 		if ( seg.swing ) {
 
 			const start = M.REL + flight - M.CONTACT;
-			this._batter( s, d >= start ? M.swing( d - start ) : M.batterStance( lt ) );
+			bp = d >= start ? M.swing( d - start ) : stance;
 
 		} else {
 
-			this._batter( s, d >= M.REL ? M.take( d - M.REL ) : M.batterStance( lt ) );
+			bp = d >= M.REL ? M.take( d - M.REL ) : stance;
 
 		}
+
+		if ( out > 0 ) bp = M.blend( bp, M.adjustGloves( lt ), out );
+		this._batter( s, bp, Math.max( inOff, out * 0.55 ) );
 
 		// steals and passed balls on this pitch
 		for ( const a of seg.acts ) for ( const mv of a.moves ) {
