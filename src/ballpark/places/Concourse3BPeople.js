@@ -664,7 +664,7 @@ export class ConcoursePeople {
 			if ( cam && ! this.warming && ! this.catchUp ) {
 
 				const dx = f.p.x - cam[ 0 ], dz = f.p.z - cam[ 1 ];
-				const every = cadence( f.p, dx * dx + dz * dz );
+				const every = cadence( f.p, dx * dx + dz * dz, true );
 				f._acc = ( f._acc || 0 ) + dt;
 				if ( every > 1 && ( this._frame + f.p.slot ) % every ) continue;
 				fdt = f._acc;

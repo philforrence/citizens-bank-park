@@ -26,6 +26,10 @@ import { GPU } from '../../engine/gpu/GPU.js';
 // swing of the camera wakes every place for that frame.
 let SEQ = 0;
 const view = { frame: - 1, cut: true, x: 0, y: 0, z: 0, fx: 0, fy: 0, fz: - 1, fov: 0 };
+// (profiling: TEMPO.off = true runs every place at the full rate and the people as before the tune-up:
+// P0's rule in the concourse, everyone else every frame; window.__tempo in the page)
+export const TEMPO = { off: false };
+if ( typeof window !== 'undefined' ) window.__tempo = TEMPO;
 
 // has the view jumped since last frame (a cut to another camera, a seek, a quick turn)?
 export function viewCut( camera ) {
@@ -71,6 +75,16 @@ export class Tempo {
 
 	step( dt, camera ) {
 
+		if ( TEMPO.off ) {
+
+			this.cut = false;
+			this.awake = true;
+			const s = this.acc + dt;
+			this.acc = 0;
+			return s;
+
+		}
+
 		this.frame ++;
 		this.acc += dt;
 		// (a cut: everyone caught up now, whatever the pool drew last frame; see cadence())
@@ -90,10 +104,11 @@ export class Tempo {
 // fraction of a pixel a frame) every 6th; the few pixels tall every 3rd, and (P0's rule in the concourse)
 // those over 35 m off every 3rd, unless the lens makes them big (the TV's long lens sees the rows behind home
 // plate from 150 m at a tenth of the screen: every frame). d2: their distance from the camera squared
-// (along the ground)
-export function cadence( p, d2 = 0 ) {
+// (along the ground); p0: the concourse's own rule before (for TEMPO.off)
+export function cadence( p, d2 = 0, p0 = false ) {
 
 	const lod = p.lod ?? 0;
+	if ( TEMPO.off ) return ! p0 ? 1 : lod < 0 ? 4 : lod === 2 || d2 > 35 * 35 ? 3 : 1;
 	if ( lod < 0 ) return d2 > 40 * 40 ? 6 : 4;
 	const frac = p.frac ?? 1;
 	if ( frac < 0.02 ) return 6;
