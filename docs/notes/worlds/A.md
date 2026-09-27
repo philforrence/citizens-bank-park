@@ -84,7 +84,7 @@ In the worktree's `.claude/qa/desk/`:
 
 ## Unfinished
 
-- **The seated crowd round him doesn't get up** (Crowd.js isn't ours). Heads turn in the Cast people (P0's `lookAt`, after the merge), and B's and C's fans react off `app.phanatic.now`. For the coordinator: a `crowd.focus( key, { x, z, r, stand, arms } | null )` using the ripple uniform that's already there would let the fans within ~10 m stand and wave while he's in their section, on the roof, and where the hot dogs land.
+- **The seated crowd round him** gets up through the coordinator's `crowd.focus` (on `ballpark` after my branch): I call it as `crowd.focus?.( ... )`, so it lights up at the merge (keys `phanatic`, and `phanatic-hot-dog` where one's coming down); not seen in a render yet. Heads turn in the Cast people through P0's `lookAt`, also at the merge; B's and C's fans react off `app.phanatic.now`.
 - **The rail's ball girls Jess and Caitlin** stay on their chairs during the rain dance (their RailFigures have no dance pose); the squad are the others.
 - **Not seen yet in a render:** the sou'wester up close, the party blower, the ball girls' towels and ponytails up close; the audio isn't heard in the headless desk (the buffers and spots are exercised in node).
 - **His tail** (a blue tuft) isn't modelled.

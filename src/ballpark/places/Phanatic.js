@@ -237,6 +237,7 @@ export default class Phanatic {
 		// everyone's heads turning to him wherever he goes (the shared people system's lookAt: P0's Cast.js;
 		// before that merge it isn't there and this does nothing)
 		CastLib.lookAt?.( 'phanatic', n.visible && n.zone !== 'backstage' ? { x: n.x, y: n.y + 1.2, z: n.z, r: 14, k: 0.4 + 0.6 * n.excite } : null );
+		this._crowd( n, t );
 		this._sound( st, t, director );
 		this._lastT = t;
 
@@ -395,6 +396,32 @@ export default class Phanatic {
 		const cam = camera ? this.field.toField?.( camera.position.x, camera.position.z ) : null;
 		const c = cam ? [ cam.x ?? cam[ 0 ], 0, cam.z ?? cam[ 1 ] ] : null;
 		this.cast.update( c );
+
+	}
+
+	// The seated fans round him get up (the crowd's focus: the coordinator's, on `ballpark`; a no-op before
+	// that's merged): the section he's come down into, the rows behind the roof while he dances, the stands
+	// by the rain dance and the little Phanatic; and wherever a hot dog is coming down, everyone up with
+	// their arms up for it
+	_crowd( n, t ) {
+
+		const crowd = this.app?.bowl?.crowd;
+		if ( ! crowd?.focus ) return;
+		const k = n.excite;
+		let f = null;
+		if ( n.visible ) {
+
+			if ( n.zone === 'stands' ) f = { x: n.x, z: n.z, r: 9, stand: 0.55 + 0.35 * k, arms: 0.3 + 0.4 * k };
+			else if ( n.zone === 'roof1B' || n.zone === 'roof3B' ) f = { x: n.x, z: n.z, r: 13, stand: 0.5 + 0.35 * k, arms: 0.35 + 0.35 * k };
+			else if ( n.zone === 'field' ) f = { x: n.x, z: n.z, r: 16, stand: 0.45 * k, arms: 0.3 * k };
+			else if ( n.zone === 'concourse' ) f = { x: n.x, z: n.z, r: 6, stand: 0.3 * k, arms: 0.2 * k };
+
+		}
+
+		crowd.focus( 'phanatic', f );
+		// the hot dogs: from half a second before one lands to two after
+		const dog = ( this.plan.shots || [] ).find( ( s ) => t > s.t0 + s.T - 1.2 && t < s.t0 + s.T + 2.0 );
+		crowd.focus( 'phanatic-hot-dog', dog ? { x: dog.to[ 0 ], z: dog.to[ 2 ], r: 6, stand: 0.95, arms: 0.85 } : null );
 
 	}
 
