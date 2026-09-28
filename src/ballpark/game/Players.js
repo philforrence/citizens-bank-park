@@ -37,6 +37,12 @@ export const ROLE = {
 ROLE.slicker = 131072;
 ROLE.shorts = 262144;
 // ---- end A
+// ---- R (rituals): what they had on minutes after the last out (Getty 83571364, 83571213; ronniebruce
+// 2987488477): the grey WORLD SERIES CHAMPIONS t-shirt over the jersey, the red undershirt's sleeves out
+// of it, and the black champions cap
+ROLE.tee = 524288;
+ROLE.champCap = 1048576;
+// ---- end R
 // what he is (the first of the slot's numbers)
 export const KIND = { away: 0, home: 1, ump: 2, crew: 3, phanatic: 4 };
 // where the dirt is (p.dirt's whole part; the fraction is how much): the knees, the seat and the backs
@@ -379,6 +385,10 @@ function playerMaterial( bones, info, atlas ) {
 	if ( home || phan ) { cloth = vec3f( 0.83, 0.82, 0.79 ); trim = vec3f( 0.42, 0.018, 0.025 ); pantsC = cloth; beltC = vec3f( 0.02 ); capC = trim; }
 	if ( ump ) { cloth = vec3f( 0.014, 0.015, 0.02 ); trim = cloth; pantsC = vec3f( 0.2, 0.2, 0.21 ); beltC = vec3f( 0.01 ); capC = vec3f( 0.012 ); }
 	if ( crew ) { cloth = vec3f( 0.3, 0.016, 0.02 ); trim = cloth; pantsC = vec3f( 0.25, 0.2, 0.13 ); beltC = vec3f( 0.03, 0.02, 0.01 ); capC = cloth; }
+	// ---- R (rituals): the champions' gear
+	let tee = ( role & ${ R.tee }u ) != 0u;
+	if ( ( role & ${ R.champCap }u ) != 0u ) { capC = vec3f( 0.014 ); }
+	// ---- end R
 	// the team's dugout jacket: the Phillies' red, the Rays' navy
 	let jacketC = select( vec3f( 0.012, 0.02, 0.065 ), vec3f( 0.36, 0.016, 0.024 ), home );
 	var hairC = mix( hairBase, vec3f( 0.3, 0.29, 0.28 ), smoothstep( 0.5, 1.0, age ) * 0.5 );
@@ -462,6 +472,26 @@ function playerMaterial( bones, info, atlas ) {
 		let k = mix( cover, 0.06, smoothstep( 0.25, 0.8, fw ) );
 		c = mix( cloth, vec3f( 0.43, 0.02, 0.04 ), k * 0.8 );
 	}
+	// ---- R (rituals): the grey champions tee: heather cotton, its short sleeves over the red undershirt's,
+	// the print on the chest (the P in its red roundel over WORLD SERIES CHAMPIONS 2008); nothing on the back
+	if ( tee && part == ${ P.jersey } && ! jacket ) {
+		c = vec3f( 0.23, 0.23, 0.24 ) * ( 0.9 + 0.2 * fract( sin( dot( floor( L.xy * 400.0 ), vec2f( 12.9, 78.2 ) ) ) * 43758.5 ) );
+		rough = 0.95;
+		if ( arm < -0.5 && Nb.z < -0.05 ) {
+			let q = vec2f( L.x, L.y - 1.3 );
+			let r = length( q );
+			if ( r < 0.072 ) {
+				c = vec3f( 0.42, 0.02, 0.035 );
+				let pq = q / 0.06;
+				let stem = abs( pq.x + 0.2 ) < 0.14 && abs( pq.y ) < 0.7;
+				let bowl = abs( length( ( pq - vec2f( 0.05, 0.3 ) ) * vec2f( 1.0, 1.3 ) ) - 0.32 ) < 0.12 && pq.x > - 0.2;
+				if ( stem || bowl || r > 0.064 ) { c = vec3f( 0.8, 0.79, 0.76 ); }
+			}
+			if ( abs( L.x ) < 0.11 && abs( L.y - 1.195 ) < 0.02 ) { c = vec3f( 0.02, 0.04, 0.16 ); }
+			if ( abs( L.x ) < 0.13 && abs( L.y - 1.15 ) < 0.018 ) { c = vec3f( 0.45, 0.03, 0.04 ); }
+		}
+	}
+	// ---- end R
 	if ( part == ${ P.jersey } && jacket ) {
 		// the jacket: nylon with a sheen, a knit collar and cuffs, the zip down the front
 		c = jacketC; rough = 0.45;
@@ -496,6 +526,9 @@ function playerMaterial( bones, info, atlas ) {
 		cell = ${ C.mlb }.0; lu = 0.5 + L.x / 0.036; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.07 ) } ) / 0.04;
 	}
 	if ( ( ump || crew ) && part != ${ P.cap } ) { cell = -1.0; }
+	// ---- R (rituals): the champions tee has its own print (above), not the jersey's
+	if ( tee && part == ${ P.jersey } && ! jacket ) { cell = -1.0; }
+	// ---- end R
 	if ( ump && part == ${ P.cap } ) { cell = -1.0; }
 	let cxy = vec2f( cell % ${ COLS }.0, floor( cell / ${ COLS }.0 ) );
 	let inCell = cell >= 0.0 && lu > 0.02 && lu < 0.98 && lv > 0.02 && lv < 0.98;

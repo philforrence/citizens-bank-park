@@ -201,6 +201,10 @@ function plan( d, seg ) {
 
 	// ---- after the pile: the hugs, and off to the stands (then the rest of the night: afterPile)
 	afterPile( d, seg, L, def );
+	// the clubhouse men come out with the gear, and within a few minutes they're all in the grey champions
+	// tee and the black cap (Getty 83571364: being handed round in the scrum; the coaches keep their jackets)
+	let n = 0;
+	for ( const info of L.values() ) info.tChamps = 50 + hash( n ++ * 7.7 + 3 ) * 60;
 	return L;
 
 }
@@ -384,7 +388,9 @@ export function showCelebration( d, seg, lt ) {
 
 		let a = gettingUp( info.steps, lt ) || evalSteps( info.steps, lt, info );
 		if ( ! a ) continue;
-		const extra = { y: a.y || 0, tilt: a.tilt || null, role: info.role ?? 0 };
+		let role = info.role ?? 0;
+		if ( lt > info.tChamps ) role = role & ROLE.jacket ? role | ROLE.champCap : ( role & ~ ( ROLE.gear | ROLE.ccap ) ) | ROLE.tee | ROLE.champCap;
+		const extra = { y: a.y || 0, tilt: a.tilt || null, role };
 		if ( info.who ) extra.who = info.who;
 		// the Phillies' mud: their night's dirt as it was
 		d.act( id, a.x, a.z, a.yaw, a.pose, extra );
