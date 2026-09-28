@@ -444,6 +444,15 @@ export class Fans {
 			case 'applause':
 				this._clapBurst( 0.5 * v );
 				break;
+			case 'rays': {
+
+				// the few Rays fans in the park (the Inquirer: few of them): a knot of them up in the 300s
+				// behind their dugout, cheering, heard through everyone else's groan
+				const F = this.field, w = F.toWorld( - 48, 58 );
+				this.sound.spot( 'cheer-small', this._v.set( w.x, F.y0 + 24, w.z ), { vol: 0.5 * v, ref: 18, max: 300, rate: 1.05 } );
+				break;
+
+			}
 			default: break;
 
 		}

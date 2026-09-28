@@ -227,13 +227,15 @@ export function buildPlan( director ) {
 			// a fly ball off a Phillies bat: the rising "ohhh" while it's up; a Rays home run: the park goes
 			// quiet but for the Rays' dugout
 			if ( home && air ) add( t0 + 0.4, 'fans', { what: 'rise', level: p.hit?.hard === 'hard' ? 1.4 : 0.8 } );
-			if ( ! home && /home_run/.test( p.result.type ) ) add( t0 + 1.2, 'hush', { dur: 5 } );
+			if ( ! home && /home_run/.test( p.result.type ) ) add( t0 + 1.2, 'hush', { dur: 5 } ), add( t0 + 1.6, 'fans', { what: 'rays', level: 1 } );
 
 		}
 
 		if ( s.kind === 'result' ) {
 
 			const p = plays[ s.pi ], home = sn.batting === 'home', type = p.result.type;
+			// a Rays run: the few Rays fans there were, cheering in their corner
+			if ( ! home && s.before?.score && s.snap.score.away > s.before.score.away && ! /home_run/.test( type ) ) add( t0 + 0.6, 'fans', { what: 'rays', level: 0.8 } );
 			// a Feliz hit: the booth's Christmas joke
 			if ( home && P[ sn.batter ]?.last === 'Feliz' && /single|double|triple|home_run/.test( type ) ) add( t0 + 1.2, 'sting', { tune: 'jingle' } );
 			// walks and hit batsmen aren't in play (the app's cue only cheers runs and strikeouts)
