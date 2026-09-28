@@ -46,8 +46,9 @@ export class Seats {
 
 		if ( ! N?.susp ) return 0;
 		if ( N.delay ) return 0.05 + 0.2 * sm( 3, 45, N.lt ) + 0.6 * sm( ann, ann + 24, N.lt );
+		// the 29th: the tarp comes off in the empty park; the gates open (5:30) and it fills, full by the song
 		const l2 = N.lt - ( N.split - N.t0 );
-		return 0.88 * ( 1 - sm( 0, 52, l2 ) );
+		return 0.9 * ( 1 - sm( 10, 28, l2 ) );
 
 	}
 

@@ -128,7 +128,8 @@ function tubeAt( f ) {
 
 // The times (s into the suspension's break; the 29th's from its start, the split)
 export const T27 = { out: 1.5, lift: [ 7, 20 ], pull: [ 20, 44 ], coreOff: [ 46, 53 ] };
-export const T29 = { coreBack: [ 1.5, 6 ], unpull: [ 6, 27 ], stow: [ 27, 35 ] };
+// (the 29th: it came off in the afternoon, before the gates opened at 5:30: the park still empty)
+export const T29 = { coreBack: [ 1.5, 5 ], unpull: [ 5, 22 ], stow: [ 22, 27 ] };
 
 // The tarp's state: phase ('stowed' | 'lift' | 'pull' | 'on'), pull (0..1 of the sheet laid out, for
 // Details2008.setTarp), lift (0..1 from the wall to the sheet's left field edge), u (where the roll's

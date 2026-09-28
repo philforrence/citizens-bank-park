@@ -26,7 +26,7 @@ const PACE = { intro: 14, switch: 24, walkup: 6, set: 3.0, after: 2.4, result: 3
 // emptying into the rain), the rest the 29th (the tarp off, the crew's work, the park filling, the Rays
 // out for the bottom of the 6th). The celebration runs on through the trophy and the laps. (A's
 // Phanatic and Phanavision already split the suspension at 0.55.)
-PACE.suspend = 140;
+PACE.suspend = 160;
 PACE.celebrate = 300;
 export const SPLIT = 0.55;
 // ---- end R

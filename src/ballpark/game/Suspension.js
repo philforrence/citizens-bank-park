@@ -32,8 +32,15 @@ import { tarpState, rollAxis, sheetPoint, tubeAt, PULL_DIR, R_CORE, SHEET, T29, 
 
 const N_CREW = 20;
 // when the suspension is announced (s into the break): the park's cue to go home (Seats, the PA, the
-// board). S's PA says "suspended" 55% of the way through the 27th's part (0.55 x 0.55 x 140 s)
-export const ANNOUNCE = 42.35;
+// board). S's PA says "suspended" 55% of the way through the 27th's part (0.55 x 0.55 x 160 s)
+export const ANNOUNCE = 48.4;
+// The 29th's part (s from its start, 72 s): the tarp off in the empty afternoon park (TarpPlan's T29),
+// the crew's work as the gates open and it fills, God Bless America at 8:26 pm (MLB.com, Oct 29: Petty
+// Officer First Class Dorcus Whigham sang it before the first pitch in place of the anthem; "many in the
+// crowd sang along"): everyone on the field still, caps off, facing the flag; then Balfour and Hickey
+// out of the pen (8:30), the Rays out, the umpires, Jenkins on deck
+export const G29 = { gba: [ 26, 36 ], balfour: 36, rays: 45, umps: 57, jenkins: 63 };
+const FLAG_AT = [ 0, - 132 ];
 // the roll's radius wound back up (for where the workers leave it)
 const R_FULL_29 = 0.55;
 const hash = ( n ) => {
@@ -58,7 +65,7 @@ const PEN_HOME = [ 400058, 425492, 240694, 239795, 113961, 424925, 457918 ];
 const PEN_AWAY = [ 434442, 235095, 456034, 136268 ];
 const BALFOUR = 346797;
 // he sets off from the pen this far into the 29th's part (W3's Pens.js keeps him loose until then)
-export const BALFOUR_OUT = 14;
+export const BALFOUR_OUT = 36;
 // Jim Hickey, the Rays' pitching coach (real; a look from the rig's seeds)
 const HICKEY = { id: 'r:hickey', who: { side: 'away', num: '', last: 'HICKEY' } };
 const r2 = Math.SQRT1_2;
@@ -356,9 +363,13 @@ function pensIn( d, lt ) {
 
 // ---------------------------------------------------------------- the 29th
 
-function night29( d, seg, l2, st, axis, dur ) {
+function night29( d, seg, l2real, st, axis, dur ) {
 
 	const s = seg.snap;
+	// the crew's clock stands still through the song (they stop where they are, caps off)
+	const [ g0, g1 ] = G29.gba;
+	const singing = l2real >= g0 && l2real < g1;
+	let l2 = l2real < g0 ? l2real : l2real < g1 ? g0 : l2real - ( g1 - g0 );
 	const T = { unpull: T29.unpull[ 0 ], stow: T29.stow[ 0 ], stowEnd: T29.stow[ 1 ] };
 	for ( const [ i, c ] of CREW.entries() ) {
 
@@ -419,7 +430,19 @@ function night29( d, seg, l2, st, axis, dur ) {
 	}
 
 	liner( d, l2 );
-	resumption( d, seg, s, l2, dur );
+	// through the song: every one of them still, facing the flag in center, the cap over his heart
+	if ( singing ) for ( const id of [ ...CREW.map( ( c ) => c.id ), LINER.id ] ) {
+
+		const a = d.actors.get( id );
+		if ( ! a ) continue;
+		a.pose = R.capToHeart( l2real );
+		a.yaw = yawTo( [ a.x, a.z ], FLAG_AT );
+		a.role = ( a.role || 0 ) | ROLE.nocap;
+
+	}
+
+	l2 = l2real;
+	resumption( d, seg, s, l2real, dur );
 
 }
 
@@ -520,14 +543,14 @@ function resumption( d, seg, s, l2, dur ) {
 
 	const P = d.game.players;
 	const def = s.defense;
-	const tOut = dur - 27, from = DUGOUT.away;
+	const tOut = G29.rays, from = DUGOUT.away;
 	for ( const pos of [ 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF' ] ) {
 
 		const id = def[ pos ];
 		if ( ! id ) continue;
 		const to = POSITIONS[ pos ];
 		const t0 = tOut + hash( id ) * 3;
-		const w = along( [ from, to ], t0, 4.3, l2 );
+		const w = along( [ from, to ], t0, 4.6, l2 );
 		if ( ! w ) continue;
 		let pose, yaw = w.yaw;
 		if ( ! w.done ) pose = M.run( w.dist / 3.2, 0.25 );
@@ -547,24 +570,12 @@ function resumption( d, seg, s, l2, dur ) {
 	// to Navarro
 	const pit = def.P || BALFOUR;
 	const gate = polar( 5, 398 );
-	const tIn = BALFOUR_OUT, WALK_IN = 2.8;
+	const tIn = BALFOUR_OUT, WALK_IN = 3.6;
 	const path = [ gate, [ MOUND[ 0 ] + 0.6, MOUND[ 1 ] - 3 ], MOUND ];
 	const w = along( path, tIn, WALK_IN, l2 );
-	const hk = along( [ [ gate[ 0 ] + 1.1, gate[ 1 ] ], [ MOUND[ 0 ] + 1.7, MOUND[ 1 ] - 2.6 ], [ MOUND[ 0 ] + 1.2, MOUND[ 1 ] - 1.2 ] ], tIn, WALK_IN, l2 );
-	if ( hk ) {
-
-		// Hickey: beside him in the Rays' navy jacket, a word at the mound, then back to the dugout
-		const tTalk = tIn + ( dist( path[ 0 ], path[ 1 ] ) + dist( path[ 1 ], path[ 2 ] ) ) / WALK_IN;
-		if ( ! hk.done ) d.act( HICKEY.id, hk.p[ 0 ], hk.p[ 1 ], hk.yaw, R.walk( hk.dist / 2.3 ), { who: HICKEY.who, role: ROLE.jacket } );
-		else if ( l2 < tTalk + 2 ) d.act( HICKEY.id, hk.p[ 0 ], hk.p[ 1 ], yawTo( hk.p, MOUND ), M.stand( l2 ), { who: HICKEY.who, role: ROLE.jacket } );
-		else {
-
-			const b = along( [ hk.p, DUGOUT.away ], tTalk + 2, 2.9, l2 );
-			if ( ! b.done ) d.act( HICKEY.id, b.p[ 0 ], b.p[ 1 ], b.yaw, R.walk( b.dist / 2.3 ), { who: HICKEY.who, role: ROLE.jacket } );
-
-		}
-
-	}
+	// Hickey: beside him in the Rays' navy jacket to the back of the mound, then off to the dugout
+	const hk = along( [ [ gate[ 0 ] + 1.1, gate[ 1 ] ], [ MOUND[ 0 ] + 1.9, MOUND[ 1 ] - 9 ], DUGOUT.away ], tIn, WALK_IN, l2 );
+	if ( hk && ! hk.done ) d.act( HICKEY.id, hk.p[ 0 ], hk.p[ 1 ], hk.yaw, R.walk( hk.dist / 2.3 ), { who: HICKEY.who, role: ROLE.jacket } );
 
 	if ( w && ! w.done ) d.act( pit, w.p[ 0 ], w.p[ 1 ], w.yaw, R.walk( w.dist / 2.3 ), { role: ROLE.jacket } );
 	else if ( w ) {
@@ -597,7 +608,7 @@ function resumption( d, seg, s, l2, dur ) {
 	}
 
 	// the umpires walk out from their room
-	const tU = dur - 18;
+	const tU = G29.umps;
 	for ( const [ id, at ] of UMP_AT ) {
 
 		const w = along( [ UMP_DOOR, at ], tU + ( - id ) * 0.4, 2.2, l2 );
@@ -609,7 +620,7 @@ function resumption( d, seg, s, l2, dur ) {
 	}
 
 	// Jenkins, pinch-hitting for Hamels, out of the dugout to the on-deck circle
-	const tJ = dur - 14;
+	const tJ = G29.jenkins;
 	if ( s.batter ) {
 
 		const w = along( [ DUGOUT.home, ON_DECK.home ], tJ, 1.8, l2 );
