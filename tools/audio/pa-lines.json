@@ -880,5 +880,37 @@
 			"hype": 3,
 			"side": "home"
 		}
+	],
+	"rain-delay": [
+		{
+			"t": "Ladies and gentlemen,",
+			"role": "lead"
+		},
+		{
+			"t": "we are in a rain delay.",
+			"role": "end"
+		},
+		{
+			"t": "Please stand by for further announcements.",
+			"role": "end"
+		}
+	],
+	"gba": [
+		{
+			"t": "Ladies and gentlemen,",
+			"role": "lead"
+		},
+		{
+			"t": "please rise, and remove your caps,",
+			"role": "mid"
+		},
+		{
+			"t": "for the singing of God Bless America,",
+			"role": "mid"
+		},
+		{
+			"t": "by Navy Petty Officer Dorcus Whigham.",
+			"role": "end"
+		}
 	]
 }

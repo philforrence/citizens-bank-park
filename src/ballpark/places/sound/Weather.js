@@ -68,6 +68,7 @@ export class Weather {
 		} );
 		this.stepK = 0;
 		this.tarpSpot = null;
+		this.tracks = [];
 		this.flagSpots = [];
 
 	}
@@ -145,13 +146,107 @@ export class Weather {
 
 	}
 
-	// ---------------------------------------------------------------- the tarp
+	// ---------------------------------------------------------------- the tarp and the grounds crew
 
-	// the crew running it out (the plan's 'tarp' moment), and while it's down the rain on it
-	tarp() {
+	// The crew and the tarp on R's rituals' times (the plan's 'crew' moments): the roll moving (its core's
+	// rumble on the wet grass, the vinyl dragging, the edge slapping down), the edges walked square in the
+	// wind, and on the 29th the work on the clay: rakes round the bags, hoses behind second, the drag mat
+	// round the arc, the tamper on the mound. Each a spot that moves or stays, stopped when it's done.
+	crew( e ) {
 
-		const at = this._world( 0, 1, - 20 );
-		this.sound.spot( 'wx-tarp-pull', at, { vol: 1.1, ref: 14, max: 400 } );
+		const S = this.sound, now = S.ctx.currentTime;
+		if ( ! S.buffers[ 'wx-roll' ] ) return;
+		const P = ( x, z, y = 0.6 ) => this._world( x, y, z );
+		if ( e.what === 'roll' ) {
+
+			const h = S.spot( 'wx-roll', P( ...e.from ), { loop: true, vol: 0.9 * ( e.v ?? 1 ), ref: 10, max: 220 } );
+			this.tracks.push( { h, t0: now, dur: e.dur, from: e.from, to: e.to, slaps: e.v > 0.6 } );
+
+		} else if ( e.what === 'edges' ) {
+
+			this.tracks.push( { t0: now, dur: e.dur, edges: true } );
+
+		} else if ( e.what === 'work' ) {
+
+			const loops = [ [ 'wx-rake', 19, - 19 ], [ 'wx-rake', - 19, - 19 ], [ 'wx-rake', 2, - 37 ], [ 'wx-hose', - 4, - 46 ], [ 'wx-hose', 5, - 44 ] ];
+			const hs = loops.map( ( [ k, x, z ] ) => S.spot( k, P( x, z, 1 ), { loop: true, vol: k === 'wx-hose' ? 0.45 : 0.6, ref: 6, max: 160, rate: 0.9 + Math.random() * 0.2 } ) );
+			const drag = S.spot( 'wx-drag', P( 0, - 47 ), { loop: true, vol: 0.7, ref: 7, max: 180 } );
+			this.tracks.push( { t0: now, dur: e.dur, work: hs, drag, tamp: 0 } );
+
+		}
+
+	}
+
+	// a shout from the crew, near the roll
+	crewCall( key ) {
+
+		const S = this.sound;
+		if ( ! S.buffers[ 'fans-' + key ] ) return;
+		const roll = this.tracks.find( ( k ) => k.h );
+		const [ x, z ] = roll ? roll.at || roll.from : [ 0, - 26 ];
+		S.spot( 'fans-' + key, this._world( x + ( Math.random() - 0.5 ) * 6, 1.6, z + ( Math.random() - 0.5 ) * 4 ), { vol: 0.9, ref: 5, max: 140, rate: 0.95 + Math.random() * 0.1 } );
+
+	}
+
+	// the moving parts, four times a second
+	_tracks() {
+
+		const S = this.sound, now = S.ctx.currentTime;
+		for ( let i = this.tracks.length - 1; i >= 0; i -- ) {
+
+			const k = this.tracks[ i ], u = ( now - k.t0 ) / k.dur;
+			const done = u >= 1;
+			if ( k.h ) {
+
+				const x = k.from[ 0 ] + ( k.to[ 0 ] - k.from[ 0 ] ) * Math.min( 1, u ), z = k.from[ 1 ] + ( k.to[ 1 ] - k.from[ 1 ] ) * Math.min( 1, u );
+				k.at = [ x, z ];
+				k.h.move( this._world( x, 0.6, z ) );
+				// the edge slapping down as it goes
+				if ( k.slaps && Math.random() < 0.35 ) S.spot( 'wx-slap-' + ( Math.random() < 0.5 ? 0 : 1 ), this._world( x + ( Math.random() - 0.5 ) * 20, 0.3, z - 3 - Math.random() * 8 ), { vol: 0.6, ref: 8, max: 180, rate: 0.9 + Math.random() * 0.2 } );
+
+			}
+
+			if ( k.edges && Math.random() < 0.6 ) {
+
+				// walking the edges square in the wind: the vinyl cracking round its perimeter
+				const ang = Math.random() * Math.PI * 2;
+				S.spot( 'wx-slap-1', this._world( Math.cos( ang ) * 27, 0.4, - 25 + Math.sin( ang ) * 22 ), { vol: 0.45, ref: 8, max: 160, rate: 0.85 + Math.random() * 0.3 } );
+
+			}
+
+			if ( k.drag ) {
+
+				// the mat round the infield's arc; the tamper on the mound in the first seconds
+				const ang = Math.PI * ( 0.15 + 0.7 * Math.min( 1, u ) );
+				k.drag.move( this._world( Math.cos( ang ) * 28, 0.3, - 18.4 - Math.sin( ang ) * 28 ) );
+				if ( u < 0.4 && Math.random() < 0.8 ) S.spot( 'wx-tamper', this._world( 0.5, 0.8, - 18.4 ), { vol: 0.8, ref: 5, max: 120, rate: 0.9 + Math.random() * 0.2 } );
+
+			}
+
+			if ( done ) {
+
+				k.h?.stop();
+				for ( const h of k.work || [] ) h.stop();
+				k.drag?.stop();
+				this.tracks.splice( i, 1 );
+
+			}
+
+		}
+
+	}
+
+	jump() {
+
+		for ( const k of this.tracks ) {
+
+			k.h?.stop();
+			for ( const h of k.work || [] ) h.stop();
+			k.drag?.stop();
+
+		}
+
+		this.tracks.length = 0;
 
 	}
 
@@ -159,15 +254,27 @@ export class Weather {
 
 		const S = this.sound;
 		const su = plan?.susp;
-		// made as the suspension comes near
-		if ( su && Math.abs( d.t - su.t0 ) < 120 ) this._need( 'tarp', ( [ pull, rain ] ) => {
+		// made as the suspension comes near: the rain on the tarp, the crew's sounds
+		if ( su && Math.abs( d.t - su.t0 ) < 150 ) {
 
-			S.buffers[ 'wx-tarp-pull' ] = pull;
-			S.buffers[ 'wx-tarp-rain' ] = rain;
+			this._need( 'tarp', ( [ drum ] ) => {
 
-		} );
+				S.buffers[ 'wx-tarp-rain' ] = drum;
 
-		const on = su && d.t > su.t0 + 6 && d.t < plan.night2;
+			} );
+			this._need( 'crew', ( [ roll, slap0, slap1, rake, hose, drag, tamper ] ) => {
+
+				Object.assign( S.buffers, { 'wx-roll': roll, 'wx-slap-0': slap0, 'wx-slap-1': slap1, 'wx-rake': rake, 'wx-hose': hose, 'wx-drag': drag, 'wx-tamper': tamper } );
+
+			} );
+
+		}
+
+		this._tracks();
+		// the rain on the tarp while it's down on the infield (R's times: out by 44 s, wound up from 6 s into
+		// the 29th; the rain stopped, the drumming with it)
+		const T = plan?.tarp;
+		const on = T && d.t > T[ 0 ] && d.t < Math.min( T[ 1 ], plan.night2 );
 		if ( on && ! this.tarpSpot && S.buffers[ 'wx-tarp-rain' ] ) this.tarpSpot = S.spot( 'wx-tarp-rain', this._world( 0, 0.5, - 27 ), { loop: true, vol: 0.9 * Math.max( 0.5, rain ), ref: 18, max: 400 } );
 		if ( ! on && this.tarpSpot ) {
 

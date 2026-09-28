@@ -47,6 +47,42 @@ export default class Soundscape {
 
 	}
 
+	// A sound at a place in the park, for the others' moments (R's motor officers, the photographers round the
+	// pile): name 'harley' (a loop: a police V-twin idling; set( { rate } ) revs it), 'siren-chirp',
+	// 'shutters' (motor drives), 'flash', 'thump'; at [ x, y, z ] in the field frame. Returns a handle:
+	// move( [ x, y, z ] ), set( { vol, rate } ), stop(); null until the sounds are made (a moment after the
+	// first ask). Heard from where it is, through the park's air and rooms.
+	sfx( name, [ x, y, z ], { vol = 1, loop = name === 'harley', ref = 6 } = {} ) {
+
+		const S = this.app.sound;
+		if ( ! this.ready || ! S?.ctx ) return null;
+		if ( ! this._sfx ) {
+
+			this._sfx = true;
+			this.synth.make( 'sfx', 24000 ).then( ( [ harley, siren, shutters, thump ] ) => {
+
+				Object.assign( S.buffers, { 'sfx-harley': harley, 'sfx-siren-chirp': siren, 'sfx-shutters': shutters, 'sfx-thump': thump } );
+
+			} ).catch( () => {} );
+
+		}
+
+		const key = name === 'flash' ? 'home-camera-flash' : 'sfx-' + name;
+		if ( ! S.buffers[ key ] ) return null;
+		const F = this.field, at = ( p ) => {
+
+			const w = F.toWorld( p[ 0 ], p[ 2 ] );
+			return { x: w.x, y: F.y0 + p[ 1 ], z: w.z };
+
+		};
+
+		const h = S.spot( key, at( [ x, y, z ] ), { loop, vol, ref, max: 250 } );
+		const move = h.move;
+		h.move = ( p ) => move( at( p ) );
+		return h;
+
+	}
+
 	// fn( this ) when the replay passes t (playing, not jumping)
 	at( t, fn ) {
 
@@ -69,10 +105,10 @@ export default class Soundscape {
 		this.weather = new Weather( { app, field, sound: S, space: this.space, synth: this.synth } );
 		// the master: a gentle limiter at the very end, so the last out doesn't clip
 		const ctx = S.ctx, lim = ctx.createDynamicsCompressor();
-		lim.threshold.value = - 10;
-		lim.knee.value = 8;
-		lim.ratio.value = 6;
-		lim.attack.value = 0.004;
+		lim.threshold.value = - 9;
+		lim.knee.value = 3;
+		lim.ratio.value = 20;
+		lim.attack.value = 0.0015;
 		lim.release.value = 0.25;
 		this.limiter = lim;
 		S.master.disconnect();
@@ -161,6 +197,7 @@ export default class Soundscape {
 		this.pa.stop();
 		this.music.stop();
 		this.fans.jump();
+		this.weather.jump();
 
 	}
 
@@ -191,7 +228,9 @@ export default class Soundscape {
 			case 'chant': this.fans.chant( e.what, e.from, e.cycles ); break;
 			case 'hush': this.fans.hush( e.dur ); break;
 			case 'ump': this.fans.ump( e.key ); break;
-			case 'tarp': this.weather.tarp(); break;
+			case 'crew': this.weather.crew( e ); break;
+			case 'crewcall': this.weather.crewCall( e.key ); break;
+			case 'gba': if ( this.live ) this.music.play( 'hymn', e.dur, 0.55 ); this.fans.hush( e.dur, 0.12 ); break;
 			case 'night2': this.fans.welcome(); break;
 			case 'celebrate': this.fans.celebrate(); this.weather.celebrate(); break;
 			default: break;
@@ -216,7 +255,7 @@ export default class Soundscape {
 
 			if ( ! sc.live ) return;
 			if ( ! cue ) sc.music.play( 'takemeout', 34, 1 );
-			sc.fans.sing( 'stretch', 0.9 );
+			sc.fans.sing( 'stretch', 0.5 );
 
 		} );
 

@@ -148,6 +148,12 @@ const ANNOUNCE = {
 		{ t: 'with the Phillies coming to bat in the bottom of the sixth inning.', role: 'end' },
 		{ t: 'Please drive home safely.', role: 'end' },
 	],
+	gba: [
+		{ t: 'Ladies and gentlemen,', role: 'lead' },
+		{ t: 'please rise, and remove your caps,', role: 'mid' },
+		{ t: 'for the singing of God Bless America,', role: 'mid' },
+		{ t: 'by Navy Petty Officer Dorcus Whigham.', role: 'end' },
+	],
 	'welcome-29': [
 		{ t: 'Ladies and gentlemen,', role: 'lead' },
 		{ t: 'welcome back to Citizens Bank Park!', role: 'big', hype: 1.6 },
@@ -169,7 +175,8 @@ const ANNOUNCE = {
 
 const out = {};
 const missing = [];
-for ( const key of paKeys( plan ) ) {
+// every announcement too, whether or not this timeline uses it (the long suspension's 'gba' is only in R's)
+for ( const key of new Set( [ ...paKeys( plan ), ...Object.keys( ANNOUNCE ) ] ) ) {
 
 	const l = line( key );
 	if ( l ) out[ key ] = l;

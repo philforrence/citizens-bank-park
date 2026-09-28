@@ -221,7 +221,7 @@ export class Fans {
 		const S = this.sound, ctx = S.ctx, now = ctx.currentTime;
 		const L = this.levels( d );
 		// the hush: everything down but the few who can't help it; while they sing, the talk drops too
-		const hush = ( now < this.hushUntil ? 0.35 : 1 ) * ( now < ( this.singing || 0 ) ? 0.55 : 1 );
+		const hush = ( now < this.hushUntil ? this.hushLevel ?? 0.35 : 1 ) * ( now < ( this.singing || 0 ) ? 0.55 : 1 );
 		const set = ( n, v, tc = 0.35 ) => {
 
 			if ( Math.abs( n.v - v ) < 0.01 ) return;
@@ -238,7 +238,7 @@ export class Fans {
 
 		}
 
-		set( this.roar, 2.0 * Math.min( 1.6, L.roar + this.swell ) * hush, hush < 1 ? 0.1 : 0.45 );
+		set( this.roar, 1.4 * Math.min( 1.6, L.roar + this.swell ) * hush, hush < 1 ? 0.1 : 0.45 );
 		set( this.clap, 0.9 * L.clap * ( hush < 1 ? 0.2 : 1 ) );
 		set( this.applause, 0.8 * L.applause );
 		this._near( dt, d, camera, L );
@@ -331,7 +331,32 @@ export class Fans {
 
 	}
 
+	// a one-shot on the crowd (GameSound.play), kept so a jump in the replay can cut it (a 27 s roar
+	// shouldn't follow you back to the 3rd inning)
+	_play( name, opts ) {
+
+		const src = this.sound.play( name, opts );
+		if ( src && src.stop ) {
+
+			( this.shots ||= new Set() ).add( src );
+			src.onended = () => this.shots.delete( src );
+
+		}
+
+		return src;
+
+	}
+
 	jump() {
+
+		for ( const src of this.shots || [] ) try {
+
+			src.stop();
+
+		} catch {}
+
+		this.shots?.clear();
+		this.singing = 0;
 
 		this.swell = 0;
 		this.hushUntil = 0;
@@ -352,8 +377,8 @@ export class Fans {
 			this.swell = Math.max( this.swell, 0.25 * level + ( level >= 3 ? 0.35 : 0 ) );
 			if ( ! again ) {
 
-				if ( level >= 2 ) S.play( 'cheer-burst', { vol: 0.45 + 0.12 * level, bus: 'crowd' } );
-				else S.play( 'cheer-small', { vol: 0.55, bus: 'crowd' } );
+				if ( level >= 2 ) this._play( 'cheer-burst', { vol: 0.45 + 0.12 * level, bus: 'crowd' } );
+				else this._play( 'cheer-small', { vol: 0.55, bus: 'crowd' } );
 
 			}
 
@@ -361,7 +386,7 @@ export class Fans {
 
 		} else if ( ! again ) {
 
-			S.play( 'groan', { vol: 0.5, bus: 'crowd', rate: 0.95 + 0.1 * Math.random() } );
+			this._play( 'groan', { vol: 0.5, bus: 'crowd', rate: 0.95 + 0.1 * Math.random() } );
 			if ( level <= - 1 ) this.react( 'boo', 0.35 );
 
 		}
@@ -379,22 +404,22 @@ export class Fans {
 
 			case 'cheer':
 				this.swell = Math.max( this.swell, 0.2 * v );
-				S.play( v > 1.4 ? 'cheer-burst' : 'cheer-small', { vol: 0.35 + 0.2 * v, bus: 'crowd' } );
+				this._play( v > 1.4 ? 'cheer-burst' : 'cheer-small', { vol: 0.35 + 0.2 * v, bus: 'crowd' } );
 				this._clapBurst( 0.3 * v );
 				break;
 			case 'rise':
 				// a fly ball up, two strikes: the rising "ohhh"
 				this.swell = Math.max( this.swell, 0.18 * v );
-				S.play( 'ooh', { vol: 0.3 * v, rate: 0.9, bus: 'crowd' } );
+				this._play( 'ooh', { vol: 0.3 * v, rate: 0.9, bus: 'crowd' } );
 				break;
 			case 'ooh':
-				S.play( 'ooh', { vol: 0.3 * v, rate: 0.95 + 0.1 * Math.random(), bus: 'crowd' } );
+				this._play( 'ooh', { vol: 0.3 * v, rate: 0.95 + 0.1 * Math.random(), bus: 'crowd' } );
 				break;
 			case 'aww':
-				if ( ! this._voice( 'aww', 0.5 * v ) ) S.play( 'groan', { vol: 0.25 * v, rate: 1.1, bus: 'crowd' } );
+				if ( ! this._voice( 'aww', 0.5 * v ) ) this._play( 'groan', { vol: 0.25 * v, rate: 1.1, bus: 'crowd' } );
 				break;
 			case 'groan':
-				S.play( 'groan', { vol: 0.4 * v, bus: 'crowd' } );
+				this._play( 'groan', { vol: 0.4 * v, bus: 'crowd' } );
 				break;
 			case 'boo':
 				this._voice( 'boo', 0.55 * v );
@@ -414,7 +439,7 @@ export class Fans {
 		const takes = Object.keys( this.index ).filter( ( k ) => k === key || k.startsWith( key + '-' ) );
 		if ( ! takes.length ) return false;
 		const k = takes[ Math.floor( Math.random() * takes.length ) ];
-		return !! this.sound.play( 'fans-' + k, { vol, rate: rate * ( 0.97 + 0.06 * Math.random() ), bus: 'crowd' } );
+		return !! this._play( 'fans-' + k, { vol, rate: rate * ( 0.97 + 0.06 * Math.random() ), bus: 'crowd' } );
 
 	}
 
@@ -429,10 +454,12 @@ export class Fans {
 
 	}
 
-	hush( dur ) {
+	// the park holding its breath (level: how much of it is left; God Bless America takes it nearly all)
+	hush( dur, level = 0.35 ) {
 
 		const now = this.sound.ctx.currentTime;
 		this.hushUntil = now + dur;
+		this.hushLevel = level;
 		this.swell = 0;
 		this.tick = 0;
 
@@ -451,9 +478,9 @@ export class Fans {
 		const S = this.sound;
 		this.swell = 1.2;
 		this.hushUntil = 0;
-		S.play( 'cheer-big', { vol: 1.2, bus: 'crowd' } );
-		S.play( 'cheer-burst', { vol: 1.0, delay: 0.15, bus: 'crowd' } );
-		S.play( 'cheer-burst', { vol: 0.8, delay: 9, rate: 0.97, bus: 'crowd' } );
+		this._play( 'cheer-big', { vol: 0.8, bus: 'crowd' } );
+		this._play( 'cheer-burst', { vol: 0.7, delay: 0.15, bus: 'crowd' } );
+		this._play( 'cheer-burst', { vol: 0.55, delay: 9, rate: 0.97, bus: 'crowd' } );
 		this._clapBurst( 1 );
 
 	}
@@ -586,7 +613,8 @@ export class Fans {
 	sing( key, vol = 1 ) {
 
 		this.singing = this.sound.ctx.currentTime + ( this.index[ key ]?.d || 30 );
-		return this._voice( key, vol );
+		// at its own speed exactly: it's in time with the organ
+		return !! this._play( 'fans-' + key, { vol, bus: 'crowd' } );
 
 	}
 

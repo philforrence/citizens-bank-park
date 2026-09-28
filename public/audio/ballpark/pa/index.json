@@ -208,5 +208,15 @@
 		"f": "champions.mp3",
 		"d": 6.05,
 		"text": "Ladies and gentlemen, your two thousand eight World Champions, the Philadelphia Phillies!"
+	},
+	"gba": {
+		"f": "gba.mp3",
+		"d": 8.38,
+		"text": "Ladies and gentlemen, please rise, and remove your caps, for the singing of God Bless America, by Navy Petty Officer Dorcus Whigham."
+	},
+	"rain-delay": {
+		"f": "rain-delay.mp3",
+		"d": 5.39,
+		"text": "Ladies and gentlemen, we are in a rain delay. Please stand by for further announcements."
 	}
 }

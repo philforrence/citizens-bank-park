@@ -153,6 +153,16 @@ export const TUNES = {
 		],
 	},
 
+	// under God Bless America (a copyrighted song: no melody of it here): the organ holding soft chords, a
+	// hymn's slow changes, the park silent over it
+	hymn: {
+		bpm: 48, meter: 4, oct: 0, reg: 'mellow', fast: false,
+		melody: [],
+		chords: [ [ 'C3', [ 'E3', 'G3', 'C4' ], 4 ], [ 'F2', [ 'F3', 'A3', 'C4' ], 4 ], [ 'A2', [ 'E3', 'A3', 'C4' ], 4 ], [ 'G2', [ 'D3', 'G3', 'B3' ], 4 ],
+			[ 'C3', [ 'E3', 'G3', 'C4' ], 4 ] ],
+		style: 'hold',
+	},
+
 	// ---- stings between pitches
 
 	// after a Feliz hit: the booth's joke in 2008 was "Feliz Navidad" (the Inquirer); here the organ's "Jingle

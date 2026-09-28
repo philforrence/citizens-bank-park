@@ -13,7 +13,12 @@
 //     chant     { what, from, cycles }     a chant starting in a section (from: its angle round the bowl)
 //     hush      { dur }                    the breath the park holds before a big pitch
 //     ump       { key }                    the plate umpire's call (heard only close to home plate)
-//     tarp, night2, celebrate              the 27th's suspension, the 29th beginning, the last out
+//     crew      { what, from, to, dur }    the grounds crew and the tarp: 'roll' (the roll moving from to),
+//                                          'edges' (walking the edges), 'work' (the 29th's rakes, hoses, drag,
+//                                          tamper); crewcall { key } a shout from them
+//     gba       { dur }                    God Bless America (the 29th): the park silent under the organ
+//     night2, celebrate                    the 29th beginning, the last out
+//   plan.tarp: [ t0, t1 ] the tarp down on the infield (the rain drums on it)
 //   plan.nights: the replay time the 29th begins (the resumption)
 
 import { REL } from '../../game/Motions.js';
@@ -36,6 +41,7 @@ export function buildPlan( director ) {
 	const susp = S.find( ( s ) => s.kind === 'switch' && s.snap.inning === 6 && s.snap.half === 'bottom' );
 	const night2 = susp ? susp.t0 + susp.dur * SPLIT : Infinity;
 	const plays = g.plays;
+	let tarp = null;
 	const subsOf = ( pi ) => ( plays[ pi ]?.events || [] ).filter( ( e ) => e.t === 'action' && /offensive_substitution/.test( e.kind || '' ) );
 	// the organ's between-innings tunes, rotated (Music.js has them), the rain's on the 27th
 	// the first man up for each side is "Leading off for the Phillies..." (Baker's own formula)
@@ -102,18 +108,52 @@ export function buildPlan( director ) {
 				// Inquirer, Oct 28); the 29th: the park filling, the welcome back just before the first pitch.
 				// Scaled to however long the break is (R makes it 140 s: the 27th's 77, the 29th's 63)
 				const L27 = night2 - t0, L29 = s.dur - L27;
-				add( t0 + 1.0, 'tarp' );
+				// R's rituals' times for the tarp (ASK-R.md: 77 s of the 27th, 63 of the 29th), squeezed if the
+				// break is shorter
+				const a = ( x ) => t0 + x * Math.min( 1, L27 / 77 ), b = ( x ) => night2 + x * Math.min( 1, L29 / 63 );
+				// the 27th: the roll swung out off the wall on the third base side, pushed across the
+				// infield, the bare core rolled off; the edges walked square in the wind
+				const roll = ( t, from, to, t1, v ) => add( t, 'crew', { what: 'roll', from, to, dur: t1 - t, v } );
+				roll( a( 7 ), [ - 32, - 8 ], [ - 24, - 26 ], a( 20 ), 0.8 );
+				roll( a( 20 ), [ - 24, - 26 ], [ 24, - 26 ], a( 44 ), 1 );
+				roll( a( 46 ), [ 24, - 26 ], [ 32, - 31 ], a( 53 ), 0.45 );
+				add( a( 44 ), 'crew', { what: 'edges', dur: a( 58 ) - a( 44 ) } );
+				for ( const [ x, key ] of [ [ 7.5, 'crew-go' ], [ 12, 'crew-pull' ], [ 24, 'crew-walk' ], [ 33, 'crew-corner' ], [ 41, 'crew-hold' ] ] ) add( a( x ), 'crewcall', { key } );
 				if ( L27 > 40 ) add( t0 + 9, 'pa', { key: 'rain-delay' } );
 				const said = t0 + Math.max( 3.5, L27 * 0.55 );
 				add( said, 'pa', { key: 'suspended' } );
 				add( said + 2.5, 'fans', { what: 'groan', level: 1.4 } );
 				add( said + 3.5, 'fans', { what: 'boo', level: 0.5 } );
 				add( night2, 'night2' );
-				const back = night2 + Math.max( 1.5, L29 - 22 );
-				add( back, 'pa', { key: 'welcome-29' } );
+				// the 29th: the core back, the tarp wound up from the first base side and swung back to the
+				// wall, then the crew's work on the clay
+				roll( b( 1.5 ), [ 32, - 31 ], [ 24, - 26 ], b( 6 ), 0.45 );
+				roll( b( 6 ), [ 24, - 26 ], [ - 24, - 26 ], b( 27 ), 1 );
+				roll( b( 27 ), [ - 24, - 26 ], [ - 32, - 8 ], b( 35 ), 0.8 );
+				add( b( 35 ), 'crew', { what: 'work', dur: b( 55 ) - b( 35 ) } );
+				for ( const [ x, key ] of [ [ 7, 'crew-pull' ], [ 19, 'crew-walk' ], [ 30, 'crew-go' ] ] ) add( b( x ), 'crewcall', { key } );
+				tarp = [ a( 44 ), b( 6 ) ];
+				// the welcome back, and (with the long break) God Bless America before the first pitch: Navy
+				// Petty Officer Dorcus Whigham (the Inquirer), the park on its feet and silent, then the roar
+				if ( L29 > 40 ) {
+
+					add( b( 18 ), 'pa', { key: 'welcome-29' } );
+					add( b( 27.5 ), 'fans', { what: 'cheer', level: 2.2 } );
+					add( b( 37 ), 'pa', { key: 'gba' } );
+					add( b( 40 ), 'gba', { dur: b( 58 ) - b( 40 ) } );
+					add( b( 58.2 ), 'fans', { what: 'cheer', level: 2.8 } );
+					add( b( 60 ), 'chant', { what: 'letsgo', from: pick( [ - 60, 40, 120 ] ), cycles: 3 } );
+
+				} else {
+
+					const back = night2 + Math.max( 1.5, L29 - 22 );
+					add( back, 'pa', { key: 'welcome-29' } );
+					add( back + 9.5, 'fans', { what: 'cheer', level: 2.5 } );
+					add( back + 12, 'chant', { what: 'letsgo', from: pick( [ - 60, 40, 120 ] ), cycles: 3 } );
+
+				}
+
 				add( t0 + s.dur + 4, 'ump', { key: 'ump-playball' } );
-				add( back + 9.5, 'fans', { what: 'cheer', level: 2.5 } );
-				add( back + 12, 'chant', { what: 'letsgo', from: pick( [ - 60, 40, 120 ] ), cycles: 3 } );
 				continue;
 
 			}
@@ -230,7 +270,7 @@ export function buildPlan( director ) {
 	if ( fifth ) add( fifth.t0 + 18, 'chant', { what: 'letsgo', from: 100, cycles: 3 } );
 
 	ev.sort( ( a, b ) => a.t - b.t );
-	return { events: ev, night2, susp };
+	return { events: ev, night2, susp, tarp };
 
 }
 

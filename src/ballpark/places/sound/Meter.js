@@ -47,7 +47,9 @@ export async function listen( app, { t, seconds = 6, at = null, speed = 1 } = {}
 	d.seek( t );
 	d.playing = true;
 	d.speed = speed;
-	sc.lastT = null;
+	// what a jump in the replay does: the timeline's pointer moved, the one-shots cut
+	sc._jump( t );
+	sc.lastT = t;
 	const buf = new Float32Array( 2048 ), acc = {}, rows = [];
 	let last = performance.now(), peak = 0, n = 0;
 	const t0 = last;

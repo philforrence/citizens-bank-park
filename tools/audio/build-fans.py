@@ -362,8 +362,8 @@ def walla( night ):
 # one fan near you: (key, text, who: fan persona, when: the situations, for: whose at-bat / pitching)
 SHOUTS = [
 	( 'shout-eva-1', 'Eva!', 'fan', 'away', 'Longoria' ),
-	( 'shout-eva-2', 'Hey, Eva!', 'grump', 'away', 'Longoria' ),
-	( 'shout-eva-3', 'Eva Longoria!', 'fan2', 'away', 'Longoria' ),
+	( 'shout-eva-2', 'Hey, Eva!', 'grumpus', 'away', 'Longoria' ),
+	( 'shout-eva-3', 'Eva Longoria!', 'fan', 'away', 'Longoria' ),
 	( 'shout-cole-1', 'Come on, Cole!', 'fan', 'pitch,two', 'Hamels' ),
 	( 'shout-cole-2', 'One more, Cole, one more!', 'fan2', 'two', 'Hamels' ),
 	( 'shout-brad-1', "Let's go, Brad!", 'fan', 'pitch,two', 'Lidge' ),
@@ -380,20 +380,29 @@ SHOUTS = [
 	( 'shout-shane', "Let's go, Shane!", 'woman', 'bat', 'Victorino' ),
 	( 'shout-hit', 'Get a hit!', 'fan', 'bat', '' ),
 	( 'shout-drive', 'Drive him in!', 'grump', 'bat', '' ),
-	( 'shout-upton', 'Upton, you bum!', 'grump', 'away', 'Upton' ),
+	( 'shout-upton', '[[ hˈeɪ, ˈʌptən! juː bˈʌm! ]]', 'fan', 'away', 'Upton' ),
 	( 'shout-siddown', 'Siddown!', 'grump', 'away', '' ),
 	( 'shout-cold', "It's freezing!", 'woman', 'any', '' ),
 	( 'shout-lets', "Let's go Phillies!", 'fan', 'any', '' ),
-	( 'shout-woo', 'Woo!', 'fan2', 'win,bat', '' ),
+	( 'shout-woo', "Yeah! Let's go!", 'fan2', 'win,bat', '' ),
 	( 'shout-win-1', 'We did it!', 'fan', 'win', '' ),
 	( 'shout-win-2', 'World champions!', 'fan2', 'win', '' ),
 	( 'shout-win-3', 'Twenty-eight years!', 'grump', 'win', '' ),
 	( 'shout-win-4', 'Finally!', 'woman', 'win', '' ),
+	# the grounds crew running the tarp out in the rain (heard from the rail and the low seats)
+	( 'crew-go', "Let's go, let's go!", 'crew', 'crew', '' ),
+	( 'crew-pull', 'Pull! Pull it!', 'crew2', 'crew', '' ),
+	( 'crew-corner', 'Get that corner!', 'crew', 'crew', '' ),
+	( 'crew-walk', 'Walk it out! Walk it!', 'crew2', 'crew', '' ),
+	( 'crew-hold', 'Hold up, hold up!', 'crew', 'crew', '' ),
 ]
 FANS = {
 	'fan': dict( mode = 'speak', voice = 'joe', base = 150, range = 1.5, formant = 0.97, f1 = 0.08, tilt = 8, hoarse = 0.2, jit = 0.01, drive = 1.8, ls = 0.95 ),
 	'fan2': dict( mode = 'speak', voice = 'mike', base = 160, range = 1.5, formant = 1.0, f1 = 0.08, tilt = 8, hoarse = 0.25, jit = 0.012, drive = 1.9, ls = 0.93 ),
 	'grump': dict( mode = 'speak', voice = 'john', base = 140, range = 1.6, formant = 0.98, f1 = 0.1, tilt = 9, hoarse = 0.35, jit = 0.014, drive = 2.2, ls = 0.95 ),
+	'grumpus': dict( mode = 'speak', voice = 'mike', base = 132, range = 1.6, formant = 0.97, f1 = 0.1, tilt = 9, hoarse = 0.35, jit = 0.014, drive = 2.2, ls = 0.95 ),
+	'crew': dict( mode = 'speak', voice = 'joe', base = 142, range = 1.6, formant = 0.96, f1 = 0.1, tilt = 10, hoarse = 0.3, jit = 0.012, drive = 2.3, ls = 0.9 ),
+	'crew2': dict( mode = 'speak', voice = 'mike', base = 150, range = 1.6, formant = 0.99, f1 = 0.1, tilt = 10, hoarse = 0.25, jit = 0.012, drive = 2.3, ls = 0.9 ),
 	'woman': dict( mode = 'speak', voice = 'kristin', base = 270, range = 1.4, formant = 1.02, f1 = 0.06, tilt = 7, hoarse = 0.15, jit = 0.01, drive = 1.7, hpf = 130, ls = 0.93 ),
 }
 
@@ -439,7 +448,7 @@ def main():
 	for k in keys:
 		y, meta = CLIPS[ k ]()
 		sf.write( str( WAVS / ( k + '.wav' ) ), y, SR, subtype = 'FLOAT' )
-		kbps = 32 if k.startswith( ( 'shout', 'ump' ) ) else 40
+		kbps = 32 if k.startswith( ( 'shout', 'ump', 'crew' ) ) else 40
 		size = H.write_mp3( OUT / ( k + '.mp3' ), y, SR, kbps )
 		index[ k ] = dict( f = k + '.mp3', d = round( len( y ) / SR, 2 ), **meta, **META.get( k, {} ) )
 		print( f'{k:18s} {len( y ) / SR:5.2f}s {size / 1024:6.1f} KB' )
@@ -447,7 +456,7 @@ def main():
 	idx_path.write_text( json.dumps( index, indent = '\t' ) )
 	print( 'total', round( sum( ( OUT / v[ 'f' ] ).stat().st_size for v in index.values() ) / 1024 ), 'KB' )
 	if '--asr' in sys.argv:
-		subprocess.run( [ sys.executable, str( H.WORK / 'asr.py' ) ] + [ str( WAVS / ( k + '.wav' ) ) for k in keys if k.startswith( ( 'shout', 'ump' ) ) or k == 'charge' ] )
+		subprocess.run( [ sys.executable, str( H.WORK / 'asr.py' ) ] + [ str( WAVS / ( k + '.wav' ) ) for k in keys if k.startswith( ( 'shout', 'ump', 'crew' ) ) or k == 'charge' ] )
 
 if __name__ == '__main__':
 	main()

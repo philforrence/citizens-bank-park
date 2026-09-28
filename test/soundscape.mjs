@@ -119,7 +119,7 @@ const check = ( ok, what ) => {
 };
 
 check( bad.n === 0, `${ bad.n } non-finite or bad AudioParam values` );
-for ( const k of [ 'pa', 'music', 'fans', 'chant', 'hush', 'tarp', 'night2', 'celebrate', 'walkup', 'sting' ] ) check( fired[ k ] > 0, `no ${ k } events` );
+for ( const k of [ 'pa', 'music', 'fans', 'chant', 'hush', 'crew', 'crewcall', 'night2', 'celebrate', 'walkup', 'sting', 'ump' ] ) check( fired[ k ] > 0, `no ${ k } events` );
 check( before === after, 'a jump fired events' );
 check( total / frames < 0.2, 'mean frame cost over 0.2 ms' );
 for ( const z of [ 'bowl', 'roof', 'outside' ] ) check( zones[ z ] > 0, `never in zone ${ z }` );
