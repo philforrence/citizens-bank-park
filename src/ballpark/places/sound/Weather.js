@@ -1,5 +1,6 @@
 import { Vector3 } from '../../../engine/index.js';
 import { rng } from './dsp.js';
+import { LEVELS } from '../../layout.js';
 
 // The weather on the ear, by where you stand (Space.js):
 //
@@ -130,7 +131,10 @@ export class Weather {
 		// the open rain: all of it outside and in the bowl, the curtain past the edge under a roof
 		if ( this.rainZone ) this.rainZone.gain.setTargetAtTime( w.bowl + w.outside + 0.55 * w.roof + 0.12 * w.enclosed, now, 0.4 );
 		// the deck over you, and the water coming off its edge
-		set( this.loops.roof, 0.55 * rain * ( w.roof + 0.7 * w.enclosed ) * ( sp.ceiling < 20 ? 1 : 0.4 ) );
+		// the rain drums on the steel roof over the upper deck (loud right under it, faint from the concourse
+		// 30 m below); the concrete decks over the concourses only shed it off their edges
+		const steel = Math.abs( sp.top - LEVELS.roof ) < 4 ? Math.min( 1, Math.max( 0.12, ( 30 - sp.topDist ) / 22 ) ) : 0;
+		set( this.loops.roof, 0.55 * rain * steel );
 		set( this.loops.runoff, 0.3 * rain * w.roof );
 		// the ponchos round you in the seats
 		const inSeats = sp.zone === 'bowl' && sp.at.y > 1.5 && Math.hypot( sp.at.x, sp.at.z ) > 32;

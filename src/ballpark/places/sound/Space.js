@@ -1,4 +1,4 @@
-import { FOOTPRINT } from '../../layout.js';
+import { FOOTPRINT, LEVELS } from '../../layout.js';
 
 // Where you are, for the ear: the open bowl, under a roof (the concourses are open to the field, with a
 // low concrete ceiling over them; a tunnel to the seats or a room isn't), or outside the building (the
@@ -84,7 +84,20 @@ export class Space {
 		this.at.x = x; this.at.y = y; this.at.z = z;
 		const inside = pointIn( x, z, FOOTPRINT );
 		const H = this.coverAt( x, z );
-		const ceiling = H - y;
+		// the cover map holds the TOP of what's overhead (under the main concourse's deck that's the upper
+		// roof, 30 m up), so how low a roof is comes from the level you're standing on: the main concourse
+		// under the suites (4 m), the club level under the terrace (6 m), the terrace under the roof (high)
+		let ceiling = H - y;
+		if ( ceiling > 0.4 ) {
+
+			const floor = y - 1.65;
+			for ( const [ lv, up ] of [ [ LEVELS.mainConcourse, LEVELS.suites ], [ LEVELS.clubConcourse, LEVELS.terraceConcourse ] ] ) {
+
+				if ( floor > lv - 0.6 && floor < lv + 1.5 ) ceiling = Math.min( ceiling, up - floor );
+
+			}
+
+		}
 		const roofed = ceiling > 0.4;
 		// how far toward the middle of the field before open sky (the open concourse finds it in a few
 		// metres, a tunnel or a room further or not at all)
@@ -119,6 +132,9 @@ export class Space {
 		w.high = inside ? smooth( 18, 34, y ) : 0;
 		this.zone = w.outside ? 'outside' : w.enclosed > 0.5 ? 'enclosed' : w.roof > 0.5 ? 'roof' : 'bowl';
 		this.ceiling = roofed ? ceiling : Infinity;
+		// the top of what's over you and how far up (the steel roof over the upper deck is what the rain drums on)
+		this.top = roofed ? H : - Infinity;
+		this.topDist = roofed ? H - y : Infinity;
 		this.version = ( this.version || 0 ) + 1;
 		this._apply();
 		return true;

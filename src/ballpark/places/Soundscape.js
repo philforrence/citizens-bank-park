@@ -212,6 +212,12 @@ export default class Soundscape {
 		this.music.stop();
 		this.fans.jump();
 		this.weather.jump();
+		// the Phanatic's organ, played through GameSound (its cues only fire going forward)
+		for ( const src of this.app.sound.musicShots || [] ) try {
+
+			src.stop();
+
+		} catch {}
 
 	}
 

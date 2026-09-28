@@ -27,8 +27,14 @@ export class Music {
 		this.bus = ctx.createGain();
 		this.bus.gain.value = 1;
 		this.bus.connect( sound.buses.music );
-		this.organ_ = new Organ( ctx, this.bus );
-		this.band = new Band( ctx, this.bus );
+		// the organ's clips a little up, the band's well down (measured: the band sat 20 dB over the organ)
+		const organTrim = ctx.createGain(), bandTrim = ctx.createGain();
+		organTrim.gain.value = 1.4;
+		bandTrim.gain.value = 0.3;
+		organTrim.connect( this.bus );
+		bandTrim.connect( this.bus );
+		this.organ_ = new Organ( ctx, organTrim );
+		this.band = new Band( ctx, bandTrim );
 		this.parts = [];
 		this.onYell = null;
 		// Baker talks over it: down while he does

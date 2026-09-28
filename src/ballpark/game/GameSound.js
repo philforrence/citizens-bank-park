@@ -116,6 +116,14 @@ export class GameSound {
 		const g = this.ctx.createGain();
 		g.gain.value = vol;
 		src.connect( g ).connect( this._out( name, bus ) ); // ---- S: through a bus
+		// ---- S: the music's one-shots (the Phanatic's organ) kept, so a jump in the replay can cut them
+		if ( this._out( name, bus ) === this.buses?.music ) {
+
+			( this.musicShots ||= new Set() ).add( src );
+			src.onended = () => this.musicShots.delete( src );
+
+		}
+		// ---- end S
 		if ( wet ) g.connect( this.reverb );
 		src.start( this.ctx.currentTime + delay );
 		return src; // ---- S: the source (truthy as before), so a caller can stop it

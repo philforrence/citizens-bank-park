@@ -20,7 +20,7 @@ import { fencePoint, LEVELS } from '../../layout.js';
 
 const DIR = 'audio/ballpark/pa/';
 const C = 343; // m/s
-const LEVEL = 1.0;
+const LEVEL = 0.7;
 
 export class PA {
 
