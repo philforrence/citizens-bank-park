@@ -131,7 +131,7 @@ export function buildRamp( place, K ) {
 	const steelMat = place.app?.landmarks?.steel || standard( { name: 'landmark-steel', color: new Color( 0.12, 0.03, 0.03 ), roughness: 0.6, metalness: 0.4 } );
 	const railMat = standard( { name: 'lf-ramp-rail', color: new Color( 0.62, 0.63, 0.64 ), roughness: 0.3, metalness: 0.8 } );
 	railMat.underwaterLighting = 'none';
-	for ( const [ quads, m, name, shadow ] of [ [ q, mat, 'lf-ramp', true ], [ steel, steelMat, 'lf-ramp-steel', true ], [ rail, railMat, 'lf-ramp-rails', false ] ] ) {
+	for ( const [ quads, m, name, shadow ] of [ [ q, mat, 'lf-ramp', true ], [ steel, steelMat, 'lf-ramp-steel', false ], [ rail, railMat, 'lf-ramp-rails', false ] ] ) {
 
 		const mesh = new Mesh( quads.geometry(), m );
 		mesh.name = name;

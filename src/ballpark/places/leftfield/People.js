@@ -161,8 +161,8 @@ export class HarrysPeople {
 		for ( const s of S.barDn ) if ( r() < 0.45 ) this.add( 'stand', s, Math.PI, { covered: true, tv: tvFor( s.x, s.z, s.y + 2 ) } );
 		for ( const t of S.tablesDn ) {
 
-			if ( r() > 0.72 ) continue;
-			const n = 2 + Math.floor( r() * 3 );
+			if ( r() > 0.58 ) continue;
+			const n = 2 + Math.floor( r() * 2.4 );
 			// the chairs facing the field first (they came to see the game)
 			[ [ 0, 0.62, 0 ], [ - 0.62, 0, - Math.PI / 2 ], [ 0.62, 0, Math.PI / 2 ], [ 0, - 0.62, Math.PI ] ].slice( 0, n ).forEach( ( [ dx, dz, a ] ) => {
 
@@ -172,7 +172,7 @@ export class HarrysPeople {
 
 		}
 
-		for ( const s of S.counterDn ) if ( r() < 0.72 ) this.add( 'sit', s, 0, { sit: s.seat, covered: true } );
+		for ( const s of S.counterDn ) if ( r() < 0.6 ) this.add( 'sit', s, 0, { sit: s.seat, covered: true } );
 		// the host at the stand; the servers, trays at the shoulder, round the tables and back to the bar
 		const H = this.H;
 		this.host = this.add( 'host', S.host, - Math.PI / 2, { look: staff( { female: true, hairStyle: 1, facial: 0 } ) } );

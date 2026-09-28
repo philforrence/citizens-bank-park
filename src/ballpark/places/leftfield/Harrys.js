@@ -374,8 +374,8 @@ export function buildHarrys( place, F, H ) {
 			if ( ( t.x * 7 + t.z * 3 ) % 2 > 1.2 ) continue;
 			const top = yB - 0.45, hang = STREET + 2.9;
 			K.use( 'black' ).bar( Pk( t.x, top, t.z ), Pk( t.x, hang + 0.2, t.z ), 0.012 );
-			K.use( 'dome' ).cyl( Pk, t.x, t.z, hang, hang + 0.22, 0.28, 0.06, 12, { top: true } );
-			K.use( 'lamp' ).cyl( Pk, t.x, t.z, hang - 0.01, hang + 0.01, 0.2, 0.2, 10, { top: false, bottom: true } );
+			K.use( 'dome' ).cyl( Pk, t.x, t.z, hang, hang + 0.22, 0.28, 0.06, 8, { top: true } );
+			K.use( 'lamp' ).cyl( Pk, t.x, t.z, hang - 0.01, hang + 0.01, 0.2, 0.2, 8, { top: false, bottom: true } );
 
 		}
 
@@ -434,10 +434,11 @@ export function buildHarrys( place, F, H ) {
 // a bar stool: a round seat on a chrome post, a foot ring
 export function stool( K, P, x, z, y, h = 0.76 ) {
 
-	K.use( 'chrome' ).cyl( P, x, z, y, y + h - 0.06, 0.025, 0.025, 6, { top: false } );
-	K.use( 'chrome' ).cyl( P, x, z, y, y + 0.02, 0.2, 0.2, 10 );
-	K.use( 'chrome' ).cyl( P, x, z, y + 0.3, y + 0.32, 0.17, 0.17, 10, { top: false } );
-	K.use( 'redVinyl' ).cyl( P, x, z, y + h - 0.06, y + h, 0.19, 0.18, 12 );
+	// (sides kept few: there are a hundred of them)
+	K.use( 'chrome' ).cyl( P, x, z, y, y + h - 0.06, 0.025, 0.025, 5, { top: false } );
+	K.use( 'chrome' ).cyl( P, x, z, y, y + 0.02, 0.2, 0.2, 8 );
+	K.use( 'chrome' ).cyl( P, x, z, y + 0.3, y + 0.32, 0.17, 0.17, 7, { top: false } );
+	K.use( 'redVinyl' ).cyl( P, x, z, y + h - 0.06, y + h, 0.19, 0.18, 10 );
 
 }
 
