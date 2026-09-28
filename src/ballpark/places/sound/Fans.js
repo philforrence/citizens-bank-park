@@ -82,7 +82,8 @@ export class Fans {
 			const r = await fetch( DIR + 'index.json' );
 			if ( ! r.ok ) return;
 			this.index = await r.json();
-			for ( const [ key, e ] of Object.entries( this.index ) ) this.sound.sample( 'fans-' + key, DIR + e.f );
+			// all but the stretch's song (160 KB, fetched when it's near: want())
+			for ( const [ key, e ] of Object.entries( this.index ) ) if ( key !== 'stretch' ) this.sound.sample( 'fans-' + key, DIR + e.f );
 
 		} catch ( e ) {
 
@@ -629,6 +630,18 @@ export class Fans {
 				this._section( this.pattern, this._v.set( w.x, F.y0 + 14, w.z ), now + 0.05 + Math.abs( k ) * 0.12, 1.25, 0.8 );
 
 			}
+
+		}
+
+	}
+
+	want( key ) {
+
+		const e = this.index[ key ];
+		if ( e && ! this.sound.buffers[ 'fans-' + key ] && ! this._wanted?.has( key ) ) {
+
+			( this._wanted ||= new Set() ).add( key );
+			this.sound.sample( 'fans-' + key, DIR + e.f );
 
 		}
 

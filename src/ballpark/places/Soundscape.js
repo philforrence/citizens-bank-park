@@ -271,6 +271,9 @@ export default class Soundscape {
 		const sw = director.segments.find( ( s ) => s.kind === 'switch' && s.snap.inning === 7 && s.snap.half === 'bottom' );
 		const t = cue ? cue.t : sw ? sw.t0 + 2 : null;
 		if ( t == null ) return;
+		// the song fetched a minute and a half ahead (and at once if the replay's already past that)
+		this.at( t - 90, ( sc ) => sc.fans.want( 'stretch' ) );
+		if ( director.t > t - 90 ) this.fans.want( 'stretch' );
 		this.at( t + 0.05, ( sc ) => {
 
 			if ( ! sc.live ) return;
