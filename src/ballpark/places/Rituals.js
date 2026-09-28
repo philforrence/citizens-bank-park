@@ -41,6 +41,7 @@ export default class Rituals {
 
 		this.app = app;
 		this.field = field;
+		this.bowl = bowl;
 		this.group = new Group();
 		this.group.name = 'rituals';
 		field.group.add( this.group );
@@ -93,6 +94,9 @@ export default class Rituals {
 		if ( ! this.fwSound && this.app?.sound ) this.fwSound = new FireworksSound( { sound: this.app.sound, field: this.field, plan: this.fireworks.plan } );
 		this.fwSound?.update( cel, director.playing && ! jumped, this.app?.camera?.position );
 		this.motors.update( cel, this._lapBike( cel ) );
+		// the fans along the lap's way up at the rail, arms out to them (Crowd.focus following the flag)
+		const flag = cel != null ? flagHold( director, cel ) : null;
+		this.bowl?.crowd?.focus?.( 'rituals-lap', flag ? { x: flag.x, z: flag.z, r: 22, stand: 1, arms: 1 } : null );
 
 	}
 
