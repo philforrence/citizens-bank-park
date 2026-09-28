@@ -61,20 +61,27 @@ ${ grid ? /* wgsl */`
 	if ( far > 0.0 && frame.night > 0.05 ) {
 		let ax = vec2f( ${ grid.axis[ 0 ].toFixed( 5 ) }, ${ grid.axis[ 1 ].toFixed( 5 ) } );
 		let g = vec2f( dot( xz, ax ), dot( xz, vec2f( - ax.y, ax.x ) ) );
-		let fw = max( fwidth( g.x ), fwidth( g.y ) );
+		// each axis blurred by the pixel's own footprint along it: seen low and far, the footprint runs
+		// long toward the horizon and stays narrow across it, so the streets running away from you
+		// become lines of light and the cross streets rows of dots (the way the city looks from the stands)
+		let fx = fwidth( g.x ); let fy = fwidth( g.y );
 		// the north-south streets every 64 m, the cross streets every 48 m, a lamp every 30 m along each
 		let dA = abs( fract( g.x / 64.0 + 0.5 ) - 0.5 ) * 64.0;
 		let lA = abs( fract( g.y / 30.0 + 0.5 ) - 0.5 ) * 30.0;
 		let dB = abs( fract( g.y / 48.0 + 0.5 ) - 0.5 ) * 48.0;
 		let lB = abs( fract( g.x / 30.0 + 0.5 ) - 0.5 ) * 30.0;
-		let r2 = 9.0 + fw * fw;
-		let dots = ( exp( - ( dA * dA + lA * lA ) / r2 ) + exp( - ( dB * dB + lB * lB ) / r2 ) ) * 9.0 / r2;
-		// finer than a pixel: the dots' average glow
-		let avg = 3.14159 * 9.0 * ( 1.0 / ( 64.0 * 30.0 ) + 1.0 / ( 48.0 * 30.0 ) );
-		let k = mix( dots, avg, smoothstep( 4.0, 14.0, fw ) );
+		let rx = 9.0 + fx * fx; let ry = 9.0 + fy * fy;
+		// a 1-D gaussian 3 m wide blurred to r keeps its area (its peak falls as 3 / r); blurred past its
+		// period P it's the period's average, 5.32 / P
+		let gx = 3.0 * inverseSqrt( rx ); let gy = 3.0 * inverseSqrt( ry );
+		let ax = mix( exp( - dA * dA / rx ) * gx, 5.32 / 64.0, smoothstep( 16.0, 45.0, fx ) );
+		let ay = mix( exp( - lA * lA / ry ) * gy, 5.32 / 30.0, smoothstep( 7.5, 21.0, fy ) );
+		let bx = mix( exp( - lB * lB / rx ) * gx, 5.32 / 30.0, smoothstep( 7.5, 21.0, fx ) );
+		let by = mix( exp( - dB * dB / ry ) * gy, 5.32 / 48.0, smoothstep( 12.0, 34.0, fy ) );
+		let k = ax * ay + bx * by;
 		// here and there a block with its lamps out, a dark park, the rail yards
 		let dark = smoothstep( 0.25, 0.55, mx_noise_float2( xz * 0.0021 + vec2f( 11.3, 2.9 ) ) );
-		s.emissive = vec3f( 1.0, 0.55, 0.2 ) * k * 6.0 * far * ( 1.0 - 0.85 * dark ) * smoothstep( 0.1, 0.6, frame.night );
+		s.emissive = vec3f( 1.0, 0.55, 0.2 ) * k * 3.0 * far * ( 1.0 - 0.85 * dark ) * smoothstep( 0.1, 0.6, frame.night );
 	}
 	// ---- end L
 ` : '' }
