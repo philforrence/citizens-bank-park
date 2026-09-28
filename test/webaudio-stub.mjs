@@ -107,7 +107,17 @@ class FakeContext {
 
 	}
 
-	resume() {}
+	resume() {
+
+		this.state = 'running';
+
+	}
+
+	suspend() {
+
+		this.state = 'suspended';
+
+	}
 
 	createGain() { return new Node( this, { gain: 1 } ); }
 

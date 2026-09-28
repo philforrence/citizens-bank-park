@@ -144,6 +144,20 @@ export default class Soundscape {
 		const S = this.app.sound;
 		if ( ! S?.ctx || ! director ) return;
 		if ( ! this.ready ) this._init( S, director );
+		// switched off (the HUD's sound switch) for a couple of seconds: the audio thread rests too; back on,
+		// it wakes (the radio's track is its own element and isn't touched)
+		this._off = S.muted ? ( this._off || 0 ) + dt : 0;
+		if ( this._off > 2 && S.ctx.state === 'running' ) {
+
+			S.ctx.suspend();
+			this._slept = true;
+
+		} else if ( ! S.muted && this._slept ) {
+
+			S.ctx.resume();
+			this._slept = false;
+
+		}
 		this.space.update( dt, camera );
 		const t = director.t, last = this.lastT ?? t;
 		this.lastT = t;

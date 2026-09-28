@@ -94,6 +94,13 @@ while ( director.t < director.duration - 0.01 ) {
 
 }
 
+// the HUD's sound switch: off for a while, the audio thread sleeps; on, it wakes
+app.sound.setMuted( true );
+for ( let i = 0; i < 90; i ++ ) sc.update( dt, director, camera );
+const slept = app.sound.ctx.state;
+app.sound.setMuted( false );
+sc.update( dt, director, camera );
+const woke = app.sound.ctx.state;
 // a jump back, and a scrub, mustn't fire anything
 const before = JSON.stringify( fired );
 director.t = 100;
@@ -121,6 +128,7 @@ const check = ( ok, what ) => {
 check( bad.n === 0, `${ bad.n } non-finite or bad AudioParam values` );
 for ( const k of [ 'pa', 'music', 'fans', 'chant', 'hush', 'crew', 'crewcall', 'night2', 'celebrate', 'walkup', 'sting', 'ump' ] ) check( fired[ k ] > 0, `no ${ k } events` );
 check( before === after, 'a jump fired events' );
+check( slept === 'suspended' && woke === 'running', `mute: the audio slept ${ slept }, woke ${ woke }` );
 check( total / frames < 0.2, 'mean frame cost over 0.2 ms' );
 for ( const z of [ 'bowl', 'roof', 'outside' ] ) check( zones[ z ] > 0, `never in zone ${ z }` );
 if ( fail ) process.exit( 1 );
