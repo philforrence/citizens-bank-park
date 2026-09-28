@@ -49,7 +49,7 @@ export function buildPlaza( place, H, K, Pk ) {
 		K.use( 'rubber' ).cyl( P, - 0.7, 0.4, STREET + 0.02, STREET + 0.2, 0.18, 0.18, 10 );
 		K.use( 'rubber' ).cyl( P, 0.7, 0.4, STREET + 0.02, STREET + 0.2, 0.18, 0.18, 10 );
 		// the sign on the front, lit, and again on the canopy's valance
-		K.panel( P, 0, STREET + 0.55, - 0.52, 1.7, 0.64, sign );
+		K.panel( P, 0, STREET + 0.55, - 0.52, 1.7, 0.64, sign, false, true );
 		if ( kind === 'umbrella' ) {
 
 			K.use( 'iron' ).cyl( P, 0, 0.3, STREET + 1.0, STREET + 2.5, 0.025, 0.025, 6, { top: false } );
@@ -64,7 +64,7 @@ export function buildPlaza( place, H, K, Pk ) {
 
 			for ( const a of [ - 0.95, 0.95 ] ) K.use( 'steel' ).box( P, a, STREET + 1.6, 0.35, 0.05, 1.3, 0.05 );
 			K.use( 'red' ).box( P, 0, STREET + 2.3, 0.0, 2.1, 0.08, 1.5 );
-			K.panel( P, 0, STREET + 2.13, - 0.76, 2.0, 0.36, sign );
+			K.panel( P, 0, STREET + 2.13, - 0.76, 2.0, 0.36, sign, false, true );
 
 		}
 
