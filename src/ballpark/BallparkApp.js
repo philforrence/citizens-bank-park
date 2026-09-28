@@ -605,11 +605,13 @@ export class BallparkApp {
 		if ( this.clouds ) this.clouds.coverage.value = firstNight ? 0.85 + 0.12 * k : 0.55;
 		if ( this.haze ) this.haze.density.value = firstNight ? 1.3 + 1.2 * k : 1.0;
 		// ---- L: the 29th at the airport: broken cloud at 7:54 pm clearing to a few by 8:54 and 9:54, 10 mi
-		// visibility, a dew point of 28 F (ref/night INDEX, the KPHL METARs): a clear, dry, black sky
+		// visibility, a dew point of 28 F (ref/night INDEX, the KPHL METARs): a clear, dry, black sky. After
+		// dark (the afternoon of the storm's clearing stays as it was)
 		if ( ! firstNight ) {
 
-			if ( this.clouds ) this.clouds.coverage.value = 0.22;
-			if ( this.haze ) this.haze.density.value = 0.75;
+			const nk = MathUtils.smoothstep( G.night.value, 0.2, 0.8 );
+			if ( this.clouds ) this.clouds.coverage.value = 0.55 - 0.33 * nk;
+			if ( this.haze ) this.haze.density.value = 1.0 - 0.25 * nk;
 
 		}
 		// ---- end L
