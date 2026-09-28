@@ -218,9 +218,11 @@ export class HarrysPeople {
 		const loops = [
 			[ [ 4.5, 30 ], [ 2, 16 ], [ - 14, 10 ], [ - 21, 3 ], [ - 25, - 6 ], [ - 30, - 9 ], [ - 22, 2 ], [ - 8, 12 ], [ 3, 22 ] ],
 			[ [ 25, - 19 ], [ 21, - 9 ], [ 17, 3 ], [ 12, 12 ], [ 6, 24 ], [ 14, 14 ], [ 20, 0 ], [ 24, - 12 ] ],
-			[ [ 27, - 20 ], [ 16, - 17.5 ], [ 12, - 16.8 ], [ 18, - 18 ] ],
 		];
-		for ( let k = 0; k < 14; k ++ ) {
+		// the walkway along the top of the 140s past Harry's fence, out one side and back the other
+		const W = this.H.walkDn || [];
+		if ( W.length ) loops.push( [ ...W.map( ( q ) => [ q.x, q.z - 0.35 ] ), ...W.slice().reverse().map( ( q ) => [ q.x, q.z + 0.45 ] ) ] );
+		for ( let k = 0; k < 16; k ++ ) {
 
 			const L = loops[ k % loops.length ].map( ( [ x, z ] ) => ( { x, z } ) );
 			const m = this.add( 'walker', { x: L[ 0 ].x, z: L[ 0 ].z, y: STREET }, 0, { path: L, speed: 1.1 + 0.3 * r(), covered: false } );

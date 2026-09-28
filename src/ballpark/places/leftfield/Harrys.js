@@ -339,7 +339,10 @@ export function buildHarrys( place, F, H ) {
 	// counter with stools looks out over the seats to the field; the host stand at the rail's gap
 	const back140 = ( x ) => - 21.3 - 0.186 * ( x - 22.8 );
 	out.back140 = back140;
-	const railZ = ( x ) => back140( x ) + 0.9;
+	// (March 2008's photo under the porch: a walkway along the top of the 140s under the section plates, then
+	// the galvanized fence with the red cans against it, and Harry's tables behind it)
+	const railZ = ( x ) => back140( x ) + 2.6;
+	out.railZ = railZ;
 	out.spots.tablesDn = [];
 	out.spots.counterDn = [];
 	const X0 = DN.x0 - 1, X1 = DN.x1 + 1.5;
@@ -381,16 +384,31 @@ export function buildHarrys( place, F, H ) {
 
 	}
 
-	// the counter at the back of the 140s (the park's metal drink counters, here with stools)
+	// the fence between the walkway and the tables: galvanized posts, rails and pickets, a steel counter along
+	// its inside for the stools, the red Phillies cans against its outside
 	for ( let x = X0; x < X1 - 0.3; x += 1.6 ) {
 
 		const xa = x, xb = Math.min( X1, x + 1.6 );
 		const a = Pk( xa, STREET + 1.07, railZ( xa ) ), b = Pk( xb, STREET + 1.07, railZ( xb ) );
 		K.use( 'galv' ).bar( a, b, 0.05 );
+		K.use( 'galv' ).bar( Pk( xa, STREET + 0.1, railZ( xa ) ), Pk( xb, STREET + 0.1, railZ( xb ) ), 0.035 );
 		K.use( 'galv' ).bar( Pk( xa, STREET, railZ( xa ) ), Pk( xa, STREET + 1.07, railZ( xa ) ), 0.05 );
-		K.use( 'steel' ).box( Pk, ( xa + xb ) / 2, STREET + 1.08, ( railZ( xa ) + railZ( xb ) ) / 2 + 0.12, xb - xa, 0.03, 0.3 );
+		for ( let u = 0.13; u < xb - xa - 0.05; u += 0.13 ) K.use( 'galv' ).bar( Pk( xa + u, STREET + 0.1, railZ( xa + u ) ), Pk( xa + u, STREET + 1.05, railZ( xa + u ) ), 0.014 );
+		K.use( 'steel' ).box( Pk, ( xa + xb ) / 2, STREET + 1.08, ( railZ( xa ) + railZ( xb ) ) / 2 + 0.14, xb - xa, 0.03, 0.3 );
 
 	}
+
+	for ( let x = X0 + 2.5; x < X1; x += 7.2 ) {
+
+		const z = railZ( x ) - 0.45;
+		K.use( 'red' ).box( Pk, x, STREET + 0.39, z, 0.58, 0.78, 0.58 );
+		K.use( 'red' ).cyl( Pk, x, z, STREET + 0.78, STREET + 0.9, 0.38, 0.2, 4 );
+
+	}
+
+	// the walkway along the top of the 140s: where people pass, both ways
+	out.walkDn = [];
+	for ( let x = X1 + 6; x > X0 - 6; x -= 3 ) out.walkDn.push( { x, z: back140( x ) + 1.35 } );
 
 	for ( let x = X0 + 0.5; x < X1 - 0.4; x += 0.8 ) {
 
