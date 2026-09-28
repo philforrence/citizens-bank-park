@@ -96,7 +96,7 @@ export class Stage {
 			const skirt = new Mesh( new BoxGeometry( 1.6, H - 0.08, D - 0.02 ), this.M.skirt );
 			skirt.position.set( x, ( H - 0.08 ) / 2, 0 );
 			m.add( skirt );
-			this.parts.push( { obj: m, t: S.build[ 0 ] + k * 6, from: [ 0, 0, - 14 ] } );
+			this.parts.push( { obj: m, t: CEL.stageBuild[ 0 ] + k * 6, from: [ 0, 0, - 14 ] } );
 
 		}
 
@@ -128,7 +128,7 @@ export class Stage {
 		bar( - W / 2, - D / 2, W / 2, - D / 2 );
 		bar( - W / 2, - D / 2, - W / 2, D / 2 - 0.4 );
 		bar( W / 2, - D / 2, W / 2, D / 2 - 1.3 );
-		this.parts.push( { obj: rail, t: S.build[ 0 ] + 26, from: [ 0, 1.2, 0 ] } );
+		this.parts.push( { obj: rail, t: CEL.stageBuild[ 0 ] + 26, from: [ 0, 1.2, 0 ] } );
 		// the stairs at the right-hand end (as seen from the front), with a handrail
 		const stairs = new Group();
 		for ( let k = 0; k < 4; k ++ ) {
@@ -146,11 +146,11 @@ export class Stage {
 		hr.rotation.x = 0.62;
 		hr.position.set( W / 2 + 1.0, H * 0.6 + 0.9, D / 2 - 0.8 );
 		stairs.add( hr );
-		this.parts.push( { obj: stairs, t: S.build[ 0 ] + 30, from: [ 3, 0, 0 ] } );
+		this.parts.push( { obj: stairs, t: CEL.stageBuild[ 0 ] + 30, from: [ 3, 0, 0 ] } );
 		// the pedestal: a clear box at the front left corner, the trophy on it
 		const ped = new Mesh( new BoxGeometry( 0.55, 0.95, 0.55 ), this.M.acrylic );
 		ped.position.set( - W / 2 + 0.7, H + 0.475, D / 2 - 0.6 );
-		this.parts.push( { obj: ped, t: S.build[ 0 ] + 34, from: [ 0, 0, 2 ] } );
+		this.parts.push( { obj: ped, t: CEL.stageBuild[ 0 ] + 34, from: [ 0, 0, 2 ] } );
 		this.pedTop = [ - W / 2 + 0.7, H + 0.95, D / 2 - 0.6 ];
 		// the crowd barriers: a pen round the stage's front and the car, galvanized steel, set by the event staff
 		const pen = new Group();
@@ -190,7 +190,7 @@ export class Stage {
 		for ( let k = 0; k < 7; k ++ ) barrier( - W / 2 - 3 + k * 2.25, D / 2 + 4.5, 0 );
 		for ( let k = 0; k < 3; k ++ ) barrier( - W / 2 - 4.1, D / 2 + 3.4 - k * 2.25, Math.PI / 2 );
 		for ( let k = 0; k < 4; k ++ ) barrier( W / 2 + 7.6, D / 2 + 3.4 - k * 2.25, Math.PI / 2 );
-		this.parts.push( { obj: pen, t: S.build[ 0 ] + 38, from: [ 0, 0, 3 ] } );
+		this.parts.push( { obj: pen, t: CEL.stageBuild[ 0 ] + 38, from: [ 0, 0, 3 ] } );
 		for ( const p of this.parts ) {
 
 			bake( p.obj.isMesh ? wrap( p ) : p.obj );
