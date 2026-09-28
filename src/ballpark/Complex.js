@@ -33,6 +33,10 @@ const LAMPS = OSM.LAMPS.filter( ( [ x, z ] ) => dist( x, z ) < 600 );
 
 const STREET = LEVELS.mainConcourse;
 const SODIUM = [ 1.0, 0.55, 0.2 ];
+// ---- L: the lots' tall poles were metal halide, white (ref/night: roadieshow 3024603196, the lots on
+// Oct 27; Getty 83476821): the orange is the streets' cobra heads only
+const HALIDE = [ 1.0, 0.94, 0.84 ];
+// ---- end L
 const LOT_U = 40, LOT_V = 36.6; // the lot light poles' grid (m), along and across the stalls
 
 // geometry with one extra per-vertex attribute
@@ -245,10 +249,12 @@ export class Complex {
 	let oil = select( 0.0, smoothstep( 0.8, 0.0, abs( fract( q.x / 2.7 ) - 0.5 ) * 2.0 ) * 0.25, inStall && ( ( m > 1.0 && m < 4.0 ) || ( m > 14.0 && m < 17.0 ) ) );
 	c = mix( c * ( 1.0 - oil ), vec3f( 0.52, 0.52, 0.5 ), paint );
 	s.albedo = c;
-	// sodium pools under the poles
+	// pools under the poles
 	let g = ( fract( vec2f( q.x / ${ LOT_U.toFixed( 2 ) }, q.y / ${ LOT_V.toFixed( 2 ) } ) + 0.5 ) - 0.5 ) * vec2f( ${ LOT_U.toFixed( 2 ) }, ${ LOT_V.toFixed( 2 ) } );
 	let pool = exp( - dot( g, g ) / ( 2.0 * 10.0 * 10.0 ) );
-	s.emissive = c * vec3f( ${ SODIUM.join( ', ' ) } ) * pool * 7.0 * smoothstep( 0.2, 0.8, frame.night );
+	// ---- L: white, and a pool on the asphalt, not a lit carpet (from the air on the night the lots are
+	// dark between the poles: FOX's blimp shots, Getty 83476821)
+	s.emissive = c * vec3f( ${ HALIDE.join( ', ' ) } ) * ( pool * pool * 3.2 + pool * 0.5 ) * smoothstep( 0.2, 0.8, frame.night );
 ` } ), 'parking-lots' );
 
 	}
@@ -546,6 +552,7 @@ export class Complex {
 	// highways', each a steel pole with a pair of cobra heads glowing sodium orange after dark
 	_poles() {
 
+		const lotPoles = this.poles.length; // ---- L: the lots' (white) before the streets' (sodium)
 		for ( const [ x, z ] of LAMPS ) this.poles.push( [ x, STREET, z, 9 ] );
 		const pole = new Quads(), heads = new Quads();
 		beam( pole, [ 0, 0, 0 ], [ 0, 1, 0 ], 0.22 );
@@ -555,8 +562,10 @@ export class Complex {
 		box( heads, [ 1.4, 0.975, 0 ], [ 0.7, 0.012, 0.35 ] );
 		const n = this.poles.length;
 		const steel = standard( { name: 'light-poles', color: new Color( 0.35, 0.36, 0.37 ), roughness: 0.5, metalness: 0.7 } );
+		// ---- L: the lots' heads metal halide, the streets' sodium
 		const lamp = standard( { name: 'pole-lamps', color: new Color( 0.3, 0.3, 0.28 ), roughness: 0.4,
-			surface: `s.emissive = vec3f( ${ SODIUM.join( ', ' ) } ) * smoothstep( 0.2, 0.8, frame.night ) * 12.0;` } );
+			varyings: { vHalide: 'f32' }, vertex: `o.vHalide = select( 0.0, 1.0, v.instance < ${ lotPoles }u );`,
+			surface: `s.emissive = mix( vec3f( ${ SODIUM.join( ', ' ) } ), vec3f( ${ HALIDE.join( ', ' ) } ) * 1.4, in.vs.vHalide ) * smoothstep( 0.2, 0.8, frame.night ) * 12.0;` } );
 		const pm = new InstancedMesh( pole.geometry(), steel, n ), hm = new InstancedMesh( heads.geometry(), lamp, n );
 		const m = new Matrix4(), q = new Quaternion(), up = new Vector3( 0, 1, 0 ), sc = new Vector3();
 		this.poles.forEach( ( [ x, y, z, h ], i ) => {

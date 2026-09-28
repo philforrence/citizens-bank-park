@@ -877,6 +877,7 @@ export class Bowl {
 		for ( const m of [ glass, frame ] ) m.underwaterLighting = 'none';
 		glass.setDefine( 'DRY', 1 );
 		const g = new Quads(), f = new Quads();
+		const under = new Quads(), back = new Quads(); // ---- L (H07)
 		const B = offsetPolyline( P, depth, [ 0, - 40 ] );
 		let u = 0;
 		for ( let i = 0; i < P.length - 1; i ++ ) {
@@ -907,12 +908,30 @@ export class Bowl {
 			f.add( [ ax, ceiling - 0.3, az ], [ bx, ceiling - 0.3, bz ], [ bx, ceiling + 0.2, bz ], [ ax, ceiling + 0.2, az ], [ nx, 0, nz ] );
 			f.add( [ P[ i ][ 0 ], y, P[ i ][ 1 ] ], [ P[ i + 1 ][ 0 ], y, P[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], y, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], y, B[ i ][ 1 ] ], [ 0, 1, 0 ] );
 			f.add( [ P[ i ][ 0 ], ceiling, P[ i ][ 1 ] ], [ P[ i + 1 ][ 0 ], ceiling, P[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], ceiling, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], ceiling, B[ i ][ 1 ] ], [ 0, - 1, 0 ] );
+			// ---- L (H07): the suite level's underside over the main concourse. The floor was one-sided, so
+			// from the concourse you looked up through it at the unlit underside of the suites' ceiling: a
+			// black slab by day and night. Its own soffit now: girders, ribbed deck, strip lights
+			under.add( [ P[ i ][ 0 ], y - 0.45, P[ i ][ 1 ] ], [ P[ i + 1 ][ 0 ], y - 0.45, P[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], y - 0.45, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], y - 0.45, B[ i ][ 1 ] ], [ 0, - 1, 0 ] );
+			// and their back: the suites were open boxes behind, so from the concourse you looked up into
+			// them, at the underside of their ceilings. The corridor wall behind them, in precast
+			back.add( [ B[ i ][ 0 ], y - 0.45, B[ i ][ 1 ] ], [ B[ i + 1 ][ 0 ], y - 0.45, B[ i + 1 ][ 1 ] ], [ B[ i + 1 ][ 0 ], ceiling + 0.2, B[ i + 1 ][ 1 ] ], [ B[ i ][ 0 ], ceiling + 0.2, B[ i ][ 1 ] ], [ - nx, 0, - nz ] );
+			// ---- end L
 			this._walkable( P[ i ], P[ i + 1 ], B[ i + 1 ], B[ i ], y, 'suites' );
 
 		}
 
 		this._railing( B, y, 'suites-back' );
 
+		// ---- L (H07): the underside, in the stands' concrete (its soffit shading faces down)
+		const um = new Mesh( under.geometry(), this.materials.concrete );
+		um.name = 'suite-underside';
+		um.receiveShadow = true;
+		this.group.add( um );
+		const bm = new Mesh( back.geometry(), this.materials.fascia );
+		bm.name = 'suite-back';
+		bm.receiveShadow = true;
+		this.group.add( bm );
+		// ---- end L
 		for ( const [ q, m, name ] of [ [ g, glass, 'suite-glass' ], [ f, frame, 'suite-frame' ] ] ) {
 
 			const mesh = new Mesh( q.geometry(), m );
@@ -1128,8 +1147,16 @@ export class Bowl {
 
 		const steel = this._towerSteel || ( this._towerSteel = standard( { name: 'tower-steel', color: new Color( 0.12, 0.03, 0.03 ), roughness: 0.6, metalness: 0.4 } ) );
 		// the lamps glow after dusk (and light the field: see lightSources())
-		const lamp = this._lamp || ( this._lamp = standard( { name: 'tower-lamps', color: new Color( 0.8, 0.8, 0.75 ), roughness: 0.3,
-			surface: 's.emissive = vec3f( 1.0, 0.96, 0.88 ) * smoothstep( 0.15, 0.75, frame.night ) * 40.0;' } ) );
+		// ---- L: metal-halide lamps drift in colour as they age: in a bank most burn cool white, a few pink
+		// or blue-white (Getty 84081811, a bank in the storm on Oct 27). A tint for each fixture (its uv)
+		const lamp = this._lamp || ( this._lamp = standard( { name: 'tower-lamps', color: new Color( 0.8, 0.8, 0.75 ), roughness: 0.3, modules: [ commonModule ],
+			surface: /* wgsl */`
+	let h = hash21( floor( in.uv ) + floor( in.P.xz / 20.0 ) * 7.3 );
+	var tint = vec3f( 1.0, 0.96, 0.88 );
+	if ( h > 0.84 ) { tint = vec3f( 1.0, 0.86, 0.92 ); } else if ( h > 0.7 ) { tint = vec3f( 0.9, 0.95, 1.06 ); }
+	s.emissive = tint * smoothstep( 0.15, 0.75, frame.night ) * 40.0 * ( 0.93 + 0.14 * fract( h * 13.7 ) );
+` } ) );
+		// ---- end L
 		steel.underwaterLighting = 'none';
 		lamp.underwaterLighting = 'none';
 		const g = new Group();
@@ -1863,7 +1890,8 @@ ${ SOFFIT_WGSL }
 			for ( let k = 0; k < 12; k ++ ) {
 
 				const a0 = k / 12 * Math.PI * 2, a1 = ( k + 1 ) / 12 * Math.PI * 2;
-				lq.tri( [ cx, cy, - 0.24 ], [ cx + Math.cos( a1 ) * R, cy + Math.sin( a1 ) * R, - 0.24 ], [ cx + Math.cos( a0 ) * R, cy + Math.sin( a0 ) * R, - 0.24 ], [ 0, 0, - 1 ] );
+				// ---- L: each fixture's own uv (i, j): its lamp's colour (below)
+				lq.tri( [ cx, cy, - 0.24 ], [ cx + Math.cos( a1 ) * R, cy + Math.sin( a1 ) * R, - 0.24 ], [ cx + Math.cos( a0 ) * R, cy + Math.sin( a0 ) * R, - 0.24 ], [ 0, 0, - 1 ], [ i, j ], [ i, j ], [ i, j ] );
 
 			}
 
@@ -1872,7 +1900,13 @@ ${ SOFFIT_WGSL }
 		const frameM = new Mesh( fq.geometry(), steel );
 		frameM.castShadow = true;
 		bank.add( frameM );
-		const housing = this._lampHousing || ( this._lampHousing = standard( { name: 'lamp-housings', color: new Color( 0.05, 0.05, 0.055 ), roughness: 0.5, metalness: 0.5 } ) );
+		// ---- L: from the street behind a bank its fixtures still show lit (the Third Base Gate from
+		// Pattison in the rain on Oct 27, ref/night roadieshow 3023773899): the lamps' glare through their
+		// housings and the few aimed out over the plaza. The backs (facing away from the field) glow
+		const fc = this.field.toWorld( 0, - 45 );
+		const housing = this._lampHousing || ( this._lampHousing = standard( { name: 'lamp-housings', color: new Color( 0.05, 0.05, 0.055 ), roughness: 0.5, metalness: 0.5,
+			surface: `let toF = normalize( vec2f( ${ fc.x.toFixed( 1 ) }, ${ fc.z.toFixed( 1 ) } ) - in.P.xz ); if ( dot( in.N.xz, toF ) < - 0.5 ) { s.emissive = vec3f( 1.0, 0.96, 0.88 ) * smoothstep( 0.15, 0.75, frame.night ) * 7.0; }` } ) );
+		// ---- end L
 		housing.underwaterLighting = 'none';
 		bank.add( new Mesh( hq.geometry(), housing ) );
 		bank.add( new Mesh( lq.geometry(), lamp ) );

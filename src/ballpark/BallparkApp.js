@@ -55,6 +55,7 @@ import { PLACES } from './places/index.js';
 // ---- R (rituals)
 import { tarpState } from './game/TarpPlan.js';
 // ---- end R
+import { Night, nightAirModule, BEAM } from './Night.js'; // ---- L: light and night
 
 const _up = new Vector3( 0, 1, 0 );
 
@@ -248,7 +249,12 @@ export class BallparkApp {
 		G.seaLevel.value = this.field.y0 - 1;
 		// what you walk on: street level round the pit, the field (and the seats' colliders) inside it
 		this.terrain = { heightAt: ( x, z ) => F.y0 + B.heightAt( ...F.toField( x, z ) ) };
-		this.ground = new Ground( { scene, hole: FOOTPRINT.map( ( [ x, z ] ) => {
+		// ---- L: the grid of the city's streets for its lamps at night (Ground.js): the field frame's x axis
+		// in the world, and the park's centre
+		const gc = this.field.toWorld( 0, - 40 ), gx = this.field.toWorld( 1, - 40 );
+		const grid = { centre: [ gc.x, gc.z ], axis: [ gx.x - gc.x, gx.z - gc.z ] };
+		// ---- end L
+		this.ground = new Ground( { scene, grid, hole: FOOTPRINT.map( ( [ x, z ] ) => {
 
 			const w = this.field.toWorld( x, z );
 			return [ w.x, w.z ];
@@ -263,7 +269,8 @@ export class BallparkApp {
 
 			this.localLights.add( {
 				position, dir, color: new Color( 1.0, 0.97, 0.9 ), intensity: 2200, range: 380,
-				cosInner: Math.cos( MathUtils.degToRad( 34 ) ), cosOuter: Math.cos( MathUtils.degToRad( 78 ) ), kind: 'stadium', priority: 0,
+				// ---- L: aimed at the field (Night.js BEAM): the stands under a bank get its edge, not its core
+				cosInner: Math.cos( MathUtils.degToRad( BEAM.inner ) ), cosOuter: Math.cos( MathUtils.degToRad( BEAM.outer ) ), kind: 'stadium', priority: 0,
 			} );
 
 		}
@@ -300,6 +307,11 @@ export class BallparkApp {
 		} );
 		// a summer afternoon in the city, not a humid tropical island
 		if ( this.haze ) this.haze.density.value = 1.0;
+		// ---- L: the night (Night.js): the light banks' glow in the air (in the haze composite), cloth
+		// that soaks in the rain
+		if ( this.haze ) this.haze.nightModule = nightAirModule;
+		this.night = new Night( this );
+		// ---- end L
 		this.post = new PostFX( renderer, { sceneRenderer: this.sceneRenderer, camera, underwater: this.underwater, clouds: this.clouds, sunDir: this.atmosphere.sunDir, haze: this.haze } );
 		// ?profile: GPU timestamps for every pass (post passes, shadow cascades, the scene's passes), in
 		// this.profiler.result
@@ -597,12 +609,26 @@ export class BallparkApp {
 		// everything else open to the sky: soaked on the 27th, drying out on the 29th
 		G.wet.value = firstNight ? 0.45 + 0.55 * k : 0.12;
 		// the low cloud on the 27th glows with the park's and the city's light
-		this.skyGlow = firstNight ? 0.011 + 0.004 * k : 0.006;
+		// ---- L: dimmer than it was: from inside the lit bowl the sky over it read mid grey-brown, where every
+		// frame of both nights has it near black (navy on FOX's cameras); the banks' own glow is the night
+		// air's now (Night.js)
+		this.skyGlow = firstNight ? 0.0075 + 0.003 * k : 0.0045;
 		this.sound.setRain( rain );
 		// ponchos in the stands while it rains
 		this._crowdRain = firstNight ? Math.min( 1, rain * 3 ) : 0;
 		if ( this.clouds ) this.clouds.coverage.value = firstNight ? 0.85 + 0.12 * k : 0.55;
 		if ( this.haze ) this.haze.density.value = firstNight ? 1.3 + 1.2 * k : 1.0;
+		// ---- L: the 29th at the airport: broken cloud at 7:54 pm clearing to a few by 8:54 and 9:54, 10 mi
+		// visibility, a dew point of 28 F (ref/night INDEX, the KPHL METARs): a clear, dry, black sky. After
+		// dark (the afternoon of the storm's clearing stays as it was)
+		if ( ! firstNight ) {
+
+			const nk = MathUtils.smoothstep( G.night.value, 0.2, 0.8 );
+			if ( this.clouds ) this.clouds.coverage.value = 0.55 - 0.33 * nk;
+			if ( this.haze ) this.haze.density.value = 1.0 - 0.25 * nk;
+
+		}
+		// ---- end L
 
 	}
 
@@ -675,7 +701,8 @@ export class BallparkApp {
 
 			// the glow over the city, and the halos round the light banks (bigger in the rain)
 			const r = this.rain ? this.rain.amount : 0;
-			this.skyGlowLayer.set( { glow: night * this.skyGlow, halo: night * ( 0.2 + 0.45 * r ), haloSize: 18 + 12 * r, toward: this._north } );
+			// ---- L: no halo sprites: the banks' glow is the night air's now (Night.js)
+			this.skyGlowLayer.set( { glow: night * this.skyGlow, halo: this.night ? 0 : night * ( 0.2 + 0.45 * r ), haloSize: 18 + 12 * r, toward: this._north } );
 
 		}
 		const moon = new Vector3( - dir.x, Math.abs( dir.y ) * 0.8 + 0.25, - dir.z ).normalize();
@@ -857,6 +884,8 @@ export class BallparkApp {
 			this._scoreboard( dt );
 
 		}
+
+		this.night?.update( dt ); // ---- L
 
 		this.bowl.crowd.update( this.director, dt, this._crowdRain || 0 );
 		this.bowl.crowd.lod( this.camera );
