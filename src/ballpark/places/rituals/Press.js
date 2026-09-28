@@ -87,7 +87,7 @@ export class Press {
 
 	// the press's night: only at the last out. cel: the celebration's time (null outside it); actors: the
 	// Director's this frame (where the players are)
-	update( cel, actors, dt, cam ) {
+	update( cel, actors, dt, kalas = null, cam = null ) {
 
 		const on = cel != null && cel > 2;
 		// (nothing to do all night until the last out)
@@ -130,7 +130,8 @@ export class Press {
 				// at the pile; then after their man once it's come apart (a few steps off, on one side)
 				[ x, z ] = ring;
 				yaw = Math.atan2( - ( PILE[ 0 ] - x ), - ( PILE[ 1 ] - z ) );
-				const a = actors?.get( q.subject );
+				// (a third of them round Harry Kalas while he sings)
+				const a = kalas && q.i % 3 === 0 ? kalas : actors?.get( q.subject );
 				const k = ease( ( cel - 38 - hash( q.i ) * 8 ) / 4 );
 				if ( a && k > 0 ) {
 

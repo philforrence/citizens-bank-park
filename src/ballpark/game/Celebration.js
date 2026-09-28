@@ -21,7 +21,28 @@ import { moundY } from './TarpPlan.js';
 // Each man's night here is a list of steps (hold, go, dive into the pile, lie in it, get up, hug, wave),
 // laid out once from the distances and evaluated at the time: so scrubbing agrees.
 
-export const CEL = { pileHold: 30, upStep: 0.75, freeFrom: 44 };
+export const CEL = {
+	pileHold: 30, upStep: 0.75, freeFrom: 44,
+	// the stage goes up (its pieces set down in turn), the MVP's car driven in, the trophy out on its
+	// pedestal, the party up the stairs; the presentation; the lap with the flag; Harry Kalas sings
+	stageBuild: [ 60, 100 ], carIn: [ 96, 112 ], trophyOut: 112, party: 114, gather: 120,
+	present: [ 126, 198 ], hand: 140, manuel: [ 152, 166 ], mvp: [ 166, 182 ], up: 184, lap: [ 200, 292 ], kalas: [ 206, 246 ], moyer: [ 128, 150 ],
+};
+// The stage (anthonydefrancesco 2986359720: on the first base side of second, on the clay), facing the
+// plate and the first base stands (Getty 83570999: the right field wall behind it), the car beside it
+const STAGE_YAW = - 0.5;
+export const STAGE = {
+	at: [ 17, - 31 ], yaw: STAGE_YAW,
+	car: [ 17 + 8.2 * Math.cos( STAGE_YAW ) + 2.6 * Math.sin( STAGE_YAW ), - 31 - 8.2 * Math.sin( STAGE_YAW ) + 2.6 * Math.cos( STAGE_YAW ) ], carYaw: - 2.87,
+	// a point in the stage's own frame (x along its front, z out of its front) in the field frame
+	point: ( lx, lz ) => [ 17 + lx * Math.cos( STAGE_YAW ) + lz * Math.sin( STAGE_YAW ), - 31 - lx * Math.sin( STAGE_YAW ) + lz * Math.cos( STAGE_YAW ) ],
+	W: 6.4, D: 3.2, H: 0.95,
+};
+// the lap (ronniebruce 2987488477, 2988346732: the players in their grey tees behind the big red flag, a
+// motor officer out front, round the warning track from the right field corner toward left)
+export const LAP = [ [ 30, - 26 ], [ 50, - 46 ], [ 64, - 64 ], [ 58, - 84 ], [ 44, - 104 ], [ 24, - 116 ], [ 0, - 120 ], [ - 24, - 115 ], [ - 44, - 102 ] ];
+// who: Brett Myers with the flag (Getty 83570906), Howard with the trophy (Getty 83485971), and friends
+const LAP_MEN = [ 408206, 429667, 425664, 276519, 150029, 434563, 430935, 150268, 400120, 425785, 122644 ];
 const hash = ( n ) => {
 
 	const s = Math.sin( n * 12.9898 ) * 43758.5453;
@@ -51,6 +72,9 @@ const STAFF = [
 	{ id: 'r:henderson', who: { side: 'home', num: '', last: 'HENDERSON' }, from: 'pen', coach: true },
 	{ id: 'r:billmeyer', who: { side: 'home', num: '', last: 'BILLMEYER' }, from: 'pen', coach: true },
 ];
+const MOYER = { id: 'r:moyer', who: { side: 'home', num: '50', last: '' } };
+// where the rubber is (Field.js: 24 x 6 in, its front edge 60 ft 6 in from the plate)
+export const RUBBER = [ 0, 0.255, - 18.44 - 0.076 ];
 // the relievers still in the pen at the end (Durbin and Romero had pitched and were in the dugout)
 const PEN = new Set( [ 425492, 113961, 424925, 457918 ] );
 
@@ -100,6 +124,9 @@ function plan( d, seg ) {
 
 	}
 
+	// Jamie Moyer (not in the box score's roster here: the Game 3 starter, 45, from Souderton, who'd
+	// skipped school for the 1980 parade)
+	people.push( { id: MOYER.id, who: MOYER.who, from: [ DUGOUT.home[ 0 ] - 3, DUGOUT.home[ 1 ] + 2 ], react: 2.4, speed: 6.2 } );
 	for ( const c of STAFF ) {
 
 		const f = c.from === 'pen' ? polar( 6 + ( hash( c.id.length ) - 0.5 ) * 3, 398 ) : [ DUGOUT.home[ 0 ] + ( hash( c.id.length * 7 ) - 0.5 ) * 8, DUGOUT.home[ 1 ] - ( hash( c.id.length * 5 ) - 0.5 ) * 8 ];
@@ -205,6 +232,7 @@ function plan( d, seg ) {
 	// tee and the black cap (Getty 83571364: being handed round in the scrum; the coaches keep their jackets)
 	let n = 0;
 	for ( const info of L.values() ) info.tChamps = 50 + hash( n ++ * 7.7 + 3 ) * 60;
+	presentation( L, def );
 	return L;
 
 }
@@ -311,6 +339,154 @@ function afterPile( d, seg, L, def ) {
 
 }
 
+// The presentation: they gather in front of the stage (inside the barriers, facing it, applauding);
+// Manuel goes up for his interview; after the MVP the players go up and Howard lifts the trophy; then
+// the lap behind the flag, and the rest stay about the stage.
+function presentation( L, def ) {
+
+	const S = STAGE, front = S.D / 2;
+	let n = 0;
+	const onStage = [ 429667, 430935, 400058, 276519, 400284, 434563 ];
+	for ( const [ id, info ] of L ) {
+
+		const st = info.steps;
+		const last = st[ st.length - 1 ];
+		const from = last.p || last.b || PILE;
+		// a place in the crowd in front of it
+		const row = Math.floor( n / 9 ), col = n % 9;
+		const spot = S.point( - 3.6 + col * 0.95 + ( row % 2 ) * 0.45 + ( hash( n ) - 0.5 ) * 0.3, front + 1.4 + row * 0.95 + hash( n * 3 ) * 0.3 );
+		const face = S.point( ( hash( n * 5 ) - 0.5 ) * 2, 0 );
+		const t0 = CEL.gather + hash( n * 1.9 ) * 6, t1 = t0 + dist( from, spot ) / 1.5;
+		st.push( { t0, t1, kind: 'go', a: from, b: spot, gait: 'walk' } );
+		const nn = n;
+		st.push( { t0: t1, t1: t1 + 400, kind: 'hold', p: spot, yaw: yawTo( spot, face ), y: 0, pose: ( tau ) => crowdPose( tau + t1, nn ) } );
+		let p = spot;
+		// Manuel up for his interview
+		if ( id === 'r:manuel' ) {
+
+			const top = S.point( 0.4, front - 0.9 );
+			const t = climb( st, p, top, CEL.manuel[ 0 ] - 5, S );
+			st.push( { t0: t, t1: CEL.manuel[ 1 ], kind: 'hold', p: top, yaw: S.yaw, y: S.H, pose: ( tau ) => manuelPose( tau ) } );
+			st.push( { t0: CEL.manuel[ 1 ], t1: CEL.manuel[ 1 ] + 400, kind: 'hold', p: top, yaw: S.yaw, y: S.H, pose: ( tau ) => R.applaud( tau, 3 ) } );
+
+		}
+
+		// Moyer: out to the mound while the stage is going up, down on his knees digging the rubber out, then
+		// up with it in both hands for the cameras (Getty 83571213)
+		if ( id === MOYER.id ) {
+
+			const at = [ RUBBER[ 0 ] + 0.2, RUBBER[ 2 ] + 0.75 ];
+			const t0m = CEL.moyer[ 0 ], t1m = t0m + dist( p, at ) / 1.5;
+			st.push( { t0: t0m, t1: t1m, kind: 'go', a: p, b: at, gait: 'walk' } );
+			st.push( { t0: t1m, t1: CEL.moyer[ 1 ], kind: 'hold', p: at, yaw: Math.PI, y: moundY( at[ 0 ], at[ 1 ] ), pose: ( tau ) => R.kneelIn( tau * 1.6, 0.3 ) } );
+			st.push( { t0: CEL.moyer[ 1 ], t1: CEL.moyer[ 1 ] + 400, kind: 'hold', p: at, yaw: 0.4, y: moundY( at[ 0 ], at[ 1 ] ), pose: ( tau ) => R.holdChest( tau ) } );
+			p = at;
+
+		}
+
+		// the players up after the MVP; Howard with it over his head
+		const k = onStage.indexOf( id );
+		if ( k >= 0 ) {
+
+			const top = S.point( - 2.2 + k * 0.85, front - 1.1 - ( k % 2 ) * 0.5 );
+			const tt = climb( st, p, top, CEL.up + k * 1.2, S );
+			const howard = id === 429667;
+			st.push( { t0: tt, t1: CEL.lap[ 0 ] - 3, kind: 'hold', p: top, yaw: S.yaw, y: S.H, pose: ( tau ) => ( howard && tau > 2 ? R.holdHigh( tau, 1 ) : R.fist( tau, hash( k ) ) ) } );
+			p = top;
+
+		}
+
+		// the lap: behind the flag round the track; the others stay about the stage
+		const lk = LAP_MEN.indexOf( id );
+		if ( lk >= 0 ) {
+
+			const off = [ ( lk % 3 - 1 ) * 1.3, Math.floor( lk / 3 ) * 1.4 ];
+			let t2 = CEL.lap[ 0 ] + lk * 0.3;
+			// (down off the stage first)
+			if ( k >= 0 ) {
+
+				t2 = Math.max( t2, descend( st, p, CEL.lap[ 0 ] - 3, S ) );
+				p = S.point( S.W / 2 + 0.5, S.D / 2 + 0.6 );
+
+			}
+
+			st.push( { t0: t2, kind: 'lap', off, from: p, t1: CEL.lap[ 1 ], flag: id === 408206, trophy: id === 429667, n: lk } );
+
+		}
+
+		n ++;
+
+	}
+
+	void def;
+
+}
+
+// up the stage's stairs from p to the top spot: returns when he's there
+function climb( st, p, top, t0, S ) {
+
+	const foot = S.point( S.W / 2 + 0.5, S.D / 2 + 0.6 ), step = S.point( S.W / 2 + 0.5, S.D / 2 - 1.3 );
+	const t1 = t0 + dist( p, foot ) / 1.6, t2 = t1 + 1.6, t3 = t2 + dist( step, top ) / 1.4;
+	st.push( { t0, t1, kind: 'go', a: p, b: foot, gait: 'walk' } );
+	st.push( { t0: t1, t1: t2, kind: 'stairs', a: foot, b: step, y0: 0, y1: S.H } );
+	st.push( { t0: t2, t1: t3, kind: 'go', a: step, b: top, gait: 'walk', y: S.H } );
+	return t3;
+
+}
+
+// down the stairs from the stage's top spot p to their foot: returns when he's there
+function descend( st, p, t0, S ) {
+
+	const foot = S.point( S.W / 2 + 0.5, S.D / 2 + 0.6 ), step = S.point( S.W / 2 + 0.5, S.D / 2 - 1.3 );
+	const t1 = t0 + dist( p, step ) / 1.4, t2 = t1 + 1.6;
+	st.push( { t0, t1, kind: 'go', a: p, b: step, gait: 'walk', y: S.H } );
+	st.push( { t0: t1, t1: t2, kind: 'stairs', a: step, b: foot, y0: S.H, y1: 0 } );
+	return t2;
+
+}
+
+// in the crowd in front of the stage: applauding, a word to the next man, now and then a fist up
+function crowdPose( t, n ) {
+
+	const c = Math.floor( t / 6 + hash( n ) * 5 ) % 5;
+	if ( c === 0 || c === 3 ) return R.applaud( t, n );
+	if ( c === 1 ) return R.fist( t, hash( n ) );
+	const p = M.stand( t + n );
+	p.head = [ 0.0, 0.5 * Math.sin( t * 0.4 + n ) ];
+	p.glove = false;
+	return p;
+
+}
+
+// Manuel with FOX's microphone (Getty 83570999: talking, then the finger up at the crowd)
+function manuelPose( tau ) {
+
+	const p = M.stand( tau );
+	p.handR = [ 0.12, 1.55, - 0.2 ];
+	p.handL = tau > 7 && tau < 11 ? [ - 0.3, 2.05, - 0.15 ] : [ - 0.22, 0.95, 0.0 ];
+	p.head = [ tau > 7 && tau < 11 ? - 0.35 : 0.0, 0.3 * Math.sin( tau * 0.5 ) ];
+	p.glove = false;
+	return p;
+
+}
+
+// where on the lap's path at a distance d along it (and which way)
+export function lapAt( d ) {
+
+	let r = d;
+	for ( let i = 0; i < LAP.length - 1; i ++ ) {
+
+		const l = dist( LAP[ i ], LAP[ i + 1 ] );
+		if ( r <= l ) return { p: lerp2( LAP[ i ], LAP[ i + 1 ], r / l ), yaw: yawTo( LAP[ i ], LAP[ i + 1 ] ) };
+		r -= l;
+
+	}
+
+	return { p: LAP[ LAP.length - 1 ], yaw: yawTo( LAP[ LAP.length - 2 ], LAP[ LAP.length - 1 ] ), end: true };
+
+}
+export const LAP_SPEED = 1.35;
+
 // ---------------------------------------------------------------- showing it
 
 // a step at time t -> { x, z, yaw, pose, y, tilt } (or null: not on the field)
@@ -322,14 +498,48 @@ function evalSteps( steps, t, info ) {
 	const tau = t - s.t0, k = s.t1 > s.t0 ? Math.min( 1, tau / ( s.t1 - s.t0 ) ) : 1;
 	if ( s.kind === 'none' ) return null;
 	if ( s.kind === 'hold' ) return { x: s.p[ 0 ], z: s.p[ 1 ], yaw: s.yaw, y: s.y || 0, pose: s.pose( tau ) };
+	if ( s.kind === 'stairs' ) {
+
+		const p = lerp2( s.a, s.b, k );
+		const pose = R.walk( dist( s.a, s.b ) * k / 1.6 );
+		return { x: p[ 0 ], z: p[ 1 ], yaw: yawTo( s.a, s.b ), y: s.y0 + ( s.y1 - s.y0 ) * k, pose };
+
+	}
+
+	if ( s.kind === 'lap' ) {
+
+		// out to the start of the lap, then round behind the flag at a walk, waving to the stands
+		const start = LAP[ 0 ];
+		const lead = dist( s.from, start );
+		const tau2 = tau * LAP_SPEED - lead;
+		if ( tau2 < 0 ) {
+
+			const p = lerp2( s.from, start, tau * LAP_SPEED / Math.max( 0.01, lead ) );
+			return { x: p[ 0 ], z: p[ 1 ], yaw: yawTo( s.from, start ), y: 0, pose: R.walk( tau * LAP_SPEED / 2.3 ) };
+
+		}
+
+		const w = lapAt( Math.max( 0, tau2 - s.off[ 1 ] ) );
+		const side = [ Math.cos( w.yaw ), - Math.sin( w.yaw ) ];
+		const x = w.p[ 0 ] + side[ 0 ] * s.off[ 0 ], z = w.p[ 1 ] + side[ 1 ] * s.off[ 0 ];
+		const pose = w.end ? M.stand( t ) : R.walk( tau2 / 2.3 );
+		// Myers with the flag held up on its pole, Howard with the trophy, the rest now and then waving
+		if ( s.flag ) { pose.handR = [ 0.12, 1.75, - 0.2 ]; pose.handL = [ 0.08, 1.2, - 0.22 ]; }
+		else if ( s.trophy ) { pose.handL = [ - 0.13, 2.0, - 0.1 ]; pose.handR = [ 0.13, 2.0, - 0.1 ]; }
+		else if ( Math.floor( tau / 3 + s.n ) % 3 === 0 ) pose.handR = [ 0.35, 1.95, - 0.1 ];
+		pose.glove = false;
+		return { x, z, yaw: w.yaw, y: 0, pose };
+
+	}
+
 	if ( s.kind === 'go' ) {
 
-		if ( k >= 1 ) return { x: s.b[ 0 ], z: s.b[ 1 ], yaw: yawTo( s.a, s.b ), y: moundY( s.b[ 0 ], s.b[ 1 ] ), pose: M.stand( t ) };
+		if ( k >= 1 ) return { x: s.b[ 0 ], z: s.b[ 1 ], yaw: yawTo( s.a, s.b ), y: s.y ?? moundY( s.b[ 0 ], s.b[ 1 ] ), pose: M.stand( t ) };
 		const p = lerp2( s.a, s.b, k );
 		const L = dist( s.a, s.b ) * k;
 		const pose = s.gait === 'walk' ? R.walk( L / 2.3 ) : M.run( L / 3.4, 0.9 );
 		pose.glove = false;
-		return { x: p[ 0 ], z: p[ 1 ], yaw: yawTo( s.a, s.b ), y: moundY( p[ 0 ], p[ 1 ] ), pose };
+		return { x: p[ 0 ], z: p[ 1 ], yaw: yawTo( s.a, s.b ), y: s.y ?? moundY( p[ 0 ], p[ 1 ] ), pose };
 
 	}
 
@@ -377,6 +587,45 @@ function gettingUp( steps, t ) {
 	}
 
 	return null;
+
+}
+
+// Where the trophy is when a player has it (Howard, over his head on the stage and on the lap): from his
+// hands (the pose's, in his frame, turned by his yaw and scaled by his height), or null
+export function trophyHold( d, lt ) {
+
+	const id = 429667, a = d.actors?.get( id );
+	if ( ! a || lt < CEL.up ) return null;
+	const pz = a.pose;
+	if ( ! pz || pz.handL[ 1 ] < 1.8 || pz.handR[ 1 ] < 1.8 ) return null;
+	const h = d._height ? d._height( id ) : 1;
+	const lx = ( pz.handL[ 0 ] + pz.handR[ 0 ] ) / 2 * h, ly = ( pz.handL[ 1 ] + pz.handR[ 1 ] ) / 2 * h, lz = ( pz.handL[ 2 ] + pz.handR[ 2 ] ) / 2 * h;
+	const c = Math.cos( a.yaw ), sn = Math.sin( a.yaw );
+	return { x: a.x + lx * c + lz * sn, y: ( a.y || 0 ) + ly - 0.05, z: a.z - lx * sn + lz * c, yaw: a.yaw };
+
+}
+
+// the rubber: in the ground until Moyer has it out (null), then in his hands ({ x, y, z, yaw })
+export function rubberHold( d, lt ) {
+
+	if ( lt < CEL.moyer[ 1 ] ) return null;
+	const a = d.actors?.get( MOYER.id );
+	if ( ! a ) return 'hole';
+	const c = Math.cos( a.yaw ), sn = Math.sin( a.yaw ), lz = - 0.34;
+	return { x: a.x + lz * sn, y: ( a.y || 0 ) + 1.14, z: a.z + lz * c, yaw: a.yaw };
+
+}
+
+// the flag on the lap: Myers's hands on its pole ({ x, y, z, yaw }), or null
+export function flagHold( d, lt ) {
+
+	if ( lt < CEL.lap[ 0 ] ) return null;
+	const a = d.actors?.get( 408206 );
+	const pz = a?.pose;
+	if ( ! pz || pz.handR[ 1 ] < 1.6 ) return null;
+	const h = d._height ? d._height( 408206 ) : 1;
+	const c = Math.cos( a.yaw ), sn = Math.sin( a.yaw ), lx = pz.handR[ 0 ] * h, lz = pz.handR[ 2 ] * h;
+	return { x: a.x + lx * c + lz * sn, y: ( a.y || 0 ) + pz.handR[ 1 ] * h, z: a.z - lx * sn + lz * c, yaw: a.yaw };
 
 }
 
