@@ -409,8 +409,9 @@ function night29( d, seg, l2real, st, axis, dur ) {
 		// short), and the other ten, by the third base end, swing the roll back to the wall and go in
 		if ( i < 10 ) {
 
-			const f = rollAt( { ...st, phase: 'pull', u: 0, r: R_FULL_29, dir: - 1 }, axis, c.v );
-			const from = [ f.p[ 0 ] + PULL_DIR[ 0 ] * ( f.r + 0.52 ), f.p[ 1 ] + PULL_DIR[ 1 ] * ( f.r + 0.52 ) ];
+			// (where each finished the unpull: behind the roll at the sheet's left field edge)
+			const e = sheetPoint( 0, c.v );
+			const from = [ e[ 0 ] + PULL_DIR[ 0 ] * ( R_FULL_29 + 0.52 ), e[ 1 ] + PULL_DIR[ 1 ] * ( R_FULL_29 + 0.52 ) ];
 			work( d, c, i, from, l2 - T.stow, who );
 			continue;
 
