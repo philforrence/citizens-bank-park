@@ -402,13 +402,15 @@ fn shadeSurface( s0: Surface, P: vec3f, V: vec3f, pixel: vec2f ) -> vec3f {
 		// film of water lies on it, thin in places and pooled in others, so its reflections of the lights
 		// break up the way they do on a wet concourse (not one even varnish)
 		let wetK = frame.wet * smoothstep( 0.25, 0.75, s.normal.y ) * ( 1.0 - s.metalness );
-		let pn = perlin2( P.xz * 0.45 ) + 0.5 * perlin2( P.xz * 1.9 + vec2f( 17.3, 5.1 ) );
-		let pool = smoothstep( -0.05, 0.45, pn );
+		// (warped sines, not Perlin: this runs on every wet pixel of the stands, and the pools only need to
+		// be irregular, not noise)
+		let pn = sin( P.x * 0.53 + sin( P.z * 0.31 ) * 2.1 ) * sin( P.z * 0.61 + sin( P.x * 0.27 ) * 1.7 ) + 0.35 * sin( P.x * 2.3 + P.z * 1.7 );
+		let pool = smoothstep( -0.05, 0.55, pn );
 		s.albedo = s.albedo * mix( 1.0, 0.58, wetK * smoothstep( 0.25, 0.9, r0 ) );
 		s.roughness = mix( r0, min( r0, mix( 0.3, 0.05, pool ) ), wetK );
 		// at night the film mirrors a dark sky (the environment probe holds more than the eye sees there):
 		// what shines in it is the lamps (their own highlights), not a sheet of sky
-		s.envIntensity = s.envIntensity * mix( 1.0, 0.3, wetK * frame.night );
+		s.envIntensity = s.envIntensity * mix( 1.0, 0.15, wetK * frame.night );
 		// bare metal (the rails, the seat standards) beads up: its sheen tightens
 		let wetM = frame.wet * smoothstep( -0.2, 0.6, s.normal.y ) * s.metalness;
 		s.roughness = mix( s.roughness, s.roughness * 0.55, wetM );

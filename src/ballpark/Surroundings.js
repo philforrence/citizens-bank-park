@@ -271,7 +271,7 @@ export class Surroundings {
 	// casino, which Complex.js leaves out): an 11-storey slab of cream precast with bands of room
 	// windows, and on its roof the green "Holiday Inn" script facing the ballpark (ref/night: andrewwinn
 	// 2605278835 from the Alley, June 2008; bub_56 2994754127 over center field on Oct 29). After dark a
-	// scatter of rooms lit, a few in a TV's blue. Its exact footprint isn't known: a 60 x 16 m slab
+	// dark slab with a scatter of rooms lit, a few in a TV's blue. Its exact footprint isn't known: a 60 x 16 m slab
 	_holidayInn() {
 
 		const cx = 70, cz = - 472, W = 60, D = 16, H = 35, y0 = STREET;
@@ -299,10 +299,10 @@ export class Surroundings {
 		s.albedo = mix( s.albedo, vec3f( 0.05, 0.06, 0.07 ), w * 0.85 );
 		s.roughness = mix( s.roughness, 0.2, w );
 		let h = hash21( vec2f( rm + in.N.x * 37.0 + in.N.z * 91.0, fl ) );
-		let lit = step( 0.62, h );
+		let lit = step( 0.78, h );
 		let tv = step( 0.93, h ) * ( 0.6 + 0.4 * sin( frame.time * 7.0 + h * 40.0 ) * sin( frame.time * 3.1 + h * 17.0 ) );
 		let c = select( vec3f( 1.0, 0.72, 0.42 ), vec3f( 0.45, 0.6, 1.0 ) * tv, h > 0.93 );
-		s.emissive = c * mix( lit * win, 0.38 * 0.4, smoothstep( 0.3, 1.0, fw ) ) * 1.6 * smoothstep( 0.1, 0.6, frame.night );
+		s.emissive = c * mix( lit * win, 0.22 * 0.5, smoothstep( 0.3, 1.0, fw ) ) * 1.0 * smoothstep( 0.1, 0.6, frame.night );
 	}
 `,
 		} );

@@ -326,7 +326,7 @@ export class Night {
 		if ( hz ) {
 
 			if ( this._shafts === undefined || hz.shafts.value !== 0 ) this._shafts = hz.shafts.value;
-			hz.shafts.value = NIGHT_KEY.on.value > 0.5 ? 0 : this._shafts;
+			hz.shafts.value = NIGHT_KEY.on.value > 0.5 && ! this.off ? 0 : this._shafts;
 
 		}
 		// the 27th: rain and mist, the drops' strong forward lobe; the 29th (and a dry night): a little
