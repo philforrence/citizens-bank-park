@@ -529,6 +529,30 @@ export class HarrysPeople {
 
 		}
 
+		// the Phanatic in front of them (A's: taunting in left before the 29th's resumption, his laps): every
+		// head on him, the phones and cameras up, both arms waving at him
+		const ph = N.phan;
+		if ( ph && ! N.celebrate && ( ph.x - p.x ) ** 2 + ( ph.z - p.z ) ** 2 < 70 * 70 ) {
+
+			tx = ph.x; ty = ( ph.y ?? 0 ) + 1.2; tz = ph.z;
+			if ( sd < 0.2 ) {
+
+				A[ 1 ].splice( 0, 4, ...GESTURE.photo[ 1 ] );
+				A[ 0 ].splice( 0, 4, ...GESTURE.photo[ 0 ] );
+				a.propR = PROP.camera; a.propL = 0;
+
+			} else if ( sd < 0.55 ) {
+
+				const w = Math.sin( t * 8 + sd * 20 ) * 0.3;
+				A[ 0 ][ 0 ] = 2.4; A[ 0 ][ 1 ] = 0.5 + w; A[ 0 ][ 2 ] = 0.2; A[ 0 ][ 3 ] = 0.6;
+				A[ 1 ][ 0 ] = 2.4; A[ 1 ][ 1 ] = 0.5 - w; A[ 1 ][ 2 ] = 0.2; A[ 1 ][ 3 ] = 0.6;
+				a.propL = 0; a.propR = 0;
+				mouth = Math.max( mouth, 0.6 );
+
+			}
+
+		}
+
 		const dx = tx - p.x, dz = tz - p.z;
 		let hy = wrap( Math.atan2( - dx, - dz ) - p.yaw );
 		let hp = - Math.atan2( ty - ( p.y + 1.1 + 0.45 * up + ( m.sit ? m.sit - 0.45 : 0 ) ), Math.sqrt( dx * dx + dz * dz ) );

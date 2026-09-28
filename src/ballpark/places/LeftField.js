@@ -226,6 +226,9 @@ export default class LeftField {
 		const cf = cam ? this.field.toField( cam.position.x, cam.position.z ) : null;
 		const sdt = this._tempo.step( dt, cam );
 		N.mood = this.bowl?.crowd?._mood;
+		// (A's Phanatic, where he is this frame)
+		const ph = this.app?.phanatic?.now;
+		N.phan = ph?.visible ? ph : null;
 		if ( sdt && this.people ) {
 
 			this.people.catchUp = this._tempo.cut;
