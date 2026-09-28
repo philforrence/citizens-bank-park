@@ -404,7 +404,6 @@ export class Fans {
 		} else if ( ! again ) {
 
 			this._play( 'groan', { vol: 0.5, bus: 'crowd', rate: 0.95 + 0.1 * Math.random() } );
-			if ( level <= - 1 ) this.react( 'boo', 0.35 );
 
 		}
 

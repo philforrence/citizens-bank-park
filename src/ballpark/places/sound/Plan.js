@@ -82,7 +82,9 @@ export function buildPlan( director ) {
 			if ( home ) add( at - 1.8, 'walkup', { id, until: ( n && n.kind === 'change' ? n.t0 + n.dur : t0 + WALKUP ) + 2.5 } );
 			const star = STAR[ home ? 'home' : 'away' ].includes( who?.last );
 			if ( home ) add( at + 3.2, 'fans', { what: 'cheer', level: star ? 1.6 : 1 } );
-			else add( at + 3.0, 'fans', { what: 'boo', level: star ? 1 : 0.55 } );
+			// the Rays: heard out, mostly; Longoria heckled ("Eva", the Inquirer's blog), Upton booed
+			else if ( who?.last === 'Longoria' || who?.last === 'Upton' ) add( at + 3.0, 'fans', { what: 'boo', level: who.last === 'Longoria' ? 0.8 : 0.5 } );
+			void star;
 			void p;
 
 		}
@@ -94,7 +96,7 @@ export function buildPlan( director ) {
 			add( t0 + 0.3, 'ump', { key: 'ump-time' } );
 			// the Phillies' relievers come in to their music (Lidge's the loudest), the Rays' to the organ
 			add( t0 + 0.8, home ? 'walkup' : 'music', home ? { id, until: t0 + CHANGE - 0.5 } : { tune: pick( [ 'bullpen', 'rock', 'camptown' ] ), until: t0 + CHANGE - 1, vol: 0.8 } );
-			add( t0 + 9.5, 'fans', home ? { what: 'cheer', level: P[ id ]?.last === 'Lidge' ? 2.2 : 1.2 } : { what: 'boo', level: 0.5 } );
+			if ( home ) add( t0 + 9.5, 'fans', { what: 'cheer', level: P[ id ]?.last === 'Lidge' ? 2.2 : 1.2 } );
 			// the Rays' manager's slow walk out gets the old organ send-off... and the one they're taking out
 			// gets a sarcastic hand
 			if ( ! home ) add( t0 + 2.5, 'fans', { what: 'applause', level: 0.6 } );
