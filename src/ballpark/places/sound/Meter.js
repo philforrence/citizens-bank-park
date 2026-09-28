@@ -129,3 +129,43 @@ export function zones( app, points ) {
 	} );
 
 }
+
+// A piece of the music rendered offline (an OfflineAudioContext, the band's or the organ's own code), as a
+// 16-bit mono WAV in base64, for looking at off the page (a spectrogram).
+//   await render( 'band', 'utley', 8 )  |  await render( 'organ', 'saints', 10 )
+export async function render( kind, name, seconds = 8, sr = 22050 ) {
+
+	const ctx = new OfflineAudioContext( 1, Math.ceil( seconds * sr ), sr );
+	let part = null;
+	if ( kind === 'band' ) {
+
+		const { Band } = await import( './Band.js' );
+		part = new Band( ctx, ctx.destination );
+		part.play( name, seconds, 1 );
+
+	} else {
+
+		const { Organ, score } = await import( './Organ.js' );
+		const { TUNES } = await import( './Tunes.js' );
+		const org = new Organ( ctx, ctx.destination ), tune = TUNES[ name ], beat = 60 / tune.bpm;
+		for ( const [ b, m, d, lvl, perc ] of score( tune ) ) if ( b * beat < seconds - 0.2 ) org.note( m, 0.05 + b * beat, d * beat, lvl, tune.reg, perc );
+		org.spin( !! tune.fast );
+
+	}
+
+	for ( let now = 0; part && now < seconds; now += 0.2 ) part.update( now );
+	const buf = await ctx.startRendering();
+	const x = buf.getChannelData( 0 );
+	let peak = 0;
+	for ( let i = 0; i < x.length; i ++ ) peak = Math.max( peak, Math.abs( x[ i ] ) );
+	const n = x.length, bytes = new Uint8Array( 44 + n * 2 ), dv = new DataView( bytes.buffer );
+	const w = ( o, s ) => [ ...s ].forEach( ( c, i ) => dv.setUint8( o + i, c.charCodeAt( 0 ) ) );
+	w( 0, 'RIFF' ); dv.setUint32( 4, 36 + n * 2, true ); w( 8, 'WAVE' ); w( 12, 'fmt ' ); dv.setUint32( 16, 16, true );
+	dv.setUint16( 20, 1, true ); dv.setUint16( 22, 1, true ); dv.setUint32( 24, sr, true ); dv.setUint32( 28, sr * 2, true );
+	dv.setUint16( 32, 2, true ); dv.setUint16( 34, 16, true ); w( 36, 'data' ); dv.setUint32( 40, n * 2, true );
+	for ( let i = 0; i < n; i ++ ) dv.setInt16( 44 + i * 2, Math.max( - 1, Math.min( 1, x[ i ] ) ) * 32767, true );
+	let s = '';
+	for ( let i = 0; i < bytes.length; i += 32768 ) s += String.fromCharCode( ...bytes.subarray( i, i + 32768 ) );
+	return { name, peak: Math.round( 20 * Math.log10( peak + 1e-9 ) * 10 ) / 10, wav: btoa( s ) };
+
+}
