@@ -1,0 +1,129 @@
+// For checking the soundscape's mix without ears (QA, through the render desk's js): play the replay from
+// t for a few seconds of real time, the director and the sound updating (nothing drawn), with a meter on
+// every bus and on the master, and report their levels.
+//
+//   const { listen } = await import( '/src/ballpark/places/sound/Meter.js' );
+//   await listen( __app, { t: 2290, seconds: 8, at: [ 0, 8, 45 ] } )
+//     -> { rows: [ { t, master, crowd, pa, music, weather, field } dB RMS per half second ], peak (dBFS) }
+//
+//   zones( __app, [ [ x, y, z ], ... ] ) -> the space's reading at field points (zone, weights, ceiling)
+
+export async function listen( app, { t, seconds = 6, at = null, speed = 1 } = {} ) {
+
+	const S = app.sound, sc = app.soundscape, d = app.director;
+	S.resume();
+	const F = app.field, cam = app.camera;
+	if ( at ) {
+
+		const w = F.toWorld( at[ 0 ], at[ 2 ] );
+		cam.position.set( w.x, F.y0 + at[ 1 ], w.z );
+		cam.updateMatrixWorld();
+
+	}
+
+	// let it start (the first update builds the soundscape)
+	for ( let i = 0; i < 3 && ! sc.ready; i ++ ) {
+
+		sc.update( 1 / 60, d, cam );
+		await new Promise( ( r ) => setTimeout( r, 100 ) );
+
+	}
+
+	const names = [ 'crowd', 'pa', 'music', 'weather', 'field' ];
+	const meters = {};
+	for ( const n of names ) {
+
+		const a = S.ctx.createAnalyser();
+		a.fftSize = 2048;
+		S.buses[ n ]?.connect( a );
+		meters[ n ] = a;
+
+	}
+
+	const m = S.ctx.createAnalyser();
+	m.fftSize = 2048;
+	sc.limiter.connect( m );
+	meters.master = m;
+	d.seek( t );
+	d.playing = true;
+	d.speed = speed;
+	sc.lastT = null;
+	const buf = new Float32Array( 2048 ), acc = {}, rows = [];
+	let last = performance.now(), peak = 0, n = 0;
+	const t0 = last;
+	while ( performance.now() - t0 < seconds * 1000 ) {
+
+		await new Promise( ( r ) => setTimeout( r, 40 ) );
+		const now = performance.now(), dt = Math.min( 0.1, ( now - last ) / 1000 );
+		last = now;
+		d.update( dt );
+		for ( const p of app.places ) if ( p.name === 'phanatic' || p.name === 'sound' ) p.update?.( dt, d, cam );
+		S.listen( cam );
+		for ( const [ k, a ] of Object.entries( meters ) ) {
+
+			a.getFloatTimeDomainData( buf );
+			let s = 0;
+			for ( let i = 0; i < buf.length; i ++ ) {
+
+				s += buf[ i ] * buf[ i ];
+				if ( k === 'master' ) peak = Math.max( peak, Math.abs( buf[ i ] ) );
+
+			}
+
+			( acc[ k ] ||= [] ).push( s / buf.length );
+
+		}
+
+		if ( ++ n % 12 === 0 ) {
+
+			const row = { t: Math.round( d.t * 10 ) / 10 };
+			for ( const k of Object.keys( meters ) ) {
+
+				const v = acc[ k ].reduce( ( a, b ) => a + b, 0 ) / acc[ k ].length;
+				row[ k ] = Math.round( 10 * Math.log10( v + 1e-12 ) );
+				acc[ k ] = [];
+
+			}
+
+			rows.push( row );
+
+		}
+
+	}
+
+	for ( const a of Object.values( meters ) ) try {
+
+		a.disconnect();
+
+	} catch {}
+
+	for ( const n of names ) try {
+
+		S.buses[ n ]?.disconnect( meters[ n ] );
+
+	} catch {}
+
+	try {
+
+		sc.limiter.disconnect( m );
+
+	} catch {}
+
+	return { rows, peak: Math.round( 20 * Math.log10( peak + 1e-9 ) * 10 ) / 10, zone: sc.space.zone };
+
+}
+
+export function zones( app, points ) {
+
+	const sp = app.soundscape.space, F = app.field;
+	return points.map( ( [ x, y, z ] ) => {
+
+		const w = F.toWorld( x, z );
+		sp.t = 0;
+		sp.update( 0.3, { position: { x: w.x, y: F.y0 + y, z: w.z } } );
+		const r = ( v ) => Math.round( v * 100 ) / 100;
+		return { at: [ x, y, z ], zone: sp.zone, ceiling: r( sp.ceiling ), w: Object.fromEntries( Object.entries( sp.w ).map( ( [ k, v ] ) => [ k, r( v ) ] ) ) };
+
+	} );
+
+}

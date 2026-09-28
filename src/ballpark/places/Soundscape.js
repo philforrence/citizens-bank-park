@@ -74,6 +74,7 @@ export default class Soundscape {
 		lim.ratio.value = 6;
 		lim.attack.value = 0.004;
 		lim.release.value = 0.25;
+		this.limiter = lim;
 		S.master.disconnect();
 		S.master.connect( lim ).connect( ctx.destination );
 		// GameSound's reactions and organ come here

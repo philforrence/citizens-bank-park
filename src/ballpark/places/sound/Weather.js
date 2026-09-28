@@ -8,9 +8,9 @@ import { rng } from './dsp.js';
 //     you, and the curtain of it past the edge; the gutters and the roof's edge pouring; in the seats,
 //     the rain spattering on the ponchos all round you; after the top of the 6th, the tarp: the crew
 //     running it out across the infield, then the rain drumming on it.
-//   October 29: dry and cold, the wind gusting 20-30 mph: the recorded wind (CC0) in gusts, stronger
-//     up high and in the open; behind center field, the flags cracking and the halyards clanking on the
-//     poles.
+//   October 29: dry and cold (42-44 F), the wind out of the west 10-20 mph: the recorded wind (CC0) in
+//     gusts, stronger up high and in the open; behind center field, the flags cracking and the halyards
+//     clanking on the poles (on the 27th too: its rain came on a NNW wind gusting 22-25 mph).
 //   Your footsteps (Walker.js asks for them): concrete, wet on the 27th (a splash in it out in the
 //     rain), dry and gritty on the 29th.
 //   The last out, heard from outside: the car horns starting up round the lots; and, over the roar, the
@@ -137,7 +137,9 @@ export class Weather {
 		// the wind: the 29th's gusts (the 27th's rain came on a wind too), stronger up high and in the open
 		this.gust += ( this._g() * 0.5 + 0.5 - this.gust ) * 0.18;
 		const exposed = w.bowl * ( 0.7 + 0.6 * w.high ) + w.outside * 0.9 + w.roof * 0.35 + w.enclosed * 0.08;
-		set( this.loops.wind, ( night2 ? 0.34 : 0.16 ) * exposed * ( 0.45 + 0.9 * this.gust * this.gust ), 0.9 );
+		// (both nights were windy: the 27th's NNW wind gusting 22-25 mph with the rain, "slashing winds"; the
+		// 29th's W wind 10-20 mph, colder: PHL's ASOS record and the Inquirer)
+		set( this.loops.wind, ( night2 ? 0.34 : 0.3 ) * exposed * ( 0.45 + 0.9 * this.gust * this.gust ), 0.9 );
 		this._tarp( d, rain, plan );
 		this._flags( night2, exposed );
 
@@ -198,7 +200,8 @@ export class Weather {
 
 		}
 
-		const k = ( night2 ? 1 : 0.6 ) * ( 0.3 + this.gust );
+		// "the wind gusts starch the outfield flags" (Bill Lyon, on the 27th)
+		const k = ( night2 ? 0.9 : 1 ) * ( 0.3 + this.gust );
 		for ( const h of this.flagSpots ) h.set( { vol: 0.5 * k } );
 		// a halyard's snap against its pole, now and then, more in a gust
 		if ( near && Math.random() < 0.25 * k ) {

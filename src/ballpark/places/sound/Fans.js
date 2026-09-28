@@ -35,6 +35,7 @@ export class Fans {
 		this.bowl = bowl;
 		this.sound = sound;
 		this.space = space;
+		this.synth = synth;
 		const ctx = sound.ctx;
 		this.bus = sound.buses.crowd;
 		this.swell = 0;
@@ -162,6 +163,30 @@ export class Fans {
 
 		}
 
+		const plan = this.app.soundscape?.plan;
+		if ( plan?.susp && seg === plan.susp ) {
+
+			// the suspension: on the 27th the park hanging on under the tarp, then emptying into the rain once
+			// it's called ("they were done for the night"); on the 29th filling again, and on its feet and
+			// "super loud" before the first pitch
+			const t = d.t;
+			if ( t < plan.night2 ) {
+
+				const k = ( t - seg.t0 ) / ( plan.night2 - seg.t0 );
+				murmur = k < 0.6 ? 0.8 : 0.8 - 0.55 * Math.min( 1, ( k - 0.6 ) / 0.35 );
+
+			} else {
+
+				const k = ( t - plan.night2 ) / ( seg.t0 + seg.dur - plan.night2 );
+				murmur = 0.35 + 0.85 * Math.min( 1, k * 1.2 );
+				roar = 0.5 * Math.min( 1, Math.max( 0, ( k - 0.7 ) / 0.3 ) );
+
+			}
+
+			return { murmur, roar, clap, applause };
+
+		}
+
 		if ( kind === 'switch' ) {
 
 			murmur *= 1.08;
@@ -195,7 +220,6 @@ export class Fans {
 		this.tick = RATE;
 		const S = this.sound, ctx = S.ctx, now = ctx.currentTime;
 		const L = this.levels( d );
-		// the hush: everything down but the few who can't help it
 		// the hush: everything down but the few who can't help it; while they sing, the talk drops too
 		const hush = ( now < this.hushUntil ? 0.35 : 1 ) * ( now < ( this.singing || 0 ) ? 0.55 : 1 );
 		const set = ( n, v, tc = 0.35 ) => {
@@ -231,7 +255,7 @@ export class Fans {
 		if ( ! this.walla ) {
 
 			if ( ! S.buffers[ 'fans-walla-27' ] || ! S.buffers[ 'fans-walla-29' ] ) return;
-			const out = S.ctx.createGain();
+			const out = this.wallaOut = S.ctx.createGain();
 			out.connect( S.master );
 			const send = S.ctx.createGain();
 			send.gain.value = 0.3;
@@ -250,9 +274,40 @@ export class Fans {
 
 		}
 
-		const night2 = d.t >= ( this.app.soundscape?.plan?.night2 ?? Infinity );
+		const plan = this.app.soundscape?.plan;
+		const night2 = d.t >= ( plan?.night2 ?? Infinity );
 		const s = d.segmentAt( d.t ).snap || {};
 		const packed = night2 ? 1 : 0.8 + 0.5 * Math.min( 1, Math.max( 0, ( ( s.inning || 1 ) - 3 ) / 3 ) );
+		// the 29th, before the resumption: the concourse stamping its feet (made when it's near)
+		const su = plan?.susp, waiting = su && night2 && d.t < su.t0 + su.dur;
+		if ( su && ! this.stomp && Math.abs( d.t - plan.night2 ) < 90 && ! this._stompAsked ) {
+
+			this._stompAsked = true;
+			this.synth.make( 'stomps', SR ).then( ( [ b ] ) => {
+
+				const src = S.ctx.createBufferSource(), g = S.ctx.createGain();
+				src.buffer = b;
+				src.loop = true;
+				g.gain.value = 0;
+				src.connect( g ).connect( this.walla ? this.wallaOut : S.master );
+				src.start();
+				this.stomp = { g, v: 0 };
+
+			} ).catch( () => {} );
+
+		}
+
+		if ( this.stomp ) {
+
+			const v = waiting ? 0.5 * ( w.roof + 0.8 * w.enclosed + 0.15 * w.bowl ) : 0;
+			if ( Math.abs( this.stomp.v - v ) > 0.01 ) {
+
+				this.stomp.v = v;
+				this.stomp.g.gain.setTargetAtTime( v, now, 0.6 );
+
+			}
+
+		}
 		const here = 1.0 * w.roof + 0.8 * w.enclosed + 0.3 * w.outside + 0.04 * w.bowl;
 		const v = 0.55 * here * packed;
 		[ night2 ? 0 : v, night2 ? v : 0 ].forEach( ( x, i ) => {

@@ -366,6 +366,34 @@ export function boom( sr, k ) {
 
 }
 
+// a concourse full of people stamping their feet in time on the concrete, a couple of times a second,
+// each a little off, the far ones later (the 29th, before the resumption: "stamping their feet")
+export function stomps( sr ) {
+
+	const period = 0.46, beats = 8, len = Math.floor( period * beats * sr ), x = new Float32Array( len ), r = rng( 121 );
+	const L = Math.floor( 0.09 * sr );
+	for ( let c = 0; c < 90; c ++ ) {
+
+		const far = Math.pow( r() * 0.5 + 0.5, 2 ) * 0.1, a = 0.3 + 0.7 * ( r() * 0.5 + 0.5 ), f = 55 + 40 * ( r() * 0.5 + 0.5 );
+		for ( let k = 0; k < beats; k ++ ) {
+
+			const at = Math.floor( ( k * period + far + r() * 0.025 ) * sr );
+			for ( let i = 0; i < L; i ++ ) {
+
+				const t = i / sr;
+				x[ ( at + i ) % len ] += ( Math.sin( 2 * Math.PI * f * t ) * 0.8 + r() * 0.35 * Math.exp( - t / 0.01 ) ) * a * Math.exp( - t / 0.03 );
+
+			}
+
+		}
+
+	}
+
+	biquad( x, sr, 'lp', 1500, 0.7 );
+	return normalize( x, 0.7 );
+
+}
+
 // ---------------------------------------------------------------- the jobs (Synth.make( name, sr ))
 
 // each returns a list of buffers, each a list of channels
@@ -389,4 +417,5 @@ export const JOBS = {
 	steps: ( sr ) => [ false, true ].flatMap( ( wet ) => [ 0, 1, 2, 3 ].map( ( k ) => mono( step( sr, k, wet ) ) ) ),
 	horns: ( sr ) => [ 0, 1, 2 ].map( ( k ) => mono( carHorn( sr, k ) ) ),
 	booms: ( sr ) => [ 0, 1, 2 ].map( ( k ) => mono( boom( sr, k ) ) ),
+	stomps: ( sr ) => [ mono( stomps( sr ) ) ],
 };
