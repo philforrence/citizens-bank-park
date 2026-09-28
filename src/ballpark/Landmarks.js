@@ -402,7 +402,17 @@ export class Landmarks {
 			} );
 
 		}, 'boardAds' );
-		const adMat = standard( { name: 'board-ads', roughness: 0.5, textures: { bpAd: adTex }, surface: 'let t = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.6; s.emissive = t * mix( 0.25, 0.9, frame.night );' } );
+		// ---- H (leftfield): after dark the panels' faces go dark and only their letters glow, red or blue
+		// neon (the World Series photos: W.B. MASON and Budweiser in red on black, Oct 29 2008; the audit's
+		// LF02); by day as they were
+		const adMat = standard( { name: 'board-ads', roughness: 0.5, textures: { bpAd: adTex }, surface: /* wgsl */`
+	let t = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb;
+	let nk = smoothstep( 0.2, 0.8, frame.night );
+	let lit = step( 0.3, max( t.r, t.b ) - t.g );
+	s.albedo = mix( t * 0.6, t * 0.04, nk * ( 1.0 - lit ) );
+	s.emissive = mix( t * 0.25, t * lit * 2.2, nk );
+` } );
+		// ---- end H
 		adMat.underwaterLighting = 'none';
 		const aq = new Quads();
 		const PW = 11, PH = 4.6, gap = 1.8, zf = 0.6;
