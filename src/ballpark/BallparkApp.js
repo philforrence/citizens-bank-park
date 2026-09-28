@@ -229,6 +229,7 @@ export class BallparkApp {
 			this.rain = new Rain( scene );
 			this.rain.setLights( this.bowl.lightSources().map( ( l ) => l.position ) );
 			this.rain.setCover( cover.heights, cover );
+			this.rainCover = cover; // ---- S: the soundscape hears what's overhead (places/sound/Space.js)
 			if ( qs.has( 't' ) ) this.director.seek( Number( qs.get( 't' ) ) );
 			if ( qs.has( 'play' ) ) this.director.seek( this.director.timeOfPlay( Number( qs.get( 'play' ) ) ) );
 			if ( qs.has( 'paused' ) ) this.director.playing = false;

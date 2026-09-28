@@ -21,3 +21,20 @@ cp out/*.ogg ../../public/audio/         # then copy the entries of fishing-bank
 - The mixer (`src/audio/SoundScape.js`, `MIX`) turns target loudness into gains with those measurements.
 
 `raw/`, `work/` and `out/` are build scratch (not committed).
+
+# The ballpark's voices (Citizens Bank Park)
+
+All Piper TTS (MIT) with only its CC0 and public-domain voices, through a WORLD vocoder pass, in a Python venv
+(see `build-home.py`'s docstring for the setup; voices and caches live in `$CBP_HOME_AUDIO`, default
+`/tmp/cbp-home-audio`):
+
+```sh
+node tools/audio/pa-lines.mjs                                  # Dan Baker's lines from the soundscape's plan -> pa-lines.json
+CBP_HOME_AUDIO=/tmp/cbp-home-audio python tools/audio/build-pa.py --pick   # -> public/audio/ballpark/pa/ (takes checked by faster-whisper)
+CBP_HOME_AUDIO=/tmp/cbp-home-audio python tools/audio/build-fans.py        # the crowd, the shouts, the umpire, the crew -> public/audio/ballpark/fans/
+CBP_HOME_AUDIO=/tmp/cbp-home-audio python tools/audio/build-home.py        # behind home plate's vendors and fans -> public/audio/places/home/
+```
+
+`build-fans.py` sings voices onto a beat grid (each syllable's vowel on its beat, at a note) and stacks them into
+crowds: "Let's go Phil-lies!" with its claps, "CHARGE!", the boos, the "aww", the whole park singing "Take Me Out to
+the Ball Game" at the stretch (A's organ's melody and tempo), the concourse's talk.

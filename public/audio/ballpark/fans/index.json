@@ -1,0 +1,294 @@
+{
+	"letsgo": {
+		"f": "letsgo.mp3",
+		"d": 3.04,
+		"cycle": 3.04
+	},
+	"charge": {
+		"f": "charge.mp3",
+		"d": 1.6
+	},
+	"aww": {
+		"f": "aww.mp3",
+		"d": 1.8
+	},
+	"boo-1": {
+		"f": "boo-1.mp3",
+		"d": 3.4
+	},
+	"boo-2": {
+		"f": "boo-2.mp3",
+		"d": 3.4
+	},
+	"walla-27": {
+		"f": "walla-27.mp3",
+		"d": 13.0,
+		"loop": true
+	},
+	"walla-29": {
+		"f": "walla-29.mp3",
+		"d": 13.0,
+		"loop": true
+	},
+	"stretch": {
+		"f": "stretch.mp3",
+		"d": 33.5,
+		"bpm": 180,
+		"beats": 96
+	},
+	"shout-brad-1": {
+		"f": "shout-brad-1.mp3",
+		"d": 1.04,
+		"when": "pitch,two",
+		"who": "Lidge",
+		"text": "Let's go, Brad!"
+	},
+	"shout-brad-2": {
+		"f": "shout-brad-2.mp3",
+		"d": 1.4,
+		"when": "two",
+		"who": "Lidge",
+		"text": "One more! One more!"
+	},
+	"shout-chase": {
+		"f": "shout-chase.mp3",
+		"d": 1.06,
+		"when": "bat",
+		"who": "Utley",
+		"text": "Come on, Chase!"
+	},
+	"shout-cold": {
+		"f": "shout-cold.mp3",
+		"d": 1.02,
+		"when": "any",
+		"who": "",
+		"text": "It's freezing!"
+	},
+	"shout-cole-1": {
+		"f": "shout-cole-1.mp3",
+		"d": 0.83,
+		"when": "pitch,two",
+		"who": "Hamels",
+		"text": "Come on, Cole!"
+	},
+	"shout-cole-2": {
+		"f": "shout-cole-2.mp3",
+		"d": 1.62,
+		"when": "two",
+		"who": "Hamels",
+		"text": "One more, Cole, one more!"
+	},
+	"shout-drive": {
+		"f": "shout-drive.mp3",
+		"d": 1.17,
+		"when": "bat",
+		"who": "",
+		"text": "Drive him in!"
+	},
+	"shout-eva-1": {
+		"f": "shout-eva-1.mp3",
+		"d": 0.4,
+		"when": "away",
+		"who": "Longoria",
+		"text": "Eva!"
+	},
+	"shout-eva-2": {
+		"f": "shout-eva-2.mp3",
+		"d": 0.72,
+		"when": "away",
+		"who": "Longoria",
+		"text": "Hey, Eva!"
+	},
+	"shout-eva-3": {
+		"f": "shout-eva-3.mp3",
+		"d": 0.9,
+		"when": "away",
+		"who": "Longoria",
+		"text": "Eva Longoria!"
+	},
+	"shout-herewego": {
+		"f": "shout-herewego.mp3",
+		"d": 0.74,
+		"when": "pitch,bat",
+		"who": "",
+		"text": "Here we go!"
+	},
+	"shout-hit": {
+		"f": "shout-hit.mp3",
+		"d": 0.45,
+		"when": "bat",
+		"who": "",
+		"text": "Get a hit!"
+	},
+	"shout-jimmy": {
+		"f": "shout-jimmy.mp3",
+		"d": 1.12,
+		"when": "bat",
+		"who": "Rollins",
+		"text": "Let's go, Jimmy!"
+	},
+	"shout-lets": {
+		"f": "shout-lets.mp3",
+		"d": 0.97,
+		"when": "any",
+		"who": "",
+		"text": "Let's go Phillies!"
+	},
+	"shout-nice": {
+		"f": "shout-nice.mp3",
+		"d": 0.72,
+		"when": "pitch",
+		"who": "",
+		"text": "Nice pitch!"
+	},
+	"shout-pat": {
+		"f": "shout-pat.mp3",
+		"d": 1.44,
+		"when": "bat",
+		"who": "Burrell",
+		"text": "Come on, Pat!"
+	},
+	"shout-ryan": {
+		"f": "shout-ryan.mp3",
+		"d": 1.04,
+		"when": "bat",
+		"who": "Howard",
+		"text": "Let's go, Ryan!"
+	},
+	"shout-shane": {
+		"f": "shout-shane.mp3",
+		"d": 1.3,
+		"when": "bat",
+		"who": "Victorino",
+		"text": "Let's go, Shane!"
+	},
+	"shout-siddown": {
+		"f": "shout-siddown.mp3",
+		"d": 0.6,
+		"when": "away",
+		"who": "",
+		"text": "Siddown!"
+	},
+	"shout-strike-1": {
+		"f": "shout-strike-1.mp3",
+		"d": 0.84,
+		"when": "two",
+		"who": "",
+		"text": "Strike him out!"
+	},
+	"shout-strike-2": {
+		"f": "shout-strike-2.mp3",
+		"d": 1.13,
+		"when": "two",
+		"who": "",
+		"text": "Sit him down!"
+	},
+	"shout-strikes": {
+		"f": "shout-strikes.mp3",
+		"d": 1.17,
+		"when": "pitch",
+		"who": "",
+		"text": "Throw strikes!"
+	},
+	"shout-upton": {
+		"f": "shout-upton.mp3",
+		"d": 1.3,
+		"when": "away",
+		"who": "Upton",
+		"text": "[[ h\u02c8e\u026a, \u02c8\u028cpt\u0259n! ju\u02d0 b\u02c8\u028cm! ]]"
+	},
+	"shout-win-1": {
+		"f": "shout-win-1.mp3",
+		"d": 0.52,
+		"when": "win",
+		"who": "",
+		"text": "We did it!"
+	},
+	"shout-win-2": {
+		"f": "shout-win-2.mp3",
+		"d": 0.99,
+		"when": "win",
+		"who": "",
+		"text": "World champions!"
+	},
+	"shout-win-3": {
+		"f": "shout-win-3.mp3",
+		"d": 1.21,
+		"when": "win",
+		"who": "",
+		"text": "Twenty-eight years!"
+	},
+	"shout-win-4": {
+		"f": "shout-win-4.mp3",
+		"d": 0.75,
+		"when": "win",
+		"who": "",
+		"text": "Finally!"
+	},
+	"shout-woo": {
+		"f": "shout-woo.mp3",
+		"d": 1.17,
+		"when": "win,bat",
+		"who": "",
+		"text": "Yeah! Let's go!"
+	},
+	"ump-foul": {
+		"f": "ump-foul.mp3",
+		"d": 1.37
+	},
+	"ump-playball": {
+		"f": "ump-playball.mp3",
+		"d": 0.97
+	},
+	"ump-strike-1": {
+		"f": "ump-strike-1.mp3",
+		"d": 0.8
+	},
+	"ump-strike-2": {
+		"f": "ump-strike-2.mp3",
+		"d": 0.88
+	},
+	"ump-three": {
+		"f": "ump-three.mp3",
+		"d": 1.36
+	},
+	"ump-time": {
+		"f": "ump-time.mp3",
+		"d": 0.83
+	},
+	"crew-go": {
+		"f": "crew-go.mp3",
+		"d": 1.33,
+		"when": "crew",
+		"who": "",
+		"text": "Let's go, let's go!"
+	},
+	"crew-pull": {
+		"f": "crew-pull.mp3",
+		"d": 0.97,
+		"when": "crew",
+		"who": "",
+		"text": "Pull! Pull it!"
+	},
+	"crew-corner": {
+		"f": "crew-corner.mp3",
+		"d": 0.8,
+		"when": "crew",
+		"who": "",
+		"text": "Get that corner!"
+	},
+	"crew-walk": {
+		"f": "crew-walk.mp3",
+		"d": 1.23,
+		"when": "crew",
+		"who": "",
+		"text": "Walk it out! Walk it!"
+	},
+	"crew-hold": {
+		"f": "crew-hold.mp3",
+		"d": 1.17,
+		"when": "crew",
+		"who": "",
+		"text": "Hold up, hold up!"
+	}
+}

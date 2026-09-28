@@ -1,0 +1,222 @@
+{
+	"bat-400284": {
+		"f": "bat-400284.mp3",
+		"d": 5.88,
+		"text": "Now batting, number twenty-six, second baseman, Chase, Utley"
+	},
+	"bat-408307": {
+		"f": "bat-408307.mp3",
+		"d": 4.23,
+		"text": "Now batting, number thirteen, left fielder, Carl Crawford"
+	},
+	"lead-276519": {
+		"f": "lead-276519.mp3",
+		"d": 6.14,
+		"text": "Leading off for the Phillies, number eleven, shortstop, Jimmy, Rollins"
+	},
+	"pitch-400058": {
+		"f": "pitch-400058.mp3",
+		"d": 5.17,
+		"text": "Now pitching for the Phillies, number fifty-four, Brad, Lidge"
+	},
+	"bat-429667": {
+		"f": "bat-429667.mp3",
+		"d": 5.69,
+		"text": "Now batting, number six, first baseman, [[ \u0279\u02c8a\u026a\u0259n, h\u02c8a\u028aw\u025ad ]]"
+	},
+	"bat-150100": {
+		"f": "bat-150100.mp3",
+		"d": 5.63,
+		"text": "Now batting, number five, left fielder, [[ p\u02c8\u00e6t, b\u025a\u0279\u02c8\u025bl ]]"
+	},
+	"bat-425664": {
+		"f": "bat-425664.mp3",
+		"d": 5.85,
+		"text": "Now batting, number eight, center fielder, Shane, Victorino"
+	},
+	"bat-434563": {
+		"f": "bat-434563.mp3",
+		"d": 5.54,
+		"text": "Now batting, number fifty-one, catcher, [[ k\u02c8\u0251\u02d0\u0279lo\u028as, \u0279u\u02d0\u02c8i\u02d0z ]]"
+	},
+	"bat-150268": {
+		"f": "bat-150268.mp3",
+		"d": 5.54,
+		"text": "Now batting, number seven, third baseman, [[ p\u02c8e\u026ad\u0279o\u028a, f\u0259l\u02c8i\u02d0z ]]"
+	},
+	"welcome-27": {
+		"f": "welcome-27.mp3",
+		"d": 8.42,
+		"text": "Good evening, ladies and gentlemen, and welcome to Citizens Bank Park, and Game Five of the two thousand eight World Series!"
+	},
+	"lead-493127": {
+		"f": "lead-493127.mp3",
+		"d": 5.47,
+		"text": "Leading off for the Tampa Bay Rays, number one, second baseman, [[ \u02cc\u0251\u02d0ki\u02d0n\u02c8\u0254\u02d0\u0279i\u02d0 \u02cci\u02d0w\u0259m\u02c8u\u02d0\u0279\u0259 ]]"
+	},
+	"bat-425834": {
+		"f": "bat-425834.mp3",
+		"d": 3.92,
+		"text": "Now batting, number two, center fielder, [[ b\u02c8i\u02d0 d\u0292\u02c8e\u026a \u02c8\u028cpt\u0259n ]]"
+	},
+	"bat-150029": {
+		"f": "bat-150029.mp3",
+		"d": 5.24,
+		"text": "Now batting, number twenty-eight, right fielder, Jayson, Werth"
+	},
+	"bat-150289": {
+		"f": "bat-150289.mp3",
+		"d": 4.51,
+		"text": "Now batting, number twenty-three, first baseman, [[ k\u02c8\u0251\u02d0\u0279lo\u028as p\u02c8e\u026anj\u0259 ]]"
+	},
+	"bat-446334": {
+		"f": "bat-446334.mp3",
+		"d": 4.16,
+		"text": "Now batting, number three, third baseman, Evan Longoria"
+	},
+	"bat-425900": {
+		"f": "bat-425900.mp3",
+		"d": 3.79,
+		"text": "Now batting, number thirty, catcher, [[ di\u02d0\u02c8o\u028an\u025a n\u0259v\u02c8\u0251\u02d0\u0279o\u028a ]]"
+	},
+	"bat-408306": {
+		"f": "bat-408306.mp3",
+		"d": 4.34,
+		"text": "Now batting, number five, right fielder, [[ \u0279\u02c8\u0251\u02d0ko\u028a b\u0251\u02d0ld\u02c8\u025bli ]]"
+	},
+	"foul-balls": {
+		"f": "foul-balls.mp3",
+		"d": 4.51,
+		"text": "Ladies and gentlemen, please be alert for bats and balls leaving the playing field."
+	},
+	"bat-430935": {
+		"f": "bat-430935.mp3",
+		"d": 5.41,
+		"text": "Now batting, number thirty-five, pitcher, [[ k\u02c8o\u028al, h\u02c8\u00e6m\u0259lz ]]"
+	},
+	"bat-276519": {
+		"f": "bat-276519.mp3",
+		"d": 5.42,
+		"text": "Now batting, number eleven, shortstop, Jimmy, Rollins"
+	},
+	"bat-430583": {
+		"f": "bat-430583.mp3",
+		"d": 3.84,
+		"text": "Now batting, number eight, shortstop, Jason Bartlett"
+	},
+	"bat-431148": {
+		"f": "bat-431148.mp3",
+		"d": 3.76,
+		"text": "Now batting, number nineteen, pitcher, [[ sk\u02c8\u0251\u02d0t k\u00e6zm\u02c8\u026a\u0279 ]]"
+	},
+	"bat-493127": {
+		"f": "bat-493127.mp3",
+		"d": 4.42,
+		"text": "Now batting, number one, second baseman, [[ \u02cc\u0251\u02d0ki\u02d0n\u02c8\u0254\u02d0\u0279i\u02d0 \u02cci\u02d0w\u0259m\u02c8u\u02d0\u0279\u0259 ]]"
+	},
+	"rain-reminder": {
+		"f": "rain-reminder.mp3",
+		"d": 5.45,
+		"text": "Ladies and gentlemen, please use caution on the stairs and in the aisles. They are wet."
+	},
+	"no-throw": {
+		"f": "no-throw.mp3",
+		"d": 3.86,
+		"text": "Fans are reminded, please do not throw anything onto the playing field."
+	},
+	"pitch-346797": {
+		"f": "pitch-346797.mp3",
+		"d": 3.96,
+		"text": "Now pitching for the Tampa Bay Rays, number fifty, [[ \u0261\u0279\u02c8\u00e6nt b\u02c8\u00e6lf\u0254\u02d0\u0279 ]]"
+	},
+	"suspended": {
+		"f": "suspended.mp3",
+		"d": 10.7,
+		"text": "Ladies and gentlemen, tonight's game has been suspended. Game Five will resume from this point, with the Phillies coming to bat in the bottom of the sixth inning. Please drive home safely."
+	},
+	"welcome-29": {
+		"f": "welcome-29.mp3",
+		"d": 12.06,
+		"text": "Ladies and gentlemen, welcome back to Citizens Bank Park! Game Five of the World Series resumes, the Phillies coming to bat in the bottom of the sixth, the score tied, two to two!"
+	},
+	"bat-132961-ph-430935": {
+		"f": "bat-132961-ph-430935.mp3",
+		"d": 4.96,
+		"text": "Now batting for Cole Hamels, number ten, [[ d\u0292\u02c8\u025bf, d\u0292\u02c8\u025b\u014bk\u026anz ]]"
+	},
+	"pitch-434442": {
+		"f": "pitch-434442.mp3",
+		"d": 4.25,
+		"text": "Now pitching for the Tampa Bay Rays, number thirty-nine, [[ d\u0292\u02c8e\u026a p\u02c8i\u02d0 h\u02c8a\u028a\u0259l ]]"
+	},
+	"pitch-425492": {
+		"f": "pitch-425492.mp3",
+		"d": 5.54,
+		"text": "Now pitching for the Phillies, number sixty-three, [[ \u0279\u02c8a\u026a\u0259n, m\u02c8\u00e6ds\u0259n ]]"
+	},
+	"bat-434442": {
+		"f": "bat-434442.mp3",
+		"d": 3.94,
+		"text": "Now batting, number thirty-nine, pitcher, [[ d\u0292\u02c8e\u026a p\u02c8i\u02d0 h\u02c8a\u028a\u0259l ]]"
+	},
+	"pitch-240694": {
+		"f": "pitch-240694.mp3",
+		"d": 5.39,
+		"text": "Now pitching for the Phillies, number sixteen, [[ d\u0292\u02c8e\u026a, s\u02c8i\u02d0 \u0279o\u028am\u02c8\u025b\u0279o\u028a ]]"
+	},
+	"run-429731-150100": {
+		"f": "run-429731-150100.mp3",
+		"d": 4.59,
+		"text": "Now running for Pat Burrell, number four, [[ \u02c8\u025b\u0279\u026ak, b\u0279\u02c8\u028cntl\u026at ]]"
+	},
+	"pitch-136268": {
+		"f": "pitch-136268.mp3",
+		"d": 4.19,
+		"text": "Now pitching for the Tampa Bay Rays, number fifty-three, Chad Bradford"
+	},
+	"bat-240694": {
+		"f": "bat-240694.mp3",
+		"d": 5.61,
+		"text": "Now batting, number sixteen, pitcher, [[ d\u0292\u02c8e\u026a, s\u02c8i\u02d0 \u0279o\u028am\u02c8\u025b\u0279o\u028a ]]"
+	},
+	"attendance": {
+		"f": "attendance.mp3",
+		"d": 5.58,
+		"text": "Tonight's paid attendance, forty-five thousand, nine hundred and forty. Thank you!"
+	},
+	"pitch-456034": {
+		"f": "pitch-456034.mp3",
+		"d": 4.0,
+		"text": "Now pitching for the Tampa Bay Rays, number fourteen, David Price"
+	},
+	"run-445010-425900": {
+		"f": "run-445010-425900.mp3",
+		"d": 4.02,
+		"text": "Now running for Dioner Navarro, number thirty-eight, [[ f\u025an\u02c8\u00e6ndo\u028a p\u0259\u0279\u02c8\u025bz ]]"
+	},
+	"bat-450314-ph-408306": {
+		"f": "bat-450314-ph-408306.mp3",
+		"d": 4.1,
+		"text": "Now batting for Rocco Baldelli, number eighteen, [[ b\u02c8\u025bn z\u02c8o\u028ab\u0279\u026ast ]]"
+	},
+	"bat-400134-ph-430583": {
+		"f": "bat-400134-ph-430583.mp3",
+		"d": 3.88,
+		"text": "Now batting for Jason Bartlett, number thirty-two, [[ \u02c8\u025b\u0279\u026ak h\u02c8\u026anski\u02d0 ]]"
+	},
+	"champions": {
+		"f": "champions.mp3",
+		"d": 6.05,
+		"text": "Ladies and gentlemen, your two thousand eight World Champions, the Philadelphia Phillies!"
+	},
+	"gba": {
+		"f": "gba.mp3",
+		"d": 8.38,
+		"text": "Ladies and gentlemen, please rise, and remove your caps, for the singing of God Bless America, by Navy Petty Officer Dorcus Whigham."
+	},
+	"rain-delay": {
+		"f": "rain-delay.mp3",
+		"d": 5.39,
+		"text": "Ladies and gentlemen, we are in a rain delay. Please stand by for further announcements."
+	}
+}

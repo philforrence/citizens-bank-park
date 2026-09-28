@@ -139,3 +139,16 @@ voices joe, mike and kathleen (CC0) and norman, bryce, john, kristin and ljspeec
 their model cards. The two rooms' hubbub loops (`room-up`, `room-down`) are made by the same script from
 invented lines in those voices, overlapped in a synthesized room with synthesized glass clinks. The
 patio heaters' roar is synthesized in code (`src/ballpark/places/leftfield/Sounds.js`).
+
+## The park's soundscape: `public/audio/ballpark/pa/`, `public/audio/ballpark/fans/`, `src/ballpark/places/sound/`
+
+- **The PA's lines** (Dan Baker's, as the soundscape imagines them; not recordings of him) are Piper TTS (MIT) with
+  the CC0 en_US-mike-medium voice, given the announcer's cadence by a WORLD vocoder pass (`tools/audio/build-pa.py`).
+  See [`public/audio/ballpark/pa/CREDITS.md`](public/audio/ballpark/pa/CREDITS.md).
+- **The music** is synthesized in the browser (a tonewheel organ and a small band, `places/sound/Organ.js`,
+  `Band.js`): public-domain melodies ("When the Saints Go Marching In", "The Entertainer" (Joplin, 1902),
+  "Oh! Susanna" and "Camptown Races" (Foster), "La Cucaracha", "Yankee Doodle", "Rain, Rain, Go Away", the
+  "Charge!" bugle call) and original riffs and walk-up stand-ins. No copyrighted song or recording is used.
+- **The crowd's claps, the rain on the roofs, the ponchos and the tarp, the flags, the footsteps and the
+  horns** are synthesized (`places/sound/Recipes.js`); the crowd's murmur, roar and reactions, the rain and the
+  wind are the CC0 recordings in `public/audio/ballpark/` (its CREDITS.md).

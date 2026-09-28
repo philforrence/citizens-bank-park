@@ -1,0 +1,916 @@
+{
+	"welcome-27": [
+		{
+			"t": "Good evening, ladies and gentlemen,",
+			"role": "lead"
+		},
+		{
+			"t": "and welcome to Citizens Bank Park,",
+			"role": "mid"
+		},
+		{
+			"t": "and Game Five of the two thousand eight World Series!",
+			"role": "big",
+			"hype": 2
+		}
+	],
+	"lead-493127": [
+		{
+			"t": "Leading off for the Tampa Bay Rays,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number one,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "second baseman,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "[[ ˌɑːkiːnˈɔːɹiː ˌiːwəmˈuːɹə ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Iwamura"
+		}
+	],
+	"bat-408307": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number thirteen,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "left fielder,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "Carl Crawford",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Crawford"
+		}
+	],
+	"bat-425834": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number two,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "center fielder,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "[[ bˈiː dʒˈeɪ ˈʌptən ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Upton"
+		}
+	],
+	"lead-276519": [
+		{
+			"t": "Leading off for the Phillies,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number eleven,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "shortstop,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "Jimmy, Rollins",
+			"role": "name",
+			"hype": 3,
+			"side": "home",
+			"check": "Rollins"
+		}
+	],
+	"bat-150029": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number twenty-eight,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "right fielder,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "Jayson, Werth",
+			"role": "name",
+			"hype": 2,
+			"side": "home",
+			"check": "Werth"
+		}
+	],
+	"bat-400284": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number twenty-six,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "second baseman,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "Chase, Utley",
+			"role": "name",
+			"hype": 3,
+			"side": "home",
+			"check": "Utley"
+		}
+	],
+	"bat-429667": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number six,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "first baseman,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "[[ ɹˈaɪən, hˈaʊwɚd ]]",
+			"role": "name",
+			"hype": 3,
+			"side": "home",
+			"check": "Howard"
+		}
+	],
+	"bat-150100": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number five,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "left fielder,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "[[ pˈæt, bɚɹˈɛl ]]",
+			"role": "name",
+			"hype": 2.5,
+			"side": "home",
+			"check": "Burrell"
+		}
+	],
+	"bat-425664": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number eight,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "center fielder,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "Shane, Victorino",
+			"role": "name",
+			"hype": 2.5,
+			"side": "home",
+			"check": "Victorino"
+		}
+	],
+	"bat-150268": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number seven,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "third baseman,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "[[ pˈeɪdɹoʊ, fəlˈiːz ]]",
+			"role": "name",
+			"hype": 2,
+			"side": "home",
+			"check": "Feliz"
+		}
+	],
+	"bat-434563": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number fifty-one,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "catcher,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "[[ kˈɑːɹloʊs, ɹuːˈiːz ]]",
+			"role": "name",
+			"hype": 2,
+			"side": "home",
+			"check": "Ruiz"
+		}
+	],
+	"bat-150289": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number twenty-three,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "first baseman,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "[[ kˈɑːɹloʊs pˈeɪnjə ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Pena"
+		}
+	],
+	"bat-446334": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number three,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "third baseman,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "Evan Longoria",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Longoria"
+		}
+	],
+	"bat-425900": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number thirty,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "catcher,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "[[ diːˈoʊnɚ nəvˈɑːɹoʊ ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Navarro"
+		}
+	],
+	"bat-408306": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number five,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "right fielder,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "[[ ɹˈɑːkoʊ bɑːldˈɛli ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Baldelli"
+		}
+	],
+	"foul-balls": [
+		{
+			"t": "Ladies and gentlemen,",
+			"role": "lead"
+		},
+		{
+			"t": "please be alert for bats and balls leaving the playing field.",
+			"role": "end"
+		}
+	],
+	"bat-430935": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number thirty-five,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "pitcher,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "[[ kˈoʊl, hˈæməlz ]]",
+			"role": "name",
+			"hype": 2.5,
+			"side": "home",
+			"check": "Hamels"
+		}
+	],
+	"bat-276519": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number eleven,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "shortstop,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "Jimmy, Rollins",
+			"role": "name",
+			"hype": 3,
+			"side": "home",
+			"check": "Rollins"
+		}
+	],
+	"bat-430583": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number eight,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "shortstop,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "Jason Bartlett",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Bartlett"
+		}
+	],
+	"bat-431148": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number nineteen,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "pitcher,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "[[ skˈɑːt kæzmˈɪɹ ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Kazmir"
+		}
+	],
+	"bat-493127": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number one,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "second baseman,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "[[ ˌɑːkiːnˈɔːɹiː ˌiːwəmˈuːɹə ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Iwamura"
+		}
+	],
+	"rain-reminder": [
+		{
+			"t": "Ladies and gentlemen,",
+			"role": "lead"
+		},
+		{
+			"t": "please use caution on the stairs and in the aisles.",
+			"role": "mid"
+		},
+		{
+			"t": "They are wet.",
+			"role": "end"
+		}
+	],
+	"no-throw": [
+		{
+			"t": "Fans are reminded,",
+			"role": "lead"
+		},
+		{
+			"t": "please do not throw anything onto the playing field.",
+			"role": "end"
+		}
+	],
+	"pitch-346797": [
+		{
+			"t": "Now pitching for the Tampa Bay Rays,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number fifty,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "[[ ɡɹˈænt bˈælfɔːɹ ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Balfour"
+		}
+	],
+	"suspended": [
+		{
+			"t": "Ladies and gentlemen,",
+			"role": "lead"
+		},
+		{
+			"t": "tonight's game has been suspended.",
+			"role": "end"
+		},
+		{
+			"t": "Game Five will resume from this point,",
+			"role": "mid"
+		},
+		{
+			"t": "with the Phillies coming to bat in the bottom of the sixth inning.",
+			"role": "end"
+		},
+		{
+			"t": "Please drive home safely.",
+			"role": "end"
+		}
+	],
+	"welcome-29": [
+		{
+			"t": "Ladies and gentlemen,",
+			"role": "lead"
+		},
+		{
+			"t": "welcome back to Citizens Bank Park!",
+			"role": "big",
+			"hype": 1.6
+		},
+		{
+			"t": "Game Five of the World Series resumes,",
+			"role": "mid"
+		},
+		{
+			"t": "the Phillies coming to bat in the bottom of the sixth,",
+			"role": "mid"
+		},
+		{
+			"t": "the score tied, two to two!",
+			"role": "big",
+			"hype": 2.2
+		}
+	],
+	"bat-132961-ph-430935": [
+		{
+			"t": "Now batting for Cole Hamels,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number ten,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "[[ dʒˈɛf, dʒˈɛŋkɪnz ]]",
+			"role": "name",
+			"hype": 2.2,
+			"side": "home",
+			"check": "Jenkins"
+		}
+	],
+	"pitch-434442": [
+		{
+			"t": "Now pitching for the Tampa Bay Rays,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number thirty-nine,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "[[ dʒˈeɪ pˈiː hˈaʊəl ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Howell"
+		}
+	],
+	"pitch-425492": [
+		{
+			"t": "Now pitching for the Phillies,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number sixty-three,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "[[ ɹˈaɪən, mˈædsən ]]",
+			"role": "name",
+			"hype": 2,
+			"side": "home",
+			"check": "Madson"
+		}
+	],
+	"bat-434442": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number thirty-nine,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "pitcher,",
+			"role": "mid",
+			"side": "away"
+		},
+		{
+			"t": "[[ dʒˈeɪ pˈiː hˈaʊəl ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Howell"
+		}
+	],
+	"pitch-240694": [
+		{
+			"t": "Now pitching for the Phillies,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number sixteen,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "[[ dʒˈeɪ, sˈiː ɹoʊmˈɛɹoʊ ]]",
+			"role": "name",
+			"hype": 1.6,
+			"side": "home",
+			"check": "Romero"
+		}
+	],
+	"run-429731-150100": [
+		{
+			"t": "Now running for Pat Burrell,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number four,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "[[ ˈɛɹɪk, bɹˈʌntlɪt ]]",
+			"role": "name",
+			"hype": 0.9799999999999999,
+			"side": "home",
+			"check": "Bruntlett"
+		}
+	],
+	"pitch-136268": [
+		{
+			"t": "Now pitching for the Tampa Bay Rays,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number fifty-three,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "Chad Bradford",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Bradford"
+		}
+	],
+	"bat-240694": [
+		{
+			"t": "Now batting,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number sixteen,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "pitcher,",
+			"role": "mid",
+			"side": "home"
+		},
+		{
+			"t": "[[ dʒˈeɪ, sˈiː ɹoʊmˈɛɹoʊ ]]",
+			"role": "name",
+			"hype": 1.6,
+			"side": "home",
+			"check": "Romero"
+		}
+	],
+	"attendance": [
+		{
+			"t": "Tonight's paid attendance,",
+			"role": "lead"
+		},
+		{
+			"t": "forty-five thousand, nine hundred and forty.",
+			"role": "end"
+		},
+		{
+			"t": "Thank you!",
+			"role": "big",
+			"hype": 1.2
+		}
+	],
+	"pitch-456034": [
+		{
+			"t": "Now pitching for the Tampa Bay Rays,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number fourteen,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "David Price",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Price"
+		}
+	],
+	"pitch-400058": [
+		{
+			"t": "Now pitching for the Phillies,",
+			"role": "lead",
+			"side": "home"
+		},
+		{
+			"t": "number fifty-four,",
+			"role": "num",
+			"side": "home"
+		},
+		{
+			"t": "Brad, Lidge",
+			"role": "name",
+			"hype": 3,
+			"side": "home",
+			"check": "Lidge"
+		}
+	],
+	"run-445010-425900": [
+		{
+			"t": "Now running for Dioner Navarro,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number thirty-eight,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "[[ fɚnˈændoʊ pəɹˈɛz ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Perez"
+		}
+	],
+	"bat-450314-ph-408306": [
+		{
+			"t": "Now batting for Rocco Baldelli,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number eighteen,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "[[ bˈɛn zˈoʊbɹɪst ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Zobrist"
+		}
+	],
+	"bat-400134-ph-430583": [
+		{
+			"t": "Now batting for Jason Bartlett,",
+			"role": "lead",
+			"side": "away"
+		},
+		{
+			"t": "number thirty-two,",
+			"role": "num",
+			"side": "away"
+		},
+		{
+			"t": "[[ ˈɛɹɪk hˈɪnskiː ]]",
+			"role": "name",
+			"hype": 0,
+			"side": "away",
+			"check": "Hinske"
+		}
+	],
+	"champions": [
+		{
+			"t": "Ladies and gentlemen,",
+			"role": "lead"
+		},
+		{
+			"t": "your two thousand eight World Champions,",
+			"role": "mid"
+		},
+		{
+			"t": "the Philadelphia Phillies!",
+			"role": "name",
+			"hype": 3,
+			"side": "home"
+		}
+	],
+	"rain-delay": [
+		{
+			"t": "Ladies and gentlemen,",
+			"role": "lead"
+		},
+		{
+			"t": "we are in a rain delay.",
+			"role": "end"
+		},
+		{
+			"t": "Please stand by for further announcements.",
+			"role": "end"
+		}
+	],
+	"gba": [
+		{
+			"t": "Ladies and gentlemen,",
+			"role": "lead"
+		},
+		{
+			"t": "please rise, and remove your caps,",
+			"role": "mid"
+		},
+		{
+			"t": "for the singing of God Bless America,",
+			"role": "mid"
+		},
+		{
+			"t": "by Navy Petty Officer Dorcus Whigham.",
+			"role": "end"
+		}
+	]
+}
