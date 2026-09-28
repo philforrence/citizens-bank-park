@@ -295,7 +295,7 @@ export class Fans {
 		const night2 = d.t >= ( plan?.night2 ?? Infinity );
 		const s = d.segmentAt( d.t ).snap || {};
 		const packed = night2 ? 1 : 0.8 + 0.5 * Math.min( 1, Math.max( 0, ( ( s.inning || 1 ) - 3 ) / 3 ) );
-		// the 29th, before the resumption: the concourse stamping its feet (made when it's near)
+		// the 29th, before the resumption: the concourse stamping its feet to keep warm (made when it's near)
 		const su = plan?.susp, waiting = su && night2 && d.t < su.t0 + su.dur;
 		if ( su && ! this.stomp && Math.abs( d.t - plan.night2 ) < 90 && ! this._stompAsked ) {
 

@@ -335,22 +335,24 @@ export function boom( sr, k ) {
 
 }
 
-// a concourse full of people stamping their feet in time on the concrete, a couple of times a second,
-// each a little off, the far ones later (the 29th, before the resumption: "stamping their feet")
+// a concourse full of people stamping their feet on the concrete to keep warm, each at his own pace (the
+// 29th, an hour before the resumption: "fans huddled on the concourse... stamping their feet, trying to stay
+// warm", the Inquirer's blog)
 export function stomps( sr ) {
 
-	const period = 0.46, beats = 8, len = Math.floor( period * beats * sr ), x = new Float32Array( len ), r = rng( 121 );
+	const len = Math.floor( 3.7 * sr ), x = new Float32Array( len ), r = rng( 121 );
 	const L = Math.floor( 0.09 * sr );
-	for ( let c = 0; c < 90; c ++ ) {
+	for ( let c = 0; c < 70; c ++ ) {
 
-		const far = Math.pow( r() * 0.5 + 0.5, 2 ) * 0.1, a = 0.3 + 0.7 * ( r() * 0.5 + 0.5 ), f = 55 + 40 * ( r() * 0.5 + 0.5 );
-		for ( let k = 0; k < beats; k ++ ) {
+		const a = 0.3 + 0.7 * ( r() * 0.5 + 0.5 ), f = 55 + 40 * ( r() * 0.5 + 0.5 ), per = 0.45 + 0.5 * ( r() * 0.5 + 0.5 );
+		// a few stamps, a rest, a few more
+		for ( let t = ( r() * 0.5 + 0.5 ) * per; t < 3.7; t += per * ( 0.85 + 0.3 * ( r() * 0.5 + 0.5 ) ) + ( r() > 0.7 ? 0.8 : 0 ) ) {
 
-			const at = Math.floor( ( k * period + far + r() * 0.025 ) * sr );
+			const at = Math.floor( t * sr );
 			for ( let i = 0; i < L; i ++ ) {
 
-				const t = i / sr;
-				x[ ( at + i ) % len ] += ( Math.sin( 2 * Math.PI * f * t ) * 0.8 + r() * 0.35 * Math.exp( - t / 0.01 ) ) * a * Math.exp( - t / 0.03 );
+				const tt = i / sr;
+				x[ ( at + i ) % len ] += ( Math.sin( 2 * Math.PI * f * tt ) * 0.8 + r() * 0.35 * Math.exp( - tt / 0.01 ) ) * a * Math.exp( - tt / 0.03 );
 
 			}
 
