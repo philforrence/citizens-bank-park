@@ -26,7 +26,7 @@ const PARTY = [
 ];
 const KALAS = { skin: 0, hair: 7, hairStyle: 0, facial: 0, glasses: false, female: false, age: 1, build: 1, top: TOP.jacket, color: COLOR.lightGrey, sleeves: COLOR.lightGrey, pants: 3, shoes: 1, hat: HAT.capBlack, gloves: false, seed: 97 };
 // where Harry sang: on the grass in front of the Phillies' dugout's stands
-export const KALAS_AT = [ 23, - 3.5 ];
+export const KALAS_AT = [ 37, - 19 ];
 
 const hash = ( n ) => {
 

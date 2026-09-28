@@ -22,7 +22,7 @@ function bake( group ) {
 	group.updateMatrixWorld( true );
 	for ( const o of [ ...group.children ] ) {
 
-		if ( ! o.isMesh ) continue;
+		if ( ! o.isMesh || ! o.geometry?.attributes?.position ) continue;
 		o.updateMatrix();
 		const g = o.geometry.clone();
 		g.applyMatrix4( o.matrix );
@@ -35,7 +35,15 @@ function bake( group ) {
 
 	for ( const [ m, gs ] of by ) {
 
-		const mesh = new Mesh( mergeGeometries( gs ), m );
+		const merged = mergeGeometries( gs );
+		if ( ! merged ) {
+
+			console.warn( 'stage: a group would not merge', m.name );
+			continue;
+
+		}
+
+		const mesh = new Mesh( merged, m );
 		mesh.castShadow = true;
 		mesh.receiveShadow = true;
 		group.add( mesh );
@@ -200,6 +208,29 @@ export class Stage {
 
 		}
 
+		// once it's all up: the whole stage as one mesh per material (the pieces only while they're set
+		// down); only the deck and its skirt throw shadows
+		{
+
+			const whole = new Group();
+			for ( const p of this.parts ) for ( const m of p.obj.children ) {
+
+				const c = new Mesh( m.geometry, m.material );
+				c.position.copy( p.obj.position );
+				whole.add( c );
+				if ( m.material !== this.M.deck && m.material !== this.M.skirt ) m.castShadow = false;
+
+			}
+
+			bake( whole );
+			for ( const m of whole.children ) m.castShadow = m.material === this.M.deck || m.material === this.M.skirt;
+			whole.visible = false;
+			this.root.add( whole );
+			this.whole = whole;
+			this.built = Math.max( ...this.parts.map( ( p ) => p.t ) ) + 4.5;
+
+		}
+
 		// the stage itself sits at STAGE.at, facing STAGE.yaw
 		this.root.position.set( S.at[ 0 ], 0, S.at[ 1 ] );
 		this.root.rotation.y = S.yaw;
@@ -224,11 +255,13 @@ export class Stage {
 		this.car.visible = on && cel > CEL.carIn[ 0 ];
 		this.trophy.visible = on && cel > CEL.trophyOut;
 		if ( ! on ) return;
-		// each piece carried in over its last few metres and set down
+		// each piece carried in over its last few metres and set down; then all of it as one
+		const done = cel > this.built;
+		this.whole.visible = done;
 		for ( const p of this.parts ) {
 
 			const k = ease( ( cel - p.t ) / 4 );
-			p.obj.visible = cel > p.t;
+			p.obj.visible = cel > p.t && ! done;
 			p.obj.position.set( p.home.x + p.from[ 0 ] * ( 1 - k ), p.home.y + p.from[ 1 ] * ( 1 - k ), p.home.z + p.from[ 2 ] * ( 1 - k ) );
 
 		}
