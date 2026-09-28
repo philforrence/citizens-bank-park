@@ -59,8 +59,8 @@ ${ grid ? /* wgsl */`
 	// street grid's axis in the world (the field frame's x) and the park's centre
 	let far = smoothstep( 720.0, 950.0, length( xz - vec2f( ${ grid.centre[ 0 ].toFixed( 1 ) }, ${ grid.centre[ 1 ].toFixed( 1 ) } ) ) );
 	if ( far > 0.0 && frame.night > 0.05 ) {
-		let ax = vec2f( ${ grid.axis[ 0 ].toFixed( 5 ) }, ${ grid.axis[ 1 ].toFixed( 5 ) } );
-		let g = vec2f( dot( xz, ax ), dot( xz, vec2f( - ax.y, ax.x ) ) );
+		let gax = vec2f( ${ grid.axis[ 0 ].toFixed( 5 ) }, ${ grid.axis[ 1 ].toFixed( 5 ) } );
+		let g = vec2f( dot( xz, gax ), dot( xz, vec2f( - gax.y, gax.x ) ) );
 		// each axis blurred by the pixel's own footprint along it: seen low and far, the footprint runs
 		// long toward the horizon and stays narrow across it, so the streets running away from you
 		// become lines of light and the cross streets rows of dots (the way the city looks from the stands)
@@ -78,7 +78,10 @@ ${ grid ? /* wgsl */`
 		let ay = mix( exp( - lA * lA / ry ) * gy, 5.32 / 30.0, smoothstep( 7.5, 21.0, fy ) );
 		let bx = mix( exp( - lB * lB / rx ) * gx, 5.32 / 30.0, smoothstep( 7.5, 21.0, fx ) );
 		let by = mix( exp( - dB * dB / ry ) * gy, 5.32 / 48.0, smoothstep( 12.0, 34.0, fy ) );
-		let k = ax * ay + bx * by;
+		// each street its own: an avenue brighter, a side street dimmer, one with its lamps out
+		let sA = hash21( vec2f( floor( g.x / 64.0 + 0.5 ), 3.7 ) );
+		let sB = hash21( vec2f( 8.1, floor( g.y / 48.0 + 0.5 ) ) );
+		let k = ax * ay * mix( 0.25, 1.5, sA * sA ) + bx * by * mix( 0.25, 1.5, sB * sB );
 		// here and there a block with its lamps out, a dark park, the rail yards
 		let dark = smoothstep( 0.25, 0.55, mx_noise_float2( xz * 0.0021 + vec2f( 11.3, 2.9 ) ) );
 		s.emissive = vec3f( 1.0, 0.55, 0.2 ) * k * 3.0 * far * ( 1.0 - 0.85 * dark ) * smoothstep( 0.1, 0.6, frame.night );

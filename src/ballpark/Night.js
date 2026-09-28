@@ -59,7 +59,8 @@ const NA_SAMPLES: i32 = 4;
 
 fn naPhase( cosT: f32, g: f32 ) -> f32 {
 	let g2 = g * g;
-	return ( 1.0 - g2 ) / ( 4.0 * PI * pow( max( 1.0 + g2 - 2.0 * g * cosT, 1e-4 ), 1.5 ) );
+	let x = max( 1.0 + g2 - 2.0 * g * cosT, 1e-4 );
+	return ( 1.0 - g2 ) / ( 4.0 * PI * x * sqrt( x ) );
 }
 
 // the spot's profile (LocalLights: hot centre, soft edge, a faint spill all round)
@@ -69,16 +70,13 @@ fn naSpot( cd: f32, cosOuter: f32 ) -> f32 {
 }
 
 // the drops falling through a sheet of air dist metres out: streaks on a cylinder round the camera (metres
-// across and up it), each a shutter's length of a drop's fall, never thinner than a pixel (their light
-// spread over it)
-fn naStreaks( dir: vec3f, dist: f32, px: f32, seed: f32 ) -> f32 {
-	let flatLen = max( length( dir.xz ), 0.25 );
-	let az = atan2( dir.x, dir.z );
+// across and up it: the view's azimuth az, its slope up the cylinder, the wind across it), each a
+// shutter's length of a drop's fall, never thinner than a pixel (their light spread over it)
+fn naStreaks( az: f32, slope: f32, side: f32, dist: f32, px: f32, seed: f32 ) -> f32 {
 	let t = frame.time;
 	let fall = 8.8 + seed * 1.5;
 	// the wind carries them sideways across the view
-	let side = dot( nightAir.wind, vec2f( cos( az ), - sin( az ) ) );
-	var p = vec2f( az * dist, dir.y / flatLen * dist );
+	var p = vec2f( az * dist, slope * dist );
 	p = p + vec2f( - side * t, fall * t );
 	p.x += p.y * side / fall;
 	let cell = vec2f( 0.32, 2.2 );
@@ -102,9 +100,10 @@ fn naNarrow( theta: f32, g: f32 ) -> f32 {
 	return ( 1.0 - g * g ) / ( 4.0 * PI * b ) * ( inverseSqrt( g ) - theta * inverseSqrt( b + g * theta * theta ) );
 }
 
-// the light the air along the ray (origin o, unit direction d, to distance tMax) scatters toward the eye
-fn nightAirInScatter( o: vec3f, d: vec3f, tMax: f32 ) -> vec3f {
-	if ( nightAir.on < 0.001 || nightAir.sigma <= 0.0 ) { return vec3f( 0.0 ); }
+// the light the air along the ray (origin o, unit direction d, to distance tMax) scatters toward the eye,
+// less its colour (nightAir.color). Evaluated in the haze march, at half resolution
+fn nightAirLum( o: vec3f, d: vec3f, tMax: f32 ) -> f32 {
+	if ( nightAir.on < 0.001 || nightAir.sigma <= 0.0 ) { return 0.0; }
 	var acc = 0.0;
 	let n = i32( nightAir.count );
 	for ( var i = 0; i < ${ BANKS }; i++ ) {
@@ -131,33 +130,32 @@ fn nightAirInScatter( o: vec3f, d: vec3f, tMax: f32 ) -> vec3f {
 		let glare = ( naNarrow( pa + 1.5707963, nightAir.gN ) - naNarrow( pb + 1.5707963, nightAir.gN ) ) * naSpot( dot( normalize( - v ), S.xyz ), S.w );
 		acc += L.w * ( sum * dp * nightAir.sigma + glare * nightAir.sigmaN ) / h;
 	}
-	return nightAir.color * acc * nightAir.on;
+	return acc * nightAir.on;
 }
 
-// the composite's night term on the colour c: the lit air, and on the 27th the rain showing in it; and
-// past the park the rain's own veil (heavy rain sees a kilometre or two: by the 5th inning Center City is
-// a glow through it), in the colour of the low cloud lit by the city
-fn nightAirApply( c: vec3f, o: vec3f, d: vec3f, dist: f32, sky: bool ) -> vec3f {
+// the composite's night term on the colour c (d: the view direction, dist: to what's there, air: the
+// march's nightAirLum upsampled): past the park the rain's own veil (heavy rain sees a kilometre or
+// two: by the 5th inning Center City is a glow through it) in the colour of the low cloud lit by the
+// city; the lit air; and on the 27th the rain showing in it
+fn nightAirApply( c: vec3f, d: vec3f, dist: f32, sky: bool, air: f32 ) -> vec3f {
 	var base = c;
 	if ( ! sky && nightAir.rainExt > 0.0 ) {
 		let T = exp( - nightAir.rainExt * max( dist - 180.0, 0.0 ) );
 		base = mix( nightAir.veil, c, T );
 	}
-	return base + nightAirLight( o, d, dist );
-}
-
-fn nightAirLight( o: vec3f, d: vec3f, dist: f32 ) -> vec3f {
-	let air = nightAirInScatter( o, d, dist );
-	if ( nightAir.streaks <= 0.0 || nightAir.on < 0.001 ) { return air; }
-	// three sheets of drops beyond the camera's own rain (Rain.js, within ~40 m), where they're in
-	// front of what's there
-	let px = 2.0 / ( frame.proj[ 1 ][ 1 ] * frame.resolution.y );
+	if ( air <= 0.0 ) { return base; }
 	var drops = 0.0;
-	for ( var k = 0; k < 3; k++ ) {
-		let D = 42.0 * pow( 1.55, f32( k ) );
-		if ( D < dist ) { drops += naStreaks( d, D, px * D, f32( k ) * 0.37 + 0.11 ); }
+	if ( nightAir.streaks > 0.0 && air > 1e-4 ) {
+		// two sheets of drops beyond the camera's own rain (Rain.js, within ~40 m), where they're in
+		// front of what's there
+		let px = 2.0 / ( frame.proj[ 1 ][ 1 ] * frame.resolution.y );
+		let az = atan2( d.x, d.z );
+		let slope = d.y / max( length( d.xz ), 0.25 );
+		let side = dot( nightAir.wind, vec2f( cos( az ), - sin( az ) ) );
+		if ( 45.0 < dist ) { drops += naStreaks( az, slope, side, 45.0, px * 45.0, 0.11 ); }
+		if ( 80.0 < dist ) { drops += naStreaks( az, slope, side, 80.0, px * 80.0, 0.48 ); }
 	}
-	return air * ( 1.0 + drops * nightAir.streaks );
+	return base + nightAir.color * air * ( 1.0 + drops * nightAir.streaks );
 }
 `,
 } );
@@ -208,6 +206,7 @@ export class Night {
 	constructor( app ) {
 
 		this.app = app;
+		this.air = NIGHT_AIR;
 		// the banks, for the air
 		const banks = app.bowl.lightSources().slice( 0, BANKS );
 		banks.forEach( ( { position, dir }, i ) => {
@@ -316,12 +315,24 @@ export class Night {
 		const a = this.app;
 		const rain = a.rain ? a.rain.amount : 0;
 		const lights = smooth( G.night.value, 0.15, 0.75 );
-		NIGHT_AIR.on.value = lights;
+		// ( app.night.off: the night air off, for measuring what it costs )
+		NIGHT_AIR.on.value = this.off ? 0 : lights;
 		// the key is the stadium's once the sun is down (the same switch as updateSun)
 		NIGHT_KEY.on.value = a.atmosphere && a.atmosphere.sunDir.value.y <= - 0.07 ? 1 : 0;
+		// and then the haze's sun shafts (marched through the shadow maps along the key light) would be
+		// shafts of a sun that isn't there: they're off after dark, and the march carries the banks' light
+		// instead (it costs the same half-resolution pass). The panel's value comes back with the sun
+		const hz = a.haze;
+		if ( hz ) {
+
+			if ( this._shafts === undefined || hz.shafts.value !== 0 ) this._shafts = hz.shafts.value;
+			hz.shafts.value = NIGHT_KEY.on.value > 0.5 ? 0 : this._shafts;
+
+		}
 		// the 27th: rain and mist, the drops' strong forward lobe; the 29th (and a dry night): a little
 		// haze in cold clear air
-		NIGHT_AIR.sigma.value = 0.00015 + 0.0007 * rain;
+		// (the downpour of the 5th and 6th greys the whole bowl on FOX's high-home shot, t2h03m20s)
+		NIGHT_AIR.sigma.value = 0.00015 + 0.0005 * rain + 0.0012 * rain * rain * rain;
 		NIGHT_AIR.sigmaN.value = 0.0004 + 0.0022 * rain;
 		NIGHT_AIR.g.value = 0.3 + 0.15 * rain;
 		NIGHT_AIR.gN.value = 0.9;

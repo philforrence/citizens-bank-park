@@ -381,8 +381,26 @@ fn hazeApply( uv: vec2f, c: vec4f ) -> vec4f {
 				out = out * T + fog * ( 1.0 - T ) * ( 1.0 - fSun * ( 1.0 - h ) );
 			}
 #if HZ_NIGHT
-			// ---- L (the ballpark's night): the air lit by the light banks, up to what's there
-			out = nightAirApply( out, underwaterParams.camPos, dir, dist, sky );
+			// ---- L (the ballpark's night): the air lit by the light banks, up to what's there: the march's
+			// w (half resolution), upsampled the way the shafts are (depth-aware)
+			{
+				let ls = vec2i( textureDimensions( hazeLow ) );
+				let pa = uv * vec2f( ls ) - 0.5;
+				let i0 = floor( pa );
+				let fr = pa - i0;
+				var acc = 0.0;
+				var wSum = 1e-6;
+				for ( var k = 0; k < 4; k++ ) {
+					let o = vec2i( k & 1, k >> 1u );
+					let s = textureLoad( hazeLow, clamp( vec2i( i0 ) + o, vec2i( 0 ), ls - 1 ), 0 );
+					let wb = select( 1.0 - fr.x, fr.x, o.x == 1 ) * select( 1.0 - fr.y, fr.y, o.y == 1 );
+					let rel = abs( s.z - dist ) / max( dist, 0.5 );
+					let wt = wb / pow2( rel * 10.0 + 1.0 ) + 1e-5;
+					acc += s.w * wt;
+					wSum += wt;
+				}
+				out = nightAirApply( out, dir, dist, sky, acc / wSum );
+			}
 			// ---- end L
 #endif
 
@@ -438,7 +456,7 @@ fn hazeApply( uv: vec2f, c: vec4f ) -> vec4f {
 		const defines = this._defines();
 		const march = new FullscreenPass( {
 			label: 'haze march',
-			modules: [ mod ],
+			modules: [ mod, this.nightModule ].filter( Boolean ), // ---- L: the night air (optional)
 			defines,
 			colorFormats: [ 'rgba16float' ],
 			code: /* wgsl */`
@@ -494,6 +512,11 @@ fn fragment( in: FSIn ) -> vec4f {
 		let exact = hazeInScatter( max( cam.y - frame.seaLevel, 0.0 ), R.dir.y, tMax );
 		out = vec4f( lit / max( all, 1e-12 ), all / max( exact, 1e-12 ), R.dist, 1.0 );
 	}
+#if HZ_NIGHT
+	// ---- L (the ballpark's night): the light banks' in-scatter along this ray (Night.js), for the composite
+	out.w = select( 0.0, nightAirLum( underwaterParams.camPos, R.dir, R.dist ), hazeParams.enabled > 0.5 && frame.cameraUnderwater < 0.5 );
+	// ---- end L
+#endif
 	return out;
 }
 `,
@@ -599,7 +622,7 @@ fn fragment( in: FSIn ) -> vec4f {
 				let prev = textureSampleLevel( hzPrev, smpLinearClamp, puv, 0.0 );
 				let expect = length( world - frame.prevCameraPos );
 				if ( abs( prev.z - expect ) < expect * 0.05 + 0.3 ) {
-					out = vec4f( mix( clamp( prev.xy, lo, hi ), cur.xy, 0.12 ), cur.z, 1.0 );
+					out = vec4f( mix( clamp( prev.xy, lo, hi ), cur.xy, 0.12 ), cur.z, cur.w ); // ---- L: w (the night air) as marched
 				}
 			}
 		}
