@@ -30,15 +30,19 @@ export const PALETTE = [
 	[ 'basket', [ 0.35, 0.02, 0.02 ], 0.5, 0 ], [ 'fries', [ 0.75, 0.52, 0.18 ], 0.8, 0 ], [ 'redLamp', [ 0.4, 0.05, 0.02 ], 0.4, 0, [ 1.0, 0.25, 0.08 ] ],
 	[ 'coolLamp', [ 0.7, 0.72, 0.75 ], 0.5, 0, [ 0.8, 0.85, 1.0 ] ], [ 'orange', [ 0.7, 0.22, 0.02 ], 0.4, 0 ], [ 'gulf', [ 0.75, 0.2, 0.02 ], 0.4, 0, [ 0.9, 0.3, 0.05 ] ],
 	[ 'green', [ 0.04, 0.2, 0.08 ], 0.5, 0 ], [ 'blueRamp', [ 0.02, 0.05, 0.12 ], 0.6, 0.3 ],
+	[ 'blueTop', [ 0.025, 0.05, 0.32 ], 0.12, 0.1 ], [ 'whiteStool', [ 0.74, 0.74, 0.72 ], 0.38, 0 ], [ 'netting', [ 0.01, 0.01, 0.01 ], 0.9, 0 ],
+	[ 'crt', [ 0.05, 0.05, 0.055 ], 0.45, 0 ], [ 'dome', [ 0.35, 0.35, 0.33 ], 0.3, 0.6 ],
 ];
 export const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
 const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;
 
-// a cell's corner ( u, v in 0..1 across it ) as the uv that addresses it (offset by 100)
-export function atlasUV( name, u, v ) {
+// a cell's corner ( u, v in 0..1 across it ) as the uv that addresses it (offset by 100; by 200 to light a
+// printed cell from behind: the lineup's cards in their light boxes)
+export function atlasUV( name, u, v, lit = false ) {
 
 	const [ x, y, w, h ] = CELLS[ name ];
-	return [ 100 + ( x + u * w ) / ATLAS_W, 100 + ( y + v * h ) / ATLAS_H ];
+	const o = lit ? 200 : 100;
+	return [ o + ( x + u * w ) / ATLAS_W, o + ( y + v * h ) / ATLAS_H ];
 
 }
 
@@ -59,9 +63,10 @@ function kitMaterial() {
 	if ( in.uv.x >= 99.0 ) {
 		// printed (the atlas's lower half) or lit from behind (its upper half: the signs, the back bar,
 		// the menu boards): lit all night, and a little by day
-		let uv = in.uv - vec2f( 100.0 );
+		let boxed = in.uv.x >= 199.0;
+		let uv = in.uv - vec2f( select( 100.0, 200.0, boxed ) );
 		let t = textureSample( lfAtlas, smpAnisoClamp, uv ).rgb;
-		let lit = step( uv.y, 0.5 );
+		let lit = max( step( uv.y, 0.5 ), select( 0.0, 1.0, boxed ) );
 		s.albedo = t * mix( 0.8, 0.25, lit );
 		s.roughness = mix( 0.6, 0.3, lit );
 		s.emissive = t * lit * mix( 0.55, 1.35, nk );
@@ -169,22 +174,22 @@ export class Kit {
 	}
 
 	// a flat printed panel facing local -z (toward home) or +z (back = true): centre ( x, y, z ), w x h
-	panel( P, x, y, z, w, h, print, back = false ) {
+	panel( P, x, y, z, w, h, print, back = false, lit = false ) {
 
 		// the cell's left edge on the viewer's left (facing home, that's the frame's +x)
 		const s = back ? 1 : - 1;
 		const a = P( x - s * w / 2, y - h / 2, z ), b = P( x + s * w / 2, y - h / 2, z ), c = P( x + s * w / 2, y + h / 2, z ), d = P( x - s * w / 2, y + h / 2, z );
-		this.quad( a, b, c, d, P.dir( 0, 0, back ? 1 : - 1 ), [ atlasUV( print, 0, 1 ), atlasUV( print, 1, 1 ), atlasUV( print, 1, 0 ), atlasUV( print, 0, 0 ) ] );
+		this.quad( a, b, c, d, P.dir( 0, 0, back ? 1 : - 1 ), [ atlasUV( print, 0, 1, lit ), atlasUV( print, 1, 1, lit ), atlasUV( print, 1, 0, lit ), atlasUV( print, 0, 0, lit ) ] );
 
 	}
 
 	// a panel on a plane given by its lower-left corner, its right ( rx, rz ) and its facing, in the field frame
-	panelAt( a, right, up, w, h, n, print ) {
+	panelAt( a, right, up, w, h, n, print, lit = false ) {
 
 		const b = [ a[ 0 ] + right[ 0 ] * w, a[ 1 ] + right[ 1 ] * w, a[ 2 ] + right[ 2 ] * w ];
 		const c = [ b[ 0 ] + up[ 0 ] * h, b[ 1 ] + up[ 1 ] * h, b[ 2 ] + up[ 2 ] * h ];
 		const d = [ a[ 0 ] + up[ 0 ] * h, a[ 1 ] + up[ 1 ] * h, a[ 2 ] + up[ 2 ] * h ];
-		this.quad( a, b, c, d, n, [ atlasUV( print, 0, 1 ), atlasUV( print, 1, 1 ), atlasUV( print, 1, 0 ), atlasUV( print, 0, 0 ) ] );
+		this.quad( a, b, c, d, n, [ atlasUV( print, 0, 1, lit ), atlasUV( print, 1, 1, lit ), atlasUV( print, 1, 0, lit ), atlasUV( print, 0, 0, lit ) ] );
 
 	}
 

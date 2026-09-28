@@ -3,6 +3,7 @@ import { GESTURE, armIK, railArms, dress, sizeOf, rng, pick } from '../Concourse
 import { SEATED } from '../home/Poses.js';
 import { cadence, due } from '../Tempo.js';
 import { named } from './Named.js';
+import { STREET } from './Frame.js';
 
 // The people of Harry the K's (LeftField.js): the bartenders upstairs and down, the servers with their
 // trays, the host at the stand, the diners at the tables and the regulars on the stools, and the fans
@@ -153,7 +154,8 @@ export class HarrysPeople {
 
 		// -- the patio: along the rail, and at its high-tops; the walkway behind the porch
 		for ( const s of S.patioRail ) if ( r() < 0.62 ) this.add( 'stand', s, 0, { rail: true, heater: this._heater( s ) } );
-		for ( const t of S.patio ) for ( const dx of [ - 0.55, 0.55 ] ) if ( r() < 0.55 ) this.add( 'sit', { x: t.x + dx, z: t.z, y: t.y }, 0, { sit: 0.76, heater: this._heater( t ) } );
+		// (the rail's high-tops: two white stools behind each, facing the field)
+		for ( const t of S.patio ) for ( const dx of [ - 0.35, 0.35 ] ) if ( r() < 0.7 ) this.add( 'sit', { x: t.x + dx, z: t.z + 0.55, y: t.y }, 0, { sit: 0.74, heater: this._heater( t ) } );
 		for ( const s of S.porchBack ) if ( r() < 0.5 ) this.add( 'stand', s, 0, { rail: true } );
 		// -- downstairs: at the bar's front, the tables, the counter over the 140s
 		for ( const s of S.barDn ) if ( r() < 0.45 ) this.add( 'stand', s, Math.PI, { covered: true, tv: tvFor( s.x, s.z, s.y + 2 ) } );
@@ -182,6 +184,121 @@ export class HarrysPeople {
 			this.add( 'server', { x: H.doorsUp[ 1 ], z: H.FZ - 1.6, y: H.PY }, 0, { look: staff( { female: true, hairStyle: 1, facial: 0 } ), path: loop( [ [ H.doorsUp[ 1 ], H.FZ + 0.8 ], [ H.doorsUp[ 1 ], H.FZ - 1.4 ], [ 2, H.FZ - 1.4 ], [ - 8, H.FZ - 1.4 ], [ H.doorsUp[ 0 ], H.FZ - 1.4 ], [ H.doorsUp[ 0 ], H.FZ + 0.8 ], [ 2, H.FZ + 2.5 ] ] ), speed: 1.0 } ),
 		];
 		this._named();
+
+	}
+
+	// the corner's portables and the plaza (Plaza.js): a vendor at each cart and a short line at its front,
+	// and people crossing the corner: in from the Left Field Gate, round to the Alley, down to the concourse
+	plaza( carts ) {
+
+		const r = this.r;
+		const staff = () => Object.assign( dress( r, { age: 0 } ), { top: TOP.staff, color: COLOR.red, sleeves: COLOR.black, chest: CHEST.staff, back: 0, hat: r() < 0.6 ? HAT.capBlack : HAT.visor, poncho: 0, scarf: 0, pants: 3, shoes: 1 } );
+		for ( const c of carts ) {
+
+			this.add( 'vendor', c.vendor, c.face, { look: staff(), covered: true } );
+			const n = 2 + Math.floor( r() * 4 );
+			for ( let k = 0; k < n; k ++ ) {
+
+				const d = 1.0 + k * 0.75, side = Math.sin( k * 2.3 ) * 0.2;
+				const x = c.x + c.front[ 0 ] * d - c.front[ 1 ] * side, z = c.z + c.front[ 1 ] * d + c.front[ 0 ] * side;
+				const m = this.add( 'stand', { x, z, y: c.vendor.y }, c.face + Math.PI, { covered: c.z < 0 } );
+				if ( m ) {
+
+					m.line = k;
+					m.drink = 0;
+					m.food = 0;
+
+				}
+
+			}
+
+		}
+
+		// the walkers' rounds (local x, z): gate to the Alley's end, the concourse's corner to the plaza
+		const loops = [
+			[ [ 4.5, 30 ], [ 2, 16 ], [ - 14, 10 ], [ - 21, 3 ], [ - 25, - 6 ], [ - 30, - 9 ], [ - 22, 2 ], [ - 8, 12 ], [ 3, 22 ] ],
+			[ [ 25, - 19 ], [ 21, - 9 ], [ 17, 3 ], [ 12, 12 ], [ 6, 24 ], [ 14, 14 ], [ 20, 0 ], [ 24, - 12 ] ],
+			[ [ 27, - 20 ], [ 16, - 17.5 ], [ 12, - 16.8 ], [ 18, - 18 ] ],
+		];
+		for ( let k = 0; k < 14; k ++ ) {
+
+			const L = loops[ k % loops.length ].map( ( [ x, z ] ) => ( { x, z } ) );
+			const m = this.add( 'walker', { x: L[ 0 ].x, z: L[ 0 ].z, y: STREET }, 0, { path: L, speed: 1.1 + 0.3 * r(), covered: false } );
+			if ( m ) {
+
+				m.u = r();
+				m.carry = r() < 0.4 ? PROP.beer : r() < 0.3 ? PROP.tray : 0;
+
+			}
+
+		}
+
+	}
+
+	// a cart's vendor: taking the order (a word, a nod), turned round to the warmer, handing it over, the change
+	_vendor( m, N, dt ) {
+
+		const p = m.p, a = p.pose, t = this.time + m.seed * 30, k = 1 - Math.exp( - dt * 5 );
+		const w = fract( t / 8 );
+		const back = w > 0.35 && w < 0.6;
+		const g = back ? null : w > 0.6 && w < 0.8 ? SET : w > 0.8 ? GESTURE.reach : GESTURE.fold;
+		const A = m.arms;
+		for ( let q = 0; q < 2; q ++ ) {
+
+			const T = ( g && g[ q ] ) || REST, C = A[ q ];
+			for ( let j = 0; j < 4; j ++ ) C[ j ] += ( T[ j ] - C[ j ] ) * k;
+
+		}
+
+		a.armL = A[ 0 ]; a.armR = A[ 1 ];
+		a.propR = w > 0.6 && w < 0.8 ? PROP.tray : w > 0.8 ? PROP.money : 0;
+		a.propL = 0;
+		p.yaw = this.F.yaw( m.face + ( back ? Math.PI : 0 ) );
+		a.mouth = w < 0.3 ? Math.max( 0, 0.35 * Math.sin( t * 7 ) ) : 0;
+		a.headPitch = 0.05;
+		a.blink = fract( t * 0.33 ) < 0.035 ? 1 : 0;
+
+	}
+
+	// crossing the corner: a round at walking pace, the arms swinging (a beer or a tray in hand for some)
+	_walker( m, N, dt ) {
+
+		const p = m.p, a = p.pose, P = m.path, k = 1 - Math.exp( - dt * 6 );
+		const L = m.pathLen, u = fract( ( this.time * m.speed ) / L + m.u );
+		let s = u * L, i = 0, acc = 0, seg = 0;
+		for ( ; i < P.length; i ++ ) {
+
+			const A = P[ i ], B = P[ ( i + 1 ) % P.length ];
+			seg = Math.hypot( B.x - A.x, B.z - A.z );
+			if ( acc + seg >= s ) break;
+			acc += seg;
+
+		}
+
+		const A = P[ i % P.length ], B = P[ ( i + 1 ) % P.length ];
+		const f = seg ? ( s - acc ) / seg : 0;
+		const [ fx, fz ] = this.F.field( lerp( A.x, B.x, f ), lerp( A.z, B.z, f ) );
+		p.x = fx; p.z = fz;
+		const want = this.F.yaw( Math.atan2( - ( B.x - A.x ), - ( B.z - A.z ) ) );
+		p.yaw += wrap( want - p.yaw ) * Math.min( 1, dt * 6 );
+		a.walk += ( 1 - a.walk ) * k;
+		a.phase = ( a.phase + dt * m.speed / 1.15 * TAU ) % TAU;
+		const sw = Math.sin( a.phase ) * 0.3 * a.walk;
+		const C = m.carry;
+		const g = C === PROP.tray ? GESTURE.tray : C ? GESTURE.carry : null;
+		const A2 = m.arms;
+		for ( let q = 0; q < 2; q ++ ) {
+
+			const T = ( g && g[ q ] ) || [ q ? - sw : sw, 0.07, 0, 0.18 ], Cc = A2[ q ];
+			for ( let j = 0; j < 4; j ++ ) Cc[ j ] += ( T[ j ] - Cc[ j ] ) * Math.min( 1, k * 2 );
+
+		}
+
+		a.armL = A2[ 0 ]; a.armR = A2[ 1 ];
+		a.propR = C; a.propL = 0;
+		a.lean = 0.03; a.drop = 0; a.hipL = a.hipR = a.kneeL = a.kneeR = 0;
+		a.headYaw = 0.3 * Math.sin( this.time * 0.4 + m.seed * 20 );
+		a.blink = fract( this.time * 0.33 + m.seed * 7 ) < 0.035 ? 1 : 0;
 
 	}
 
@@ -242,6 +359,8 @@ export class HarrysPeople {
 			if ( m.role === 'bartender' ) this._bartender( m, N, mdt );
 			else if ( m.role === 'server' ) this._server( m, N, mdt );
 			else if ( m.role === 'host' ) this._host( m, N, mdt );
+			else if ( m.role === 'vendor' ) this._vendor( m, N, mdt );
+			else if ( m.role === 'walker' ) this._walker( m, N, mdt );
 			else this._fan( m, N, M, mdt );
 			if ( m.after ) m.after( m, N, mdt, this );
 
@@ -303,7 +422,16 @@ export class HarrysPeople {
 		}
 
 		// a sip now and then
-		if ( R === m.drink && fract( t / ( 10 + 7 * sd ) + sd ) < 0.1 ) g = seated ? SEATED.sip : GESTURE.sip;
+		if ( R && R === m.drink && fract( t / ( 10 + 7 * sd ) + sd ) < 0.1 ) g = seated ? SEATED.sip : GESTURE.sip;
+		// in a line: the money out at the front, the phone, the arms folded, a look at the menu board
+		if ( m.line !== undefined ) {
+
+			const w = fract( t / 8 );
+			g = m.line === 0 && w > 0.6 ? GESTURE.reach : h < 0.4 ? GESTURE.fold : h < 0.6 ? GESTURE.text : GESTURE.pockets;
+			R = m.line === 0 && w > 0.6 ? PROP.money : h >= 0.4 && h < 0.6 ? PROP.phone : 0;
+			L = 0;
+
+		}
 		// the cold: at the patio heaters the hands held out to it; on the 29th hands in the pockets more
 		if ( m.heater && ! N.celebrate && fract( t / 23 + sd * 3 ) < ( N.first ? 0.3 : 0.5 ) ) {
 

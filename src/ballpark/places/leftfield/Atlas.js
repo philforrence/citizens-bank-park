@@ -22,8 +22,8 @@ export const CELLS = {
 	exit: [ 1664, 384, 128, 64 ], tvDark: [ 1792, 384, 128, 64 ],
 	// printed (y >= 512)
 	photos: [ 0, 512, 1024, 256 ], plaque: [ 1024, 512, 512, 128 ], pennants: [ 1536, 512, 512, 128 ],
-	plates: [ 1024, 640, 1024, 96 ], lineup: [ 0, 768, 1152, 256 ], rules: [ 1152, 736, 512, 96 ], wood: [ 1664, 736, 384, 288 ],
-	carpet: [ 1152, 832, 512, 192 ],
+	plates: [ 1024, 640, 1024, 96 ], lineup: [ 0, 768, 1152, 256 ], rules: [ 1152, 736, 512, 96 ], phanatic: [ 1664, 736, 384, 288 ],
+	cartDraft: [ 1152, 832, 256, 96 ], cartFunnel: [ 1408, 832, 256, 96 ], cartNachos: [ 1152, 928, 256, 96 ], cartHatfield: [ 1408, 928, 256, 96 ],
 };
 // the photographs (six across 'photos') and the plates (sixteen across 'plates') as sub-cells
 for ( let i = 0; i < 6; i ++ ) CELLS[ 'photo' + i ] = [ 12 + i * 168, 524, 160, 232 ];
@@ -99,53 +99,91 @@ export function drawAtlas( ctx ) {
 	ctx.textBaseline = 'middle';
 	const cell = ( k ) => CELLS[ k ];
 
-	// ---- Harry the K's sign: orange, a green rim, the microphone crest, the name over its full title
+	// ---- Harry the K's sign (Flickr, 2009: the lit box hung under the deck): a long hexagon, its corners
+	// cut, orange lit from behind inside a black and a white line and a lime-green neon rim; the microphone
+	// with its radio waves; HARRY in big white capitals, THE small, K'S big; BROADCAST BAR & GRILLE under it
 	{
 
 		const [ x, y, w, h ] = cell( 'hkSign' );
-		ctx.fillStyle = '#0c0c0c'; ctx.fillRect( x, y, w, h );
-		rr( ctx, x + 10, y + 10, w - 20, h - 20, 34 );
-		ctx.fillStyle = '#2f7a3b'; ctx.fill();
-		rr( ctx, x + 22, y + 22, w - 44, h - 44, 26 );
-		const g = ctx.createLinearGradient( x, y, x, y + h );
-		g.addColorStop( 0, '#f7a21b' ); g.addColorStop( 1, '#e0780c' );
+		ctx.fillStyle = '#050505'; ctx.fillRect( x, y, w, h );
+		const hex = ( i ) => {
+
+			const c = 46 - i;
+			ctx.beginPath();
+			ctx.moveTo( x + i + c, y + i ); ctx.lineTo( x + w - i - c, y + i ); ctx.lineTo( x + w - i, y + h / 2 ); ctx.lineTo( x + w - i - c, y + h - i );
+			ctx.lineTo( x + i + c, y + h - i ); ctx.lineTo( x + i, y + h / 2 ); ctx.closePath();
+
+		};
+		ctx.save();
+		ctx.shadowColor = '#b6ff3a'; ctx.shadowBlur = 18;
+		hex( 6 ); ctx.fillStyle = '#9be23a'; ctx.fill();
+		ctx.restore();
+		hex( 16 ); ctx.fillStyle = '#f7f2e4'; ctx.fill();
+		hex( 20 ); ctx.fillStyle = '#111111'; ctx.fill();
+		hex( 25 );
+		const g = ctx.createRadialGradient( x + w / 2, y + h / 2, 20, x + w / 2, y + h / 2, w * 0.55 );
+		g.addColorStop( 0, '#ffb42a' ); g.addColorStop( 1, '#f07c10' );
 		ctx.fillStyle = g; ctx.fill();
-		ctx.strokeStyle = '#f7e7c0'; ctx.lineWidth = 3; ctx.stroke();
-		// the crest: a green lozenge with the mic
-		rr( ctx, x + w / 2 - 44, y + 34, 88, 50, 12 );
-		ctx.fillStyle = '#2f7a3b'; ctx.fill();
-		mic( ctx, x + w / 2, y + 66, 1.0, '#f7e7c0' );
-		ctx.fillStyle = '#fbf3de';
-		ctx.font = `900 84px ${ SANS }`;
-		ctx.fillText( 'HARRY THE K’S', x + w / 2, y + 138, w - 70 );
-		ctx.fillStyle = '#1f3d25';
-		ctx.font = `700 26px ${ SANS }`;
-		ctx.fillText( 'BROADCAST  BAR  &  GRILLE', x + w / 2, y + 196, w - 110 );
+		// the microphone and its waves
+		mic( ctx, x + w / 2, y + 78, 1.05, '#fbf7ea' );
+		ctx.strokeStyle = '#1f5a28'; ctx.lineWidth = 3;
+		for ( const s of [ - 1, 1 ] ) for ( let k = 0; k < 3; k ++ ) {
+
+			ctx.beginPath();
+			ctx.arc( x + w / 2, y + 62, 24 + k * 9, s > 0 ? - 0.5 : Math.PI - 0.5, s > 0 ? 0.5 : Math.PI + 0.5 );
+			ctx.stroke();
+
+		}
+
+		ctx.fillStyle = '#fbf7ea';
+		ctx.strokeStyle = '#a3350c'; ctx.lineWidth = 3;
+		ctx.textAlign = 'left';
+		ctx.font = `900 64px ${ COND }`;
+		const wH = ctx.measureText( 'HARRY' ).width;
+		ctx.font = `900 30px ${ COND }`;
+		const wT = ctx.measureText( 'THE' ).width;
+		ctx.font = `900 64px ${ COND }`;
+		const wK = ctx.measureText( 'K’S' ).width;
+		let tx = x + w / 2 - ( wH + wT + wK + 24 ) / 2;
+		ctx.strokeText( 'HARRY', tx, y + 146 ); ctx.fillText( 'HARRY', tx, y + 146 );
+		tx += wH + 12;
+		ctx.font = `900 30px ${ COND }`;
+		ctx.strokeText( 'THE', tx, y + 156 ); ctx.fillText( 'THE', tx, y + 156 );
+		tx += wT + 12;
+		ctx.font = `900 64px ${ COND }`;
+		ctx.strokeText( 'K’S', tx, y + 146 ); ctx.fillText( 'K’S', tx, y + 146 );
+		ctx.textAlign = 'center';
+		ctx.fillStyle = '#ffe89a';
+		ctx.font = `800 20px ${ SANS }`;
+		ctx.fillText( 'BROADCAST  BAR  &  GRILLE', x + w / 2, y + 196, w - 150 );
 
 	}
 
-	// ---- the arrows under it: LOWER LEVEL to the left, UPPER LEVEL to the right
+	// ---- the arrows under it (the 2004 photo's words, the 2009 photo's board): dark green, a red disc with
+	// a white arrow at each end
 	{
 
 		const [ x, y, w, h ] = cell( 'hkDir' );
-		ctx.fillStyle = '#16181b'; ctx.fillRect( x, y, w, h );
-		ctx.fillStyle = '#e98a14';
-		for ( const [ cx, dir ] of [ [ x + 40, - 1 ], [ x + w - 40, 1 ] ] ) {
+		ctx.fillStyle = '#123524'; ctx.fillRect( x, y, w, h );
+		ctx.strokeStyle = '#c9c9c0'; ctx.lineWidth = 3; ctx.strokeRect( x + 3, y + 3, w - 6, h - 6 );
+		for ( const [ cx, dir ] of [ [ x + 44, - 1 ], [ x + w - 44, 1 ] ] ) {
 
-			ctx.beginPath(); ctx.arc( cx, y + h / 2, 26, 0, Math.PI * 2 ); ctx.fill();
-			ctx.fillStyle = '#16181b';
+			ctx.fillStyle = '#d0271d';
+			ctx.beginPath(); ctx.arc( cx, y + h / 2, 30, 0, Math.PI * 2 ); ctx.fill();
+			ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+			ctx.fillStyle = '#ffffff';
 			ctx.beginPath();
-			ctx.moveTo( cx + dir * 14, y + h / 2 ); ctx.lineTo( cx - dir * 6, y + h / 2 - 13 ); ctx.lineTo( cx - dir * 6, y + h / 2 + 13 );
+			ctx.moveTo( cx + dir * 16, y + h / 2 ); ctx.lineTo( cx - dir * 4, y + h / 2 - 14 ); ctx.lineTo( cx - dir * 4, y + h / 2 + 14 );
 			ctx.fill();
-			ctx.fillStyle = '#e98a14';
+			ctx.fillRect( cx - dir * 16 - ( dir > 0 ? 0 : 12 ), y + h / 2 - 4, 12, 8 );
 
 		}
 
 		ctx.fillStyle = '#f2ede1';
-		ctx.font = `700 34px ${ SANS }`;
-		ctx.fillText( 'LOWER  LEVEL', x + 170, y + h / 2 + 2 );
-		ctx.fillText( 'UPPER  LEVEL', x + w - 170, y + h / 2 + 2 );
-		ctx.fillStyle = '#3a3d42'; ctx.fillRect( x + w / 2 - 2, y + 14, 4, h - 28 );
+		ctx.font = `800 32px ${ SANS }`;
+		ctx.fillText( 'LOWER  LEVEL', x + 180, y + h / 2 + 2 );
+		ctx.fillText( 'UPPER  LEVEL', x + w - 180, y + h / 2 + 2 );
+		ctx.fillStyle = '#c9c9c0'; ctx.fillRect( x + w / 2 - 2, y + 12, 4, h - 24 );
 
 	}
 
@@ -576,41 +614,79 @@ export function drawAtlas( ctx ) {
 
 	}
 
-	// ---- wood panelling and the dining room's carpet (the walls and floors inside)
+	// ---- the Phanatic, big, on the wall behind the scoreboard by the Left Field Gate (BaseballParks.com,
+	// 2004: 'an immense picture of the beloved Phillie Phanatic'; the Game 5 arrival photo, Oct 27): painted
+	// here as a big friendly face over a summer sky (the mascot, no one's likeness)
 	{
 
-		const [ x, y, w, h ] = cell( 'wood' );
-		for ( let k = 0; k < w; k += 24 ) {
+		const [ x, y, w, h ] = cell( 'phanatic' );
+		const sky = ctx.createLinearGradient( x, y, x, y + h );
+		sky.addColorStop( 0, '#6fa6d8' ); sky.addColorStop( 1, '#d6e8f2' );
+		ctx.fillStyle = sky; ctx.fillRect( x, y, w, h );
+		for ( let k = 0; k < 14; k ++ ) {
 
-			const t = 0.8 + r() * 0.25;
-			ctx.fillStyle = `rgb( ${ Math.round( 88 * t ) }, ${ Math.round( 44 * t ) }, ${ Math.round( 22 * t ) } )`;
-			ctx.fillRect( x + k, y, 24, h );
-			ctx.fillStyle = 'rgba( 0, 0, 0, 0.35 )'; ctx.fillRect( x + k, y, 2, h );
-			for ( let g = 0; g < 8; g ++ ) {
-
-				ctx.fillStyle = 'rgba( 30, 12, 4, 0.2 )';
-				ctx.fillRect( x + k + 4 + r() * 16, y + r() * h, 1, 20 + r() * 60 );
-
-			}
+			ctx.fillStyle = 'rgba( 255, 255, 255, 0.5 )';
+			ctx.beginPath(); ctx.ellipse( x + r() * w, y + r() * h * 0.5, 30 + r() * 40, 10 + r() * 10, 0, 0, Math.PI * 2 ); ctx.fill();
 
 		}
 
-		// the chair rail
-		ctx.fillStyle = '#2a140a'; ctx.fillRect( x, y + h * 0.55, w, 10 );
+		const cx = x + w / 2, cy = y + h * 0.62;
+		// the fur: a shaggy green head, tufts round it
+		for ( let k = 0; k < 900; k ++ ) {
 
-	}
-
-	{
-
-		const [ x, y, w, h ] = cell( 'carpet' );
-		ctx.fillStyle = '#3a1418'; ctx.fillRect( x, y, w, h );
-		for ( let k = 0; k < 600; k ++ ) {
-
-			ctx.fillStyle = r() < 0.5 ? 'rgba( 20, 30, 60, 0.5 )' : 'rgba( 200, 160, 90, 0.18 )';
-			ctx.fillRect( x + r() * w, y + r() * h, 3, 3 );
+			const a = r() * Math.PI * 2, rr2 = 70 + r() * 70;
+			ctx.strokeStyle = [ '#3f9a2c', '#58b43a', '#2c7a20', '#6cc44a' ][ Math.floor( r() * 4 ) ];
+			ctx.lineWidth = 3;
+			ctx.beginPath();
+			ctx.moveTo( cx + Math.cos( a ) * rr2 * 0.6, cy + Math.sin( a ) * rr2 * 0.55 );
+			ctx.lineTo( cx + Math.cos( a ) * rr2, cy + Math.sin( a ) * rr2 * 0.85 );
+			ctx.stroke();
 
 		}
 
+		ctx.fillStyle = '#4aa834';
+		ctx.beginPath(); ctx.ellipse( cx, cy, 95, 80, 0, 0, Math.PI * 2 ); ctx.fill();
+		// the snout, long, curling out toward us
+		ctx.fillStyle = '#e3a51c';
+		ctx.beginPath(); ctx.ellipse( cx + 6, cy + 42, 30, 46, 0.15, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = '#1f1f1f';
+		ctx.beginPath(); ctx.ellipse( cx + 12, cy + 80, 18, 8, 0.15, 0, Math.PI * 2 ); ctx.fill();
+		// the eyes: big, bulging, pink lids, looking up
+		for ( const s of [ - 1, 1 ] ) {
+
+			ctx.fillStyle = '#ffffff';
+			ctx.beginPath(); ctx.arc( cx + s * 36, cy - 22, 30, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#222222';
+			ctx.beginPath(); ctx.arc( cx + s * 32, cy - 30, 12, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = '#e46aa0';
+			ctx.beginPath(); ctx.arc( cx + s * 36, cy - 22, 31, Math.PI * 1.05, Math.PI * 1.95 ); ctx.lineTo( cx + s * 36, cy - 22 ); ctx.fill();
+
+		}
+
+		// the red cap on top
+		ctx.fillStyle = '#c8102e';
+		ctx.beginPath(); ctx.ellipse( cx, cy - 70, 50, 24, 0, Math.PI, 0 ); ctx.fill();
+		ctx.fillRect( cx - 50, cy - 72, 100, 8 );
+
 	}
+
+	// ---- the portables' signs (the Phillies' concessions guide, October 2008: draft beer in the left field
+	// scoreboard area, funnel cake and nachos behind 141, a Hatfield Grill cart behind 145)
+	const cart = ( k, bg, fg, text, sub ) => {
+
+		const [ x, y, w, h ] = cell( k );
+		ctx.fillStyle = bg; ctx.fillRect( x, y, w, h );
+		ctx.fillStyle = '#ffffff'; ctx.fillRect( x + 4, y + 4, w - 8, 6 ); ctx.fillRect( x + 4, y + h - 10, w - 8, 6 );
+		ctx.fillStyle = fg;
+		ctx.font = `900 34px ${ SANS }`;
+		ctx.fillText( text, x + w / 2, y + h * 0.42, w - 20 );
+		ctx.font = `700 16px ${ SANS }`;
+		ctx.fillText( sub, x + w / 2, y + h * 0.76, w - 20 );
+
+	};
+	cart( 'cartDraft', '#7a1a14', '#f6d36b', 'DRAFT BEER', 'Domestic  •  Import  •  Local' );
+	cart( 'cartFunnel', '#f4e3b0', '#b3121b', 'FUNNEL CAKE', 'Powdered sugar  •  hot' );
+	cart( 'cartNachos', '#1f4a2a', '#ffd23a', 'NACHOS', 'Cheese  •  jalapeños' );
+	cart( 'cartHatfield', '#b3121b', '#ffffff', 'HATFIELD', 'Hot dogs  •  sausages' );
 
 }

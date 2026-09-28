@@ -11,6 +11,8 @@ import { buildRamp } from './leftfield/Ramp.js';
 import { Cast } from './Cast.js';
 import { Tempo } from './Tempo.js';
 import { HarrysSounds } from './leftfield/Sounds.js';
+import { buildMurals } from './leftfield/Murals.js';
+import { buildPlaza } from './leftfield/Plaza.js';
 
 // The left field corner on the World Series nights, October 27 and 29, 2008 (H, wave 3): Harry the K's
 // Broadcast Bar & Grille under the scoreboard, upstairs on the Scoreboard Porch's level and downstairs at
@@ -47,6 +49,9 @@ export default class LeftField {
 			this.rainRoof = [ ...this.harrys.rainRoof, this.harrys.hg ];
 			this._glass();
 			this._tvs();
+			// the three murals on the brick over the lower bar
+			const { DN, FZ } = this.harrys;
+			buildMurals( this, this.F, { x0: DN.x0, x1: DN.x1, y0: DN.y1 + 1.55, h: 2.9, z: FZ - 0.06 } );
 
 		}
 
@@ -55,6 +60,7 @@ export default class LeftField {
 
 			this.monty = buildMonty( this, this.kit, this.kit.frame( this.F ) );
 			this.ramp = buildRamp( this, this.kit );
+			this.plaza = buildPlaza( this, this.harrys, this.kit, this.kit.frame( this.F ) );
 
 		}
 		// everything the Kit built, in one draw
@@ -67,6 +73,9 @@ export default class LeftField {
 			const [ cx, cz ] = this.F.field( - 2, - 8 );
 			this.cast.bounds = new Sphere( new Vector3( cx, 12, cz ), 32 );
 			this.people = new HarrysPeople( this, this.cast, this.harrys, this.F );
+			if ( this.plaza ) this.people.plaza( this.plaza.carts );
+			// the troupe's bounds take in the plaza and the corner
+			this.cast.bounds = new Sphere( new Vector3( ...( ( [ x, z ] ) => [ x, 12, z ] )( this.F.field( 0, 2 ) ) ), 44 );
 
 		}
 
@@ -169,6 +178,20 @@ export default class LeftField {
 			const hw = t.w / 2 + 0.04, hh = t.h / 2 + 0.04;
 			K.use( 'black' ).quad( at( - hw, - hh, - 0.01 ), at( hw, - hh, - 0.01 ), at( hw, hh, - 0.01 ), at( - hw, hh, - 0.01 ), [ fnx, 0, fnz ] );
 			K.use( 'black' ).quad( at( hw, - hh, - 0.08 ), at( - hw, - hh, - 0.08 ), at( - hw, hh, - 0.08 ), at( hw, hh, - 0.08 ), [ - fnx, 0, - fnz ] );
+			if ( t.crt ) {
+
+				// a tube set: its deep grey cabinet tapering back to the wall bracket
+				const d = 0.5, cw = t.w / 2 + 0.09, ch = t.h / 2 + 0.1;
+				const c = ( a, b, o ) => at( a, b, - o );
+				const [ rx, rz ] = F.dir( r[ 0 ], r[ 1 ] );
+				K.use( 'crt' ).quad( c( - cw, - ch, 0.005 ), c( cw, - ch, 0.005 ), c( cw, ch, 0.005 ), c( - cw, ch, 0.005 ), [ fnx, 0, fnz ] );
+				K.use( 'crt' ).quad( c( - cw, ch, 0.005 ), c( cw, ch, 0.005 ), c( cw * 0.6, ch * 0.7, d ), c( - cw * 0.6, ch * 0.7, d ), [ 0, 1, 0 ] );
+				K.use( 'crt' ).quad( c( cw, - ch, 0.005 ), c( - cw, - ch, 0.005 ), c( - cw * 0.6, - ch * 0.7, d ), c( cw * 0.6, - ch * 0.7, d ), [ 0, - 1, 0 ] );
+				K.use( 'crt' ).quad( c( cw, ch, 0.005 ), c( cw, - ch, 0.005 ), c( cw * 0.6, - ch * 0.7, d ), c( cw * 0.6, ch * 0.7, d ), [ rx, 0, rz ] );
+				K.use( 'crt' ).quad( c( - cw, - ch, 0.005 ), c( - cw, ch, 0.005 ), c( - cw * 0.6, ch * 0.7, d ), c( - cw * 0.6, - ch * 0.7, d ), [ - rx, 0, - rz ] );
+				K.use( 'iron' ).bar( c( 0, - ch * 0.7, d * 0.7 ), c( 0, - ch * 0.7, d + 0.5 ), 0.06 );
+
+			}
 			for ( const [ a, b, c ] of [ [ [ - 1, - 1 ], [ 1, - 1 ], [ 1, 1 ] ], [ [ - 1, - 1 ], [ 1, 1 ], [ - 1, 1 ] ] ] ) for ( const [ x, y ] of [ a, b, c ] ) {
 
 				pos.push( ...at( x * t.w / 2, y * t.h / 2, 0.005 ) );

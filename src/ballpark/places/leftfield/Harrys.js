@@ -243,14 +243,19 @@ export function buildHarrys( place, F, H ) {
 	// a door in the glass at each end (where the servers go in and out)
 	out.doorsUp = [ UP.x0 + 1.35, UP.x1 - 1.35 ];
 
-	// -- the patio: high-tops with stools, the heaters, the menu stand; the walkway joining it to the porch
+	// -- the patio: round high-tops in glossy royal blue on their pedestals right at the rail, white stools,
+	// the menu in its acrylic stand and the Coke cups (Flickr, October 10, 2008, the NLCS: Harry's upstairs
+	// over left field); the heaters; the walkway joining it to the porch
 	out.spots.patio = [];
-	const patioZ = FZ - 2.3;
-	for ( let x = XL + 2.0; x < XR - 1.5; x += 2.9 ) {
+	const patioZ = FZ - 3.75;
+	const railTables = [];
+	for ( let x = XL + 1.6; x < XR - 1.2; x += 3.4 ) {
 
-		if ( Math.abs( x - out.doorsUp[ 0 ] ) < 1.2 || Math.abs( x - out.doorsUp[ 1 ] ) < 1.2 ) continue;
-		hightop( K, Pk, x, patioZ, PY );
+		hightop( K, Pk, x, patioZ, PY, { top: 'blueTop', stool: 'whiteStool', along: true } );
+		K.panel( Pk, x + 0.12, PY + 1.16, patioZ - 0.05, 0.13, 0.19, 'menuUp' );
+		K.use( 'cup' ).cyl( Pk, x - 0.14, patioZ + 0.08, PY + 1.06, PY + 1.22, 0.04, 0.05, 8 );
 		out.spots.patio.push( { x, z: patioZ, y: PY } );
+		railTables.push( x );
 
 	}
 
@@ -265,7 +270,7 @@ export function buildHarrys( place, F, H ) {
 
 	// the rail at the patio's edge (Landmarks'), and people along it: where they stand
 	out.spots.patioRail = [];
-	for ( let x = XL + 0.8; x < XR - 0.6; x += 0.85 ) out.spots.patioRail.push( { x, z: FZ - 4.2, y: PY } );
+	for ( let x = XL + 0.8; x < XR - 0.6; x += 0.85 ) if ( railTables.every( ( t ) => Math.abs( t - x ) > 1.1 ) ) out.spots.patioRail.push( { x, z: FZ - 4.2, y: PY } );
 
 	// -- the walkway behind the porch's top row, out to the patio (Landmarks' patio stopped 3 to 7 m short
 	// of the porch, open to the concourse below): a concrete slab at the patio's level, its rail at the ends
@@ -326,7 +331,8 @@ export function buildHarrys( place, F, H ) {
 	K.panel( Pk, ( DN.x0 + DN.x1 ) / 2, DN.y1 + 0.5, FZ - 0.04, 5.2, 1.3, 'hkFascia' );
 	K.panel( Pk, DN.x1 + 1.6, STREET + 1.9, FZ - 0.04, 1.8, 1.35, 'menuDown' );
 	K.panel( Pk, DN.x0 - 1.4, STREET + 1.8, FZ - 0.04, 1.6, 0.3, 'rules' );
-	for ( let k = 0; k < 4; k ++ ) out.tvs.push( { x: DN.x0 + 3.5 + k * ( DN.x1 - DN.x0 - 7 ) / 3, y: DN.y1 + 1.6, z: FZ - 0.25, w: 1.2, h: 0.68, face: - 1, tilt: 0.2 } );
+	// (the lower level's are the old tube sets on wall brackets, as in the photos)
+	for ( let k = 0; k < 4; k ++ ) out.tvs.push( { x: DN.x0 + 3.5 + k * ( DN.x1 - DN.x0 - 7 ) / 3, y: DN.y1 + 0.95, z: FZ - 0.45, w: 0.72, h: 0.54, face: - 1, crt: true } );
 	for ( let k = 0; k < 3; k ++ ) out.tvs.push( { x: DN.x0 + 4 + k * ( DN.x1 - DN.x0 - 8 ) / 2, y: STREET + 2.55, z: DR.z1 - 0.1, w: 1.0, h: 0.56, face: - 1 } );
 
 	// -- the dining room under the porch: tables out to a low rail along the back of the 140s, where a
@@ -343,6 +349,35 @@ export function buildHarrys( place, F, H ) {
 		if ( Math.abs( x - ( - 2 ) ) < 1.4 && z < FZ - 6 ) continue;
 		fourTop( K, Pk, x, z, STREET );
 		out.spots.tablesDn.push( { x, z, y: STREET, n: 4, low: true } );
+		// the table's number on a white tent card, the ketchup
+		K.use( 'white' ).box( Pk, x + 0.22, STREET + 0.8, z - 0.2, 0.1, 0.09, 0.03 );
+		K.use( 'ketchup' ).cyl( Pk, x - 0.2, z + 0.2, STREET + 0.76, STREET + 0.94, 0.03, 0.028, 6 );
+
+	}
+
+	// overhead (the NLCS 2009 photos of the lower level): the deck's maroon steel, beams and joists over the
+	// tables, black netting under it against the birds, dome pendants hung low on long cords over the tables
+	{
+
+		const yB = PY - 0.6, zs = [ FZ - 1.0, FZ - 4.0, FZ - 7.0, FZ - 10.0, FZ - 13.0 ];
+		for ( const z of zs ) {
+
+			const xa = X0 - 0.5, xb = X1 + 0.5;
+			if ( porchBack( xa ) > z && porchBack( xb ) > z ) continue;
+			K.use( 'maroon' ).bar( Pk( xa, yB, z ), Pk( xb, yB, z ), 0.45 );
+
+		}
+
+		for ( let x = X0; x <= X1 + 0.01; x += 3 ) K.use( 'maroon' ).bar( Pk( x, yB - 0.3, FZ - 0.4 ), Pk( x, yB - 0.3, Math.max( porchBack( x ) + 0.5, FZ - 14 ) ), 0.25 );
+		for ( const t of out.spots.tablesDn ) {
+
+			if ( ( t.x * 7 + t.z * 3 ) % 2 > 1.2 ) continue;
+			const top = yB - 0.45, hang = STREET + 2.9;
+			K.use( 'black' ).bar( Pk( t.x, top, t.z ), Pk( t.x, hang + 0.2, t.z ), 0.012 );
+			K.use( 'dome' ).cyl( Pk, t.x, t.z, hang, hang + 0.22, 0.28, 0.06, 12, { top: true } );
+			K.use( 'lamp' ).cyl( Pk, t.x, t.z, hang - 0.01, hang + 0.01, 0.2, 0.2, 10, { top: false, bottom: true } );
+
+		}
 
 	}
 
@@ -406,14 +441,28 @@ export function stool( K, P, x, z, y, h = 0.76 ) {
 
 }
 
-// a high-top: a black laminate top on an iron column, two stools
-export function hightop( K, P, x, z, y ) {
+// a high-top: a round top on an iron column, two stools (either side, or behind it facing the rail: along)
+export function hightop( K, P, x, z, y, { top = 'laminate', stool: st = null, along = false } = {} ) {
 
 	K.use( 'iron' ).cyl( P, x, z, y, y + 1.02, 0.04, 0.04, 6, { top: false } );
 	K.use( 'iron' ).cyl( P, x, z, y, y + 0.03, 0.28, 0.28, 10 );
-	K.use( 'laminate' ).cyl( P, x, z, y + 1.02, y + 1.06, 0.38, 0.38, 14, { bottom: true } );
-	stool( K, P, x - 0.55, z, y );
-	stool( K, P, x + 0.55, z, y );
+	K.use( top ).cyl( P, x, z, y + 1.02, y + 1.06, 0.38, 0.38, 14, { bottom: true } );
+	const at = along ? [ [ x - 0.35, z + 0.55 ], [ x + 0.35, z + 0.55 ] ] : [ [ x - 0.55, z ], [ x + 0.55, z ] ];
+	for ( const [ sx, sz ] of at ) {
+
+		if ( st === 'whiteStool' ) whiteStool( K, P, sx, sz, y );
+		else stool( K, P, sx, sz, y );
+
+	}
+
+}
+
+// a white molded bar stool with a low back (the patio's)
+export function whiteStool( K, P, x, z, y ) {
+
+	for ( const [ i, j ] of [ [ - 1, - 1 ], [ 1, - 1 ], [ 1, 1 ], [ - 1, 1 ] ] ) K.use( 'whiteStool' ).box( P, x + i * 0.15, y + 0.36, z + j * 0.15, 0.03, 0.72, 0.03 );
+	K.use( 'whiteStool' ).box( P, x, y + 0.74, z, 0.4, 0.05, 0.4 );
+	K.use( 'whiteStool' ).box( P, x, y + 0.9, z + 0.19, 0.4, 0.28, 0.03 );
 
 }
 
