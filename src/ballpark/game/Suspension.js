@@ -156,6 +156,32 @@ function pusher( d, c, st, axis, role, t ) {
 
 }
 
+// someone pulling the sheet's free edge across by its handle (Getty 83458149: walking with the strap
+// behind him, leaning into it), just ahead of the edge; on the 29th walking it back to the roll, the
+// folded edge carried in front of him. From his place behind the roll at the pull's start he steps
+// round it to the edge in the first moments.
+function puller( d, c, st, axis, role, t, t0 ) {
+
+	const e = sheetPoint( st.u, c.v ), fwd = st.dir > 0;
+	const off = fwd ? 0.9 : 0.6;
+	let p = [ e[ 0 ] + PULL_DIR[ 0 ] * off, e[ 1 ] + PULL_DIR[ 1 ] * off ];
+	const k = fwd ? ease( ( t - t0 ) / 1.6 ) : 1;
+	if ( k < 1 ) {
+
+		// from behind the roll (where the swing left him) round to the front
+		const f = rollAt( { ...st, phase: 'lift', lift: 1, dir: 1 }, axis, c.v ), back = f.r + 0.52;
+		const from = [ f.p[ 0 ] - f.dir[ 0 ] * back, f.p[ 1 ] - f.dir[ 1 ] * back ];
+		p = [ from[ 0 ] + ( p[ 0 ] - from[ 0 ] ) * k, from[ 1 ] + ( p[ 1 ] - from[ 1 ] ) * k ];
+
+	}
+
+	const walked = st.pull * SHEET.S;
+	const pose = st.speed > 0 ? ( fwd ? M.pullBehind( walked / 1.3 + c.seed ) : R.pushLiner( ( 1 - st.pull ) * SHEET.S / 2.1 + c.seed ) ) : R.tugEdge( t, c.seed );
+	const face = fwd ? PULL_DIR : [ - PULL_DIR[ 0 ], - PULL_DIR[ 1 ] ];
+	d.act( c.id, p[ 0 ], p[ 1 ], yawTo( p, [ p[ 0 ] + face[ 0 ], p[ 1 ] + face[ 1 ] ] ), pose, { who: c.who, role, y: moundY( p[ 0 ], p[ 1 ] ) } );
+
+}
+
 // the edge of the sheet each man takes after the pull: [ u, v, outward ] (the sheet's corners: u = 0 the
 // left field edge, u = 1 the first base line's; v = 0 the edge past second and first, v = 1 behind home
 // and past third)
@@ -199,7 +225,7 @@ function night27( d, seg, lt, st, axis ) {
 	if ( s.oldDefense ) d._runIn( s.oldDefense, s.batting, lt );
 	umpiresOff( d, lt );
 	pensIn( d, lt );
-	const T = { out: 1.5, lift: 7, pullEnd: 44, coreOff: 46, coreEnd: 53, leave: 60 };
+	const T = { out: 1.5, lift: 7, pull: 20, pullEnd: 44, leave: 60 };
 	for ( const [ i, c ] of CREW.entries() ) {
 
 		const role = c.hood ? ROLE.hood : 0;
@@ -231,44 +257,38 @@ function night27( d, seg, lt, st, axis ) {
 
 		}
 
-		// swinging it out and pushing it across
-		if ( lt < T.pullEnd + 0.5 ) {
+		// swinging it out off the wall onto the grass
+		if ( lt < T.pull ) {
 
 			pusher( d, c, st, axis, role, lt );
 			continue;
 
 		}
 
-		// the core crew roll the bare core on off the sheet
+		// three stay at the roll, turning it as the sheet feeds off (and stand by the core after); the
+		// rest take the free edge by its handles and pull it across, walking with them behind their backs
 		const ci = CORE_CREW.indexOf( i );
-		const endAt = rollAt( { ...st, phase: 'pull', u: 1, r: st.r }, axis, c.v );
-		const end = [ endAt.p[ 0 ] - PULL_DIR[ 0 ] * ( endAt.r + 0.52 ), endAt.p[ 1 ] - PULL_DIR[ 1 ] * ( endAt.r + 0.52 ) ];
 		if ( ci >= 0 ) {
 
-			const cc = { ...c, v: CORE_V[ ci ] };
-			if ( lt < T.coreOff ) {
-
-				const f = rollAt( st, axis, cc.v ), back = R_CORE + 0.5;
-				const to = [ f.p[ 0 ] - PULL_DIR[ 0 ] * back, f.p[ 1 ] - PULL_DIR[ 1 ] * back ];
-				const w = along( [ end, to ], T.pullEnd + 0.5, 1.5, lt );
-				d.act( c.id, w.p[ 0 ], w.p[ 1 ], w.done ? yawTo( to, [ to[ 0 ] + PULL_DIR[ 0 ], to[ 1 ] + PULL_DIR[ 1 ] ] ) : w.yaw, w.done ? R.pushRoll( 0, R_CORE * 2, c.seed ) : R.walk( w.dist / 2.3 ), who );
-
-			} else if ( lt < T.coreEnd + 1 ) {
-
-				pusher( d, cc, st, axis, role, lt );
-
-			} else {
-
-				// stood by it
-				const f = rollAt( st, axis, cc.v ), at = [ f.p[ 0 ] - PULL_DIR[ 0 ] * 1.1, f.p[ 1 ] - PULL_DIR[ 1 ] * 1.1 ];
-				if ( lt < T.leave + i * 0.4 ) d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ 0, - 20 ] ), R.waitAbout( lt, c.seed ), who );
-				else leave( d, c, at, T.leave + i * 0.4, lt, who );
-
-			}
-
+			const f = rollAt( st, axis, CORE_V[ ci ] ), back = f.r + 0.5;
+			const at = [ f.p[ 0 ] - PULL_DIR[ 0 ] * back, f.p[ 1 ] - PULL_DIR[ 1 ] * back ];
+			if ( lt < T.pullEnd ) d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ at[ 0 ] + PULL_DIR[ 0 ], at[ 1 ] + PULL_DIR[ 1 ] ] ), R.pushRoll( st.speed > 0 ? f.travelled / 6 + c.seed : 0, f.r * 2, c.seed ), who );
+			else if ( lt < T.leave + i * 0.4 ) d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ 0, - 20 ] ), R.waitAbout( lt, c.seed ), who );
+			else leave( d, c, at, T.leave + i * 0.4, lt, who );
 			continue;
 
 		}
+
+		if ( lt < T.pullEnd + 0.5 ) {
+
+			puller( d, c, st, axis, role, lt, T.pull );
+			continue;
+
+		}
+
+		// the others take the edges from where they finished (the first base line's edge)
+		const e1 = sheetPoint( 1, c.v );
+		const end = [ e1[ 0 ] + PULL_DIR[ 0 ] * 0.9, e1[ 1 ] + PULL_DIR[ 1 ] * 0.9 ];
 
 		// the others take the edges: a hustle across to their spot, a few steps back tugging it square,
 		// then stand by
@@ -383,24 +403,32 @@ function night29( d, seg, l2real, st, axis, dur ) {
 
 			if ( ci >= 0 ) {
 
-				// rolling the core back up to the sheet's edge (from past it)
-				pusher( d, { ...c, v: CORE_V[ ci ] }, st, axis, 0, l2 );
+				// at the roll, ready to wind it
+				const f = rollAt( st, axis, CORE_V[ ci ] ), back = f.r + 0.5;
+				const at = [ f.p[ 0 ] - PULL_DIR[ 0 ] * back, f.p[ 1 ] - PULL_DIR[ 1 ] * back ];
+				d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ at[ 0 ] + PULL_DIR[ 0 ], at[ 1 ] + PULL_DIR[ 1 ] ] ), R.waitAbout( l2, c.seed ), who );
 				continue;
 
 			}
 
-			// waiting on the far side of the edge, where they'll push from
-			const f = rollAt( { ...st, phase: 'pull', u: 1, r: R_CORE, dir: - 1 }, axis, c.v );
-			const at = [ f.p[ 0 ] + PULL_DIR[ 0 ] * ( 0.9 + c.seed * 0.6 ), f.p[ 1 ] + PULL_DIR[ 1 ] * ( 0.9 + c.seed * 0.6 ) ];
+			// waiting at the first base line's edge, where they'll take it up from
+			const e1 = sheetPoint( 1, c.v );
+			const at = [ e1[ 0 ] + PULL_DIR[ 0 ] * ( 0.6 + c.seed * 0.6 ), e1[ 1 ] + PULL_DIR[ 1 ] * ( 0.6 + c.seed * 0.6 ) ];
 			d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ at[ 0 ] - PULL_DIR[ 0 ], at[ 1 ] - PULL_DIR[ 1 ] ] ), R.waitAbout( l2, c.seed ), who );
 			continue;
 
 		}
 
-		// winding it back across
+		// walking the edge back to the roll, the three at the roll winding it
 		if ( l2 < T.stow ) {
 
-			pusher( d, c, st, axis, 0, l2 );
+			if ( ci >= 0 ) {
+
+				const f = rollAt( st, axis, CORE_V[ ci ] ), back = f.r + 0.5;
+				const at = [ f.p[ 0 ] - PULL_DIR[ 0 ] * back, f.p[ 1 ] - PULL_DIR[ 1 ] * back ];
+				d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ at[ 0 ] + PULL_DIR[ 0 ], at[ 1 ] + PULL_DIR[ 1 ] ] ), R.pushRoll( f.travelled / 6 + c.seed, f.r * 2, c.seed ), who );
+
+			} else puller( d, c, st, axis, 0, l2, 0 );
 			continue;
 
 		}

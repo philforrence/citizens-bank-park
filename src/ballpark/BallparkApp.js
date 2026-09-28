@@ -580,7 +580,8 @@ export class BallparkApp {
 		this.details?.setTarp( tarp.pull );
 		if ( this.details?.tarpRoll ) this.details.tarpRoll.visible = tarp.stowed;
 		const rollY = this.details?.tarpMat?.uniforms?.rollY;
-		if ( rollY ) rollY.value = tarp.r;
+		// (the part still to come off lies along the pulled edge, held up in the crew's hands)
+		if ( rollY ) rollY.value = tarp.edgeY / 0.6;
 		// ---- end R
 		// progress through the first night, 0 (first pitch) .. 1 (the suspension)
 		const firstNight = inning < 6 || ( inning === 6 && half === 'top' ) || !! N?.delay;

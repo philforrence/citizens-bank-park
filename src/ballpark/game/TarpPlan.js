@@ -4,15 +4,18 @@ import { FOUL_TERRITORY, MOUND_CENTER, MOUND_RADIUS, MOUND_HEIGHT } from '../lay
 // camera and any frame order agree). The crew (Suspension.js, on the players' rig), the roll's mesh
 // (places/rituals/Roll.js) and the sheet (Details2008.setTarp) all read this one plan.
 //
-// How it went on the 27th (Getty 83458220, 83458149, 83458226, 83458702; puffygreenjacket 2983592600):
-// the tarp is wound on a long black corrugated tube, stored under its canvas cover along the third base
-// side's wall toward the left field pole (W4's tube). The crew run out, swing the roll out from the wall
-// onto the left side of the infield so it lies along the sheet's left field edge (parallel to the first
-// base line), and push it, bent over it shoulder to shoulder, across the infield toward the first base
-// line; the sheet pays out behind it and the roll thins to the bare core. Then they take the edges by
-// their black strap handles and walk the sheet square, and roll the empty core off onto the grass. On
-// the 29th the same backwards: the core rolled back, the sheet wound up onto it from the first base
-// side, the roll swung back to the wall.
+// How it went on the 27th (Getty 83458220, 88457361, 83458679: the roll pushed by a line of the crew;
+// 83458149, 83458151, 83458226: the crew pulling the sheet by its black strap handles; 84081873,
+// 83458702: the bare core left on the grass beyond second): the tarp is wound on a long black
+// corrugated tube, stored under its canvas cover along the third base side's wall toward the left field
+// pole (W4's tube). The crew pull the cover off and push the roll off the wall and out onto the grass at
+// the outfield edge of the infield, where it lies along the sheet's left field edge; then they take the
+// free edge by its handles and pull the sheet off the roll across the infield toward the first base
+// line, walking with the handles behind them, the sheet flipping over white side up, the roll turning
+// where it lies as it feeds out and thinning to the bare core; they walk the edges square and the core
+// stays where it is. On the 29th the same backwards: the edge walked back to the roll, the roll wound
+// up and swung back to the wall. (The roll's exact path onto the grass isn't in the photographs: the
+// swing is a simplification.)
 //
 // The sheet (Details2008): a 44 m square turned with the diamond round (0, -26): corners behind home
 // plate (0, 5.1), past third (-31.1, -26), past second (0, -57.1) and past first (31.1, -26). Its u runs
@@ -23,8 +26,6 @@ export const SHEET = { c: [ 0, - 26 ], S: 44 };
 const r2 = Math.SQRT1_2;
 // the roll's radius: the whole tarp on it, and the bare core (83458149: about knee high)
 export const R_FULL = 0.55, R_CORE = 0.3;
-// how far the empty core is rolled on past the first base edge (m)
-const CORE_OFF = 4.5;
 
 // a point on the sheet
 export function sheetPoint( u, v ) {
@@ -127,22 +128,22 @@ function tubeAt( f ) {
 }
 
 // The times (s into the suspension's break; the 29th's from its start, the split)
-export const T27 = { out: 1.5, lift: [ 7, 20 ], pull: [ 20, 44 ], coreOff: [ 46, 53 ] };
+export const T27 = { out: 1.5, lift: [ 7, 20 ], pull: [ 20, 44 ] };
 // (the 29th: it came off in the afternoon, before the gates opened at 5:30: the park still empty)
-export const T29 = { coreBack: [ 1.5, 5 ], unpull: [ 5, 22 ], stow: [ 22, 27 ] };
+export const T29 = { unpull: [ 5, 22 ], stow: [ 22, 27 ] };
 
 // The tarp's state: phase ('stowed' | 'lift' | 'pull' | 'on'), pull (0..1 of the sheet laid out, for
-// Details2008.setTarp), lift (0..1 from the wall to the sheet's left field edge), u (where the roll's
-// axis is across the sheet), r (the roll's radius), speed (m/s the roll moves, for the crew's gait),
-// dir (+1 paying out toward first, -1 winding back), stowed (W4's tube on the wall is the tarp).
+// Details2008.setTarp), lift (0..1 from the wall to the sheet's left field edge), u (where the sheet's
+// pulled edge is across it: the crew's line), rollU (where the roll lies: the left field edge), r (the
+// roll's radius), edgeY (how high they hold the edge), speed (m/s the edge moves, for the crew's gait),
+// dir (+1 paying out toward first, -1 walking it back), stowed (W4's tube on the wall is the tarp).
 // `S`: director.night( t ) (its lt, dur and split).
 export function tarpState( N ) {
 
-	const st = { phase: 'stowed', pull: 0, lift: 0, u: 0, r: R_FULL, dir: 1, speed: 0, stowed: true, core: false, bare: 0 };
+	const st = { phase: 'stowed', pull: 0, lift: 0, u: 0, rollU: 0, r: R_FULL, edgeY: 0.05, dir: 1, speed: 0, stowed: true, core: false, bare: 0 };
 	if ( ! N || ! N.susp ) return st;
 	const lt = N.lt, s27 = N.split - N.t0;
 	const radius = ( k ) => Math.sqrt( R_CORE * R_CORE + ( 1 - k ) * ( R_FULL * R_FULL - R_CORE * R_CORE ) );
-	const coreU = 1 + CORE_OFF / SHEET.S;
 	if ( lt < s27 ) {
 
 		const T = T27;
@@ -166,16 +167,9 @@ export function tarpState( N ) {
 		st.bare = ease( ( kp - 0.93 ) / 0.07 );
 		st.phase = kp < 1 ? 'pull' : 'on';
 		st.speed = kp > 0 && kp < 1 ? SHEET.S / ( T.pull[ 1 ] - T.pull[ 0 ] ) : 0;
-		if ( kp >= 1 ) {
-
-			// the bare core rolled on off the sheet onto the grass
-			const kc = ease( ( lt - T.coreOff[ 0 ] ) / ( T.coreOff[ 1 ] - T.coreOff[ 0 ] ) );
-			st.u = 1 + ( coreU - 1 ) * kc;
-			st.core = true;
-			st.speed = kc > 0 && kc < 1 ? 1.2 : 0;
-
-		}
-
+		// the edge held up in their hands while they walk it across, then laid down
+		st.edgeY = kp < 1 ? 0.75 : 0.05;
+		st.core = kp >= 1;
 		return st;
 
 	}
@@ -187,14 +181,12 @@ export function tarpState( N ) {
 	st.dir = - 1;
 	if ( l2 < T.unpull[ 0 ] ) {
 
-		const kc = ease( ( l2 - T.coreBack[ 0 ] ) / ( T.coreBack[ 1 ] - T.coreBack[ 0 ] ) );
 		st.phase = 'on';
 		st.pull = 1;
-		st.u = coreU + ( 1 - coreU ) * kc;
+		st.u = 1;
 		st.r = R_CORE;
 		st.core = true;
 		st.bare = 1;
-		st.speed = kc > 0 && kc < 1 ? 1.0 : 0;
 		return st;
 
 	}
@@ -207,6 +199,7 @@ export function tarpState( N ) {
 		st.u = kp;
 		st.r = radius( kp );
 		st.bare = ease( ( kp - 0.93 ) / 0.07 );
+		st.edgeY = 0.75;
 		st.speed = SHEET.S / ( T.unpull[ 1 ] - T.unpull[ 0 ] );
 		return st;
 
@@ -248,7 +241,7 @@ export function rollAxis( st, n = 40, out = [] ) {
 
 		} else {
 
-			[ x, z ] = sheetPoint( st.u, v );
+			[ x, z ] = sheetPoint( st.rollU, v );
 
 		}
 
@@ -267,7 +260,8 @@ export function rollAxis( st, n = 40, out = [] ) {
 export function rollDistance( st ) {
 
 	if ( st.phase === 'lift' || st.phase === 'stowed' ) return st.lift * 30;
-	return 30 + st.u * SHEET.S;
+	// it turns where it lies as the sheet's pulled off it
+	return 30 + st.pull * SHEET.S;
 
 }
 
