@@ -78,7 +78,8 @@ export function buildPlan( director ) {
 			led.add( sn.batting );
 			add( at, 'pa', { key: ph ? `bat-${ id }-ph-${ ph.replaced }` : lead ? `lead-${ id }` : `bat-${ id }` } );
 			// the Phillies' batters walk up to their music (ducked under Baker's call); the Rays' to boos
-			if ( home ) add( at - 0.6, 'walkup', { id, until: ( n && n.kind === 'change' ? n.t0 + n.dur : t0 + WALKUP ) + 2.5 } );
+			// (the music comes up as he leaves the on-deck circle, a couple of seconds before Baker names him)
+			if ( home ) add( at - 1.8, 'walkup', { id, until: ( n && n.kind === 'change' ? n.t0 + n.dur : t0 + WALKUP ) + 2.5 } );
 			const star = STAR[ home ? 'home' : 'away' ].includes( who?.last );
 			if ( home ) add( at + 3.2, 'fans', { what: 'cheer', level: star ? 1.6 : 1 } );
 			else add( at + 3.0, 'fans', { what: 'boo', level: star ? 1 : 0.55 } );
