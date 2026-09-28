@@ -159,30 +159,32 @@ export function drawAtlas( ctx ) {
 
 	}
 
-	// ---- the arrows under it (the 2004 photo's words, the 2009 photo's board): dark green, a red disc with
-	// a white arrow at each end
+	// ---- the board under it (2006-09 photos: GRILLE with a down arrow, BAR with an arrow to the right; the
+	// 2004 one read LOWER LEVEL / UPPER LEVEL): dark green, a red disc with a white arrow at each end
 	{
 
 		const [ x, y, w, h ] = cell( 'hkDir' );
 		ctx.fillStyle = '#123524'; ctx.fillRect( x, y, w, h );
 		ctx.strokeStyle = '#c9c9c0'; ctx.lineWidth = 3; ctx.strokeRect( x + 3, y + 3, w - 6, h - 6 );
-		for ( const [ cx, dir ] of [ [ x + 44, - 1 ], [ x + w - 44, 1 ] ] ) {
+		for ( const [ cx, down ] of [ [ x + 44, true ], [ x + w - 44, false ] ] ) {
 
 			ctx.fillStyle = '#d0271d';
 			ctx.beginPath(); ctx.arc( cx, y + h / 2, 30, 0, Math.PI * 2 ); ctx.fill();
 			ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
 			ctx.fillStyle = '#ffffff';
-			ctx.beginPath();
-			ctx.moveTo( cx + dir * 16, y + h / 2 ); ctx.lineTo( cx - dir * 4, y + h / 2 - 14 ); ctx.lineTo( cx - dir * 4, y + h / 2 + 14 );
-			ctx.fill();
-			ctx.fillRect( cx - dir * 16 - ( dir > 0 ? 0 : 12 ), y + h / 2 - 4, 12, 8 );
+			ctx.save();
+			ctx.translate( cx, y + h / 2 );
+			if ( down ) ctx.rotate( Math.PI / 2 );
+			ctx.beginPath(); ctx.moveTo( 16, 0 ); ctx.lineTo( - 4, - 14 ); ctx.lineTo( - 4, 14 ); ctx.fill();
+			ctx.fillRect( - 16, - 4, 12, 8 );
+			ctx.restore();
 
 		}
 
 		ctx.fillStyle = '#f2ede1';
-		ctx.font = `800 32px ${ SANS }`;
-		ctx.fillText( 'LOWER  LEVEL', x + 180, y + h / 2 + 2 );
-		ctx.fillText( 'UPPER  LEVEL', x + w - 180, y + h / 2 + 2 );
+		ctx.font = `800 36px ${ SANS }`;
+		ctx.fillText( 'GRILLE', x + 170, y + h / 2 + 2 );
+		ctx.fillText( 'BAR', x + w - 170, y + h / 2 + 2 );
 		ctx.fillStyle = '#c9c9c0'; ctx.fillRect( x + w / 2 - 2, y + 12, 4, h - 24 );
 
 	}

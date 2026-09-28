@@ -119,8 +119,9 @@ Gate (the scouting counted 18 people), a brick wedge over Monty's Angle, sky whe
    local artist; the 2009 photos: big, bright, painterly): the fans and the skyline on a summer night, the booth's
    microphone ON AIR over the diamond, a kid reaching up with his glove. No one's likeness (`leftfield/Murals.js`).
 7. **The hanging sign** under the walkway, both faces: the long orange hexagon in a lime-green neon rim, the
-   microphone and its radio waves, HARRY THE K'S, BROADCAST BAR & GRILLE (Flickr 2009, lit at night), with the LOWER
-   LEVEL / UPPER LEVEL arrows under it (BaseballParks.com 2004: the words; 2009: the dark green board, red discs).
+   microphone and its radio waves, HARRY THE K'S, BROADCAST BAR & GRILLE (Flickr 2009, lit at night), with the
+   green board under it: GRILLE with a down arrow, BAR with an arrow to the right (2006-09 photos; in 2004 it read
+   LOWER LEVEL / UPPER LEVEL).
 8. **Section plates** over the aisles into 143-146 and on the porch's 242-244, and the SCOREBOARD PORCH, SECTIONS
    241-245 sign (the 2007-08 seating chart; the Porch Package page).
 9. **Harry's people** (`leftfield/People.js`: about 175 in Harry's, 30 more in the corner's plaza): bartenders working the taps along the bars,
@@ -201,6 +202,20 @@ lineup lit), `lf-from-home-night`). The profiles' jobs and results: `.claude/qa/
 spoiled by the machine's load), `final`). The Node benches: `.claude/qa/h/tools/` (`ab.mjs`: two trees side by side
 in turns, run from a worktree's `.claude/h/` with the base's `src` exported to `base/src`; `bench.mjs`; `stub.mjs`,
 P0's stand-in for the GPU).
+
+### Corrections from the research (its report came in after the build)
+
+- **"Monty's Angle"** is a 2024 name; in 2008 it was "The Angle". Nothing in the scene is lettered with it (the name
+  is only in code comments, including round 1's `layout.js`).
+- **The Delco boys on Carl Crawford are invention:** no source for left field heckling him was found. "EVA" at
+  Longoria is S's (the Inquirer's blog).
+- **The Gulf disc is unconfirmed:** a round disc sign hung under the porch's west end in March 2008, its brand
+  unreadable. The BUBBA burger panels were real (March 2008), but at the ramp's base behind 140/141.
+- **For whoever owns Details2008:** the wall's "JANUARY 1 2009" panel was MLB Network's launch ad (its shield), not
+  the NHL Winter Classic's, as two Oct 29 close-ups show.
+- Also from it: the Oct 29 gates opened at 5:30 pm; the Kalas statue is 2011 (not in 2008); there was no mock booth
+  at Harry's ("Broadcast Dream" was behind 125); the lower level's table stands were numbered (e.g. "153") and its
+  table tops printed with photos. The full report and 104 files are in `.claude/ref/leftfield/`.
 
 ### What I'd keep working on
 
