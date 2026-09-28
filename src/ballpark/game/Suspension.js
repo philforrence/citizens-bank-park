@@ -55,7 +55,10 @@ const ease = R.ease;
 export const GATE_3B = [ - 42.2, - 20.4 ], GATE_1B = [ 42.2, - 20.4 ];
 // where the umpires go off: the gap by the backstop's third base end
 const UMP_DOOR = [ - 8.6, 13.4 ];
-// the crew's looks: the rig's KIND.crew (red jackets, khakis, the red P cap) with their own faces
+// the crew's looks: the rig's KIND.crew (red jackets, khakis, the red P cap) with their own faces (three
+// named in CAST.md, their faces in Looks.js: crew 1 is Frank Tomaselli, 57, at the far end of the roll
+// and one of the six who stay out with it; crew 5 Ricky DeSantis, the intern, on a hose on the 29th; the
+// liner, his own man, Lucho Figueroa)
 const CREW = Array.from( { length: N_CREW }, ( _, i ) => ( { id: 'r:crew' + i, who: { side: 'crew', num: '', last: '' }, seed: hash( i * 3.1 + 0.7 ), v: 0.03 + 0.94 * i / ( N_CREW - 1 ) } ) );
 // most with the hood up on the 27th (the head groundskeeper's way: the cap)
 for ( const c of CREW ) c.hood = c.seed < 0.68;
