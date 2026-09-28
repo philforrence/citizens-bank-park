@@ -218,6 +218,61 @@ export class Fans {
 		set( this.clap, 0.9 * L.clap * ( hush < 1 ? 0.2 : 1 ) );
 		set( this.applause, 0.8 * L.applause );
 		this._near( dt, d, camera, L );
+		this._walla( d, now );
+
+	}
+
+	// the concourse's own crowd, talking (fans/walla-27, -29): only where there's a concourse round you, packed
+	// "six or seven deep" out of the rain on the 27th (the AP), keyed up and on the move on the 29th; a little
+	// of it outside by the gates
+	_walla( d, now ) {
+
+		const S = this.sound, w = this.space.w;
+		if ( ! this.walla ) {
+
+			if ( ! S.buffers[ 'fans-walla-27' ] || ! S.buffers[ 'fans-walla-29' ] ) return;
+			const out = S.ctx.createGain();
+			out.connect( S.master );
+			const send = S.ctx.createGain();
+			send.gain.value = 0.3;
+			out.connect( send ).connect( S.reverb );
+			this.walla = [ 27, 29 ].map( ( n ) => {
+
+				const src = S.ctx.createBufferSource(), g = S.ctx.createGain();
+				src.buffer = S.buffers[ 'fans-walla-' + n ];
+				src.loop = true;
+				g.gain.value = 0;
+				src.connect( g ).connect( out );
+				src.start( 0, Math.random() * src.buffer.duration );
+				return { g, v: 0 };
+
+			} );
+
+		}
+
+		const night2 = d.t >= ( this.app.soundscape?.plan?.night2 ?? Infinity );
+		const s = d.segmentAt( d.t ).snap || {};
+		const packed = night2 ? 1 : 0.8 + 0.5 * Math.min( 1, Math.max( 0, ( ( s.inning || 1 ) - 3 ) / 3 ) );
+		const here = 1.0 * w.roof + 0.8 * w.enclosed + 0.3 * w.outside + 0.04 * w.bowl;
+		const v = 0.55 * here * packed;
+		[ night2 ? 0 : v, night2 ? v : 0 ].forEach( ( x, i ) => {
+
+			const n = this.walla[ i ];
+			if ( Math.abs( n.v - x ) < 0.01 ) return;
+			n.v = x;
+			n.g.gain.setTargetAtTime( x, now, 0.8 );
+
+		} );
+
+	}
+
+	// the plate umpire's call, from behind home plate (heard close: the rail, the seats behind home)
+	ump( key ) {
+
+		const S = this.sound;
+		if ( ! S.buffers[ 'fans-' + key ] ) return;
+		const F = this.field, w = F.toWorld( 0, 0.9 );
+		S.spot( 'fans-' + key, this._v.set( w.x, F.y0 + 1.7, w.z ), { vol: 1.0, ref: 5, max: 90, rolloff: 1.6 } );
 
 	}
 

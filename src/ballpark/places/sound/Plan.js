@@ -12,6 +12,7 @@
 //     fans      { what, level }            the crowd: cheer, groan, ooh, boo, aww, rise, applause
 //     chant     { what, from, cycles }     a chant starting in a section (from: its angle round the bowl)
 //     hush      { dur }                    the breath the park holds before a big pitch
+//     ump       { key }                    the plate umpire's call (heard only close to home plate)
 //     tarp, night2, celebrate              the 27th's suspension, the 29th beginning, the last out
 //   plan.nights: the replay time the 29th begins (the resumption)
 
@@ -52,6 +53,7 @@ export function buildPlan( director ) {
 		if ( s.kind === 'intro' ) {
 
 			add( t0 + 0.8, 'pa', { key: 'welcome-27' } );
+			add( t0 + s.dur + 4, 'ump', { key: 'ump-playball' } );
 			add( t0 + 0.5, 'fans', { what: 'cheer', level: 2 } );
 
 		}
@@ -82,6 +84,7 @@ export function buildPlan( director ) {
 
 			const id = sn.pitcher, home = P[ id ]?.side === 'home';
 			add( t0 + 7, 'pa', { key: `pitch-${ id }` } );
+			add( t0 + 0.3, 'ump', { key: 'ump-time' } );
 			// the Phillies' relievers come in to their music (Lidge's the loudest), the Rays' to the organ
 			add( t0 + 0.8, home ? 'walkup' : 'music', home ? { id, until: t0 + CHANGE - 0.5 } : { tune: pick( [ 'bullpen', 'rock', 'camptown' ] ), until: t0 + CHANGE - 1, vol: 0.8 } );
 			add( t0 + 9.5, 'fans', home ? { what: 'cheer', level: P[ id ]?.last === 'Lidge' ? 2.2 : 1.2 } : { what: 'boo', level: 0.5 } );
@@ -108,6 +111,7 @@ export function buildPlan( director ) {
 				add( night2, 'night2' );
 				const back = night2 + Math.max( 1.5, L29 - 22 );
 				add( back, 'pa', { key: 'welcome-29' } );
+				add( t0 + s.dur + 4, 'ump', { key: 'ump-playball' } );
 				add( back + 9.5, 'fans', { what: 'cheer', level: 2.5 } );
 				add( back + 12, 'chant', { what: 'letsgo', from: pick( [ - 60, 40, 120 ] ), cycles: 3 } );
 				continue;
@@ -155,6 +159,9 @@ export function buildPlan( director ) {
 
 			}
 
+			// the plate umpire: the called strikes barked ("Stee-rike!"), the third one sold; a foul ball now and then
+			if ( e.call === 'C' ) add( tMitt + 0.22, 'ump', { key: k >= 3 ? 'ump-three' : rnd() < 0.5 ? 'ump-strike-1' : 'ump-strike-2' } );
+			else if ( s.foul && rnd() < 0.35 ) add( tRel + ( s.path?.flight ?? 0.42 ) + 0.6, 'ump', { key: 'ump-foul' } );
 			// a foul into the stands: ooh as it goes up
 			if ( s.foul && s.foulPath ) add( tRel + ( s.path?.flight ?? 0.42 ) + 0.35, 'fans', { what: 'ooh', level: 0.5 } );
 			// the hush before a big pitch: two strikes, two outs, the 9th

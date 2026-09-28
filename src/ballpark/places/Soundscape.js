@@ -189,6 +189,7 @@ export default class Soundscape {
 			case 'fans': this.fans.react( e.what, e.level ); break;
 			case 'chant': this.fans.chant( e.what, e.from, e.cycles ); break;
 			case 'hush': this.fans.hush( e.dur ); break;
+			case 'ump': this.fans.ump( e.key ); break;
 			case 'tarp': this.weather.tarp(); break;
 			case 'night2': this.fans.welcome(); break;
 			case 'celebrate': this.fans.celebrate(); this.weather.celebrate(); break;

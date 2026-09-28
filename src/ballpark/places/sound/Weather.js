@@ -13,7 +13,9 @@ import { rng } from './dsp.js';
 //     poles.
 //   Your footsteps (Walker.js asks for them): concrete, wet on the 27th (a splash in it out in the
 //     rain), dry and gritty on the 29th.
-//   The last out, heard from outside: the car horns starting up round the lots.
+//   The last out, heard from outside: the car horns starting up round the lots; and, over the roar, the
+//     neighborhoods' fireworks going up over South Philadelphia (the Daily News: 'fireworks exploded over
+//     South Philadelphia' at 9:58; whose, it doesn't say: here they're far off, over the rowhouses)
 //
 // Everything's made from noise and a few resonances (Recipes.js, in the worker: 24 kHz, loops of a few
 // seconds), each the first time it's wanted.
@@ -239,6 +241,25 @@ export class Weather {
 			S.buffers[ 'wx-horn-' + k ] = h;
 
 		} ) );
+		this._need( 'booms', ( b ) => b.forEach( ( h, k ) => {
+
+			S.buffers[ 'wx-boom-' + k ] = h;
+
+		} ) );
+		// over the rowhouses to the north and west, a firework every few seconds for the first couple of minutes
+		for ( let k = 0; k < 18; k ++ ) {
+
+			setTimeout( () => {
+
+				if ( ! S.buffers[ 'wx-boom-0' ] ) return;
+				const ang = Math.PI * ( 0.55 + 0.7 * Math.random() ), r = 700 + Math.random() * 900;
+				const at = this._world( Math.cos( ang ) * r, 60 + Math.random() * 80, - Math.abs( Math.sin( ang ) ) * r );
+				S.spot( 'wx-boom-' + ( k % 3 ), at, { vol: 1.6, ref: 250, max: 3000, rolloff: 1, rate: 0.9 + Math.random() * 0.2 } );
+
+			}, ( 2 + k * 6 + Math.random() * 5 ) * 1000 );
+
+		}
+
 		// round the lots and down Pattison and Broad: horns starting up over the next minute and a half
 		for ( let k = 0; k < 26; k ++ ) {
 

@@ -333,6 +333,39 @@ export function carHorn( sr, k ) {
 
 }
 
+// a firework far off over the rowhouses: the thump (the air it moves), its echo off the buildings, and the
+// crackle after it
+export function boom( sr, k ) {
+
+	const n = Math.floor( 3.2 * sr ), r = rng( 91 + k ), x = new Float32Array( n );
+	let ph = 0;
+	for ( let i = 0; i < n; i ++ ) {
+
+		const t = i / sr;
+		ph += ( 38 + 50 * Math.exp( - t * 12 ) ) / sr;
+		const thump = Math.sin( 2 * Math.PI * ph ) * Math.exp( - t * 5 ) * Math.min( 1, t / 0.006 );
+		const echo = t > 0.35 ? Math.sin( 2 * Math.PI * 45 * ( t - 0.35 ) ) * 0.35 * Math.exp( - ( t - 0.35 ) * 4 ) : 0;
+		const rumble = r() * 0.25 * Math.exp( - t * 2.2 );
+		x[ i ] = thump + echo + rumble;
+
+	}
+
+	biquad( x, sr, 'lp', 420, 0.7 );
+	// the crackle: a scatter of little pops a moment later
+	const c = new Float32Array( n );
+	for ( let j = 0; j < 70 + k * 20; j ++ ) {
+
+		const at = Math.floor( ( 0.7 + 1.6 * ( r() * 0.5 + 0.5 ) ) * sr ), a = 0.2 + 0.4 * ( r() * 0.5 + 0.5 );
+		for ( let i = 0; i < 120 && at + i < n; i ++ ) c[ at + i ] += r() * a * Math.exp( - i / 25 );
+
+	}
+
+	biquad( c, sr, 'bp', 2200, 0.8 );
+	for ( let i = 0; i < n; i ++ ) x[ i ] += c[ i ] * ( k === 1 ? 0.6 : 0.25 );
+	return fadeEnds( normalize( x, 0.85 ), sr, 0.001, 0.3 );
+
+}
+
 // ---------------------------------------------------------------- the jobs (Synth.make( name, sr ))
 
 // each returns a list of buffers, each a list of channels
@@ -355,4 +388,5 @@ export const JOBS = {
 	flags: ( sr ) => [ mono( flutter( sr ) ), mono( halyard( sr ) ) ],
 	steps: ( sr ) => [ false, true ].flatMap( ( wet ) => [ 0, 1, 2, 3 ].map( ( k ) => mono( step( sr, k, wet ) ) ) ),
 	horns: ( sr ) => [ 0, 1, 2 ].map( ( k ) => mono( carHorn( sr, k ) ) ),
+	booms: ( sr ) => [ 0, 1, 2 ].map( ( k ) => mono( boom( sr, k ) ) ),
 };
