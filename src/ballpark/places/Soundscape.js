@@ -88,6 +88,10 @@ export default class Soundscape {
 
 		this.moments.push( { t, fn } );
 		this.moments.sort( ( a, b ) => a.t - b.t );
+		// the pointer: past what's already happened (a moment added for the past never fires)
+		const now = this.lastT ?? - Infinity;
+		this.mi = this.moments.findIndex( ( m ) => m.t > now );
+		if ( this.mi < 0 ) this.mi = this.moments.length;
 
 	}
 
