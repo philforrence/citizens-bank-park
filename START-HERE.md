@@ -1,22 +1,15 @@
 # 🛑 START HERE: where we are
 
-**Sunday 2026-09-27, evening: little-worlds wave 3 is running** (the owner said "go"). Branch `ballpark`.
+**Sunday 2026-09-27, night: little-worlds wave 3 is merged** (wound down early: the owner was low on compute). Branch `ballpark`.
 
-- **Waves 1 and 2 are merged:** seven places, one people system, the Phanatic. See [WAVE1.md](docs/notes/worlds/WAVE1.md) and [WAVE2.md](docs/notes/worlds/WAVE2.md).
-- **Stage 7 is live** at https://philforrence.github.io/citizens-bank-park/
-- **Wave 3,** enriching the park as a whole:
-  - **S:** the soundscape;
-  - **R:** the rituals and the celebration;
-  - **L:** light and night;
-  - **H:** a people-CPU tune-up, then Harry the K's and the left field corner.
-
-  They share `.claude/wave3/` (local). Their branches are `worktree-agent-*`.
-- **When they're all done: merge everything** (keep every entry in `places/index.js`). Then:
-  1. load it clean, and profile it under exclusive;
-  2. commit `.claude/wave3/CAST.md` as `docs/notes/worlds/CAST.md`;
-  3. write `WAVE3.md`;
-  4. show the owner.
-- **If the machine slept and the builders stalled:** resume each with a message; its commits are safe on its branch.
+- **Waves 1–3 are merged:** ten places, one people system, the Phanatic, the park's soundscape, the night's rituals and celebration, light and night, and Harry the K's.
+  - The combined park loads clean in about 13 s and plays through the trophy.
+  - The summaries are [WAVE1.md](docs/notes/worlds/WAVE1.md), [WAVE2.md](docs/notes/worlds/WAVE2.md) and [WAVE3.md](docs/notes/worlds/WAVE3.md). WAVE3.md has what each builder would do next.
+- **The site** still shows stage 7. To publish this as stage 8, see "Hosted" below.
+- **Next, when there's compute:**
+  - listen to the soundscape and trim it;
+  - the loose ends in WAVE3.md;
+  - then the rest of the scouted places: the right field corner and the Pavilion, the upper deck, the club and suites, photographic surfaces.
 
 **Hosted (2026-09-27):**
 - **The repo:** https://github.com/philforrence/citizens-bank-park, public, default branch `ballpark`. `main` isn't pushed: it still has Tidewater's own deploy workflow.

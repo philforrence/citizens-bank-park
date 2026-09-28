@@ -51,6 +51,8 @@ The shared space for inspiring each other is `.claude/wave2/` (local, absolute p
 
 The shared space is `.claude/wave3/`.
 
+**Status:** wound down early for compute and merged (2026-09-27); the summary is in [WAVE3.md](WAVE3.md).
+
 ## Candidates for the next waves
 
 - **Harry the K's and the left field corner:**

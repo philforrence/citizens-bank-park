@@ -76,3 +76,21 @@ Check here before naming anyone, then add your people. Keep one line each: **nam
 - **Dwayne Mitchell,** 27, Mount Airy, promotions staff, rides beside him (light blue, navy cap) (A).
 - **Chris Dunleavy,** 29, Fishtown, holding up his son **Aidan Dunleavy,** 2, in the little Phanatic costume (ROLLINS 11, the red cap), snout to snout with the Phanatic by the painted World Series logo on the 1B side after the bottom of the 7th on the 29th (from Getty 83838048; the names invented) (A).
 - **Frank Bianchi,** 44, Delran NJ, taking a picture of his daughter **Sophia Bianchi,** 6, sitting on the Phanatic's parked four-wheeler on the 1B concourse behind 111 (A).
+
+## Wave 3 (add yours below)
+
+**H: Harry the K's and the left field corner** (`leftfield`)
+- **Vinnie DiNardo,** 54, Girard Estates, head bartender of Harry the K's lower level since the park opened in 2004 (18 years behind a Two Street club's bar before that) (H).
+- **Kitty Moran,** 44, Mayfair, the upstairs bartender at Harry's; knows the regulars by name and by drink (H).
+- **Lou Sabatini,** 71, Wissinoming, retired from the Frankford Arsenal: the end stool at Harry's upstairs bar under the Kalas plaque, in a KALAS tee and a tweed cap, his transistor radio at his ear for Harry on 1210 (H).
+- **The Delco boys** at Harry's patio rail over left field, on Carl Crawford in the bottom halves and chanting "EVA" at Longoria: **Brendan Quinn,** 27, Havertown (UTLEY); **Matt "Tank" Tancredi,** 28, Drexel Hill (WERTH); **Shane McGrath,** 26, Upper Darby (Flyers jacket) (H).
+- **Nina Castellano,** 29, Northern Liberties, and **Derek Hsu,** 30, a resident at Penn: a first date at a window high-top upstairs at Harry's; she's in his fleece on the 29th (H).
+- **The Pagliaros** from Folcroft at a four-top in Harry's lower level, their first World Series: **Vince,** 45, a Local 98 electrician; **Carla,** 43; **Anthony,** 12 (glove on all night); **Lucia,** 8 (H).
+- **Marcy Delgado,** 34, from Brandon, Florida, a Rays fan in Crawford's road grey, and **Jake Moretti,** 35, Collingswood NJ (HOWARD shirt): at the counter over the 140s (H).
+- **Gloria Santangelo,** 63, Prospect Park, Harry's host ("right this way, hon"); servers **Angela Ricci,** 31, South Philly (downstairs), and **Marcus Bell,** 23, a Temple junior (upstairs) (H).
+
+**R: the rituals and the celebration** (`rituals`; the crew are the players' rig, the rest Cast)
+- **Lucho Figueroa,** 34, Kensington, grounds crew: the chalk liner man; on the 29th he's out alone from the gap by the backstop with the liner once the tarp's off the plate, the boxes and the third base line fresh for the resumption, and stands with his cap on his heart for the song (R).
+- **Frank Tomaselli,** 57, Havertown, grounds crew since the Vet's last years: he takes the far end of the roll (the end that swings across the whole of left field) on the 27th, and is one of the six who stay out with the tarp in the rain after the rest go in (R).
+- **Ricky DeSantis,** 22, a Temple senior interning with the crew, his first October: on the hose on the clay behind second on the 29th (R).
+- Real people, as they were: Bud Selig, David Montgomery, Bill Giles, Pat Gillick, Charlie Manuel and his coaches, Jim Hickey (the Rays' pitching coach), FOX's Jeanne Zelasko and Chris Myers, Harry Kalas, Jamie Moyer, PO1 Dorcus Whigham (US Navy; God Bless America on the 29th). The photographers, the FOX crews and the motor officers are unnamed (R).
