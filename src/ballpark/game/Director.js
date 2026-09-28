@@ -6,7 +6,7 @@ import { ROLE, DIRT } from './Players.js';
 // ---- R (rituals)
 import { showSuspension } from './Suspension.js';
 import { showCelebration } from './Celebration.js';
-import { showWarmups } from './Breaks.js';
+import { showWarmups, showDrying } from './Breaks.js';
 // ---- end R
 
 // The replay. The whole game is laid out in advance as a timeline of segments (teams taking the field,
@@ -894,8 +894,10 @@ export class Director {
 		if ( s.oldDefense ) this._runIn( s.oldDefense, s.batting, lt );
 		this._runOut( s.defense, s.fielding, lt, 4 );
 		this._onDeck( { ...s, onDeck: s.batter }, lt );
-		// ---- R (rituals): once they're out, the warm-up throws (game/Breaks.js)
+		// ---- R (rituals): once they're out, the warm-up throws (game/Breaks.js); the drying agent on the
+		// mound in the middle of the 5th on the 27th
 		showWarmups( this, seg, lt, 4 );
+		showDrying( this, seg, lt );
 		// ---- end R
 
 	}

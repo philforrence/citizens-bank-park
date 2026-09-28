@@ -71,10 +71,12 @@ export function showWarmups( d, seg, lt, delay = 4 ) {
 	}
 
 	// ---- the pitcher's warm-ups: a toss every 3.4 s once he's on the mound and the catcher's down
-	const tP = Math.max( arr( 'P' ), arr( 'C' ) ) + 1.2;
-	if ( lt > tP && lt < end ) {
+	// (in the middle of the 5th on the 27th, once the crew are off the mound: showDrying)
+	const tP = Math.max( arr( 'P' ), arr( 'C' ) ) + 1.2, tDry = s.inning === 5 && s.half === 'bottom' ? 16 : 0;
+	const tPw = Math.max( tP, tDry );
+	if ( lt > tPw && lt < end ) {
 
-		const n = Math.floor( ( lt - tP ) / 3.4 ), u = ( lt - tP ) - n * 3.4;
+		const n = Math.floor( ( lt - tPw ) / 3.4 ), u = ( lt - tPw ) - n * 3.4;
 		const rel = 0.2 + M.REL;
 		const pose = u < 1.5 ? M.delivery( u * 0.9 + 0.2 ) : M.stand( lt );
 		const id = def.P;
@@ -113,6 +115,63 @@ export function showWarmups( d, seg, lt, delay = 4 ) {
 		const B = u > 1.4 && u < 1.9 ? M.catchHigh( u ) : u > 2.2 && u < 2.8 ? M.throwBall( ( u - 2.2 ) * 0.9 + 0.1 ) : M.stand( lt );
 		if ( k === 0 || ! ( u > 1.4 && u < 2.8 ) ) act( a, A, at( b ) );
 		act( b, B, at( a ) );
+
+	} );
+
+}
+
+// ---- the drying agent in the middle of the 5th on the 27th (AP: "The grounds crew pours a drying agent
+// on the mound ... in the middle of the fifth inning"; Getty 83458171: white bags, DIAMOND PRO CALCINED
+// CLAY on a royal-blue panel; AP 4551242, Getty 112874262): four of the crew in their red hooded rain
+// jackets run out from the gate by the tube, two shake the stuff over the mound and the landing spots,
+// one rakes it in, one works the batter's boxes; off before the warm-up tosses
+
+const DRY_CREW = [
+	{ id: 'r:crew2', at: [ - 0.6, - 17.2 ], act: 'spread', face: [ 0, - 30 ] },
+	{ id: 'r:crew5', at: [ 0.8, - 17.6 ], act: 'spread', face: [ 0, 0 ] },
+	{ id: 'r:crew8', at: [ 0.2, - 19.6 ], act: 'rake', face: [ 0, 0 ] },
+	{ id: 'r:crew11', at: [ - 1.3, 0.4 ], act: 'rake', face: [ 1, - 2 ] },
+];
+const DRY_GATE = [ - 42.2, - 20.4 ];
+
+export function showDrying( d, seg, lt ) {
+
+	const s = seg.snap;
+	if ( ! s || s.inning !== 5 || s.half !== 'bottom' ) return;
+	const RAKE = 1024, HOOD = 2048;
+	DRY_CREW.forEach( ( c, i ) => {
+
+		const out = 1.2 + i * 0.4, speed = 5.5;
+		const L = dist( DRY_GATE, c.at ), tA = out + L / speed, tBack = 14 + i * 0.5;
+		if ( lt < out ) return;
+		const who = { who: { side: 'crew', num: '', last: '' }, role: HOOD | ( c.act === 'rake' ? RAKE : 0 ), y: 0 };
+		let x, z, yaw, pose;
+		if ( lt < tA ) {
+
+			const k = ( lt - out ) * speed / L;
+			[ x, z ] = [ DRY_GATE[ 0 ] + ( c.at[ 0 ] - DRY_GATE[ 0 ] ) * k, DRY_GATE[ 1 ] + ( c.at[ 1 ] - DRY_GATE[ 1 ] ) * k ];
+			yaw = yawTo( DRY_GATE, c.at );
+			pose = M.run( ( lt - out ) * speed / 3.2, 0.4 );
+
+		} else if ( lt < tBack ) {
+
+			[ x, z ] = c.at;
+			yaw = yawTo( c.at, c.face );
+			pose = c.act === 'spread' ? M.spread( lt + i ) : M.rake( lt + i );
+
+		} else {
+
+			const k = ( lt - tBack ) * speed / L;
+			if ( k >= 1 ) return;
+			[ x, z ] = [ c.at[ 0 ] + ( DRY_GATE[ 0 ] - c.at[ 0 ] ) * k, c.at[ 1 ] + ( DRY_GATE[ 1 ] - c.at[ 1 ] ) * k ];
+			yaw = yawTo( c.at, DRY_GATE );
+			pose = M.run( ( lt - tBack ) * speed / 3.2, 0.4 );
+
+		}
+
+		pose.glove = false;
+		const mh = Math.max( 0, 0.254 * ( 1 - Math.hypot( x, z + 18.0 ) / 2.74 ) );
+		d.act( c.id, x, z, yaw, pose, { ...who, y: mh } );
 
 	} );
 

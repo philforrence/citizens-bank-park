@@ -11,6 +11,7 @@ import { FireworksSound } from './rituals/FireworksSound.js';
 import { Stage } from './rituals/Stage.js';
 import { Party } from './rituals/Party.js';
 import { Flag } from './rituals/Flag.js';
+import { Song } from './rituals/Song.js';
 
 // The night's rituals and the celebration, on the replay's timeline. The people on the field (the
 // grounds crew, the umpires, the players, the coaches) are the players' rig, posed by the Director from
@@ -30,6 +31,8 @@ import { Flag } from './rituals/Flag.js';
 //   rituals/Party.js     Selig, Montgomery, Giles, Gillick, FOX's Zelasko and Myers on the stage; Harry
 //                        Kalas singing "High Hopes" in front of the first base stands
 //   rituals/Flag.js      the red flag on the lap, Moyer's pitching rubber and the hole it left
+//   rituals/Song.js      God Bless America before the resumption (the park on its feet), and the
+//                        seventh-inning stretch
 //
 // Everything is a function of director.t (director.night() for which night it is), so scrubbing agrees.
 export default class Rituals {
@@ -49,6 +52,7 @@ export default class Rituals {
 		this.stage = new Stage( this.group );
 		this.party = new Party( { group: this.group } );
 		this.flag = new Flag( this.group );
+		this.song = new Song( { group: this.group, bowl } );
 		this._lastT = null;
 		// the lap's lead bike: the one parked nearest the lap's route, and how far along the route it is
 		const i = MOTORS.length - 1, park = trackPoint( MOTORS[ i ].deg, 2.6 );
@@ -75,6 +79,9 @@ export default class Rituals {
 		this.seats.update( N, ANNOUNCE, dt, jumped );
 		const seg = director.segmentAt( t );
 		const cel = seg.kind === 'celebrate' ? t - seg.t0 : null;
+		// God Bless America; the seventh-inning stretch (the break in the middle of the 7th, its first 22 s)
+		const stretch = seg.kind === 'switch' && seg.snap.inning === 7 && seg.snap.half === 'bottom' && t - seg.t0 < 22 ? t - seg.t0 : null;
+		this.song.update( N, stretch );
 		// the presentation's party (and whether one of them has the trophy), then the stage and the trophy
 		const held = this.party.update( cel );
 		this.stage.update( cel, cel != null ? ( trophyHold( director, cel ) || held ) : null );
