@@ -61,9 +61,14 @@ export class Space {
 			tone.type = 'lowpass';
 			tone.frequency.value = 18000;
 			tone.Q.value = 0.5;
-			input.connect( tone ).connect( out ).connect( S.master );
+			// the field's sounds (the bat, the mitt) come from home plate: late by the time sound takes to reach
+			// you (a third of a second from the upper deck in left: you see the swing, then hear it)
+			const delay = name === 'field' ? ctx.createDelay( 1 ) : null;
+			if ( delay ) input.connect( delay ).connect( tone );
+			else input.connect( tone );
+			tone.connect( out ).connect( S.master );
 			S.buses[ name ] = input;
-			this.buses[ name ] = { input, tone, out };
+			this.buses[ name ] = { input, tone, out, delay };
 
 		}
 
@@ -161,7 +166,10 @@ export class Space {
 		// the bowl heard from here: its level and brightness
 		const outTone = 900 - 450 * w.depth, outGain = 0.42 - 0.26 * w.depth;
 		const crowd = { gain: mix( { bowl: 1 - 0.15 * w.high, roof: 0.72, enclosed: 0.32, outside: outGain } ), tone: mix( { bowl: 18000, roof: 6000, enclosed: 1100, outside: outTone } ) };
-		const fieldB = { gain: mix( { bowl: 1 - 0.3 * w.high, roof: 0.62, enclosed: 0.22, outside: outGain * 0.45 } ), tone: mix( { bowl: 18000, roof: 5000, enclosed: 900, outside: outTone * 0.8 } ) };
+		// the field: from home plate, by distance (the air dulls it, the far seats hear it softer)
+		const home = Math.hypot( this.at.x, this.at.z, this.at.y ), far = Math.min( 1, home / 160 );
+		const fieldB = { gain: mix( { bowl: 1.15 - 0.55 * far, roof: 0.62, enclosed: 0.22, outside: outGain * 0.45 } ), tone: Math.min( 18000 * Math.exp( - home / 150 ), mix( { bowl: 18000, roof: 5000, enclosed: 900, outside: outTone * 0.8 } ) ) };
+		set( this.buses.field.delay.delayTime, Math.min( 0.9, home / 343 ) );
 		// the weather's own layers are chosen by Weather.js from the zone; this just darkens them inside
 		const weather = { gain: 1, tone: mix( { bowl: 18000, roof: 12000, enclosed: 2500, outside: 16000 } ) };
 		for ( const [ name, v ] of [ [ 'crowd', crowd ], [ 'field', fieldB ], [ 'weather', weather ] ] ) {
