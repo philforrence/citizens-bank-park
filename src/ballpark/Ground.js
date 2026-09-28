@@ -81,7 +81,11 @@ ${ grid ? /* wgsl */`
 		// each street its own: an avenue brighter, a side street dimmer, one with its lamps out
 		let sA = hash21( vec2f( floor( g.x / 64.0 + 0.5 ), 3.7 ) );
 		let sB = hash21( vec2f( 8.1, floor( g.y / 48.0 + 0.5 ) ) );
-		let k = ax * ay * mix( 0.25, 1.5, sA * sA ) + bx * by * mix( 0.25, 1.5, sB * sB );
+		// (seen low, the streets running away from you are mostly hidden by the rows of houses between: the
+		// cross streets' rows of lamps carry far; without that the flat ground drew a sunburst of lines)
+		let hideA = mix( 1.0, 0.12, smoothstep( 8.0, 50.0, fy / max( fx, 0.5 ) ) );
+		let hideB = mix( 1.0, 0.12, smoothstep( 8.0, 50.0, fx / max( fy, 0.5 ) ) );
+		let k = ax * ay * mix( 0.25, 1.5, sA * sA ) * hideA + bx * by * mix( 0.25, 1.5, sB * sB ) * hideB;
 		// here and there a block with its lamps out, a dark park, the rail yards
 		let dark = smoothstep( 0.25, 0.55, mx_noise_float2( xz * 0.0021 + vec2f( 11.3, 2.9 ) ) );
 		s.emissive = vec3f( 1.0, 0.55, 0.2 ) * k * 3.0 * far * ( 1.0 - 0.85 * dark ) * smoothstep( 0.1, 0.6, frame.night );

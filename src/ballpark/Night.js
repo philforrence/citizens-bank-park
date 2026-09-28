@@ -190,7 +190,8 @@ fn nightKeyFootprint( P: vec3f ) -> f32 {
 	let q = vec2f( dot( d, ax ), dot( d, vec2f( - ax.y, ax.x ) ) ) / vec2f( 75.0, 70.0 );
 	let e = length( q );
 	let bowl = mix( 1.0, nightKey.stands, smoothstep( 1.0, 1.4, e ) );
-	let k = mix( bowl, nightKey.outside, smoothstep( 1.8, 2.25, e ) );
+	// and further out (the lots, the blocks round the complex, the Holiday Inn) hardly at all
+	let k = mix( mix( bowl, nightKey.outside, smoothstep( 1.8, 2.25, e ) ), 0.04, smoothstep( 2.6, 5.0, e ) );
 	return mix( 1.0, k, nightKey.on );
 }
 `,
@@ -319,6 +320,10 @@ export class Night {
 		NIGHT_AIR.on.value = this.off ? 0 : lights;
 		// the key is the stadium's once the sun is down (the same switch as updateSun)
 		NIGHT_KEY.on.value = a.atmosphere && a.atmosphere.sunDir.value.y <= - 0.07 ? 1 : 0;
+		// no moon either night: it was new on October 28, 2008, and set with the sun (ref/night INDEX). The
+		// sky's moonlit blue-grey and the moon's aureole came into every wet reflection as a blue sheen;
+		// put it under the horizon (updateSun sets it each frame, before this)
+		if ( a.sky && ! this.moon ) a.sky.moonDir.value.set( 0, - 0.6, - 0.8 );
 		// and then the haze's sun shafts (marched through the shadow maps along the key light) would be
 		// shafts of a sun that isn't there: they're off after dark, and the march carries the banks' light
 		// instead (it costs the same half-resolution pass). The panel's value comes back with the sun

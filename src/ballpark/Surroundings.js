@@ -299,10 +299,10 @@ export class Surroundings {
 		s.albedo = mix( s.albedo, vec3f( 0.05, 0.06, 0.07 ), w * 0.85 );
 		s.roughness = mix( s.roughness, 0.2, w );
 		let h = hash21( vec2f( rm + in.N.x * 37.0 + in.N.z * 91.0, fl ) );
-		let lit = step( 0.78, h );
+		let lit = step( 0.86, h );
 		let tv = step( 0.93, h ) * ( 0.6 + 0.4 * sin( frame.time * 7.0 + h * 40.0 ) * sin( frame.time * 3.1 + h * 17.0 ) );
 		let c = select( vec3f( 1.0, 0.72, 0.42 ), vec3f( 0.45, 0.6, 1.0 ) * tv, h > 0.93 );
-		s.emissive = c * mix( lit * win, 0.22 * 0.5, smoothstep( 0.3, 1.0, fw ) ) * 1.0 * smoothstep( 0.1, 0.6, frame.night );
+		s.emissive = c * mix( lit * win, 0.14 * 0.5, smoothstep( 0.3, 1.0, fw ) ) * 0.8 * smoothstep( 0.1, 0.6, frame.night );
 	}
 `,
 		} );
