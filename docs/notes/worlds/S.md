@@ -142,3 +142,67 @@ source; **I** = inferred; **invented** = where the record is silent.
 - **The park** (C): the Liberty Bell sways and rings after home runs and wins, "its ring can be heard throughout the
   park"; Baker's booth on the Hall of Fame Club level. The PA's speakers: the roof truss's cabinets as Bowl.js models
   them, and the scoreboard's (I).
+
+## People
+
+No one is named. The voices are anonymous on purpose: the fans near you are whoever sits round you, the crowd's
+voices are stacked strangers (no CAST.md entries). The real people are Dan Baker (his words and form; the voice is a
+CC0 TTS voice, not his, and the credits say so), the players by name and number, and Navy Petty Officer Dorcus Whigham,
+named in the PA's introduction as the Inquirer reported.
+
+## Measured (the render desk, `sound/Meter.js`)
+
+- **Cost:** 0.013 ms a frame in the browser (300 updates timed in the page), 9.5 ms once when the audio starts;
+  the synthesized sounds are made in a worker; nothing is drawn. **Draws and triangles: unchanged** (the place's
+  group is empty): 59 draws, 1,993,233 triangles, 69 pipelines in `only=sound,field,players`, with or without it.
+- **Levels** (dB RMS, the master, seats behind home): the murmur -31; Utley's walk-up at -11 before the trims
+  (the band has since come down 10 dB); Baker -12 to -22 over it; two strikes, two outs in the 9th -16 to -20;
+  **the hush before the last pitch -27 to -30; the last out -13**; the stretch's singing with the organ -13.
+  Peaks now under -1.7 dBFS (the stretch had clipped at +0.2 before the limiter was tightened).
+- **Zones** (the cover map read in a full scope): the open seats "bowl"; the club and terrace concourses "roof";
+  the dugouts "roof"; the plaza and the lots "outside". The main concourse now reads "roof" from its level (the map
+  keeps the top of what's overhead, the upper roof); this last fix wasn't re-measured (the wind-down).
+- **Screenshots:** the desk's shots are only the scoped scenes the meters ran in (nothing of mine is visible):
+  `.claude/qa/desk/s-zones.jpg`, `s-utley.jpg`, `s-last.jpg`, `s-stretch.jpg`, `s-plaza.jpg` (local).
+
+## Shared files touched (all small, in `// ---- S` blocks)
+
+- `game/GameSound.js`: one reverb input for the rooms; `play( name, { bus } )` and the buses (organ names to the
+  music, cheers to the crowd); `play()` returns its source; the music's one-shots kept (cut on a jump); the hooks
+  for `cheer`, `organ`, `celebrate` (delegated when the soundscape is there); an air filter on every `spot()`;
+  `onLoaded`.
+- `BallparkApp.js`: one line, `this.rainCover = cover`.
+- `LibertyBell.js`: its toll out of the PA's bus.
+- `places/index.js`: the `sound` place registered.
+- `package.json`: `npm test` also runs `test/soundscape.mjs`.
+- `CREDITS.md`, `tools/audio/README.md`: sections appended.
+
+## For the merger
+
+- **R's timeline:** the plan reads the suspension and the celebration by their durations and R's 0.55 split; the tarp's
+  and the crew's sounds are on R's times (ASK-R.md), God Bless America at 40-58 s into the 29th's part. At the merge,
+  check `plan.tarp` against R's `TarpPlan.js` and swap in R's roll path if it exports one. R makes the park's
+  fireworks (asked to use `app.sound.spot`); mine are far-off ones from 60 s. R can use `app.soundscape.sfx()`.
+- **The numbers:** `build-game.mjs`'s table should give **Madson 63 and Hinske 32** (2008, Baseball-Reference); the
+  jerseys show 46 and 11 now. The PA already says 63 and 32.
+- A desk job of mine (offline renders of the band and organ for spectrograms, and a zone check) was already waiting
+  on the GPU lock when the wind-down came; the desk has no cancel, so it'll run once (about a minute, two frames).
+
+## What I'd keep working on
+
+- **Listen to it.** Everything here was judged by meters, transcription and spectra, not by ear: the balance of
+  the PA, the band and the crowd, the band's stand-ins as music, the organ's registration, the crowd's chant and
+  the stretch's sound need a person's ears and a round of trims.
+- Re-measure the main concourse's zone and the mix after the last trims (the band -10 dB, the organ +3, Baker -3).
+- The band's pieces: more variety per player (intros and endings), and a mix pass; a real drum kit's samples
+  (CC0) would lift it.
+- The PA: a few more of Baker's lines (the lineups, the presentation on the stage when R's times are in), and a
+  closer match to his cadence against the 2008 FOX broadcast (YouTube IDs in `crowd_youtube-fanvideos_2008-10.txt`).
+- The crowd singing along to the anthem stand-in at the end ("oh"s); the chant's section spread tuned to the
+  bowl's real section angles.
+- Occlusion between zones for the places' own sounds (a spot on the concourse heard from the seats).
+
+## Wanted from the owner
+
+- **Audio of the nights**, for reference only: the FOX broadcast of Game 5 (both nights) or fan videos from the
+  stands, to match Baker's cadence and the crowd's level and texture; anything of the park's 2008 PA.
