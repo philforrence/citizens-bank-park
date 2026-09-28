@@ -363,6 +363,29 @@ export function stomps( sr ) {
 
 }
 
+// thousands of rally towels waving (a soft whoosh, each towel twice a second or so, all out of step), or,
+// in the rain, ponchos rustling as people get up (a crackle of plastic) (loops)
+export function towels( sr, plastic ) {
+
+	const n = Math.floor( 4.25 * sr ), r = rng( plastic ? 223 : 221 ), x = new Float32Array( n );
+	for ( let c = 0; c < 60; c ++ ) {
+
+		const f = 1.6 + 1.2 * ( r() * 0.5 + 0.5 ), ph = r() * 6, a = 0.3 + 0.7 * ( r() * 0.5 + 0.5 );
+		for ( let i = 0; i < n; i += 4 ) {
+
+			const t = i / sr, s = Math.pow( Math.max( 0, Math.sin( 2 * Math.PI * f * t + ph ) ), 3 ) * a;
+			for ( let j = 0; j < 4 && i + j < n; j ++ ) x[ i + j ] += r() * s;
+
+		}
+
+	}
+
+	biquad( x, sr, 'bp', plastic ? 3500 : 900, plastic ? 1.2 : 0.5 );
+	if ( plastic ) for ( let i = 0; i < n; i ++ ) if ( r() > 0.9993 ) x[ i ] += r() * 8;
+	return normalize( loopable( x, sr, 0.25 ), 0.75 );
+
+}
+
 // ---------------------------------------------------------------- the grounds crew (the tarp, the 29th's work)
 
 // the tarp's roll going over the wet grass: the ribbed core's low rumble (its ribs thumping a few times a
@@ -581,6 +604,7 @@ export const JOBS = {
 	horns: ( sr ) => [ 0, 1, 2 ].map( ( k ) => mono( carHorn( sr, k ) ) ),
 	booms: ( sr ) => [ 0, 1, 2 ].map( ( k ) => mono( boom( sr, k ) ) ),
 	stomps: ( sr ) => [ mono( stomps( sr ) ) ],
+	towels: ( sr ) => [ mono( towels( sr, false ) ), mono( towels( sr, true ) ) ],
 	crew: ( sr ) => [ mono( tarpRoll( sr ) ), mono( vinylSlap( sr, 0 ) ), mono( vinylSlap( sr, 1 ) ), mono( rake( sr ) ), mono( hose( sr ) ), mono( dragMat( sr ) ), mono( tamper( sr ) ) ],
 	sfx: ( sr ) => [ mono( harley( sr ) ), mono( sirenChirp( sr ) ), mono( shutters( sr ) ), mono( pileThump( sr ) ) ],
 };

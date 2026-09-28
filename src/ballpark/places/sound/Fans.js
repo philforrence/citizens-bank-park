@@ -63,6 +63,13 @@ export class Fans {
 
 		} ).catch( () => {} );
 		void ctx;
+		this.towel = this.poncho = null;
+		synth.make( 'towels', SR ).then( ( [ t, p ] ) => {
+
+			this.towel = this._loop( t, 0 );
+			this.poncho = this._loop( p, 0 );
+
+		} ).catch( () => {} );
 		this._v = new Vector3();
 		this._load();
 
@@ -241,6 +248,16 @@ export class Fans {
 		set( this.roar, 1.4 * Math.min( 1.6, L.roar + this.swell ) * hush, hush < 1 ? 0.1 : 0.45 );
 		set( this.clap, 0.9 * L.clap * ( hush < 1 ? 0.2 : 1 ) );
 		set( this.applause, 0.8 * L.applause );
+		// the towels (the 29th's "wave of white") and the ponchos (the 27th), as the seated fans wave and
+		// get up (Crowd.js's mood: what you see)
+		const M = this.bowl?.crowd?._mood;
+		if ( M && this.towel ) {
+
+			const night2 = d.t >= ( this.app.soundscape?.plan?.night2 ?? Infinity );
+			set( this.towel, ( night2 ? 0.55 : 0.25 ) * M.towel * hush );
+			set( this.poncho, night2 ? 0 : 0.35 * Math.max( 0, M.stand - 0.1 ) * hush );
+
+		}
 		this._near( dt, d, camera, L );
 		this._walla( d, now );
 
