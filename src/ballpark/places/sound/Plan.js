@@ -39,7 +39,8 @@ export function buildPlan( director ) {
 	// the organ's between-innings tunes, rotated (Music.js has them), the rain's on the 27th
 	// the first man up for each side is "Leading off for the Phillies..." (Baker's own formula)
 	const led = new Set();
-	const tunes = { dry: [ 'hatdance', 'hottime', 'saints', 'entertainer', 'stars', 'sweetgeorgia', 'turkey', 'yessir' ], wet: [ 'rainrain', 'singin', 'hatdance', 'saints' ] };
+	// (the organ's are Tunes.js, the recorded rock Band.js)
+	const tunes = { dry: [ 'saints', 'rock', 'entertainer', 'funk', 'susanna', 'yankee', 'camptown', 'rock', 'cucaracha', 'funk' ], wet: [ 'rainrain', 'funk', 'saints', 'rock' ] };
 	let tuneI = 0, wetI = 0;
 
 	for ( let i = 0; i < S.length; i ++ ) {
@@ -82,7 +83,7 @@ export function buildPlan( director ) {
 			const id = sn.pitcher, home = P[ id ]?.side === 'home';
 			add( t0 + 7, 'pa', { key: `pitch-${ id }` } );
 			// the Phillies' relievers come in to their music (Lidge's the loudest), the Rays' to the organ
-			add( t0 + 0.8, home ? 'walkup' : 'music', home ? { id, until: t0 + CHANGE - 0.5 } : { tune: pick( [ 'bullpen', 'hottime', 'hatdance' ] ), until: t0 + CHANGE - 1, vol: 0.8 } );
+			add( t0 + 0.8, home ? 'walkup' : 'music', home ? { id, until: t0 + CHANGE - 0.5 } : { tune: pick( [ 'bullpen', 'rock', 'camptown' ] ), until: t0 + CHANGE - 1, vol: 0.8 } );
 			add( t0 + 9.5, 'fans', home ? { what: 'cheer', level: P[ id ]?.last === 'Lidge' ? 2.2 : 1.2 } : { what: 'boo', level: 0.5 } );
 			// the Rays' manager's slow walk out gets the old organ send-off... and the one they're taking out
 			// gets a sarcastic hand
@@ -186,6 +187,8 @@ export function buildPlan( director ) {
 		if ( s.kind === 'result' ) {
 
 			const p = plays[ s.pi ], home = sn.batting === 'home', type = p.result.type;
+			// a Feliz hit: the booth's Christmas joke
+			if ( home && P[ sn.batter ]?.last === 'Feliz' && /single|double|triple|home_run/.test( type ) ) add( t0 + 1.2, 'sting', { tune: 'jingle' } );
 			// walks and hit batsmen aren't in play (the app's cue only cheers runs and strikeouts)
 			if ( /walk|hit_by_pitch/.test( type ) ) add( t0 + 0.3, 'fans', home ? { what: 'cheer', level: 1.2 } : { what: 'groan', level: 0.8 } );
 			// an inning over with a Phillies pitcher: the hand as they come off
@@ -203,7 +206,10 @@ export function buildPlan( director ) {
 			add( t0 + 0.3, 'celebrate' );
 			add( t0 + Math.min( 30, s.dur * 0.35 ), 'music', { tune: 'champions', until: t0 + Math.min( 30, s.dur * 0.35 ) + 16, vol: 1 } );
 			add( t0 + Math.min( 50, s.dur * 0.6 ), 'pa', { key: 'champions' } );
-			if ( s.dur > 120 ) add( t0 + 70, 'music', { tune: 'saints', until: t0 + 100, vol: 0.9 } );
+			// (they played "We Are the Champions" and 45,000 sang it: the booth's own anthem here, and the organ's
+			// "Saints" after it)
+			if ( s.dur > 120 ) add( t0 + 70, 'music', { tune: 'anthem', until: t0 + 130, vol: 0.9 } );
+			if ( s.dur > 180 ) add( t0 + 140, 'music', { tune: 'saints', until: t0 + 170, vol: 0.9 } );
 
 		}
 

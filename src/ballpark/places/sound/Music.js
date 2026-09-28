@@ -1,10 +1,11 @@
 import { Organ, score } from './Organ.js';
 import { TUNES } from './Tunes.js';
-import { WalkUps } from './WalkUps.js';
+import { Band, SONGS, WALKUP } from './Band.js';
 
-// The music between pitches and innings, out of the park's PA speakers (the music bus into PA.js):
-// the organ's tunes and stings (Organ.js, Tunes.js), the Phillies' walk-up and entrance music as
-// original stand-ins (WalkUps.js), ducked under Dan Baker while he talks. Notes are scheduled a quarter of
+// The music between pitches and innings, out of the park's PA speakers (the music bus into PA.js), as the
+// A/V booth ran it in 2008 (recorded: there was no live organist that year): organ clips and tunes
+// (Organ.js, Tunes.js), the Phillies' walk-up and entrance music and the between-innings rock as original
+// stand-ins (Band.js), ducked under Dan Baker while he talks. Notes are scheduled a quarter of
 // a second ahead each frame (a sequencer's look-ahead), so nothing is built all at once.
 //
 //   music.play( tune, seconds, vol )  a tune, faded out by `seconds`
@@ -27,7 +28,7 @@ export class Music {
 		this.bus.gain.value = 1;
 		this.bus.connect( sound.buses.music );
 		this.organ_ = new Organ( ctx, this.bus );
-		this.walkups = new WalkUps( ctx, this.bus );
+		this.band = new Band( ctx, this.bus );
 		this.parts = [];
 		this.onYell = null;
 		// Baker talks over it: down while he does
@@ -37,6 +38,13 @@ export class Music {
 
 	// a tune from now, for up to `seconds`, then faded
 	play( name, seconds = 20, vol = 1 ) {
+
+		if ( SONGS[ name ] ) {
+
+			this.band.stop();
+			return this.band.play( name, seconds, vol );
+
+		}
 
 		const tune = TUNES[ name ];
 		if ( ! tune ) return false;
@@ -70,10 +78,14 @@ export class Music {
 
 	}
 
+	// a Phillie's walk-up (or a reliever's entrance): his stand-in, by name
 	walkup( id, seconds ) {
 
-		this.stop( true );
-		return this.walkups.play( id, seconds );
+		const who = this.app.director?.game?.players?.[ id ]?.last;
+		const song = WALKUP[ who ];
+		if ( ! song ) return false;
+		this.stop();
+		return this.band.play( song, seconds, 0.9 );
 
 	}
 
@@ -108,7 +120,7 @@ export class Music {
 
 		}
 
-		if ( ! organOnly ) this.walkups.stop();
+		if ( ! organOnly ) this.band.stop();
 
 	}
 
@@ -139,7 +151,7 @@ export class Music {
 
 		}
 
-		this.walkups.update( now );
+		this.band.update( now );
 
 	}
 

@@ -123,6 +123,8 @@ class FakeContext {
 
 	createDynamicsCompressor() { return new Node( this, { threshold: 0, knee: 0, ratio: 1, attack: 0, release: 0 } ); }
 
+	createWaveShaper() { const w = new Node( this ); w.curve = null; return w; }
+
 	createBufferSource() { const s = new Source( this, { playbackRate: 1 } ); s.buffer = null; return s; }
 
 	createOscillator() { const o = new Source( this, { frequency: 440, detune: 0 } ); o.setPeriodicWave = () => {}; return o; }

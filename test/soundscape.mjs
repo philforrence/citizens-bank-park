@@ -41,6 +41,7 @@ const app = {
 	sound: new GameSound(),
 };
 const bowl = { roofBack: { line: [ [ - 100, - 40 ], [ - 70, 60 ], [ 0, 95 ], [ 70, 60 ], [ 100, - 40 ] ], y: 41 }, crowd: { _mood: { stand: 0, cheer: 0, clap: 0.2, jump: 0, towel: 0 } } };
+app.director = director;
 const sc = new Soundscape( { app, field, bowl } );
 app.places.push( sc );
 app.sound.resume();

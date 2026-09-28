@@ -92,6 +92,8 @@ export default class Soundscape {
 
 		S.onLoaded = take;
 		if ( S.crowd?.sampled ) take();
+		// the park answers the organ's stings
+		this.music.onYell = ( what ) => this.fans.yell( what );
 		// your footsteps (Walker calls audio.footstep)
 		if ( app.walker ) app.walker.audio = { footstep: ( k ) => this.weather.footstep( k ) };
 		this.i = this._index( director.t );
@@ -113,6 +115,7 @@ export default class Soundscape {
 		this.live = director.playing && director.speed <= 1.25;
 		if ( jump ) this._jump( t );
 		else if ( director.playing && t > last ) this._fire( last, t );
+		if ( ! this._stretch ) this._findStretch( director );
 		this.fans.update( dt, director, camera );
 		this.weather.update( dt, director, camera );
 		this.music.update( dt, director );
@@ -192,6 +195,28 @@ export default class Soundscape {
 			default: break;
 
 		}
+
+	}
+
+	// The seventh-inning stretch on the 29th: "a crowd-participatory rendition of 'Take Me Out to the Ball
+	// Game'" (the Inquirer): everyone sings it with the organ. A's Phanatic cues the organ (its plan's
+	// 'phan-organ-stretch'); the crowd starts with it. Without the Phanatic, the booth's own organ plays it.
+	_findStretch( director ) {
+
+		const ph = this.app.places?.find( ( p ) => p.name === 'phanatic' );
+		if ( ph && ! ph.plan && ( this._tries = ( this._tries || 0 ) + 1 ) < 120 ) return;
+		this._stretch = true;
+		const cue = ph?.plan?.events?.find( ( e ) => e.name === 'phan-organ-stretch' );
+		const sw = director.segments.find( ( s ) => s.kind === 'switch' && s.snap.inning === 7 && s.snap.half === 'bottom' );
+		const t = cue ? cue.t : sw ? sw.t0 + 2 : null;
+		if ( t == null ) return;
+		this.at( t + 0.05, ( sc ) => {
+
+			if ( ! sc.live ) return;
+			if ( ! cue ) sc.music.play( 'takemeout', 34, 1 );
+			sc.fans.sing( 'stretch', 0.9 );
+
+		} );
 
 	}
 

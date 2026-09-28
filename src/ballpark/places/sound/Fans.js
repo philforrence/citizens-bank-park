@@ -196,7 +196,8 @@ export class Fans {
 		const S = this.sound, ctx = S.ctx, now = ctx.currentTime;
 		const L = this.levels( d );
 		// the hush: everything down but the few who can't help it
-		const hush = now < this.hushUntil ? 0.35 : 1;
+		// the hush: everything down but the few who can't help it; while they sing, the talk drops too
+		const hush = ( now < this.hushUntil ? 0.35 : 1 ) * ( now < ( this.singing || 0 ) ? 0.55 : 1 );
 		const set = ( n, v, tc = 0.35 ) => {
 
 			if ( Math.abs( n.v - v ) < 0.01 ) return;
@@ -428,16 +429,54 @@ export class Fans {
 
 	}
 
-	// what someone near you yells now (the fans/ shouts, by the game's situation)
+	// what someone near you yells now (the fans/ shouts): by the situation (the Phillies batting, the Rays,
+	// two strikes, the end) and by who's up or on the mound ("Eva!" at Longoria, as they heckled him)
 	_shoutFor( d, home ) {
 
 		const keys = Object.keys( this.index ).filter( ( k ) => k.startsWith( 'shout-' ) );
 		if ( ! keys.length ) return null;
-		const s = d.segmentAt( d.t ).snap || {};
-		const tag = s.kind === 'celebrate' ? 'win' : home ? 'bat' : ( s.strikes >= 2 ? 'two' : 'pitch' );
-		const fit = keys.filter( ( k ) => ( this.index[ k ].when || 'any' ).split( ',' ).some( ( w ) => w === tag || w === 'any' ) );
-		const list = fit.length ? fit : keys;
-		return list[ Math.floor( Math.random() * list.length ) ];
+		const seg = d.segmentAt( d.t ), s = seg.snap || {}, P = d.game?.players || {};
+		const batter = P[ s.batter ]?.last, pitcher = P[ s.defense?.P ?? s.pitcher ]?.last;
+		const tags = seg.kind === 'celebrate' ? [ 'win' ] : home ? [ 'bat' ] : [ 'away', ( s.strikes || 0 ) >= 2 ? 'two' : 'pitch' ];
+		const fit = keys.filter( ( k ) => {
+
+			const e = this.index[ k ];
+			if ( ! ( e.when || 'any' ).split( ',' ).some( ( w ) => w === 'any' || tags.includes( w ) ) ) return false;
+			return ! e.who || e.who === batter || e.who === pitcher;
+
+		} );
+		// the ones for this very man, mostly
+		const named = fit.filter( ( k ) => this.index[ k ].who );
+		const list = named.length && Math.random() < 0.7 ? named : fit;
+		return list.length ? list[ Math.floor( Math.random() * list.length ) ] : null;
+
+	}
+
+	// the park's answer to the organ: "CHARGE!", the chant back, the claps back
+	yell( what ) {
+
+		const from = [ - 70, - 20, 30, 80, 130 ][ Math.floor( Math.random() * 5 ) ];
+		if ( what === 'charge' ) this._voice( 'charge', 0.9 );
+		else if ( what === 'letsgo' ) this.chant( 'letsgo', from, 1 );
+		else if ( what === 'clap' && this.pattern ) {
+
+			const S = this.sound, now = S.ctx.currentTime;
+			for ( const k of [ - 1, 0, 1 ] ) {
+
+				const ang = ( from + k * 50 ) * Math.PI / 180, F = this.field, w = F.toWorld( Math.sin( ang ) * 72, Math.cos( ang ) * 72 - 8 );
+				this._section( this.pattern, this._v.set( w.x, F.y0 + 14, w.z ), now + 0.05 + Math.abs( k ) * 0.12, 1.25, 0.8 );
+
+			}
+
+		}
+
+	}
+
+	// everyone singing (the stretch): the whole bowl, not from a place
+	sing( key, vol = 1 ) {
+
+		this.singing = this.sound.ctx.currentTime + ( this.index[ key ]?.d || 30 );
+		return this._voice( key, vol );
 
 	}
 

@@ -131,7 +131,38 @@ export const TUNES = {
 		style: 'stab',
 	},
 
+	// the seventh-inning stretch, if the Phanatic's organ isn't there to play it (his is the same melody and
+	// tempo, phanatic/Sounds.js): "Take Me Out to the Ball Game" (Albert Von Tilzer, 1908), the chorus
+	takemeout: {
+		bpm: 180, meter: 3, oct: 1, reg: 'tune', fast: false,
+		melody: [
+			[ 'G3', 2 ], [ 'G4', 1 ], [ 'E4', 1 ], [ 'D4', 1 ], [ 'B3', 1 ], [ 'D4', 3 ], [ 'A3', 3 ],
+			[ 'G3', 2 ], [ 'G4', 1 ], [ 'E4', 1 ], [ 'D4', 1 ], [ 'B3', 1 ], [ 'D4', 6 ],
+			[ 'E4', 1 ], [ 'D#4', 1 ], [ 'E4', 1 ], [ 'B3', 1 ], [ 'C4', 1 ], [ 'D4', 1 ], [ 'E4', 2 ], [ 'C4', 1 ], [ 'A3', 3 ],
+			[ 'E4', 2 ], [ 'E4', 1 ], [ 'E4', 1 ], [ 'F#4', 1 ], [ 'G4', 1 ], [ 'A4', 1 ], [ 'F#4', 1 ], [ 'E4', 1 ], [ 'D4', 1 ], [ 'B3', 1 ], [ 'A3', 1 ],
+			[ 'G3', 2 ], [ 'G4', 1 ], [ 'E4', 1 ], [ 'D4', 1 ], [ 'B3', 1 ], [ 'D4', 3 ], [ 'A3', 3 ],
+			[ 'A3', 2 ], [ 'G3', 1 ], [ 'A3', 1 ], [ 'B3', 1 ], [ 'C4', 1 ], [ 'D4', 2 ], [ 'E4', 4 ],
+			[ 'E4', 2 ], [ 'F#4', 1 ], [ 'G4', 3 ], [ 'G4', 3 ], [ 'G4', 1 ], [ 'F#4', 1 ], [ 'E4', 1 ],
+			[ 'D4', 2 ], [ 'C#4', 1 ], [ 'D4', 1 ], [ 'E4', 2 ], [ 'F#4', 3 ], [ 'G4', 3 ],
+		],
+		chords: [
+			[ 'G2', [ 'B3', 'D4', 'G4' ], 6 ], [ 'D2', [ 'C4', 'F#4', 'A4' ], 6 ], [ 'G2', [ 'B3', 'D4', 'G4' ], 6 ], [ 'D2', [ 'C4', 'F#4', 'A4' ], 6 ],
+			[ 'E2', [ 'D4', 'G#4', 'B4' ], 6 ], [ 'A2', [ 'C4', 'E4', 'A4' ], 6 ], [ 'A2', [ 'C#4', 'G4', 'A4' ], 6 ], [ 'D2', [ 'C4', 'F#4', 'A4' ], 6 ],
+			[ 'G2', [ 'B3', 'D4', 'G4' ], 6 ], [ 'D2', [ 'C4', 'F#4', 'A4' ], 6 ], [ 'D2', [ 'C4', 'F#4', 'A4' ], 6 ], [ 'E2', [ 'D4', 'G#4', 'B4' ], 6 ],
+			[ 'A2', [ 'C4', 'E4', 'A4' ], 3 ], [ 'G2', [ 'B3', 'D4', 'G4' ], 6 ], [ 'E2', [ 'D4', 'G#4', 'B4' ], 3 ], [ 'A2', [ 'C#4', 'G4', 'A4' ], 6 ], [ 'D2', [ 'C4', 'F#4', 'A4' ], 3 ], [ 'G2', [ 'B3', 'D4', 'G4' ], 3 ],
+		],
+	},
+
 	// ---- stings between pitches
+
+	// after a Feliz hit: the booth's joke in 2008 was "Feliz Navidad" (the Inquirer); here the organ's "Jingle
+	// Bells" (James Lord Pierpont, 1857), the chorus
+	jingle: {
+		bpm: 176, meter: 4, oct: 1, reg: 'full', fast: true, sting: true,
+		melody: [ [ 'E4', 1 ], [ 'E4', 1 ], [ 'E4', 2 ], [ 'E4', 1 ], [ 'E4', 1 ], [ 'E4', 2 ], [ 'E4', 1 ], [ 'G4', 1 ], [ 'C4', 1.5 ], [ 'D4', 0.5 ], [ 'E4', 4 ],
+			[ 'F4', 1 ], [ 'F4', 1 ], [ 'F4', 1.5 ], [ 'F4', 0.5 ], [ 'F4', 1 ], [ 'E4', 1 ], [ 'E4', 1 ], [ 'E4', 0.5 ], [ 'E4', 0.5 ], [ 'G4', 1 ], [ 'G4', 1 ], [ 'F4', 1 ], [ 'D4', 1 ], [ 'C4', 4 ] ],
+		chords: [ [ 'C3', C, 4 ], [ 'C3', C, 4 ], [ 'C3', C, 4 ], [ 'C3', C, 4 ], [ 'F2', F, 4 ], [ 'C3', C, 4 ], [ 'G2', G7, 4 ], [ 'C3', C, 4 ] ],
+	},
 
 	// "Charge!": the bugle call, the park yells it back (Fans.js)
 	charge: {
