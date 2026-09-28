@@ -10,6 +10,7 @@ import { buildMonty } from './leftfield/Monty.js';
 import { buildRamp } from './leftfield/Ramp.js';
 import { Cast } from './Cast.js';
 import { Tempo } from './Tempo.js';
+import { HarrysSounds } from './leftfield/Sounds.js';
 
 // The left field corner on the World Series nights, October 27 and 29, 2008 (H, wave 3): Harry the K's
 // Broadcast Bar & Grille under the scoreboard, upstairs on the Scoreboard Porch's level and downstairs at
@@ -70,6 +71,8 @@ export default class LeftField {
 		}
 
 		this._tempo = new Tempo( [ this.cast ] );
+		// what it sounds like (set up once the park's sound exists)
+		this.sounds = new HarrysSounds( this );
 		void people;
 
 	}
@@ -197,17 +200,19 @@ export default class LeftField {
 		if ( this.ownTV ) this.tv.update( dt, director, N );
 		// ---- the people, on the tempo (every frame while any are seen)
 		const cam = camera || this.app?.camera;
+		const cf = cam ? this.field.toField( cam.position.x, cam.position.z ) : null;
 		const sdt = this._tempo.step( dt, cam );
+		N.mood = this.bowl?.crowd?._mood;
 		if ( sdt && this.people ) {
 
-			N.mood = this.bowl?.crowd?._mood;
-			const cf = cam ? this.field.toField( cam.position.x, cam.position.z ) : null;
 			this.people.catchUp = this._tempo.cut;
 			this.people.update( Math.min( sdt, 0.25 ), N, cf );
 
 		}
 
 		this.cast.update();
+		// the sounds every frame (you hear the bar behind you)
+		this.sounds?.update( dt, N, cf );
 
 	}
 
