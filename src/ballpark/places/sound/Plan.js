@@ -59,7 +59,7 @@ export function buildPlan( director ) {
 		if ( s.kind === 'intro' ) {
 
 			add( t0 + 0.8, 'pa', { key: 'welcome-27' } );
-			add( t0 + s.dur + 4, 'ump', { key: 'ump-playball' } );
+			add( t0 + s.dur + 7, 'ump', { key: 'ump-playball' } );
 			add( t0 + 0.5, 'fans', { what: 'cheer', level: 2 } );
 
 		}
@@ -153,7 +153,7 @@ export function buildPlan( director ) {
 
 				}
 
-				add( t0 + s.dur + 4, 'ump', { key: 'ump-playball' } );
+				add( t0 + s.dur + 7, 'ump', { key: 'ump-playball' } );
 				continue;
 
 			}
