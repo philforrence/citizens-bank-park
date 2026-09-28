@@ -109,10 +109,12 @@ Gate (the scouting counted 18 people), a brick wedge over Monty's Angle, sky whe
 4. **The lower level's bar** in the house's ground storey, open to the covered concourse: the counter and brass
    rail, taps, the back bar, the kitchen's pass under heat lamps, the lit fascia, the menu, "please wait to be
    seated".
-5. **The lower level's dining room** under the porch: four-tops with numbered tent cards and ketchup, the counter
-   with stools along the back of the 140s looking out over the seats (Phillies.com's "view from Harry's lower level",
-   2007), the host stand, a low rail; overhead the deck's maroon beams and joists and dome pendants hung low on long
-   cords; the old tube TVs on wall brackets (the 2009 NLCS photos of the lower level).
+5. **The lower level's dining room** under the porch: a public walkway along the top of the 140s under the section
+   plates (people passing both ways), then the galvanized picket fence with the red Phillies cans against it
+   (Commons, March 29, 2008, under the porch: plates 143-145, the fence, the cans, Harry's tables behind), a counter
+   with stools along its inside looking out over the seats (Phillies.com's "view from Harry's lower level", 2007),
+   four-tops with numbered tent cards and ketchup, the host stand; overhead the deck's maroon beams and joists and dome
+   pendants hung low on long cords; the old tube TVs on wall brackets (the 2009 NLCS photos of the lower level).
 6. **Three murals** of our own on the brick over the lower bar (Phillies.com, 2008: "three murals" in Harry's by a
    local artist; the 2009 photos: big, bright, painterly): the fans and the skyline on a summer night, the booth's
    microphone ON AIR over the diamond, a kid reaching up with his glove. No one's likeness (`leftfield/Murals.js`).
@@ -212,6 +214,12 @@ P0's stand-in for the GPU).
 ### Noticed elsewhere
 
 - **The light tower's panels** still use a Georgia italic for Budweiser and plain faces by day (LF02's full fix).
+- **The rail on the left field wall's top** still reads from the field as a row of light-grey panels over the flowers
+  (PLAN's open item; Details2008).
+- **The lineup's header:** in 2005 a big "FLEER presents your Phillies STARTING LINEUP" board led the cards, with each
+  card's position printed under it (Flickr 2005-08-07); the 2008 sponsor is unknown, so I left the header off.
+- **The Porch's under-deck in March 2008** also had a green Citizens Bank ATM at its pole end, and the ramp's
+  BUBBA burger boxes hung under the third base upper deck's corner, not on the ramp (Commons, March 29, 2008).
 - **The scoreboard's back** (Exterior, the cap and ball) sits over Harry's house's back wall; in the 2008 photos the
   Phanatic picture hung on its own lit panel under it, where I've put it on the house.
 - **The walking views see every place's people through the walls** (the tune-up's limit, above).
