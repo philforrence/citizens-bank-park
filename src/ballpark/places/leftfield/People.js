@@ -2,6 +2,7 @@ import { PROP, TOP, COLOR, HAT, CHEST, BACK, restPose, seat } from '../Cast.js';
 import { GESTURE, armIK, railArms, dress, sizeOf, rng, pick } from '../Concourse3BKit.js';
 import { SEATED } from '../home/Poses.js';
 import { cadence, due } from '../Tempo.js';
+import { named } from './Named.js';
 
 // The people of Harry the K's (LeftField.js): the bartenders upstairs and down, the servers with their
 // trays, the host at the stand, the diners at the tables and the regulars on the stools, and the fans
@@ -23,9 +24,6 @@ const clamp = ( x, a, b ) => Math.max( a, Math.min( b, x ) );
 const fract = ( x ) => x - Math.floor( x );
 const hash = ( n ) => fract( Math.sin( n * 12.9898 + 78.233 ) * 43758.5453 );
 const REST = [ 0.05, 0.06, 0, 0.12 ];
-// the radio held to the left ear (Cast's radio is a left-hand prop); the hands cupped to the mouth, yelling
-const RADIO = [ armIK( - 1, [ - 0.1, 1.57, - 0.02 ] ), null ];
-const YELL = [ armIK( - 1, [ - 0.05, 1.52, - 0.2 ] ), armIK( 1, [ 0.05, 1.52, - 0.2 ] ) ];
 // the hands held out to a heater's glow
 const WARMUP = [ armIK( - 1, [ - 0.12, 1.25, - 0.42 ] ), armIK( 1, [ 0.12, 1.25, - 0.42 ] ) ];
 // a bartender: pulling a tap (the right hand out and down), setting a glass down, wiping the bar
@@ -207,10 +205,10 @@ export class HarrysPeople {
 
 	}
 
-	// the people with names (CAST.md, H)
+	// the people with names (CAST.md, H): Named.js
 	_named() {
 
-		void this;
+		named( this );
 
 	}
 
@@ -245,6 +243,7 @@ export class HarrysPeople {
 			else if ( m.role === 'server' ) this._server( m, N, mdt );
 			else if ( m.role === 'host' ) this._host( m, N, mdt );
 			else this._fan( m, N, M, mdt );
+			if ( m.after ) m.after( m, N, mdt, this );
 
 		}
 
