@@ -202,6 +202,15 @@ spoiled by the machine's load), `final`). The Node benches: `.claude/qa/h/tools/
 in turns, run from a worktree's `.claude/h/` with the base's `src` exported to `base/src`; `bench.mjs`; `stub.mjs`,
 P0's stand-in for the GPU).
 
+### What I'd keep working on
+
+- **The tune-up's other half:** an occlusion test for the concourses' people (behind the facade, below the top of
+  the seats), so the overview, the "plaza" and the field views stop moving hundreds of people nobody can see.
+- **The lower level's GPU:** re-measure after the trims; if it's still over ~1 ms, fewer diners near the fence or a
+  cheaper figure for the seated.
+- **The corner's last pieces:** the ramp's bridges into the suite, club and terrace levels; the BUBBA boxes moved under
+  the third base deck's corner where March 2008 shows them; the lineup's header board; lit plaza lamps at night.
+
 ### Unfinished
 
 - The lower level's close view over the GPU budget (above).
