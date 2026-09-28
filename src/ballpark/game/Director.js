@@ -3,6 +3,11 @@ import * as M from './Motions.js';
 import { POSITIONS, BASES, MOUND, DUGOUT, BULLPEN, ON_DECK, boxFor, sprayToField, pitchPath, fallbackPfx, battedBall, throwPath, basePath, dist, lerp2, yawTo } from './Plays.js';
 import { look as lookFor } from './Looks.js';
 import { ROLE, DIRT } from './Players.js';
+// ---- R (rituals)
+import { showSuspension } from './Suspension.js';
+import { showCelebration } from './Celebration.js';
+import { showWarmups, showDrying } from './Breaks.js';
+// ---- end R
 
 // The replay. The whole game is laid out in advance as a timeline of segments (teams taking the field,
 // walk-ups, pitches, balls in play, pitching changes, the celebration), each with the state of the game at
@@ -16,6 +21,15 @@ import { ROLE, DIRT } from './Players.js';
 //   d.now                       { snap (the game state), seg, pitch, count, desc }
 
 const PACE = { intro: 14, switch: 24, walkup: 6, set: 3.0, after: 2.4, result: 3.0, change: 18, celebrate: 80 };
+// ---- R (rituals): the break after the top of the 6th is the suspension, long enough to tell: its first
+// 55% (SPLIT) the 27th (the tarp pulled over the infield, the rain delay, the suspension, the park
+// emptying into the rain), the rest the 29th (the tarp off, the crew's work, the park filling, the Rays
+// out for the bottom of the 6th). The celebration runs on through the trophy and the laps. (A's
+// Phanatic and Phanavision already split the suspension at 0.55.)
+PACE.suspend = 160;
+PACE.celebrate = 300;
+export const SPLIT = 0.55;
+// ---- end R
 const RUN = 7.8, JOG = 4.2, WALK = 1.6;
 const SWINGS = new Set( [ 'S', 'F', 'T', 'W', 'L', 'M', 'O', 'Q', 'R', 'X', 'D', 'E' ] );
 const FOULS = new Set( [ 'F', 'T', 'L', 'O', 'R' ] );
@@ -73,6 +87,44 @@ export class Director {
 
 	}
 
+	// ---- R (rituals): which night it is, and the radio's clock
+
+	// the suspension's segment (the break after the top of the 6th)
+	get suspension() {
+
+		return this._suspSeg ??= this.segments.find( ( s ) => s.kind === 'switch' && s.snap.inning === 6 && s.snap.half === 'bottom' );
+
+	}
+
+	// Which night it is at t: the 27th runs from the first pitch to SPLIT of the way into the suspension
+	// (the tarp, the delay, the park emptying), the 29th from there (the tarp off, the park filling, the
+	// resumption, the last out). susp: in the suspension's break; k: how far (0..1) into this night's
+	// part of it; lt: seconds into the break. Use it for "which night is it?" everywhere.
+	night( t = this.t ) {
+
+		const S = this.suspension;
+		const split = S.t0 + S.dur * SPLIT;
+		const night = t < split ? 27 : 29;
+		const susp = t >= S.t0 && t < S.t0 + S.dur;
+		const k = ! susp ? 0 : night === 27 ? ( t - S.t0 ) / ( S.dur * SPLIT ) : ( t - split ) / ( S.dur * ( 1 - SPLIT ) );
+		return { night, susp, delay: susp && night === 27, back: susp && night === 29, k, lt: susp ? t - S.t0 : 0, dur: S.dur, t0: S.t0, split, resume: S.t0 + S.dur };
+
+	}
+
+	// The radio call (public/audio/radio/game5.mp3) was voiced on the old clock, with a 24 s suspension:
+	// its two lines there play at the start of the delay, it's silent through the rest (null), and it
+	// picks up again for the last seconds before the resumption.
+	radioTime( t = this.t ) {
+
+		const S = this.suspension, OLD = 24, head = 20;
+		if ( t < S.t0 + head ) return t;
+		if ( t < S.t0 + S.dur - ( OLD - head ) ) return null;
+		return t - ( S.dur - OLD );
+
+	}
+
+	// ---- end R
+
 	// ---------------------------------------------------------------- building the timeline
 
 	compile() {
@@ -115,9 +167,19 @@ export class Director {
 				if ( ! st.line[ p.inning - 1 ] ) st.line[ p.inning - 1 ] = [ null, null ];
 				st.line[ p.inning - 1 ][ p.half === 'top' ? 0 : 1 ] = 0;
 				const inn = `${ p.half === 'top' ? 'Top' : 'Bottom' } of the ${ ordinal( p.inning ) }`;
-				push( pi === 0 ? 'intro' : 'switch', pi === 0 ? PACE.intro : PACE.switch, {
+				// ---- R: the suspension's break (the 27th's delay, then the 29th's return)
+				const susp = p.inning === 6 && p.half === 'bottom';
+				const breakDur = pi === 0 ? PACE.intro : susp ? PACE.suspend : PACE.switch;
+				const breakCues = susp ? [
+					[ 1, { say: 'The umpires are waving for the tarp. The grounds crew is on the field.' } ],
+					[ PACE.suspend * SPLIT - 30, { say: 'This game is suspended, tied at two. It will be resumed in the bottom of the sixth.' } ],
+					[ PACE.suspend * SPLIT + 3, { say: 'Wednesday night, October the twenty-ninth. Game five resumes.' } ],
+					[ PACE.suspend - 8, { say: `${ inn }. ${ scoreLine( g, st.score ) }` } ],
+				] : null;
+				// ---- end R
+				push( pi === 0 ? 'intro' : 'switch', breakDur, {
 					pi, snap: snap( { batting, fielding, defense, oldDefense: prevDefense, batter: p.batter, bats: p.bats, onDeck: nextBatter( pi ), pitcher: p.pitcher } ),
-					cues: [ [ 1, { say: pi === 0 ? `${ g.title }. ${ g.teams.away.club } at ${ g.teams.home.club }, ${ g.venue }.` : `${ inn }. ${ scoreLine( g, st.score ) }` } ] ],
+					cues: breakCues || [ [ 1, { say: pi === 0 ? `${ g.title }. ${ g.teams.away.club } at ${ g.teams.home.club }, ${ g.venue }.` : `${ inn }. ${ scoreLine( g, st.score ) }` } ] ],
 				} );
 				prevKey = key;
 
@@ -596,6 +658,9 @@ export class Director {
 
 		const s = seg.snap || {};
 		if ( seg.kind === 'switch' && s.inning === 6 && s.half === 'bottom' ) return;
+		// ---- R (rituals): at the last out they walk off (game/Celebration.js)
+		if ( seg.kind === 'celebrate' && ! this.oldCelebration ) return;
+		// ---- end R
 		const pitching = seg.kind === 'pitch' && lt - PACE.set > - 0.6;
 		const runners = ( s.bases || [] ).some( Boolean );
 		const r2 = Math.SQRT1_2;
@@ -722,6 +787,16 @@ export class Director {
 		}
 
 		for ( const [ id, s ] of this.slots ) if ( ! this.actors.has( id ) ) s.visible = false;
+		// ---- R (rituals): the rituals' people (ids 'r:...': the grounds crew, the coaches, the stage party)
+		// give their slots back when they're off, so the rig's 96 go round
+		for ( const [ id, s ] of this.slots ) {
+
+			if ( this.actors.has( id ) || typeof id !== 'string' || ! id.startsWith( 'r:' ) ) continue;
+			this.players.remove?.( s );
+			this.slots.delete( id );
+
+		}
+		// ---- end R
 		this.ball.set( this.ballAt );
 
 	}
@@ -810,11 +885,20 @@ export class Director {
 
 	show_switch( seg, lt ) {
 
+		// ---- R (rituals): the suspension's break is its own scene (the tarp, the delay, the 29th's return:
+		// Suspension.js); nobody takes the field in the rain delay (H14)
+		if ( seg === this.suspension ) return showSuspension( this, seg, lt );
+		// ---- end R
 		const s = seg.snap;
 		// last half's fielders come in, this half's go out
 		if ( s.oldDefense ) this._runIn( s.oldDefense, s.batting, lt );
 		this._runOut( s.defense, s.fielding, lt, 4 );
 		this._onDeck( { ...s, onDeck: s.batter }, lt );
+		// ---- R (rituals): once they're out, the warm-up throws (game/Breaks.js); the drying agent on the
+		// mound in the middle of the 5th on the 27th
+		showWarmups( this, seg, lt, 4 );
+		showDrying( this, seg, lt );
+		// ---- end R
 
 	}
 
@@ -1208,6 +1292,10 @@ export class Director {
 	// piles on, then everyone.
 	show_celebrate( seg, lt ) {
 
+		// ---- R (rituals): the celebration rebuilt (game/Celebration.js): the pile built up properly, the
+		// dugout, the coaches and the pen emptying onto the field, the hugs, the men going to the stands
+		if ( ! this.oldCelebration ) return showCelebration( this, seg, lt );
+		// ---- end R
 		const s = seg.snap, P = this.game.players;
 		const def = s.defense;
 		const center = [ MOUND[ 0 ], MOUND[ 1 ] + 0.5 ];

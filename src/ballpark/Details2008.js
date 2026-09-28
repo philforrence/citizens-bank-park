@@ -338,14 +338,15 @@ export class Details2008 {
 		g.computeBoundingSphere();
 		// ---- W4 (rail): it comes off the roll on the third base side: u = 0 is the third base edge
 		this.tarpMat = standard( { name: 'tarp', color: new Color( 0.62, 0.64, 0.6 ), roughness: 0.3, side: 'double', modules: [ commonModule ],
-			uniforms: { pull: [ 'f32', 0 ] },
+			uniforms: { pull: [ 'f32', 0 ], rollY: [ 'f32', 0.55 ] }, // ---- R: rollY, the roll's axis height (game/TarpPlan.js)
 			vertex: /* wgsl */`
 	// the part not yet pulled out is the roll, lying along the sheet's leading edge as it crosses
 	let k = mat.pull;
 	let front = 1.0 - k;
 	let out = step( front, 1.0 - v.uv.x );
 	let lx = ( 0.5 - front ) * ${ S.toFixed( 1 ) }; let lz = ( v.uv.y - 0.5 ) * ${ S.toFixed( 1 ) };
-	let rolled = vec3f( ${ c[ 0 ].toFixed( 2 ) } + ( lx - lz ) * ${ r2.toFixed( 5 ) }, 0.55, ${ c[ 1 ].toFixed( 2 ) } + ( lx + lz ) * ${ r2.toFixed( 5 ) } );
+	// (---- R: up inside the roll's mesh, at its axis: places/rituals/Roll.js)
+	let rolled = vec3f( ${ c[ 0 ].toFixed( 2 ) } + ( lx - lz ) * ${ r2.toFixed( 5 ) }, mat.rollY * 0.6, ${ c[ 1 ].toFixed( 2 ) } + ( lx + lz ) * ${ r2.toFixed( 5 ) } );
 	let p = mix( rolled, v.position, out );
 	v.useWorld = true;
 	v.worldPos = ( v.model * vec4f( p, 1.0 ) ).xyz;

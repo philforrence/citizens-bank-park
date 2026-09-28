@@ -200,9 +200,12 @@ export default class BehindHome {
 		N.snap = s;
 		N.inning = s.inning || 1;
 		N.half = s.half || 'top';
-		N.suspended = seg === this._susp;
+		// ---- R (rituals): the break's first part is the 27th's rain delay, the rest the 29th (Director.night())
+		const night = d.night ? d.night( t ) : null;
+		N.suspended = seg === this._susp && ( ! night || night.night === 27 );
 		// the 27th: to the suspension (its rain delay the 27th's last minutes)
-		N.first = t < this._susp.t0 + this._susp.dur - 4;
+		N.first = night ? night.night === 27 : t < this._susp.t0 + this._susp.dur - 4;
+		// ---- end R
 		const k = N.first ? Math.min( 1, ( ( N.inning - 1 ) * 2 + ( N.half === 'top' ? 0 : 1 ) ) / 10 ) : 0;
 		N.rain = N.first ? 0.3 + 0.7 * k : 0;
 		N.celebrate = seg.kind === 'celebrate';

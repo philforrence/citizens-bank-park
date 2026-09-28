@@ -12,11 +12,15 @@ export function night( director ) {
 	const seg = director.segmentAt( t );
 	const s = seg?.snap || {};
 	const inning = s.inning ?? 1, half = s.half ?? 'top';
-	const first = inning < 6 || ( inning === 6 && half === 'top' );
+	// ---- R (rituals): the 27th runs on into its part of the suspension (Director.night())
+	const first = inning < 6 || ( inning === 6 && half === 'top' ) || !! director.night?.( director.t ).delay;
+	// ---- end R
 	const k = first ? Math.min( 1, ( ( inning - 1 ) * 2 + ( half === 'top' ? 0 : 1 ) ) / 10 ) : 0;
 	const rain = first ? 0.3 + 0.7 * k : 0;
 	// when the second night starts (the suspension's break)
-	director._w1Night2 ??= director.segments.find( ( q ) => q.kind === 'switch' && q.snap?.inning === 6 && q.snap?.half === 'bottom' )?.t0 ?? 2143;
+	// ---- R (rituals): the 29th starts SPLIT of the way into the suspension (Director.night())
+	director._w1Night2 ??= director.night ? director.night( 0 ).split : director.segments.find( ( q ) => q.kind === 'switch' && q.snap?.inning === 6 && q.snap?.half === 'bottom' )?.t0 ?? 2143;
+	// ---- end R
 	const t2 = director._w1Night2;
 	const celebrate = seg?.kind === 'celebrate';
 	// seconds since the night's first pitch

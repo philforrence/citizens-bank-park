@@ -1,5 +1,8 @@
 import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 import { SEASON, PITCHING } from '../Phanavision.js';
+// ---- R (rituals)
+import { ANNOUNCE } from '../game/Suspension.js';
+// ---- end R
 
 // The concourse's TVs showing the game: FOX's World Series broadcast as the fans in line saw it, drawn
 // from the replay (a few times a second, when what it shows changes). The center field camera over the
@@ -86,7 +89,10 @@ export class LiveTV {
 		if ( ns.suspended ) {
 
 			tarpShot( ctx, lt );
-			card( ctx, lt < 10 ? 'RAIN DELAY' : 'GAME SUSPENDED', lt < 10 ? 'TOP 6TH  ·  RAYS 2  PHILLIES 2' : 'TO BE RESUMED IN THE BOTTOM OF THE 6TH' );
+			// ---- R (rituals): RAIN DELAY until the suspension's announced (game/Suspension.js ANNOUNCE)
+			const ann = lt < ANNOUNCE;
+			card( ctx, ann ? 'RAIN DELAY' : 'GAME SUSPENDED', ann ? 'TOP 6TH  ·  RAYS 2  PHILLIES 2' : 'HOLD ON TO YOUR TICKETS  ·  EARLIEST TOMORROW 8 PM' );
+			// ---- end R
 
 		} else if ( kind === 'celebrate' ) {
 

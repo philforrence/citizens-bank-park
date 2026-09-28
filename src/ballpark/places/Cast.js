@@ -123,6 +123,16 @@ const HAND_PROPS = [
 const FAR_PROPS = [ PROP.beer, PROP.soda, PROP.cocoa, PROP.tray, PROP.towel, PROP.program, PROP.programs, PROP.bag, PROP.cottonCandy, PROP.glove, PROP.camera, PROP.phone,
 	PROP.umbrella, PROP.sign, PROP.beers, PROP.tickets ];
 const TINY_PROPS = [ PROP.umbrella, PROP.sign ];
+// ---- R (rituals): the press on the field at the last out (Getty 83571364: the photographers' long
+// zooms, a flash on top; the handheld TV cameras on the shoulder; a boom mic in its fuzzy windscreen),
+// all held level in the right hand
+PROP.slr = 60; // a pro camera and zoom at the eye (var 0: Canon's white lens, 1: a black one)
+PROP.eng = 61; // a TV camera on the right shoulder, the hand on its lens
+PROP.boom = 62; // a boom pole up over the heads, the windscreen out front
+UPRIGHT.push( PROP.slr, PROP.eng, PROP.boom );
+HAND_PROPS[ 1 ].push( PROP.slr, PROP.eng, PROP.boom );
+FAR_PROPS.push( PROP.slr, PROP.eng, PROP.boom );
+// ---- end R
 
 // the pose: 8 vec4s per person
 export const POSE = 8;
@@ -720,6 +730,40 @@ function figureGeometry( lod = 0 ) {
 				boxAt( bone, part, add( g, [ 0, 0.05, 0 ] ), [ 0.07, 0.045, 0.022 ] );
 				tube( bone, part, add( g, [ 0.05 * s, 0.09, 0 ] ), add( g, [ 0.07 * s, 0.33, 0 ] ), [ 0.003, 0.003 ], [ 0.002, 0.002 ], 3 );
 
+			// ---- R (rituals): the press's gear
+			} else if ( id === PROP.slr ) {
+
+				// the body in front of the face (the hand on its grip), the zoom out front, the flash on top
+				const b = add( h, [ - 0.075 * s, 0.01, - 0.02 ] );
+				boxAt( bone, part, b, [ 0.072, 0.055, 0.04 ] );
+				tube( bone, part, add( b, [ 0, - 0.005, - 0.04 ] ), add( b, [ 0, - 0.005, - 0.31 ] ), [ 0.043, 0.043 ], [ 0.047, 0.047 ], fine ? 10 : 6, false, true );
+				if ( fine ) tube( bone, part, add( b, [ 0, - 0.005, - 0.31 ] ), add( b, [ 0, - 0.005, - 0.37 ] ), [ 0.05, 0.05 ], [ 0.058, 0.058 ], 10 );
+				boxAt( bone, part, add( b, [ 0, 0.1, 0.005 ] ), [ 0.034, 0.042, 0.028 ] );
+
+			} else if ( id === PROP.eng ) {
+
+				// on the shoulder: the body back over it, the lens forward under the hand, the viewfinder at
+				// the eye, the battery at the back
+				const b = add( h, [ - 0.1 * s, 0.07, 0.12 ] );
+				boxAt( bone, part, b, [ 0.07, 0.1, 0.2 ] );
+				tube( bone, part, add( b, [ 0, - 0.02, - 0.2 ] ), add( b, [ 0, - 0.02, - 0.42 ] ), [ 0.05, 0.05 ], [ 0.055, 0.055 ], fine ? 8 : 5, false, true );
+				if ( fine ) {
+
+					boxAt( bone, part, add( b, [ - 0.1 * s, 0.07, - 0.16 ] ), [ 0.022, 0.03, 0.06 ] );
+					boxAt( bone, part, add( b, [ 0, 0.0, 0.24 ] ), [ 0.05, 0.07, 0.04 ] );
+					tube( bone, part, add( b, [ 0, 0.1, - 0.1 ] ), add( b, [ 0, 0.14, 0.12 ] ), [ 0.012, 0.012 ], [ 0.012, 0.012 ], 4 );
+
+				}
+
+			} else if ( id === PROP.boom ) {
+
+				// the pole out and up from the hands, the furry windscreen at its tip
+				const a = add( h, [ 0, 0.02, 0.35 ] ), tip = add( h, [ 0, 1.25, - 2.3 ] );
+				tube( bone, part, a, tip, [ 0.014, 0.014 ], [ 0.01, 0.01 ], fine ? 6 : 4 );
+				const d = [ tip[ 0 ] - a[ 0 ], tip[ 1 ] - a[ 1 ], tip[ 2 ] - a[ 2 ] ], l = Math.hypot( ...d );
+				tube( bone, part, add( tip, d.map( ( v ) => v / l * 0.02 ) ), add( tip, d.map( ( v ) => v / l * 0.34 ) ), [ 0.055, 0.055 ], [ 0.05, 0.05 ], fine ? 8 : 5, true, true );
+			// ---- end R
+
 			}
 
 		}
@@ -859,6 +903,12 @@ function palette() {
 // the parts only some have: shown or folded away, by the look
 const brimHats = [ HAT.capRed, HAT.capNavy, HAT.cap1980, HAT.capRays, HAT.capBack, HAT.visor, HAT.capBlack, HAT.capWhite, HAT.police, HAT.cabbie, HAT.capWS ];
 const capHats = [ HAT.capRed, HAT.capNavy, HAT.cap1980, HAT.capRays, HAT.capBack, HAT.capBlack, HAT.capWhite, HAT.police, HAT.capWS ];
+// ---- R (rituals): the Philadelphia police motor officers' white helmet (Getty 83486531): glossy white
+// down over the ears, a short black peak
+HAT.motor = 21;
+brimHats.push( HAT.motor );
+capHats.push( HAT.motor );
+// ---- end R
 const knitHats = [ HAT.knitRed, HAT.knitGrey, HAT.knitBlack, HAT.knitPlain ];
 const any = ( v, list ) => list.map( ( x ) => `${ v } == ${ x }u` ).join( ' || ' );
 
@@ -976,6 +1026,9 @@ function castMaterial( pool ) {
 		}
 		if ( part == ${ PART.brim }u && hat == ${ HAT.cabbie }u ) { q = vec3f( q.x, q.y - 0.012, headC.z + ( q.z - headC.z ) * 0.7 ); }
 		if ( part == ${ PART.brim }u && hat == ${ HAT.police }u ) { q = vec3f( q.x, q.y + 0.004, headC.z + ( q.z - headC.z ) * 0.85 ); }
+		// ---- R (rituals): the motor helmet's peak, short and up on its dome
+		if ( part == ${ PART.brim }u && hat == ${ HAT.motor }u ) { q = vec3f( q.x * 1.12, q.y + 0.03, headC.z + ( q.z - headC.z ) * 0.62 ); }
+		// ---- end R
 	}
 	if ( part == ${ PART.brim }u && hat == ${ HAT.capBack }u ) { q = vec3f( - ( q.x - headC.x ), q.y, - ( q.z - headC.z ) ) + headC; n = vec3f( - n.x, n.y, - n.z ); }
 	// this vertex's arm (the left's row or the right's)
@@ -1247,13 +1300,17 @@ function castMaterial( pool ) {
 		if ( hat == ${ HAT.capBlack }u || hat == ${ HAT.capWS }u ) { capC = vec3f( 0.012 ); }
 		if ( hat == ${ HAT.capWhite }u ) { capC = vec3f( 0.7, 0.69, 0.66 ); }
 		if ( hat == ${ HAT.police }u ) { capC = vec3f( 0.01, 0.012, 0.03 ); }
+		// ---- R (rituals): the motor helmet
+		let motor = hat == ${ HAT.motor }u;
+		if ( motor ) { capC = vec3f( 0.74, 0.74, 0.72 ); }
+		// ---- end R
 		let capped = ${ any( 'hat', capHats ) };
-		if ( capped && d.y > 0.26 - 0.12 * smoothstep( - 0.2, 0.6, d.z ) ) {
-			c = capC; rough = 0.8;
+		if ( capped && ( d.y > 0.26 - 0.12 * smoothstep( - 0.2, 0.6, d.z ) || ( motor && d.y > - 0.05 && d.z > - 0.55 ) ) ) {
+			c = capC; rough = select( 0.8, 0.18, motor );
 			// the logo on the front panel (the back, turned round)
 			let lz = select( d.z, - d.z, hat == ${ HAT.capBack }u );
 			let lp = vec2f( d.x / 0.3, ( d.y - 0.55 ) / 0.3 );
-			if ( lz < - 0.55 && length( lp ) < 1.0 && hat != ${ HAT.police }u ) {
+			if ( lz < - 0.55 && length( lp ) < 1.0 && hat != ${ HAT.police }u && ! motor ) {
 				// a letter P: its stem and bowl (the WS cap's gold mark)
 				let stem = abs( lp.x + 0.25 ) < 0.14 && abs( lp.y ) < 0.7;
 				let bowl = abs( length( ( lp - vec2f( 0.05, 0.3 ) ) * vec2f( 1.0, 1.3 ) ) - 0.32 ) < 0.12 && lp.x > - 0.25;
@@ -1265,7 +1322,7 @@ function castMaterial( pool ) {
 				if ( d.z < - 0.6 && abs( d.x ) < 0.13 && abs( d.y - 0.5 ) < 0.12 ) { c = vec3f( 0.62, 0.5, 0.22 ); metal = 0.8; rough = 0.3; }
 				if ( d.y < 0.42 ) { c = vec3f( 0.006 ); rough = 0.3; }
 			}
-			if ( abs( fract( atan2( d.x, d.z ) * 0.955 ) - 0.5 ) > 0.485 && hat != ${ HAT.police }u ) { c *= 0.7; }
+			if ( abs( fract( atan2( d.x, d.z ) * 0.955 ) - 0.5 ) > 0.485 && hat != ${ HAT.police }u && ! motor ) { c *= 0.7; }
 		}
 		if ( hat == ${ HAT.cabbie }u && d.y > 0.3 - 0.1 * smoothstep( - 0.2, 0.6, d.z ) ) {
 			// a tweed flat cap: the herringbone's weave
@@ -1301,6 +1358,9 @@ function castMaterial( pool ) {
 		rough = 0.8;
 		// the police cap's patent-leather peak
 		if ( hat == ${ HAT.police }u ) { c = vec3f( 0.006 ); rough = 0.12; }
+		// ---- R (rituals): the motor helmet's short black peak
+		if ( hat == ${ HAT.motor }u ) { c = vec3f( 0.008 ); rough = 0.2; }
+		// ---- end R
 	}
 	if ( part == ${ PART.pompom }u ) { c = select( vec3f( 0.32, 0.29, 0.26 ), vec3f( 0.62, 0.6, 0.56 ), hat == ${ HAT.knitRed }u ); rough = 1.0; }
 	if ( part == ${ PART.apron }u ) {
@@ -1463,6 +1523,30 @@ function castMaterial( pool ) {
 		if ( id == ${ PROP.cigarette }u ) { c = select( vec3f( 0.75 ), vec3f( 0.6, 0.35, 0.1 ), pl.z < ${ ( J.hand[ 2 ] + 0.0 ).toFixed( 3 ) } ); if ( pl.z > ${ ( J.hand[ 2 ] + 0.06 ).toFixed( 3 ) } ) { c = vec3f( 0.3, 0.05, 0.0 ); e = vec3f( 2.5, 0.5, 0.05 ) * ( 0.6 + 0.4 * sin( frame.time * 3.0 + g.y * 20.0 ) ); } rough = 0.9; }
 		if ( id == ${ PROP.thermos }u ) { c = select( vec3f( 0.08, 0.16, 0.08 ), vec3f( 0.3 ), pl.y > ${ ( J.hand[ 1 ] + 0.095 ).toFixed( 3 ) } ); metal = 0.4; rough = 0.45; }
 		if ( id == ${ PROP.radio }u ) { c = select( vec3f( 0.3, 0.02, 0.03 ), vec3f( 0.6 ), pl.y > ${ ( J.hand[ 1 ] + 0.02 ).toFixed( 3 ) } ); metal = 0.3; rough = 0.4; }
+		// ---- R (rituals): the press's gear: black bodies; Canon's white zoom with its red ring (or a black
+		// one); the flash firing now and then (the last out's flashes); the TV camera's grey, its red tally;
+		// the boom's grey pole and the windscreen's grey fur
+		if ( id == ${ PROP.slr }u ) {
+			c = vec3f( 0.018 ); rough = 0.45;
+			if ( pl.z < ${ ( J.hand[ 2 ] - 0.07 ).toFixed( 3 ) } ) {
+				c = select( vec3f( 0.72, 0.71, 0.66 ), vec3f( 0.02 ), pv == 1u ); rough = 0.35;
+				if ( abs( pl.z - ${ ( J.hand[ 2 ] - 0.32 ).toFixed( 3 ) } ) < 0.006 && pv == 0u ) { c = vec3f( 0.45, 0.02, 0.02 ); }
+				if ( pl.z < ${ ( J.hand[ 2 ] - 0.34 ).toFixed( 3 ) } ) { c = vec3f( 0.015 ); }
+			}
+			if ( pl.y > ${ ( J.hand[ 1 ] + 0.07 ).toFixed( 3 ) } ) {
+				c = vec3f( 0.02 );
+				if ( pl.z < ${ ( J.hand[ 2 ] - 0.04 ).toFixed( 3 ) } && fract( frame.time * 0.7 + g.x * 23.0 + g.y * 7.0 ) > 0.955 ) { e = vec3f( 60.0 ); }
+			}
+		}
+		if ( id == ${ PROP.eng }u ) {
+			c = select( vec3f( 0.06, 0.062, 0.066 ), vec3f( 0.015 ), pl.z < ${ ( J.hand[ 2 ] - 0.1 ).toFixed( 3 ) } ); metal = 0.3; rough = 0.4;
+			if ( pl.z < ${ ( J.hand[ 2 ] - 0.08 ).toFixed( 3 ) } && pl.z > ${ ( J.hand[ 2 ] - 0.11 ).toFixed( 3 ) } && pl.y > ${ ( J.hand[ 1 ] + 0.14 ).toFixed( 3 ) } ) { e = vec3f( 3.0, 0.1, 0.05 ); }
+		}
+		if ( id == ${ PROP.boom }u ) {
+			c = vec3f( 0.35, 0.35, 0.36 ); metal = 0.7; rough = 0.3;
+			if ( pl.y > ${ ( J.hand[ 1 ] + 1.2 ).toFixed( 3 ) } ) { c = vec3f( 0.3, 0.3, 0.29 ) * ( 0.8 + 0.3 * fract( sin( dot( pl.xz, vec2f( 91.0, 57.0 ) ) ) * 437.0 ) ); metal = 0.0; rough = 1.0; }
+		}
+		// ---- end R
 	}
 	// the rain on them: shoulders, caps and hoods darker and glossy on the 27th
 	let wetK = frame.wet * smoothstep( 0.2, 0.8, normalize( in.N ).y ) * select( 0.6, 1.0, part == ${ PART.poncho }u || part == 32u + ${ PROP.umbrella }u ) * select( 1.0, 0.0, ( ( lk.w >> 16u ) & 1u ) == 1u ) * select( 1.0 - 0.75 * in.vs.vPose.w, 1.0, part == 32u + ${ PROP.umbrella }u );

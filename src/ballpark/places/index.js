@@ -18,6 +18,7 @@ import Concourse1B from './Concourse1B.js';
 import BehindHome from './BehindHome.js';
 import LeftField from './LeftField.js'; // ---- H
 import Soundscape from './Soundscape.js'; // ---- S: the park's whole soundscape (draws nothing)
+import Rituals from './Rituals.js';
 
 export const PLACES = [
 	[ 'rail', FieldRail ],
@@ -29,4 +30,5 @@ export const PLACES = [
 	[ 'home', BehindHome ],
 	[ 'leftfield', LeftField ], // ---- H
 	[ 'sound', Soundscape ], // ---- S
+	[ 'rituals', Rituals ],
 ];

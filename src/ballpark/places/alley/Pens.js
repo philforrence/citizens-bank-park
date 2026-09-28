@@ -369,7 +369,11 @@ export class Pens {
 		if ( tSusp ) this.schedule.home.unshift( { id: 239795, from: tSusp - 200, to: tSusp, throws: 'R', stays: true } );
 		// and Balfour loose again in the visitors' pen before the resumption (Getty, October 29: he and Jim
 		// Hickey walked in from the pen to start it)
-		if ( tSusp ) this.schedule.away.push( { id: 346797, from: tSusp + 6, to: tResume, throws: 'R', stays: true } );
+		// ---- R (rituals): on the 29th's part of the suspension, until he sets off for the mound with Hickey
+		// (game/Suspension.js G29.balfour: 36 s into the 29th's part)
+		const tSplit = director.night ? director.night( 0 ).split : tSusp + 6;
+		if ( tSusp ) this.schedule.away.push( { id: 346797, from: tSplit + 1, to: director.night ? tSplit + 36 : tResume, throws: 'R', stays: true } );
+		// ---- end R
 		this.schedule.away.sort( ( a, b ) => a.from - b.from );
 
 	}

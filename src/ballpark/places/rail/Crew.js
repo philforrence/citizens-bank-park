@@ -80,7 +80,9 @@ export class Crew {
 
 		// out along the tube from the 3rd inning on the 27th, when it came down harder; gone to pull the
 		// tarp at the suspension
-		const standby = S.first && S.rain > 0.55;
+		// ---- R (rituals): in the suspension the rig's crew (game/Suspension.js) take over from these
+		const standby = S.first && S.rain > 0.55 && ! S.susp;
+		// ---- end R
 		for ( const w of this.wet ) {
 
 			const f = w.f;

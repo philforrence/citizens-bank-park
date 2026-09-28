@@ -147,6 +147,17 @@ export const STAFF = {
 	phanatic: { skin: [ 0.06, 0.3, 0.035 ], hair: [ 0.06, 0.3, 0.035 ], beard: 0, stubble: 0, height: 1.02, girth: 1.3, belly: 1.6, age: 0, socks: 'high' },
 };
 
+// ---- R (rituals): the grounds crew with names (CAST.md): Frank Tomaselli, 57, on the crew since the
+// Vet's last years (the far end of the roll; he stays out with the tarp); Lucho Figueroa, 34, the chalk
+// liner man; Ricky DeSantis, 22, the Temple intern on the hose. And Jamie Moyer (45; 6'0", lean) and
+// Jim Hickey, the Rays' pitching coach
+STAFF[ 'r:crew1' ] = { skin: S.fair, hair: H.salt, beard: 6, height: ht( 5, 10 ), girth: 1.1, belly: 0.35, age: 0.85, jaw: 0.3 };
+STAFF[ 'r:liner' ] = { skin: S.latin, hair: H.black, beard: 4, height: ht( 5, 9 ), girth: 1.0, age: 0.35 };
+STAFF[ 'r:crew5' ] = { skin: S.light, hair: H.brown, beard: 0, stubble: 0.25, height: ht( 6, 0 ), girth: 0.92, age: 0.05, jaw: - 0.2 };
+STAFF[ 'r:moyer' ] = { skin: S.light, hair: H.dark, beard: 0, stubble: 0.3, height: ht( 6, 0 ), girth: 0.93, age: 0.55, jaw: - 0.1 };
+STAFF[ 'r:hickey' ] = { skin: S.ruddy, hair: H.grey, beard: 0, height: ht( 6, 2 ), girth: 1.05, belly: 0.2, age: 0.6 };
+// ---- end R
+
 const CREW_SKINS = [ S.light, S.brown, S.ruddy, S.latin, S.fair, S.dark, S.tan, S.olive ];
 const CREW_HAIR = [ H.brown, H.black, H.sandy, H.black, H.dark, H.black, H.dark, H.brown ];
 
