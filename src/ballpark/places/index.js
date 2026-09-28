@@ -16,6 +16,7 @@ import Concourse3B from './Concourse3B.js';
 import Phanatic from './Phanatic.js';
 import Concourse1B from './Concourse1B.js';
 import BehindHome from './BehindHome.js';
+import LeftField from './LeftField.js'; // ---- H
 
 export const PLACES = [
 	[ 'rail', FieldRail ],
@@ -25,4 +26,5 @@ export const PLACES = [
 	[ 'phanatic', Phanatic ],
 	[ 'concourse1b', Concourse1B ],
 	[ 'home', BehindHome ],
+	[ 'leftfield', LeftField ], // ---- H
 ];

@@ -130,3 +130,12 @@ into hawkers' calls. The small sounds are CC0 Freesound previews (rsellick, My N
 IENBA, tmkappelt, JamesOC, AquarianThunderProductions) or synthesized. Each file is listed in
 [`public/audio/places/home/CREDITS.md`](public/audio/places/home/CREDITS.md), and `tools/audio/build-home.py`
 rebuilds them.
+
+## Harry the K's voices and hubbub (leftfield)
+
+The bartenders', host's, servers' and fans' lines in `public/audio/places/leftfield/` are voiced offline
+with Piper (https://github.com/rhasspy/piper, MIT) by `tools/audio/leftfield-calls.py`, from the en_US
+voices joe, mike and kathleen (CC0) and norman, bryce, john, kristin and ljspeech (public domain), per
+their model cards. The two rooms' hubbub loops (`room-up`, `room-down`) are made by the same script from
+invented lines in those voices, overlapped in a synthesized room with synthesized glass clinks. The
+patio heaters' roar is synthesized in code (`src/ballpark/places/leftfield/Sounds.js`).

@@ -331,7 +331,12 @@ export class Landmarks {
 		const gz = FZ - 0.02, gy0 = patio, gy1 = patio + 2.9;
 		gq.tri( [ HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy1, gz ], [ 0, 0, - 1 ], [ 0, 1 ], [ 8, 1 ], [ 8, 0 ] );
 		gq.tri( [ HW / 2 - 2, gy0, gz ], [ - HW / 2 - 2, gy1, gz ], [ HW / 2 - 2, gy1, gz ], [ 0, 0, - 1 ], [ 0, 1 ], [ 8, 0 ], [ 0, 0 ] );
-		g.add( new Mesh( gq.geometry(), barMat ) );
+		const glassMesh = new Mesh( gq.geometry(), barMat );
+		g.add( glassMesh );
+		// ---- H (leftfield): Harry the K's for the place that builds it out (places/LeftField.js): the frame,
+		// the brick house and the flat glass it replaces with its two bars, and where things are
+		this.harrys = { g, house, glass: glassMesh, brick: hb, W, H, y0, HW, FZ, patio, gy1, ay: gy1 + 0.2 };
+		// ---- end H
 		// three slate-navy awnings, HARRY THE K'S on their valances
 		const awning = standard( { name: 'harrys-awnings', color: new Color( 0.024, 0.045, 0.09 ), roughness: 0.75, side: 'double' } );
 		awning.underwaterLighting = 'none';
@@ -397,7 +402,17 @@ export class Landmarks {
 			} );
 
 		}, 'boardAds' );
-		const adMat = standard( { name: 'board-ads', roughness: 0.5, textures: { bpAd: adTex }, surface: 'let t = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.6; s.emissive = t * mix( 0.25, 0.9, frame.night );' } );
+		// ---- H (leftfield): after dark the panels' faces go dark and only their letters glow, red or blue
+		// neon (the World Series photos: W.B. MASON and Budweiser in red on black, Oct 29 2008; the audit's
+		// LF02); by day as they were
+		const adMat = standard( { name: 'board-ads', roughness: 0.5, textures: { bpAd: adTex }, surface: /* wgsl */`
+	let t = textureSample( bpAd, smpAnisoClamp, in.uv ).rgb;
+	let nk = smoothstep( 0.2, 0.8, frame.night );
+	let lit = step( 0.3, max( t.r, t.b ) - t.g );
+	s.albedo = mix( t * 0.6, t * 0.04, nk * ( 1.0 - lit ) );
+	s.emissive = mix( t * 0.25, t * lit * 2.2, nk );
+` } );
+		// ---- end H
 		adMat.underwaterLighting = 'none';
 		const aq = new Quads();
 		const PW = 11, PH = 4.6, gap = 1.8, zf = 0.6;

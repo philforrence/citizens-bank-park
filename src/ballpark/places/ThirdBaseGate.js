@@ -21,6 +21,7 @@ import { buildFurniture } from './gate3b/Furniture.js';
 import { buildDrips } from './gate3b/Drips.js';
 import { buildCelebration } from './gate3b/Celebration.js';
 import { plantBeds } from './gate3b/Planting.js';
+import { Tempo } from './Tempo.js'; // ---- H
 
 // The Third Base Gate and its plaza (Pattison Avenue and Citizens Bank Way) on a World Series night:
 // where every visitor starts, at ( -112, 78 ) facing the gate. W1's little world (places/index.js).
@@ -473,6 +474,12 @@ export default class ThirdBaseGate {
 
 	update( dt, director, camera ) {
 
+		// ---- H: while none of its people are seen, they're moved every 4th frame by that much time (Tempo.js)
+		const T = this._tempo ||= new Tempo( [ this.folk?.cast ] );
+		const sdt = T.step( dt, camera || this.app?.camera );
+		// (a step's time capped as before, looser while asleep: four frames' worth at 30 fps)
+		const cdt = Math.min( sdt, T.awake ? 0.1 : 0.15 );
+		// ---- end H
 		const w = night( director );
 		// the score: a run for the Phillies sets off a cheer, one for the Rays a groan (the ones following
 		// the game outside react: Cast's reacts)
@@ -502,24 +509,36 @@ export default class ThirdBaseGate {
 				this.cars?.reset( w.celebrate ? 0.9 : Math.min( 0.9, 0.3 + w.rate * 0.4 ) );
 
 			}
-			A.update( Math.min( dt, 0.1 ), w );
+			if ( cdt || jumped ) A.update( cdt, w ); // ---- H (was every frame)
 			this._lastT = w.t;
 			this._lastFirst = w.first;
 
 		}
 
-		this.cast?.update( Math.min( dt, 0.1 ), w );
-		this._updatePolice( Math.min( dt, 0.1 ) );
-		this.tv?.update( Math.min( dt, 0.1 ) );
+		// ---- H: the people (and their horses, FOX 29's shot, the flash, the last out) on the tempo; the
+		// traffic and the lights every frame
+		if ( cdt ) {
+
+			this.cast?.update( cdt, w );
+			this._updatePolice( cdt );
+			this.tv?.update( cdt );
+
+		}
+
 		this.cars?.update( Math.min( dt, 0.1 ), w );
 		this.clock += dt;
 		this.furniture?.update( w, this.clock );
 		this._lights();
-		this._updateFlash( Math.min( dt, 0.1 ) );
-		this.celebration?.update( Math.min( dt, 0.1 ) );
-		this.openGate?.poseTripods();
-		// the near ones drawn in full, the far ones lighter (by the eye)
-		this.folk?.update( camera ? this.field.toField( camera.position.x, camera.position.z ) : null );
+		if ( cdt ) {
+
+			this._updateFlash( cdt );
+			this.celebration?.update( cdt );
+			this.openGate?.poseTripods();
+			// the near ones drawn in full, the far ones lighter (by the eye)
+			this.folk?.update( camera ? this.field.toField( camera.position.x, camera.position.z ) : null );
+
+		}
+		// ---- end H
 
 	}
 
