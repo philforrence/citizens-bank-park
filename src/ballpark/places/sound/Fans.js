@@ -326,7 +326,9 @@ export class Fans {
 			}
 
 		}
-		const here = 1.0 * w.roof + 0.8 * w.enclosed + 0.3 * w.outside + 0.04 * w.bowl;
+		// (not in Harry the K's, under the scoreboard: H's place has its own two rooms' hubbub there)
+		const a = this.space.at, harrys = a.x > - 100 && a.x < - 55 && a.z > - 128 && a.z < - 92;
+		const here = harrys ? 0 : 1.0 * w.roof + 0.8 * w.enclosed + 0.3 * w.outside + 0.04 * w.bowl;
 		const v = 0.55 * here * packed;
 		[ night2 ? 0 : v, night2 ? v : 0 ].forEach( ( x, i ) => {
 
