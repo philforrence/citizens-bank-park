@@ -91,7 +91,7 @@ export class LiveTV {
 			tarpShot( ctx, lt );
 			// ---- R (rituals): RAIN DELAY until the suspension's announced (game/Suspension.js ANNOUNCE)
 			const ann = lt < ANNOUNCE;
-			card( ctx, ann ? 'RAIN DELAY' : 'GAME SUSPENDED', ann ? 'TOP 6TH  ·  RAYS 2  PHILLIES 2' : 'TO BE RESUMED IN THE BOTTOM OF THE 6TH' );
+			card( ctx, ann ? 'RAIN DELAY' : 'GAME SUSPENDED', ann ? 'TOP 6TH  ·  RAYS 2  PHILLIES 2' : 'HOLD ON TO YOUR TICKETS  ·  EARLIEST TOMORROW 8 PM' );
 			// ---- end R
 
 		} else if ( kind === 'celebrate' ) {

@@ -20,6 +20,10 @@
 //
 // What it shows follows the replay's clock (moment()), so scrubbing shows the same board.
 
+// ---- R (rituals): when the suspension's announced (s into the break)
+import { ANNOUNCE } from './game/Suspension.js';
+// ---- end R
+
 export const FACE_W = 1600, FACE_H = 1304;
 // where things are on the face (canvas px): the matrix's lamps (3 px apart) and the video board
 export const LAMPS = { x: 318, y: 12, pitch: 3, cols: 424, rows: 199 };
@@ -251,6 +255,10 @@ export class Phanavision {
 		const home = m.batting === 'home';
 		if ( k === 'celebrate' ) return { video: [ 'champs', 'pile', 'champs', 'thanks' ][ Math.floor( lt / 9 ) % 4 ], matrix: 'champs', frame: tick( 3 ) };
 		if ( k === 'intro' ) return { video: 'title', matrix: 'logo', frame: 0 };
+		// ---- R (rituals): once it's called off, the suspension's message (the board's own words, Getty
+		// 83458512, AP 4551252), until the 29th
+		if ( m.susp && lt >= ANNOUNCE && lt < m.dur * 0.55 ) return { video: 'suspended', matrix: 'stats', frame: 0 };
+		// ---- end R
 		if ( m.susp ) return { video: lt < m.dur * 0.55 ? 'rain' : 'resume', matrix: lt < m.dur * 0.55 ? 'stats' : 'logo', frame: tick( 1 ) % 2 };
 		// ---- A (Phanatic): while he's out on the field or a dugout roof in a break, the board's on him
 		// (after the line score's first six seconds), with what he's up to
@@ -682,6 +690,9 @@ function drawVideo( ctx, w, h, S, m, show ) {
 	else if ( v === 'fancam' ) fanCam( ctx, w, h, f );
 	else if ( v === 'october' ) redOctober( ctx, w, h );
 	else if ( v === 'rain' ) rainDelay( ctx, w, h, f, S );
+	// ---- R (rituals)
+	else if ( v === 'suspended' ) suspended( ctx, w, h );
+	// ---- end R
 	else if ( v === 'resume' ) resumed( ctx, w, h, S );
 	else if ( v === 'champs' ) champions( ctx, w, h, f );
 	else if ( v === 'pile' ) pileShot( ctx, w, h, f );
@@ -1479,6 +1490,25 @@ function rainDelay( ctx, w, h, f, S ) {
 	ctx.fillText( 'FOR YOUR SAFETY PLEASE STAY OFF THE FIELD', w / 2, h * 0.84, w - 100 );
 
 }
+
+// ---- R (rituals): the board's message when the game was called, word for word (Getty 83458512; AP
+// 4551252: white capitals on the video board, "as a few fans remain", ~11:50 pm)
+function suspended( ctx, w, h ) {
+
+	const g = ctx.createLinearGradient( 0, 0, 0, h );
+	g.addColorStop( 0, '#10244a' ); g.addColorStop( 1, '#061024' );
+	ctx.fillStyle = g; ctx.fillRect( 0, 0, w, h );
+	ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+	ctx.fillStyle = '#ffffff';
+	const lines = [
+		'TONIGHT\'S PHILLIES/RAYS GAME', 'HAS BEEN SUSPENDED.', 'RESUMPTION OF PLAY WILL BE DETERMINED', 'WHEN WEATHER CONDITIONS ALLOW,', 'EARLIEST TOMORROW AT 8 PM.',
+		'ALL FANS SHOULD HOLD ON TO THEIR', 'TICKETS FOR TONIGHT. TICKETS WILL BE', 'VALID FOR RE-ENTRY WHEN THE GAME', 'IS RESUMED.',
+	];
+	ctx.font = `800 52px ${ SANS }`;
+	lines.forEach( ( l, i ) => ctx.fillText( l, w / 2, h * ( 0.1 + i * 0.1 ), w - 60 ) );
+
+}
+// ---- end R
 
 function resumed( ctx, w, h, S ) {
 

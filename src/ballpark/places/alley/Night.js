@@ -36,7 +36,9 @@ export function when( director ) {
 	const tEnd = cel ? cel.t0 : d.duration;
 	let clock;
 	if ( d.t < tSusp ) clock = T27[ 0 ] + ( T27[ 1 ] - T27[ 0 ] ) * d.t / tSusp;
-	else if ( d.t < tSplit ) clock = T27[ 1 ] + ( d.t - tSusp ) / 60; // the delay, as it happened: waiting
+	// ---- R: the delay, 10:40 to 11:50 pm (the tarp at 10:40, called at 11:10, the last few gone ~11:50)
+	else if ( d.t < tSplit ) clock = T27[ 1 ] + ( 70 / 60 ) * ( d.t - tSusp ) / Math.max( 1, tSplit - tSusp );
+	// ---- end R
 	// ---- R: the 29th's evening before the resumption: the gates open, the clock coming up to 8:37
 	else if ( d.t < tResume ) clock = T29[ 0 ] - ( tResume - d.t ) / 60 * 0.75;
 	// ---- end R
