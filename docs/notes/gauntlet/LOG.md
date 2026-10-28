@@ -51,3 +51,4 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 ## Round 3
 
 - **C3B, the broadcast end to end** (launched 12:12): fresh eyes on the whole replay through the broadcast mode, regressions first.
+- **SP2's second win** (4dc0238): the players' far figure up to 128 px tall and a middle figure (17.8k triangles, body error under 3 mm) to 480 px; the scene's opaque-colour copy and half-float depth skipped (the ballpark reads neither). SP2 measured 1-2 ms of GPU back in every view, with shot pairs the same.
