@@ -593,7 +593,7 @@ const ROOMS_WGSL = /* wgsl */`
 		let cg = abs( fract( vec2f( hx / 1.2, hz / 0.6 ) ) - 0.5 );
 		col = vec3f( 0.7 );
 		e = vec3f( 1.0, 0.95, 0.85 ) * step( max( cg.x * 1.4, cg.y ), 0.3 ) * 2.5;
-	} else if ( hitK >= 3 ) {
+	} else if ( hitK >= 3 && room != 7 ) { // ---- FI3 (C2I-3): not a team store's: its sides are jersey walls too (they were white)
 		// the sides: tile, or painted in the rooms
 		col = select( vec3f( 0.6, 0.58, 0.54 ) * ( 1.0 - 0.18 * step( 0.44, max( abs( fract( hz / 0.15 ) - 0.5 ), tileG.y ) ) ), vec3f( 0.55, 0.53, 0.5 ), room >= 6 );
 		if ( hy < 0.9 && room < 5 ) { col = vec3f( 0.33, 0.34, 0.35 ); }
@@ -726,10 +726,11 @@ const ROOMS_WGSL = /* wgsl */`
 		} else if ( room == 7 ) {
 			// the team store: slatwall, jerseys two rows up it, caps on pegs, a banner
 			col = vec3f( 0.33, 0.31, 0.28 ) * ( 0.85 + 0.15 * step( 0.15, fract( hy / 0.1 ) ) );
-			let jx = fract( hx / 0.55 );
+			let ax = select( hx, hz + 3.1, hitK >= 3 ); // ---- FI3: along the side walls too
+			let jx = fract( ax / 0.55 );
 			let row = floor( hy / 0.75 );
 			let jy = fract( hy / 0.75 );
-			let jid = fract( sin( floor( hx / 0.55 ) * 17.1 + row * 3.7 ) * 4375.5 );
+			let jid = fract( sin( floor( ax / 0.55 ) * 17.1 + row * 3.7 ) * 4375.5 );
 			let tee = ( jx > 0.18 && jx < 0.82 && jy > 0.1 && jy < 0.8 ) || ( jx > 0.06 && jx < 0.94 && jy > 0.62 && jy < 0.8 );
 			if ( hy > 0.5 && hy < 2.0 && tee ) {
 				col = vec3f( 0.82, 0.8, 0.75 );
@@ -739,7 +740,7 @@ const ROOMS_WGSL = /* wgsl */`
 				if ( jid > 0.85 ) { col = vec3f( 0.35, 0.5, 0.72 ); }
 				if ( abs( jx - 0.5 ) < 0.1 && abs( jy - 0.45 ) < 0.12 ) { col = select( vec3f( 0.8 ), vec3f( 0.5, 0.03, 0.05 ), jid < 0.45 || jid > 0.7 ); }
 			}
-			if ( hy > 2.05 && hy < 2.28 ) { let cx2 = fract( hx / 0.26 ) - 0.5; if ( length( vec2f( cx2, ( hy - 2.12 ) / 0.26 ) ) < 0.34 ) { col = select( vec3f( 0.5, 0.02, 0.03 ), vec3f( 0.02, 0.05, 0.2 ), rnd > 0.75 ); if ( length( vec2f( cx2, ( hy - 2.14 ) / 0.26 ) ) < 0.1 ) { col = vec3f( 0.85 ); } } }
+			if ( hy > 2.05 && hy < 2.28 ) { let cx2 = fract( ax / 0.26 ) - 0.5; if ( length( vec2f( cx2, ( hy - 2.12 ) / 0.26 ) ) < 0.34 ) { col = select( vec3f( 0.5, 0.02, 0.03 ), vec3f( 0.02, 0.05, 0.2 ), rnd > 0.75 ); if ( length( vec2f( cx2, ( hy - 2.14 ) / 0.26 ) ) < 0.1 ) { col = vec3f( 0.85 ); } } }
 			if ( hy > 2.36 && hy < 2.62 ) { col = select( vec3f( 0.02, 0.06, 0.2 ), vec3f( 0.75, 0.6, 0.2 ), abs( hy - 2.49 ) < 0.03 ); }
 			light = 0.8;
 		} else if ( room == 8 ) {

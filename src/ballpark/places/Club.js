@@ -459,7 +459,7 @@ export default class Club {
 		g.quad( C( - w, y0, d ), C( - w, y0, - d ), C( - w, y1, - d ), C( - w, y1, d ), [ 1, 0, 0 ] );
 		g.quad( C( w, y0, - d ), C( w, y0, d ), C( w, y1, d ), C( w, y1, - d ), [ 1, 0, 0 ] );
 		g.quad( C( - w, y1, - d ), C( w, y1, - d ), C( w, y1, d ), C( - w, y1, d ), [ 0, 1, 0 ] );
-		const m = clearGlassMesh( g, clearGlass( 'club-case-glass', NEAR, BAND ), 'club-case-glass' );
+		const m = clearGlassMesh( g, clearGlass( 'club-case-glass', NEAR, BAND, { tint: false } ), 'club-case-glass' );
 		this.group.add( m );
 		this.caseGlass = m;
 
@@ -527,7 +527,7 @@ export default class Club {
 			const top = this.yGlass;
 			far.with( [ sg.s0, 0, 0, 0 ] );
 			far.quad( a, c, [ c[ 0 ], top, c[ 2 ] ], [ a[ 0 ], top, a[ 2 ] ], n, [ [ sg.s0, 0 ], [ sg.s0 + sg.len, 0 ], [ sg.s0 + sg.len, top - y ], [ sg.s0, top - y ] ] );
-			near.quad( a, c, [ c[ 0 ], top, c[ 2 ] ], [ a[ 0 ], top, a[ 2 ] ], n );
+			near.quad( a, c, [ c[ 0 ], top, c[ 2 ] ], [ a[ 0 ], top, a[ 2 ] ], n, [ [ sg.s0, 0 ], [ sg.s0 + sg.len, 0 ], [ sg.s0 + sg.len, top - y ], [ sg.s0, top - y ] ] ); // ---- FI3: uv as the far glass's
 
 		}
 
@@ -543,7 +543,28 @@ export default class Club {
 
 		}
 
-		this.nearGlass = clearGlassMesh( near, clearGlass( 'club-glass-near', NEAR, BAND ), 'club-glass-near' );
+		// ---- FI3 (C2I-9): the room behind you in the glass after dark: the ceiling's light panels, the back
+		// wall in the picture lights, the bars' glow, the dark carpet
+		const reflect = /* wgsl */`
+		let H = ${ CEIL.toFixed( 2 ) };
+		let ty = ( select( 0.0, H, rd.y > 0.0 ) - ro.y ) / rd.y;
+		let tz = ${ ( DEPC - 0.1 ).toFixed( 2 ) } / rd.z;
+		let t = min( ty, tz );
+		let hit = ro + rd * t;
+		if ( ro.y > H ) {
+			refl = vec3f( 0.0 );
+		} else if ( t == ty && rd.y > 0.0 ) {
+			let g = vec2f( abs( fract( hit.x / 3.0 ) - 0.5 ) * 3.0, min( min( abs( hit.z - 2.2 ), abs( hit.z - 4.9 ) ), abs( hit.z - 7.6 ) ) );
+			refl = vec3f( 0.58, 0.57, 0.54 ) * 0.25 + vec3f( 1.0, 0.86, 0.66 ) * 2.0 * step( g.x, 0.6 ) * step( g.y, 0.3 );
+		} else if ( t == ty ) {
+			refl = vec3f( 0.05, 0.02, 0.02 );
+		} else {
+			refl = select( vec3f( 0.3, 0.27, 0.21 ), vec3f( 0.1, 0.04, 0.02 ), hit.y < 1.0 );
+			let px = ( fract( ( hit.x - 2.5 ) / 2.8 + 0.5 ) - 0.5 ) * 2.8;
+			if ( abs( px ) < 0.55 && abs( hit.y - 2.0 ) < 0.55 ) { refl = vec3f( 0.25, 0.17, 0.08 ); }
+		}
+`;
+		this.nearGlass = clearGlassMesh( near, clearGlass( 'club-glass-near', NEAR, BAND, { reflect } ), 'club-glass-near' );
 		this.group.add( this.nearGlass );
 
 	}
@@ -619,17 +640,18 @@ export default class Club {
 				}
 				let sw = min( B.y * 2.0 - 0.6, 3.6 );
 				if ( abs( bx ) < sw * 0.5 && hit.y > 2.71 && hit.y < 2.71 + sw * 0.5 ) {
-					let auv = vec2f( B.z + ( 0.5 + bx / sw ) * ${ f( 512 / 2048 ) }, B.w + ( 1.0 - ( hit.y - 2.71 ) / ( sw * 0.5 ) ) * ${ f( 256 / 1024 ) } );
+					let auv = vec2f( B.z + ( 0.5 + bx / sw ) * ${ f( 512 / 2048 ) }, B.w + ( 1.0 - ( hit.y - 2.71 ) / ( sw * 0.5 ) ) * ${ f( 256 / 2048 ) } ); // ---- FI3: the atlas is 2048 tall now
 					glow = textureSampleLevel( inAtlas, smpAnisoClamp, auv, 1.0 ).rgb * 1.6;
 					room = vec3f( 0.0 );
 				}
 			}
 		}
 	}
-	room = room * mix( 0.35, 0.5, nk ) + glow * mix( 0.5, 1.0, nk );
+	// ---- FI3 (C2I-9): by day the room behind the tinted glass is barely there, its panels no beacons; the tint
+	room = ( room * mix( 0.08, 0.5, nk ) + glow * mix( 0.12, 1.0, nk ) ) * vec3f( 0.8, 0.92, 0.86 );
 	// the drink rail just inside the glass
 	let tR = 0.42 / rd.z;
-	if ( tR < t && ( ro + rd * tR ).y < 1.07 && ( ro + rd * tR ).y > 0.0 ) { room = vec3f( 0.2, 0.075, 0.03 ) * mix( 0.3, 0.45, nk ); }
+	if ( tR < t && ( ro + rd * tR ).y < 1.07 && ( ro + rd * tR ).y > 0.0 ) { room = vec3f( 0.2, 0.075, 0.03 ) * mix( 0.06, 0.45, nk ); }
 	// the people: at the bars, standing about, at the rail (nearer drawn over further)
 	for ( var kk = 0; kk < 3; kk ++ ) {
 		let zP = select( select( 1.0, 4.6, kk == 1 ), 7.4, kk == 0 );
@@ -648,16 +670,16 @@ export default class Club {
 				let hair = mix( vec3f( 0.05, 0.035, 0.02 ), vec3f( 0.35, 0.25, 0.12 ), step( 0.7, bb ) ) + vec3f( 0.3 ) * step( 0.9, a * 1.8 );
 				let skin = mix( vec3f( 0.55, 0.38, 0.3 ), vec3f( 0.3, 0.19, 0.13 ), step( 0.85, c ) );
 				let fg = figure( vec2f( pp.x - cx, pp.y ), 1.6 + 0.24 * bb, coat, hair, skin, 0.0 );
-				if ( fg.w > 0.5 ) { room = fg.xyz * mix( 0.14, 0.32, nk ); }
+				if ( fg.w > 0.5 ) { room = fg.xyz * mix( 0.035, 0.32, nk ); }
 			}
 		}
 	}
 	let fres = pow( 1.0 - max( dot( - Vd, N ), 0.0 ), 3.0 );
-	s.albedo = vec3f( 0.03, 0.035, 0.04 );
+	s.albedo = vec3f( 0.045, 0.06, 0.056 ); // (---- FI3: more of the sky in it)
 	s.roughness = 0.06;
 	s.metalness = 0.5;
 	s.alpha = 1.0;
-	s.emissive = room * ( 1.0 - fres );
+	s.emissive = room * ( 1.0 - max( fres, 0.12 ) );
 `;
 
 	}

@@ -63,7 +63,7 @@ export default class Under {
 
 		}
 
-		this.material = insideMaterial( 'under-inside' );
+		this.material = insideMaterial( 'under-inside', { local: false } ); // ---- FI3: closed rooms: no local light reaches them
 		// where the dugouts' tunnels come in: a doorway in the room's front wall ([ segment, s along it ])
 		this.doors = [];
 		for ( const [ side, si ] of [ [ 'first', 0 ], [ 'third', 4 ] ] ) {
@@ -106,7 +106,7 @@ export default class Under {
 			const b = new Inside();
 			this._cages( b, this.segs[ 0 ] );
 			// (---- SP1: their own material, the only one with the netting's cut-outs: Kit.js insideMaterial)
-			add( b, 'under-cages', mid( this.segs[ 0 ] ), 16, insideMaterial( 'under-cages', { net: true } ) );
+			add( b, 'under-cages', mid( this.segs[ 0 ] ), 16, insideMaterial( 'under-cages', { net: true, local: false } ) );
 
 		}
 
@@ -129,7 +129,7 @@ export default class Under {
 		this.tvs = this.screens.mesh( 'under-tvs' );
 		if ( this.tvs ) this.group.add( this.tvs );
 		// the glass onto the cages
-		this.cageGlass = clearGlassMesh( this.glassQuads, clearGlass( 'under-cage-glass', 40, 1 ), 'under-cage-glass' );
+		this.cageGlass = clearGlassMesh( this.glassQuads, clearGlass( 'under-cage-glass', 40, 1, { tint: false } ), 'under-cage-glass' );
 		this.group.add( this.cageGlass );
 		this._outside();
 		this._people();

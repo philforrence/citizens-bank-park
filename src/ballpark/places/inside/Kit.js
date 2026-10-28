@@ -25,7 +25,8 @@ import { Builder } from '../home/Build.js';
 
 // [ linear albedo, roughness, metalness, glow (a lamp: lit by itself), pattern ]
 const P_PLAIN = 0, P_CARPET = 1, P_BLOCKS = 2, P_STRIPES = 3, P_GRAIN = 4, P_TILE = 5, P_SPECKLE = 6, P_TERRAZZO = 7, P_ATLAS = 8,
-	P_BALLS = 9, P_CMU = 10, P_TURF = 11, P_NET = 12, P_SCREEN = 13, P_RIBS = 14;
+	P_BALLS = 9, P_CMU = 10, P_TURF = 11, P_NET = 12, P_SCREEN = 13, P_RIBS = 14,
+	P_PLANKS = 15, P_SLAT = 16, P_PIN = 17; // ---- FI3
 export const PAL = {
 	// floors
 	carpet: [ [ 0.03, 0.035, 0.055 ], 0.95, 0, 0, P_CARPET ], // a suite's: dark blue-grey, a small figure in it (Ernst & Young's suite, 2009)
@@ -89,6 +90,27 @@ export const PAL = {
 	screen: [ [ 0.06, 0.07, 0.07 ], 0.15, 0, 1.0, P_SCREEN ], // a TV (an old tube's picture: the game, green)
 	fridge: [ [ 0.8, 0.85, 0.9 ], 0.4, 0, 1.2, P_PLAIN ], // a glass-front fridge's light
 	frost: [ [ 0.3, 0.4, 0.56 ], 0.3, 0, 0.7, P_PLAIN ], // frosted glass lit from behind, blue-white
+	// ---- FI3 (C2I-3): the Clubhouse Store's: its maple floor, the slatwall, what's on the racks (the
+	// home whites' red pinstripes, the 2008 cream alternates, the road greys, the red jackets, the black
+	// World Series tees, hoodies, the caps), the chrome, the lit signs' boxes
+	maple: [ [ 0.42, 0.27, 0.13 ], 0.35, 0, 0, P_PLANKS ],
+	slatwall: [ [ 0.36, 0.35, 0.33 ], 0.6, 0, 0, P_SLAT ],
+	pinstripe: [ [ 0.74, 0.73, 0.69 ], 0.85, 0, 0, P_PIN ],
+	creamCloth: [ [ 0.68, 0.6, 0.45 ], 0.85, 0, 0, P_PLAIN ],
+	roadGrey: [ [ 0.36, 0.36, 0.37 ], 0.85, 0, 0, P_PLAIN ],
+	redCloth: [ [ 0.36, 0.02, 0.028 ], 0.75, 0, 0, P_PLAIN ],
+	darkRed: [ [ 0.16, 0.012, 0.018 ], 0.8, 0, 0, P_PLAIN ],
+	blackCloth: [ [ 0.022, 0.022, 0.025 ], 0.9, 0, 0, P_PLAIN ],
+	navyCloth: [ [ 0.014, 0.022, 0.065 ], 0.9, 0, 0, P_PLAIN ],
+	greyCloth: [ [ 0.22, 0.22, 0.22 ], 0.95, 0, 0, P_PLAIN ],
+	whiteCloth: [ [ 0.72, 0.72, 0.7 ], 0.9, 0, 0, P_PLAIN ],
+	powderCloth: [ [ 0.3, 0.46, 0.66 ], 0.85, 0, 0, P_PLAIN ],
+	mannequin: [ [ 0.62, 0.61, 0.58 ], 0.35, 0, 0, P_PLAIN ], // a dress form's white shell
+	bag: [ [ 0.5, 0.03, 0.04 ], 0.5, 0, 0, P_PLAIN ], // the store's red plastic bags
+	signYellow: [ [ 0.78, 0.55, 0.02 ], 0.4, 0, 0.5, P_PLAIN ], // the World Series signs' frames
+	paper: [ [ 0.8, 0.79, 0.74 ], 0.8, 0, 0, P_PLAIN ],
+	navyFrame: [ [ 0.016, 0.024, 0.062 ], 0.4, 0.35, 0, P_PLAIN ], // (C2I-9) the suites' mullions
+	// ---- end FI3
 };
 export const PAL_KEYS = Object.keys( PAL );
 const IDX = Object.fromEntries( PAL_KEYS.map( ( k, i ) => [ k, i ] ) );
@@ -96,15 +118,21 @@ const f3 = ( v ) => `vec3f( ${ v.map( ( x ) => x.toFixed( 4 ) ).join( ', ' ) } )
 
 // ---------------------------------------------------------------- the atlas: what's printed
 
-// 2048 x 1024, cells of 256: [ col, row, cols, rows ]
+// 2048 x 2048, cells of 256: [ col, row, cols, rows ]
 export const ATLAS = {
 	muralCrowd: [ 0, 0, 4, 1 ], muralVet: [ 4, 0, 4, 1 ],
 	paintings: [ 0, 1, 8, 1 ], // eight canvases, a cell each
 	bakerBowl: [ 0, 2, 2, 1 ], connieMack: [ 2, 2, 2, 1 ], recPark: [ 4, 2, 2, 1 ], shibe: [ 6, 2, 2, 1 ],
 	plaques: [ 0, 3, 2, 1 ], // 32 home-plate plaques with the suites' numbers (8 x 4)
 	hofSign: [ 2, 3, 2, 1 ], diamondSign: [ 4, 3, 2, 1 ], muralClub: [ 6, 3, 2, 1 ],
+	// ---- FI3: the gallery's other sixteen canvases (C2I-12), the Clubhouse Store's chest prints and cap
+	// fronts (16, 8 x 2: cellUV( 'prints', i, 8, 2 )), its signs (C2I-3), the lounge's back-bar panels (C2I-10)
+	paintings2: [ 0, 4, 8, 1 ], paintings3: [ 0, 5, 8, 1 ],
+	prints: [ 0, 6, 8, 1 ],
+	wsSign: [ 0, 7, 2, 1 ], champsSign: [ 2, 7, 2, 1 ], loungePanel: [ 4, 7, 2, 1 ], muralCrowd2: [ 6, 7, 2, 1 ],
+	// ---- end FI3
 };
-const AW = 2048, AH = 1024, CELL = 256;
+const AW = 2048, AH = 2048, CELL = 256; // ---- FI3: two more rows of cells (was 1024 tall)
 // the uv rectangle [ u0, v0, u1, v1 ] of an atlas entry, or of its i-th of n x m sub-cells
 export function cellUV( key, i = 0, n = 1, m = 1 ) {
 
@@ -405,7 +433,208 @@ function drawAtlas( ctx ) {
 
 	}
 
+	drawStore( ctx, R, SANS, SERIF ); // ---- FI3
+
 }
+
+// ---- FI3 (C2I-3): the Clubhouse Store's printing. The chest prints and cap fronts, 16 cells of 256 x 128
+// (cellUV( 'prints', i, 8, 2 )): what the 2008 racks carried (Getty, 20 and 25 Oct 2008: the home whites
+// and their script, the World Series tees, NL champions, the red jackets with the P), each print on its
+// garment's own colour so it reads as part of the cloth. The signs: a yellow-framed World Series board
+// (after the frame in the Getty photo; the mark is invented, not MLB's) and the jersey wall's header.
+export const PRINT = { home: 0, alt: 1, road: 2, ws: 3, champs: 4, pJacket: 5, hoodie: 6, redOct: 7, capRed: 8, capNavy: 9, capWS: 10, capWhite: 11, price: 12, tag: 13, bag: 14, kids: 15 };
+const SCRIPT = '"Brush Script MT", "Snell Roundhand", "Segoe Script", cursive';
+function drawStore( ctx, R, SANS, SERIF ) {
+
+	const [ px0, py0 ] = R( 'prints' );
+	const cell = ( i ) => [ px0 + ( i % 8 ) * CELL, py0 + Math.floor( i / 8 ) * 128, CELL, 128 ];
+	const fill = ( i, bg ) => {
+
+		const [ x, y, w, h ] = cell( i );
+		ctx.fillStyle = bg;
+		ctx.fillRect( x, y, w, h );
+		return [ x, y, w, h ];
+
+	};
+	const centred = ( text, x, y, font, color, maxW ) => {
+
+		ctx.font = font; ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+		ctx.fillText( text, x, y, maxW );
+		ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+	};
+	const script = ( i, bg, fg, edge, pin ) => {
+
+		const [ x, y, w, h ] = fill( i, bg );
+		if ( pin ) {
+
+			ctx.fillStyle = pin;
+			for ( let k = 4; k < w; k += 9 ) ctx.fillRect( x + k, y, 1.5, h );
+
+		}
+
+		ctx.font = `italic bold 84px ${ SCRIPT }`;
+		ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+		ctx.lineJoin = 'round';
+		if ( edge ) {
+
+			ctx.strokeStyle = edge; ctx.lineWidth = 7;
+			ctx.strokeText( 'Phillies', x + w / 2, y + h * 0.5, w - 20 );
+
+		}
+
+		ctx.fillStyle = fg;
+		ctx.fillText( 'Phillies', x + w / 2, y + h * 0.5, w - 20 );
+		// the swash under it
+		ctx.strokeStyle = fg; ctx.lineWidth = 5;
+		ctx.beginPath(); ctx.moveTo( x + 70, y + h * 0.82 ); ctx.quadraticCurveTo( x + w / 2, y + h * 0.74, x + w - 34, y + h * 0.78 ); ctx.stroke();
+		ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+	};
+	script( PRINT.home, '#bdbbb2', '#b8102a', '#1b2a57', '#c84a52' );
+	script( PRINT.alt, '#b1a07a', '#b8102a', '#1b2a57', null );
+	script( PRINT.road, '#7c7c80', '#b8102a', '#1b2a57', null );
+	{
+
+		// the black World Series tee: the trophy's flags in gold over the words
+		const [ x, y, w, h ] = fill( PRINT.ws, '#0e0e10' );
+		ctx.fillStyle = '#c9a24a';
+		for ( let k = 0; k < 9; k ++ ) {
+
+			const fx = x + w / 2 - 44 + k * 11;
+			ctx.fillRect( fx, y + 10, 2, 30 );
+			ctx.beginPath(); ctx.moveTo( fx + 2, y + 10 ); ctx.lineTo( fx + 11, y + 15 ); ctx.lineTo( fx + 2, y + 20 ); ctx.fill();
+
+		}
+
+		centred( 'WORLD SERIES', x + w / 2, y + 62, `bold 34px ${ SERIF }`, '#e8e2d0', w - 20 );
+		centred( '2008', x + w / 2, y + 100, `bold 36px ${ SANS }`, '#c9a24a', w - 40 );
+
+	}
+	{
+
+		const [ x, y, w ] = fill( PRINT.champs, '#7a0a14' );
+		centred( 'PHILLIES', x + w / 2, y + 34, `bold 40px ${ SANS }`, '#f2efe6', w - 20 );
+		centred( 'NATIONAL LEAGUE', x + w / 2, y + 72, `bold 22px ${ SANS }`, '#f2efe6', w - 30 );
+		centred( 'CHAMPIONS  2008', x + w / 2, y + 102, `bold 24px ${ SANS }`, '#e8c25a', w - 30 );
+
+	}
+	{
+
+		// the red jacket's chest: the P in its white roundel
+		const [ x, y, w, h ] = fill( PRINT.pJacket, '#7a0a14' );
+		ctx.fillStyle = '#efece4'; ctx.beginPath(); ctx.arc( x + w / 2, y + h / 2, 48, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = '#1b2a57'; ctx.beginPath(); ctx.arc( x + w / 2, y + h / 2, 42, 0, Math.PI * 2 ); ctx.fill();
+		centred( 'P', x + w / 2 - 2, y + h / 2 + 4, `italic bold 74px ${ SCRIPT }`, '#efece4' );
+
+	}
+	{
+
+		const [ x, y, w ] = fill( PRINT.hoodie, '#0c1430' );
+		centred( 'PHILLIES', x + w / 2, y + 58, `bold 54px ${ SANS }`, '#b8102a', w - 24 );
+		centred( 'PHILADELPHIA', x + w / 2, y + 98, `bold 20px ${ SANS }`, '#e8e4da', w - 60 );
+
+	}
+	{
+
+		const [ x, y, w ] = fill( PRINT.redOct, '#7a0a14' );
+		centred( 'RED', x + w / 2, y + 40, `bold 44px ${ SANS }`, '#111', w - 20 );
+		centred( 'OCTOBER', x + w / 2, y + 86, `bold 44px ${ SANS }`, '#111', w - 20 );
+
+	}
+	// the caps' fronts: the P on red, on navy, the World Series cap's gold on black, a white P cap
+	const capP = ( i, bg, fg, edge ) => {
+
+		const [ x, y, w, h ] = fill( i, bg );
+		ctx.font = `italic bold 104px ${ SCRIPT }`;
+		ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+		if ( edge ) {
+
+			ctx.strokeStyle = edge; ctx.lineWidth = 6; ctx.strokeText( 'P', x + w / 2, y + h / 2 + 6 );
+
+		}
+
+		ctx.fillStyle = fg; ctx.fillText( 'P', x + w / 2, y + h / 2 + 6 );
+		ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+	};
+	capP( PRINT.capRed, '#6a0812', '#f2efe6', null );
+	capP( PRINT.capNavy, '#0c1430', '#b8102a', '#f2efe6' );
+	{
+
+		const [ x, y, w ] = fill( PRINT.capWS, '#0e0e10' );
+		centred( 'WORLD', x + w / 2, y + 40, `bold 34px ${ SERIF }`, '#c9a24a', w - 40 );
+		centred( 'SERIES', x + w / 2, y + 74, `bold 34px ${ SERIF }`, '#c9a24a', w - 40 );
+		centred( '2008', x + w / 2, y + 106, `bold 22px ${ SANS }`, '#e8e2d0', w - 40 );
+
+	}
+	capP( PRINT.capWhite, '#bdbbb2', '#b8102a', '#1b2a57' );
+	{
+
+		// a price card, a hang tag, the store's bag, a kids' tee
+		const [ x, y, w ] = fill( PRINT.price, '#e9e6dc' );
+		ctx.fillStyle = '#b8102a'; ctx.fillRect( x, y, w, 30 );
+		centred( 'AUTHENTIC', x + w / 2, y + 16, `bold 20px ${ SANS }`, '#fff', w - 20 );
+		centred( '$24.99', x + w / 2, y + 80, `bold 54px ${ SANS }`, '#111', w - 20 );
+
+	}
+	{
+
+		const [ x, y, w ] = fill( PRINT.tag, '#e9e6dc' );
+		centred( 'OFFICIAL', x + w / 2, y + 40, `bold 26px ${ SANS }`, '#1b2a57', w - 20 );
+		centred( 'ON FIELD', x + w / 2, y + 84, `bold 26px ${ SANS }`, '#b8102a', w - 20 );
+
+	}
+	{
+
+		const [ x, y, w ] = fill( PRINT.bag, '#6a0812' );
+		centred( 'Phillies', x + w / 2, y + 52, `italic bold 64px ${ SCRIPT }`, '#f2efe6', w - 30 );
+		centred( 'CLUBHOUSE STORE', x + w / 2, y + 100, `bold 18px ${ SANS }`, '#f2efe6', w - 40 );
+
+	}
+	{
+
+		const [ x, y, w ] = fill( PRINT.kids, '#3f6da0' );
+		centred( 'PHILLIES', x + w / 2, y + 44, `bold 40px ${ SANS }`, '#f2efe6', w - 30 );
+		centred( '2008', x + w / 2, y + 90, `bold 36px ${ SANS }`, '#b8102a', w - 40 );
+
+	}
+
+	// the World Series board: a yellow frame, the board in deep blue, the year big, FALL CLASSIC; an
+	// invented mark (a diamond of stars), not the league's
+	{
+
+		const [ x, y, w, h ] = R( 'wsSign' );
+		ctx.fillStyle = '#e8b600'; ctx.fillRect( x, y, w, h );
+		ctx.fillStyle = '#c42030'; ctx.fillRect( x + 10, y + 10, w - 20, h - 20 );
+		ctx.fillStyle = '#e8b600'; ctx.fillRect( x + 18, y + 18, w - 36, h - 36 );
+		const g = ctx.createLinearGradient( 0, y + 30, 0, y + h - 30 );
+		g.addColorStop( 0, '#2a3d8a' ); g.addColorStop( 1, '#14204a' );
+		ctx.fillStyle = g; ctx.fillRect( x + 30, y + 30, w - 60, h - 60 );
+		ctx.save();
+		ctx.translate( x + 110, y + h / 2 ); ctx.rotate( Math.PI / 4 );
+		ctx.strokeStyle = '#e8b600'; ctx.lineWidth = 6; ctx.strokeRect( - 46, - 46, 92, 92 );
+		ctx.restore();
+		for ( let k = 0; k < 5; k ++ ) centred( '★', x + 110 + ( k - 2 ) * 15, y + h / 2 + ( k % 2 ? - 10 : 6 ), `bold 20px ${ SANS }`, '#f2efe6' );
+		centred( 'WORLD SERIES', x + 320, y + 92, `bold 50px ${ SERIF }`, '#f2efe6', 300 );
+		centred( '2008', x + 320, y + 160, `bold 76px ${ SANS }`, '#e8b600', 280 );
+		centred( 'FALL CLASSIC', x + 320, y + 210, `bold 20px ${ SANS }`, '#c9d2ee', 260 );
+
+	}
+	// the header over the jersey wall
+	{
+
+		const [ x, y, w, h ] = R( 'champsSign' );
+		ctx.fillStyle = '#7a0a14'; ctx.fillRect( x, y, w, h );
+		ctx.fillStyle = '#efe9da'; ctx.fillRect( x, y + 8, w, 6 ); ctx.fillRect( x, y + h - 14, w, 6 );
+		centred( '2008 NATIONAL LEAGUE', x + w / 2, y + 66, `bold 46px ${ SANS }`, '#f2efe6', w - 40 );
+		centred( 'CHAMPIONS', x + w / 2, y + 130, `bold 66px ${ SERIF }`, '#e8c25a', w - 60 );
+		centred( 'WORLD SERIES COLLECTION  ·  IN STORE NOW', x + w / 2, y + 196, `bold 24px ${ SANS }`, '#f2efe6', w - 40 );
+
+	}
+
+}
+// ---- end FI3
 
 // ---------------------------------------------------------------- the material
 
@@ -414,7 +643,9 @@ function drawAtlas( ctx ) {
 // discard) are compiled only into the material that has netting (`net: true`, Under.js's cages): a
 // discard anywhere in a shader stops this GPU (tile-based, hidden surface removal) from skipping the
 // hidden pixels of everything drawn with it, so every wall, table and chair behind another was shaded
-export function insideMaterial( name, { glowNight = 1, net = false } = {} ) {
+// ---- FI3: `local: false` for a room the park's local lights mustn't reach (a closed room under the stands,
+// a store whose window a plaza lamp shines in at: its own lamps are baked in, and it's cheaper)
+export function insideMaterial( name, { glowNight = 1, net = false, local = true } = {} ) {
 
 	const pal = new Float32Array( PAL_KEYS.length * 8 );
 	PAL_KEYS.forEach( ( k, i ) => {
@@ -531,6 +762,22 @@ export function insideMaterial( name, { glowNight = 1, net = false } = {} ) {
 		c = sc;
 	} else if ( pat == ${ P_RIBS }u ) {
 		c *= 0.8 + 0.2 * step( 0.5, fract( uv.x / 0.3 ) );
+	// ---- FI3 (C2I-3): the store's maple strip floor (boards 7 cm wide, their ends staggered, each its own
+	// shade), the slatwall's grooves every 7.5 cm, the home whites' red pinstripes
+	} else if ( pat == ${ P_PLANKS }u ) {
+		let bw = uv.x / 0.07;
+		let bi = floor( bw );
+		let bl = uv.y / 1.1 + fract( sin( bi * 7.31 ) * 437.5 );
+		let hb = fract( sin( dot( vec2f( bi, floor( bl ) ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+		let seam = max( 1.0 - smoothstep( 0.0, 0.06, min( fract( bw ), 1.0 - fract( bw ) ) ), 1.0 - smoothstep( 0.0, 0.01, min( fract( bl ), 1.0 - fract( bl ) ) ) );
+		c *= ( 0.82 + 0.3 * hb ) * ( 1.0 - 0.35 * seam * clamp( 1.0 - fw * 25.0, 0.0, 1.0 ) ) * ( 0.95 + 0.08 * mx_noise_float2( vec2f( uv.x * 30.0, uv.y * 2.0 ) ) );
+	} else if ( pat == ${ P_SLAT }u ) {
+		let g = fract( uv.y / 0.075 );
+		c *= 1.0 - 0.6 * ( 1.0 - smoothstep( 0.0, 0.12, g ) ) * clamp( 1.0 - fw * 30.0, 0.0, 1.0 );
+	} else if ( pat == ${ P_PIN }u ) {
+		let pn = 1.0 - smoothstep( 0.0, 0.08, abs( fract( uv.x / 0.022 ) - 0.5 ) );
+		c = mix( c, vec3f( 0.42, 0.04, 0.05 ), pn * 0.8 * clamp( 1.0 - fw * 45.0, 0.0, 1.0 ) + 0.12 * clamp( fw * 45.0, 0.0, 1.0 ) );
+	// ---- end FI3
 	}
 	s.albedo = c;
 	s.roughness = rough;
@@ -543,6 +790,7 @@ export function insideMaterial( name, { glowNight = 1, net = false } = {} ) {
 	} );
 	mat.underwaterLighting = 'none';
 	mat.setDefine( 'DRY', 1 );
+	if ( ! local ) mat.setDefine( 'NO_LOCAL_LIGHTS', 1 ); // ---- FI3
 	return mat;
 
 }
@@ -865,32 +1113,57 @@ export function backFrom( P, x, z ) {
 
 }
 
-// the clear glass, near the camera: a faint tint, the reflection at a glancing angle, smudges low down
-export function clearGlass( name, near, band ) {
+// the clear glass, near the camera: a faint tint, the reflection at a glancing angle, smudges low down.
+// ---- FI3 (C2I-9): tinted, as the suites' and the club's glass is (wallyg 2005, yeago81 2007: from the
+// field by day a dark grey-green band, the rooms behind it barely there): by day, seen from outside, a
+// dark tint that takes the sky's reflection (the environment's, weighted by the alpha); after dark nearly
+// clear. And from inside after dark (`reflect`: WGSL that sets `refl` from ro, rd, the glass's uv and its
+// vertex colour, as the far glass traces its room) the lit room mirrored in it, faintly: the cans, the
+// walls, against the dark field. Opaque glass isn't drawn here (this is the late pass): no discard but the
+// near/far split's.
+export function clearGlass( name, near, band, { reflect = null, colors = false, tint = true } = {} ) {
 
+	const day = tint ? 0.7 : 0.1; // (an inside window, a display case: no tint)
 	const m = standard( { name, roughness: 0.04, metalness: 0.2, transparent: true, depthWrite: false, side: 'double', modules: [ commonModule ], uniforms: GLASS_UNIFORMS(),
+		vertexColors: colors,
 		surface: glassSplit( near, band ) + /* wgsl */`
 	if ( ! nearK ) { discard; }
 	let N = normalize( in.N );
 	let V = normalize( frame.cameraPos - in.P );
 	let fres = pow( 1.0 - clamp( abs( dot( N, V ) ), 0.0, 1.0 ), 4.0 );
-	s.albedo = vec3f( 0.02, 0.026, 0.03 );
-	s.alpha = 0.09 + 0.5 * fres;
+	let nk = smoothstep( 0.1, 0.7, frame.night );
+	s.albedo = vec3f( 0.018, 0.03, 0.028 );
+	s.alpha = select( 0.1, mix( ${ day.toFixed( 2 ) }, 0.12, nk ), in.front ) + 0.45 * fres;
 	s.roughness = 0.04 + 0.08 * smoothstep( 0.6, 0.9, mx_noise_float2( in.P.xz * 3.0 + in.P.y * 2.0 ) ) * step( in.uv.y, 1.4 );
-` } );
+${ reflect ? /* wgsl */`
+	if ( ! in.front && nk > 0.05 ) {
+		// the glass's outward normal (the front face's), the view ray mirrored back into the room
+		let No = normalize( vec3f( - N.x, 0.0, - N.z ) );
+		let Tg = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), No ) );
+		let Vd = - V;
+		let ro = vec3f( in.uv.x, in.uv.y, 0.0 );
+		let rd = vec3f( dot( Vd, Tg ), Vd.y, max( dot( Vd, No ), 0.05 ) );
+		var refl = vec3f( 0.0 );
+		${ reflect }
+		s.alpha = max( s.alpha, 0.16 );
+		s.emissive = refl * 1.8 * nk; // (by the alpha: an eighth of the walls' light, the cans bright)
+	}
+` : '' }` } );
 	m.underwaterLighting = 'none';
 	m.setDefine( 'DRY', 1 );
 	return m;
 
 }
 
-// the quads as a plain mesh (no colour), for the clear glass: on the late (transparent) pass
+// the quads as a plain mesh, for the clear glass: on the late (transparent) pass (---- FI3: their vertex
+// colours too, when they were given: the reflection's room)
 export function clearGlassMesh( b, material, name ) {
 
 	const g = new BufferGeometry();
 	g.setAttribute( 'position', new Float32BufferAttribute( b.pos, 3 ) );
 	g.setAttribute( 'normal', new Float32BufferAttribute( b.nrm, 3 ) );
 	g.setAttribute( 'uv', new Float32BufferAttribute( b.uv, 2 ) );
+	if ( b.data && b.col.length === b.pos.length / 3 * 4 ) g.setAttribute( 'color', new Float32BufferAttribute( b.col, 4 ) ); // ---- FI3
 	g.computeBoundingBox();
 	g.computeBoundingSphere();
 	const m = new Mesh( g, material );

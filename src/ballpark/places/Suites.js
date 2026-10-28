@@ -618,12 +618,13 @@ export default class Suites {
 			const n = [ - R.nIn[ 0 ], 0, - R.nIn[ 1 ] ];
 			const G = frame( [ R.O[ 0 ], y, R.O[ 1 ] ], R.u, R.nIn );
 			const w = R.hw * 2;
-			// the mullions at the partitions and mid-room; the sliding door's stile and its pull
-			for ( const x of [ - R.hw, 0, R.hw ] ) b.use( 'bronze' ).box( G, x, RH / 2, 0, x ? 0.16 : 0.09, RH, 0.12 );
-			b.use( 'bronze' ).box( G, - R.hw / 2, RH / 2 - 0.05, 0.03, 0.06, RH - 0.1, 0.05 );
+			// the mullions at the partitions and mid-room; the sliding door's stile and its pull; ---- FI3 (C2I-9): navy, as in
+			// yeago81's 2007 photo (they were bronze)
+			for ( const x of [ - R.hw, 0, R.hw ] ) b.use( 'navyFrame' ).box( G, x, RH / 2, 0, x ? 0.16 : 0.09, RH, 0.12 );
+			b.use( 'navyFrame' ).box( G, - R.hw / 2, RH / 2 - 0.05, 0.03, 0.06, RH - 0.1, 0.05 );
 			b.use( 'chrome' ).box( G, - R.hw / 2 - 0.08, 1.0, 0.08, 0.025, 0.4, 0.03 );
-			b.use( 'bronze' ).box( G, 0, 0.05, 0, w, 0.1, 0.14 );
-			b.use( 'bronze' ).box( G, 0, RH - 0.03, 0, w, 0.06, 0.12 );
+			b.use( 'navyFrame' ).box( G, 0, 0.05, 0, w, 0.1, 0.14 );
+			b.use( 'navyFrame' ).box( G, 0, RH - 0.03, 0, w, 0.06, 0.12 );
 			// the band over the glass (the slab's edge) up to the club's seats
 			b.use( 'concrete' ).quad( G( - R.hw, RH, - 0.06 ), G( R.hw, RH, - 0.06 ), G( R.hw, yTop - y + 0.2, - 0.06 ), G( - R.hw, yTop - y + 0.2, - 0.06 ), n );
 			b.use( 'concrete' ).quad( G( - R.hw, RH, - 0.06 ), G( R.hw, RH, - 0.06 ), G( R.hw, RH, 0.2 ), G( - R.hw, RH, 0.2 ), [ 0, - 1, 0 ] );
@@ -664,7 +665,9 @@ export default class Suites {
 			// side, the party)
 			far.with( [ - R.hw, R.hw, R.seed, ( R.lit ? 4 : 0 ) + ( R.buffetLeft ? 2 : 0 ) + Math.min( 0.99, R.party ) ] );
 			far.quad( a, bb, c, d, n, [ [ - R.hw, 0.1 ], [ R.hw, 0.1 ], [ R.hw, RH ], [ - R.hw, RH ] ] );
-			near.quad( a, bb, c, d, n );
+			// (---- FI3: the near glass knows its room too, for the room's reflection in it after dark)
+			near.with( [ - R.hw, R.hw, R.seed, ( R.lit ? 4 : 0 ) + ( R.buffetLeft ? 2 : 0 ) + Math.min( 0.99, R.party ) ] );
+			near.quad( a, bb, c, d, n, [ [ - R.hw, 0.1 ], [ R.hw, 0.1 ], [ R.hw, RH ], [ - R.hw, RH ] ] );
 
 		}
 
@@ -679,7 +682,11 @@ export default class Suites {
 
 		}
 
-		const m = this.nearGlass = clearGlassMesh( near, clearGlass( 'suites-glass-near', NEAR, BAND ), 'suites-glass-near' );
+		// (---- FI3 (C2I-9): the room behind you in it after dark: its cans, its walls; the people aren't)
+		const reflect = suiteRoomWGSL() + /* wgsl */`
+		refl = select( vec3f( 0.0 ), room * 0.45 + glow * 0.8, lit );
+`;
+		const m = this.nearGlass = clearGlassMesh( near, clearGlass( 'suites-glass-near', NEAR, BAND, { reflect, colors: true } ), 'suites-glass-near' );
 		this.group.add( m );
 
 	}
@@ -920,25 +927,72 @@ function farGlassWGSL() {
 
 	return /* wgsl */`
 	if ( nearK ) { discard; }
-	let xl = in.color.r; let xr = in.color.g; let seed = in.color.b;
-	let fl = in.color.a;
-	let lit = fl >= 3.5;
-	let bl = ( fl - select( 0.0, 4.0, lit ) ) >= 1.5;
-	let party = fract( fl );
-	let RH = ${ RH.toFixed( 2 ) };
-	let DEP = ${ DROOM.toFixed( 2 ) };
+	let seed = in.color.b;
+	let party = fract( in.color.a );
 	let N = normalize( vec3f( in.N.x, 0.0, in.N.z ) );
 	let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), N ) );
 	let Vd = normalize( in.P - frame.cameraPos );
 	let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - N ), 0.05 ) );
 	let ro = vec3f( in.uv.x, in.uv.y, 0.0 );
+	${ suiteRoomWGSL() }
+	let h2 = fract( seed * 13.71 );
+	let nk = smoothstep( 0.1, 0.7, frame.night );
+	// ---- FI3 (C2I-9): by day the room behind the tinted glass is barely there (wallyg 2005, yeago81 2007:
+	// from the field a dark band, the wood just visible), its cans no beacons; after dark it glows as before.
+	// The glass's tint (grey-green) over all of it
+	let lk = select( 0.02, mix( 0.07, 0.48, nk ), lit ) * ( 0.85 + 0.3 * h2 );
+	room = ( room * lk + glow * select( 0.0, mix( 0.12, 1.0, nk ), lit ) ) * vec3f( 0.8, 0.92, 0.86 );
+	// ---- end FI3
+	// the people: at the counter, round the high-top, at the glass (nearer drawn over further)
+	for ( var kk = 0; kk < 3; kk ++ ) {
+		let zP = select( select( 0.75, 1.95, kk == 1 ), 3.2, kk == 0 );
+		let tP = zP / rd.z;
+		if ( lit && tP < t && tP > 0.0 ) {
+			let pp = ro + rd * tP;
+			let cell = floor( pp.x / 0.7 ) + seed * 977.0 + f32( kk ) * 7.0;
+			let a = ihash( cell ); let b = ihash( cell + 3.3 ); let c = ihash( cell + 5.7 );
+			let cx = ( floor( pp.x / 0.7 ) + 0.3 + 0.4 * b ) * 0.7;
+			if ( a < party * select( 0.55, 0.4, kk == 1 ) && cx > xl + 0.4 && cx < xr - 0.4 ) {
+				var coat = vec3f( 0.36, 0.025, 0.03 );
+				if ( c > 0.45 ) { coat = vec3f( 0.03, 0.035, 0.08 ); }
+				if ( c > 0.62 ) { coat = vec3f( 0.03 ); }
+				if ( c > 0.78 ) { coat = vec3f( 0.22, 0.2, 0.18 ); }
+				if ( c > 0.9 ) { coat = vec3f( 0.6, 0.58, 0.55 ); }
+				let hair = mix( vec3f( 0.05, 0.035, 0.02 ), vec3f( 0.35, 0.25, 0.12 ), step( 0.7, b ) ) + vec3f( 0.3 ) * step( 0.9, a * 1.8 );
+				let skin = mix( vec3f( 0.55, 0.38, 0.3 ), vec3f( 0.3, 0.19, 0.13 ), step( 0.85, c ) );
+				let f = figure( vec2f( pp.x - cx, pp.y ), select( 1.62 + 0.24 * b, 1.52 + 0.12 * b, kk == 1 ), coat, hair, skin, 0.0 );
+				if ( f.w > 0.5 ) { room = f.xyz * mix( 0.03, 0.3, nk ) * ( 0.8 + 0.4 * h2 ); }
+			}
+		}
+	}
+	let fres = pow( 1.0 - max( dot( - Vd, N ), 0.0 ), 3.0 );
+	// (---- FI3: a little more of the sky's reflection, a floor under the Fresnel)
+	s.albedo = vec3f( 0.045, 0.06, 0.056 );
+	s.roughness = 0.08;
+	s.metalness = 0.6;
+	s.alpha = 1.0;
+	s.emissive = room * ( 1.0 - max( fres, 0.12 ) );
+`;
+
+}
+
+// ---- FI3 (C2I-9): a suite traced from its glass (the far glass, and the near glass's reflection after
+// dark): ro on the glass (x across from the room's middle, y up), rd into the room; in.color: the walls' x,
+// a seed, 4 * lit + 2 * buffet-left + party. Leaves t, hit, room (its surfaces' colour) and glow (its lamps)
+function suiteRoomWGSL() {
+
+	return /* wgsl */`
+	let xl = in.color.r; let xr = in.color.g;
+	let fl = in.color.a;
+	let lit = fl >= 3.5;
+	let bl = ( fl - select( 0.0, 4.0, lit ) ) >= 1.5;
+	let RH = ${ RH.toFixed( 2 ) };
+	let DEP = ${ DROOM.toFixed( 2 ) };
 	let tx = ( select( xl + 0.06, xr - 0.06, rd.x > 0.0 ) - ro.x ) / rd.x;
 	let ty = ( select( 0.0, RH, rd.y > 0.0 ) - ro.y ) / rd.y;
 	let tz = DEP / rd.z;
 	let t = min( tx, min( ty, tz ) );
 	let hit = ro + rd * t;
-	let h2 = fract( seed * 13.71 );
-	let nk = smoothstep( 0.1, 0.7, frame.night );
 	var room = vec3f( 0.52, 0.42, 0.27 ) * ( 0.92 + 0.12 * step( 0.5, fract( ( hit.z + hit.x ) / 0.18 ) ) );
 	var glow = vec3f( 0.0 );
 	if ( t == ty && rd.y > 0.0 ) {
@@ -972,36 +1026,6 @@ function farGlassWGSL() {
 		if ( abs( hit.x - xc ) < 0.32 && hit.y > 1.46 && hit.y < 1.94 ) { room = vec3f( 0.03 ); if ( lit && abs( hit.x - xc ) < 0.25 && hit.y > 1.52 && hit.y < 1.88 ) { glow = vec3f( 0.12, 0.38, 0.12 ) * 2.0; } }
 		if ( hit.x > dx0 && hit.x < dx0 + 0.95 && hit.y < 2.13 ) { room = vec3f( 0.38, 0.19, 0.07 ); glow = vec3f( 0.0 ); }
 	}
-	let lk = select( 0.025, mix( 0.3, 0.48, nk ), lit ) * ( 0.85 + 0.3 * h2 );
-	room = room * lk + glow * select( 0.0, mix( 0.5, 1.0, nk ), lit );
-	// the people: at the counter, round the high-top, at the glass (nearer drawn over further)
-	for ( var kk = 0; kk < 3; kk ++ ) {
-		let zP = select( select( 0.75, 1.95, kk == 1 ), 3.2, kk == 0 );
-		let tP = zP / rd.z;
-		if ( lit && tP < t && tP > 0.0 ) {
-			let pp = ro + rd * tP;
-			let cell = floor( pp.x / 0.7 ) + seed * 977.0 + f32( kk ) * 7.0;
-			let a = ihash( cell ); let b = ihash( cell + 3.3 ); let c = ihash( cell + 5.7 );
-			let cx = ( floor( pp.x / 0.7 ) + 0.3 + 0.4 * b ) * 0.7;
-			if ( a < party * select( 0.55, 0.4, kk == 1 ) && cx > xl + 0.4 && cx < xr - 0.4 ) {
-				var coat = vec3f( 0.36, 0.025, 0.03 );
-				if ( c > 0.45 ) { coat = vec3f( 0.03, 0.035, 0.08 ); }
-				if ( c > 0.62 ) { coat = vec3f( 0.03 ); }
-				if ( c > 0.78 ) { coat = vec3f( 0.22, 0.2, 0.18 ); }
-				if ( c > 0.9 ) { coat = vec3f( 0.6, 0.58, 0.55 ); }
-				let hair = mix( vec3f( 0.05, 0.035, 0.02 ), vec3f( 0.35, 0.25, 0.12 ), step( 0.7, b ) ) + vec3f( 0.3 ) * step( 0.9, a * 1.8 );
-				let skin = mix( vec3f( 0.55, 0.38, 0.3 ), vec3f( 0.3, 0.19, 0.13 ), step( 0.85, c ) );
-				let f = figure( vec2f( pp.x - cx, pp.y ), select( 1.62 + 0.24 * b, 1.52 + 0.12 * b, kk == 1 ), coat, hair, skin, 0.0 );
-				if ( f.w > 0.5 ) { room = f.xyz * mix( 0.12, 0.3, nk ) * ( 0.8 + 0.4 * h2 ); }
-			}
-		}
-	}
-	let fres = pow( 1.0 - max( dot( - Vd, N ), 0.0 ), 3.0 );
-	s.albedo = vec3f( 0.02, 0.03, 0.035 );
-	s.roughness = 0.08;
-	s.metalness = 0.6;
-	s.alpha = 1.0;
-	s.emissive = room * ( 1.0 - fres );
 `;
 
 }

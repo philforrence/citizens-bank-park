@@ -23,10 +23,12 @@ import Suites from './Suites.js'; // ---- FI2: the insides (gauntlet CI-5, CI-6,
 import Club from './Club.js'; // ---- FI2
 import Under from './Under.js'; // ---- FI2
 import Entrance from './Entrance.js'; // ---- FI2 (CI-17)
+import Clubhouse from './inside/Clubhouse.js'; // ---- FI3 (C2I-3): the Majestic Clubhouse Store's inside
 
 export const PLACES = [
 	[ 'rail', FieldRail ],
 	[ 'alley', AshburnAlley2008 ],
+	[ 'clubhouse', Clubhouse ], // ---- FI3 (before gate3b: it takes a tree's spot out of the store's block)
 	[ 'gate3b', ThirdBaseGate ],
 	[ 'concourse3b', Concourse3B ],
 	[ 'phanatic', Phanatic ],
