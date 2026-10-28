@@ -45,3 +45,7 @@ FP1's crowd culls and picks its LOD per 360-seat piece, so the TV views got chea
 | 10:50 | SP1, the insides' material (SP1's own run, exclusive; rain TV high 26.5, a real 3B seat 24.8) | 21.1 | 25.8 | 19.0 | 22.6 | **18.8** | 24.9 | 30.2 |
 
 Under the stands is back from the floor: FI2's room material built two 58-entry palettes per pixel and carried the cages' `discard`, which turns off the GPU's hidden-surface removal for everything drawn with it.
+| 11:12 | FW1, the people on the walk (rain TV high 28.0; a real 3B seat 26.3) | 23.5 | 27.8 | 19.9 | 23.4 | 23.0 | 25.3 | 31.6 |
+| 11:16 | FB2, the broadcast (rain TV high 31.2; a real 3B seat 26.7) | 23.9 | 30.4 | 20.4 | 24.0 | 20.2 | 25.4 | **32.1** |
+
+FW1's heavier close-up Cast is seen by FOX's long lens (+2 ms in TV center and high). FB2 widened high home to FOX's framing (fov 37: +14% triangles, +2.6 ms). **Left field (32.1) and the rainy TV high (31.2) are within ~1-2 ms of the floor again:** both are SP1's.
