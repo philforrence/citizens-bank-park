@@ -95,3 +95,8 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 - **C4S, the game from your seat** (returned 16:50): 11 findings, against 2008 fans' photos from the stands. The stands cheered the Rays' hits and sat through the Phillies' (a bug since the crowd's mood was written), strike three and the celebration are one towel pose for minutes, no fan looks at the play, the rain delay empties the stands wrongly, and the 29th's sound runs ~14 s off the picture.
 - **Coordinator:** the stands cheer the Phillies' hits (C4S-1: 18 of 53 balls in play were wrong; now 0).
 - **FS1, the game from your seat** (launched 16:58): the stands' variety, heads turned to the play, the 29th's sound in step, the rain delay's emptying, God Bless America.
+- **FX2, continuity** (notes [FX2.md](FX2.md)): at every join between segments the men walk or run to their new places, jog off to their dugout or come on (`Director.pose()` now `_scene()` + `_carry()`, pure in t); runners walk back from their leads; the Rays' coaches jog off; Moyer straight to the rubber; the lap men round the corners. **`test/continuity.mjs`** sweeps the whole replay at 30 Hz in ~3 s: 630 one-frame jumps (the worst 103 m) and 157 vanishings before; one 0.6 m step after (checked by the coordinator). The LF Gate's Phanatic picture above the canopy, its sign in red, tables and a beer cart in its square.
+
+## Round 5
+
+- **C5F, the pre-publish check** (launched 17:06): first impressions as a new player, regressions everywhere, and the hero shot for the step-9 page.
