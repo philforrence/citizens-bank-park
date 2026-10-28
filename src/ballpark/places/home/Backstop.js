@@ -198,7 +198,9 @@ export function buildBackstop( place ) {
 export function updateBackstop( B, place, N ) {
 
 	const app = place.app;
-	B.mat.uniforms.tv.value = app?.camMode === 'center' ? 1 : 0;
+	// (FB3, C3B-17: and whenever FOX's cut is on the center field camera, not only when it's held on it:
+	// the world feed's ads are in every center field frame of the broadcast, t11710s and t13150s)
+	B.mat.uniforms.tv.value = app?.camMode === 'center' || ( app?.camMode === 'tv' && app._tvShot?.startsWith( 'center' ) ) ? 1 : 0;
 	// a half inning each: the 27th's two, then the 29th's; now and then plain green between
 	const half = ( N.inning - 1 ) * 2 + ( N.half === 'top' ? 0 : 1 );
 	B.mat.uniforms.ad.value = hash( half * 3.7 ) < 0.18 ? 0 : N.first ? 1 + ( half % 2 ) : 3 + ( half % 2 );

@@ -6,7 +6,7 @@ import { OUTFIELD, FT } from '../layout.js';
 import { ROLE, DIRT } from './Players.js';
 // ---- R (rituals)
 import { showSuspension } from './Suspension.js';
-import { showCelebration } from './Celebration.js';
+import { showCelebration, showLastOut } from './Celebration.js';
 import { showWarmups, showDrying } from './Breaks.js';
 // ---- end R
 
@@ -332,12 +332,22 @@ export class Director {
 
 		// the last out: the celebration
 		const lastPlay = g.plays[ g.plays.length - 1 ];
-		push( 'celebrate', PACE.celebrate, {
+		const cel = push( 'celebrate', PACE.celebrate, {
 			pi: g.plays.length - 1,
 			snap: snap( { batting: 'away', fielding: 'home', defense: { ...lastPlay.defense, P: lastPlay.pitcher }, batter: lastPlay.batter, bats: lastPlay.bats, pitcher: lastPlay.pitcher, throws: lastPlay.throws } ),
 			plan: this._planCelebration( lastPlay ),
-			cues: [ [ 0.3, { say: `Swing and a miss! The Philadelphia Phillies are World Series champions!`, champions: true } ] ],
+			cues: [],
 		} );
+		// ---- FB3 (C3B-1): the last out is the moment strike three is in Ruiz's mitt, not the celebrate
+		// segment's start 3.6 s later (the pitch's tail and the result's 1.2 s in between): Lidge is down on
+		// his knees and the men on the field are running to him from the strike (FOX US 1yP3u4ik2gs, sheet
+		// 125: "54" kneeling, arms up, Ruiz coming in), and the crowd goes up with it. The segments keep
+		// their lengths (the radio's clock): only what's shown in them changes (Celebration.showLastOut)
+		const lastPitch = segs.slice( 0, - 1 ).reverse().find( ( q ) => q.kind === 'pitch' );
+		const tStrike = lastPitch.t0 + PACE.set + M.REL + lastPitch.path.toCatcher;
+		this.lastOut = { pitch: lastPitch, result: segs[ segs.length - 2 ], cel, tStrike, lead: cel.t0 - tStrike };
+		lastPitch.cues = [ ...lastPitch.cues, [ tStrike - lastPitch.t0 + 0.15, { say: `Swing and a miss! The Philadelphia Phillies are World Series champions!`, champions: true } ] ];
+		// ---- end FB3
 
 		// the slides (for the dirt on the seat of their pants): the base stealers, and the runners who
 		// took two bases or more on a hit
@@ -755,6 +765,10 @@ export class Director {
 		if ( this.ballFocus == null ) this.ballFocus = this.ballAt;
 		this._umpires( seg, lt );
 		this._coaches( seg, lt );
+		// ---- FB3 (C3B-1): from strike three on, Lidge, Ruiz and the fielders are the celebration's
+		const L = this.lastOut;
+		if ( L && ! this.oldCelebration && ( seg === L.result || ( seg === L.pitch && t >= L.tStrike ) ) ) showLastOut( this, L.cel, t - L.tStrike );
+		// ---- end FB3
 		this._sync();
 
 	}

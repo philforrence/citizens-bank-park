@@ -42,9 +42,9 @@ import { Players } from './game/Players.js';
 import * as Motions from './game/Motions.js';
 import { Ball } from './game/Ball.js';
 import { Director } from './game/Director.js';
-import { CEL, STAGE, trophyHold } from './game/Celebration.js';
+import { CEL, STAGE, PILE, trophyHold } from './game/Celebration.js';
 import { replayPlan, replayAt } from './game/Replays.js';
-import { BASES } from './game/Plays.js';
+import { BASES, DUGOUT, BULLPEN } from './game/Plays.js';
 import { GameHUD } from './game/GameHUD.js';
 import { Radio } from './game/Radio.js';
 import { GameSound } from './game/GameSound.js';
@@ -56,7 +56,7 @@ import { Walker } from './Walker.js';
 import { Scope } from './Scope.js';
 import { PLACES } from './places/index.js';
 // ---- R (rituals)
-import { tarpState } from './game/TarpPlan.js';
+import { tarpState, rollAxis } from './game/TarpPlan.js';
 // ---- end R
 import { Night, nightAirModule, BEAM } from './Night.js'; // ---- L: light and night
 import { when as gameClock } from './places/alley/Night.js'; // the replay's wall clock (the Alley's)
@@ -540,6 +540,15 @@ export class BallparkApp {
 
 		}
 
+		// ---- FB3 (C3B-5): a handheld on the grass, where _handheld put it, swaying a little on the shoulder
+		if ( name === 'hand' ) {
+
+			const e = this._hand?.e || [ 0, 1.45, - 13 ], t = this.director?.t || 0;
+			return [ e[ 0 ] + 0.03 * Math.sin( t * 1.3 ), e[ 1 ] + 0.02 * Math.sin( t * 1.9 + 1 ), e[ 2 ] + 0.03 * Math.cos( t * 1.1 ) ];
+
+		}
+		// ---- end FB3
+
 		// the low first / third base cameras in the wells, a little in front of their lenses
 		const want = name === 'low1' ? 'low 1B' : 'low 3B';
 		const w = this.places.find( ( p ) => p.wells )?.wells?.cams?.find( ( q ) => q.name === want );
@@ -547,34 +556,69 @@ export class BallparkApp {
 
 	}
 
-	// ---- FB2 (C2B-1): is someone on the rail (an officer, a photographer, the on-deck man) standing in
-	// front of the lens, within 10 m of it on the line to the subject (field frame)? A man as a post 0.3 m
-	// round and his height tall.
-	_lensBlocked( e, at ) {
+	// ---- FB2 (C2B-1) / FB3 (C3B-5, C3B-6): is someone standing in front of the lens? Everyone near the
+	// field is asked: the rail's figures (the police, the photographers, the on-deck man), the players, the
+	// coaches and the umpires (the Director's actors, but the subject, `skip`), the celebration's press, party
+	// and families and the Phanatic. Blocked if he's on the line to the subject anywhere short of the last
+	// 1.2 m (a man as a post 0.33 m round and his height tall: the first base coach 10.8 m out from low
+	// first, 0.27 m off the line to the runner, was in 12 of the 21 shots of him), or if he's in the picture
+	// at all while nearer than 60% of the way (a body a metre or two in front of a long lens is a blurred
+	// third of the frame: half, the picture's half-height at the subject, sets how wide it is there). With
+	// `clear`, anyone within that many metres of the lens blocks it too (a handheld's operator can't stand
+	// in someone); `near`: how far round the subject people are the picture, not in front of it (a man:
+	// 1.2 m; the pile, the stage's crowd, the party: more). (FB2's guard tested only the rail's figures in
+	// the first 10 m.)
+	_lensBlocked( e, at, skip = null, half = 0, clear = 0, near = 1.2 ) {
 
-		const list = this.places.find( ( p ) => p.wells )?.figs?.list;
-		if ( ! list ) return false;
 		const dx = at[ 0 ] - e[ 0 ], dy = at[ 1 ] - e[ 1 ], dz = at[ 2 ] - e[ 2 ];
 		const h = Math.hypot( dx, dz );
 		if ( h < 1e-3 ) return false;
-		for ( const f of list ) {
+		const test = ( x, y0, z, r, tall ) => {
 
-			if ( ! f.shown ) continue;
-			const px = f.x - e[ 0 ], pz = f.z - e[ 2 ];
+			const px = x - e[ 0 ], pz = z - e[ 2 ];
+			if ( clear && Math.hypot( px, pz ) < clear ) return true;
 			const along = ( px * dx + pz * dz ) / h;
-			if ( along < 0.2 || along > Math.min( 10, h - 1 ) ) continue;
+			if ( along < 0.3 || along > h - near ) return false;
 			const off = Math.abs( px * dz - pz * dx ) / h;
-			if ( off > 0.3 + 0.15 * f.scale ) continue;
-			// the line's height there against his
+			// the line's height there
 			const y = e[ 1 ] + dy * along / h;
-			if ( y > ( f.y || 0 ) - 0.1 && y < ( f.y || 0 ) + 1.85 * f.scale ) return true;
+			if ( off < r && y > y0 - 0.1 && y < y0 + tall ) return true;
+			if ( half > 0 && along < 0.6 * h ) {
 
-		}
+				// in the picture there (16:10, the frame's half-height there)
+				const w = half * along / h;
+				return off < r + w * 1.5 && y0 + tall > y - w && y0 < y + w;
 
+			}
+
+			return false;
+
+		};
+		const list = this.places.find( ( p ) => p.wells )?.figs?.list;
+		if ( list ) for ( const f of list ) if ( f.shown && test( f.x, f.y || 0, f.z, 0.3 + 0.15 * f.scale, 1.85 * f.scale ) ) return true;
+		const d = this.director;
+		// (a man as tall as he is now: the catcher down in his crouch is 1.4 m, not 1.9)
+		if ( d?.actors ) for ( const [ id, a ] of d.actors ) if ( id !== skip && test( a.x, a.y || 0, a.z, 0.4, Math.min( 1.9, ( a.pose?.pelvisY ?? 0.98 ) + 0.92 ) ) ) return true;
+		const rit = this.places.find( ( p ) => p.press && p.party );
+		if ( rit ) for ( const c of [ rit.press.cast, rit.party.cast, rit.families?.cast, rit.throng?.cast ] ) for ( const f of c?.list || [] ) if ( f.visible && test( f.x, f.y || 0, f.z, 0.33, 1.85 * ( f.scale || 1 ) ) ) return true;
+		const ph = this.phanatic?.now;
+		if ( ph?.visible && ph.onField && test( ph.x, ph.y || 0, ph.z, 0.5, 2.0 ) ) return true;
 		return false;
 
 	}
-	// ---- end FB2
+
+	// (a shot blocked once stays given up for the rest of its time on air, or the cut would flicker back and
+	// forth as someone walks across the line)
+	_blockedOnce( key, blocked ) {
+
+		const B = this._blocked ||= new Map();
+		if ( B.size > 400 ) B.clear();
+		if ( B.get( key ) ) return true;
+		if ( blocked ) B.set( key, true );
+		return blocked;
+
+	}
+	// ---- end FB2 / FB3
 
 	// a camera position hung 1.2 m out from the club level's front rail, nearest the field point (x, z)
 	_clubCameraSpot( x, z ) {
@@ -617,14 +661,31 @@ export class BallparkApp {
 			return a ? [ a.x, ( a.y || 0 ) + y, a.z ] : null;
 
 		};
+		// ---- FB3 (C3B-4): where his body is, not his root: a pitcher's root stays on the rubber while his
+		// follow-through carries his hips a metre and more toward the plate and bends him over (the
+		// close-up aimed at the rubber had him half out of the picture, three quarters of it grass). His
+		// pelvis, turned by his yaw and scaled by his height; y above the ground as for a man standing,
+		// lowered as far as his hips are
+		const body = ( id, y ) => {
+
+			const a = id != null && d.actors.get( id );
+			if ( ! a ) return null;
+			const p = a.pose, h = d._height ? d._height( id ) : 1;
+			const lx = ( p?.pelvisX || 0 ) * h, lz = ( p?.pelvisZ || 0 ) * h, c = Math.cos( a.yaw ), sn = Math.sin( a.yaw );
+			const drop = p?.pelvisY != null ? Math.max( 0, 0.98 - p.pelvisY ) * h : 0;
+			return [ a.x + lx * c + lz * sn, ( a.y || 0 ) + y - drop, a.z - lx * sn + lz * c ];
+
+		};
+		// ---- end FB3
 		// a close-up: head to knees, from the low camera on his open side (half: half the picture's height,
 		// in metres at him); none if someone on the rail stands in front of the lens
 		const close = ( id, cam, y = 1.35, half = 1.25 ) => {
 
-			const at = actor( id, y );
+			const at = body( id, y );
 			if ( ! at ) return null;
 			const e = this._foxCamera( cam );
-			if ( this._lensBlocked( e, at ) ) return null;
+			// (FB3, C3B-6: everyone on the field asked, the whole line, and once given up, given up)
+			if ( this._blockedOnce( seg.t0 + cam + id, this._lensBlocked( e, at, id, half ) ) ) return null;
 			const dd = Math.hypot( at[ 0 ] - e[ 0 ], at[ 1 ] - e[ 1 ], at[ 2 ] - e[ 2 ] );
 			return { cam, aim: at, fov: MathUtils.radToDeg( 2 * Math.atan( half / dd ) ), close: true };
 
@@ -637,7 +698,8 @@ export class BallparkApp {
 
 			const id = s.pitcher ?? s.defense?.P;
 			const lefty = P[ id ]?.throws === 'L';
-			return close( id, lefty ? 'high1' : 'high3', 1.15, 0.72 ) || close( id, lefty ? 'high3' : 'high1', 1.15, 0.72 );
+			// (FB3, C3B-4: half 0.85, a little room round him: head to the thighs, as t11530s)
+			return close( id, lefty ? 'high1' : 'high3', 1.15, 0.85 ) || close( id, lefty ? 'high3' : 'high1', 1.15, 0.85 );
 
 		};
 		// ---- end FB2
@@ -648,9 +710,22 @@ export class BallparkApp {
 		const rp = this._replayNow();
 		if ( rp ) return this._replayCut( rp );
 		// ---- end FB2
+		// ---- FB3 (C3B-1): the last pitch, strike three and Lidge on his knees: one shot from center field
+		const L = d.lastOut;
+		if ( L && ( ( seg === L.pitch && lt >= 1.7 ) || seg === L.result ) ) return this._lastOutCut( d.t - L.tStrike );
+		// ---- end FB3
 		switch ( seg.kind ) {
 
-			case 'walkup': return lt < 1 ? high : batterClose() || high;
+			// (FB3, C3B-13: the walk-up is his face, from the low camera he's walking toward: a Phillie comes
+			// from the first base side's on-deck circle toward low third, a Ray the other way; it was the camera
+			// on his stance's open side, his back for 40% of them)
+			case 'walkup': {
+
+				if ( lt < 1 ) return high;
+				const home = s.batting === 'home';
+				return close( s.batter, home ? 'low3' : 'low1' ) || close( s.batter, home ? 'high3' : 'high1', 1.2, 1.4 ) || batterClose() || high;
+
+			}
 			case 'pitch': {
 
 				const e = seg.ev, tb = lt - 3.0 - Motions.REL;
@@ -683,8 +758,10 @@ export class BallparkApp {
 
 			case 'result': {
 
+				// (FB3, C3B-6: the runner on base from high first when someone's in front of low first: FOX's
+				// usual angle on him)
 				const onBase = ( s.bases || [] ).includes( s.batter );
-				return ( onBase ? close( s.batter, 'low1' ) : pitcherClose() ) || high;
+				return ( onBase ? close( s.batter, 'low1' ) || close( s.batter, 'high1', 1.2, 1.3 ) : pitcherClose() ) || high;
 
 			}
 
@@ -695,12 +772,44 @@ export class BallparkApp {
 			// ---- FB2 (C2B-17): between innings the wide shot, and when the Phanatic is out on the field or
 			// dancing on a dugout's roof, every other eight seconds on him (FOX aired him when he was on the
 			// field: the pregame, the banner at the end)
-			default: return this._phanaticCut( lt ) || high;
+			// (---- FB3, C3B-8: the suspension's break has a plan of its own: it was one static wide for 150 s)
+			default: return ( seg === d.suspension && this._suspensionCut( lt ) ) || this._phanaticCut( lt ) || high;
 			// ---- end FB2
 
 		}
 
 	}
+
+	// ---- FB3 (C3B-1): the last out as FOX had it (FOX US 1yP3u4ik2gs, sheet 125): the center field camera
+	// holds the pitch, and as Hinske misses it pushes in on Lidge, down on his knees with his arms up, his
+	// back to us ("54"), Ruiz coming in at the side; then out a little as Howard and the rest pile on;
+	// the pile from high first after (the celebration's cut). One shot from the pitch to the pile: s is
+	// the seconds since strike three (in the mitt). (It was a cut 1.4 s after the strike to a 1.5 degree
+	// close-up of the rubber, mostly grass, then Lidge standing still; his kneel came 4 s late.)
+	_lastOutCut( s ) {
+
+		const d = this.director, L = d.lastOut;
+		const e = this._foxCamera( 'center' );
+		const span = ( p, half ) => MathUtils.radToDeg( 2 * Math.atan( half / Math.hypot( p[ 0 ] - e[ 0 ], p[ 1 ] - e[ 1 ], p[ 2 ] - e[ 2 ] ) ) );
+		const ease = ( x ) => {
+
+			const k = Math.min( 1, Math.max( 0, x ) );
+			return k * k * ( 3 - 2 * k );
+
+		};
+		const lerp3 = ( a, b, k ) => [ a[ 0 ] + ( b[ 0 ] - a[ 0 ] ) * k, a[ 1 ] + ( b[ 1 ] - a[ 1 ] ) * k, a[ 2 ] + ( b[ 2 ] - a[ 2 ] ) * k ];
+		// Lidge kneeling: his middle (a metre up), a picture 2.6 m tall (his knees at the bottom, the glove
+		// up near the top, Ruiz's head out of it), a little to his left so Ruiz has the right of it
+		const a = d.actors.get( L.cel.snap.defense.P );
+		const him = a ? [ a.x - 0.25, ( a.y || 0 ) + 1.0, a.z ] : [ PILE[ 0 ] - 0.25, 1.2, PILE[ 1 ] ];
+		const pile = [ PILE[ 0 ], 1.1, PILE[ 1 ] ];
+		const k1 = ease( ( s - 0.45 ) / 1.3 ), k2 = ease( ( s - 4.6 ) / 1.8 );
+		const aim = lerp3( lerp3( [ 0.4, 0.75, 0 ], him, k1 ), pile, k2 );
+		const fov = 2.7 + ( span( him, 1.3 ) - 2.7 ) * k1 + ( span( pile, 3.4 ) - span( him, 1.3 ) ) * k2;
+		return { cam: 'center', aim, fov, tag: 'lastout' };
+
+	}
+	// ---- end FB3
 
 	// ---- FB2 (C2B-10): FOX's replays (game/Replays.js): which one is on air now (TV mode only), and its
 	// picture: the play from the high first base camera, framed as the follow camera frames it (the other
@@ -734,6 +843,57 @@ export class BallparkApp {
 
 	}
 
+	// ---- FB3 (C3B-8): the suspension as FOX covered it, a new shot every eight or nine seconds where it was
+	// one high home wide for two and a half minutes. The 27th (the world feed 2:52-3:03, FOX US 1:58-2:03):
+	// the wide as the crew run out; the crew at the roll swinging it off the wall, tight from high third; the
+	// line of them walking the sheet's edge across the infield, from high home and high first; the fans in
+	// their ponchos; PhanaVision; the covered field wide for the GAME SUSPENDED card. The 29th (FOX US
+	// 2:03-2:08, the world feed 3:03-3:14): the bowl filling from high first and third; the tarp coming
+	// off; the Phillies' dugout in their red jackets from low third; the pens; the Phanatic when he's out
+	// (_phanaticCut); the wide to the walk-up.
+	_suspensionCut( lt ) {
+
+		const d = this.director, N = d.night( d.t );
+		const fit = ( cam, aim, half, tag ) => {
+
+			const e = this._foxCamera( cam );
+			if ( this._blockedOnce( 'susp' + tag + cam, this._lensBlocked( e, aim, null, half, 0, Math.max( 4, half * 1.6 ) ) ) ) return null;
+			const dd = Math.hypot( aim[ 0 ] - e[ 0 ], aim[ 1 ] - e[ 1 ], aim[ 2 ] - e[ 2 ] );
+			return { cam, aim, fov: MathUtils.radToDeg( 2 * Math.atan( half / dd ) ), tag: 'susp' + tag };
+
+		};
+		const high = { cam: 'high' };
+		const st = tarpState( N );
+		const roll = st.stowed ? null : rollAxis( st, 4 )[ 2 ];
+		if ( N.delay ) {
+
+			const u = lt;
+			if ( u < 7 ) return high;
+			// the roll coming off the wall and across, the crew on it
+			if ( u < 20 ) return roll ? fit( 'high3', [ roll[ 0 ], 1.0, roll[ 2 ] ], 4.5, 'roll' ) : high;
+			if ( u < 32 ) return roll ? fit( 'high', [ roll[ 0 ], 0.8, roll[ 2 ] ], 9, 'pull' ) : high;
+			if ( u < 44 ) return roll ? fit( 'high1', [ roll[ 0 ], 0.8, roll[ 2 ] ], 7, 'pull2' ) : high;
+			// the fans in the rain, PhanaVision, the fans again, then the covered field to the end
+			if ( u < 53 ) return fit( 'high1', [ - 38, 9, 4 ], 9, 'fans1' );
+			if ( u < 61 ) return fit( 'high', [ - 79, 31, - 109 ], 10, 'board' );
+			if ( u < 69 ) return fit( 'high3', [ 36, 8, 8 ], 9, 'fans2' );
+			return high;
+
+		}
+
+		// the 29th's part, from the split
+		const u = d.t - N.split;
+		if ( u < 9 ) return fit( 'high1', [ - 40, 12, - 10 ], 22, 'bowl1' );
+		if ( u < 18 ) return roll ? fit( 'high3', [ roll[ 0 ], 1.0, roll[ 2 ] ], 6, 'off' ) : high;
+		if ( u < 27 ) return high;
+		if ( u < 36 ) return fit( 'low3', [ DUGOUT.home[ 0 ], 1.1, DUGOUT.home[ 1 ] ], 2.6, 'dugout' );
+		if ( u < 45 ) return fit( 'high', [ BULLPEN.home[ 0 ], 2.2, BULLPEN.home[ 1 ] - 1.5 ], 8, 'pens' );
+		if ( u < 54 ) return fit( 'high3', [ 40, 12, - 6 ], 22, 'bowl2' );
+		return null;
+
+	}
+	// ---- end FB3
+
 	// ---- FB2 (C2B-17): the Phanatic, if he's on the field or a roof, every other eight seconds of a break:
 	// from the high camera across the field from him, a picture about 4 m tall
 	_phanaticCut( lt ) {
@@ -758,23 +918,76 @@ export class BallparkApp {
 
 		const C = CEL;
 		const pile = [ 0, 1.1, - 17.8 ];
+		// (the shot's name: one per slot of the schedule, so a handheld or a blocked camera holds for the
+		// whole of its slot, not cut at every seventh second)
+		let tag = 'cel' + Math.floor( lt / 7 );
 		const fit = ( cam, aim, half ) => {
 
 			if ( ! aim ) return null;
-			const e = this._foxCamera( cam );
+			let e = this._foxCamera( cam );
+			// ---- FB3 (C3B-2): never the center field camera on something under its own platform (the lap
+			// along the center field track: the lens looked down through the deck): high home instead
+			if ( cam === 'center' && ( Math.hypot( aim[ 0 ] - e[ 0 ], aim[ 2 ] - e[ 2 ] ) < 45 || e[ 1 ] - aim[ 1 ] > 0.2 * Math.hypot( aim[ 0 ] - e[ 0 ], aim[ 2 ] - e[ 2 ] ) ) ) {
+
+				cam = 'high';
+				e = this._foxCamera( cam );
+
+			}
+
+			// ---- FB3 (C3B-5): nobody in front of the lens (the press leave the wells right past the low
+			// cameras): a shot that's blocked is given up for its slot
+			if ( this._blockedOnce( tag + cam, this._lensBlocked( e, aim, null, half, 0, Math.max( 4, half * 1.6 ) ) ) ) return null;
+			// ---- end FB3
 			const dd = Math.hypot( aim[ 0 ] - e[ 0 ], aim[ 1 ] - e[ 1 ], aim[ 2 ] - e[ 2 ] );
-			return { cam, aim, fov: MathUtils.radToDeg( 2 * Math.atan( half / dd ) ), tag: 'cel' + Math.floor( lt / 7 ) };
+			return { cam, aim, fov: MathUtils.radToDeg( 2 * Math.atan( half / dd ) ), tag };
 
 		};
-		const crowd = ( k ) => [ fit( 'low1', [ - 30, 5, 14 ], 7 ), fit( 'high3', [ 36, 7, 8 ], 8 ), fit( 'center', [ 0, 6, 26 ], 9 ), fit( 'high1', [ - 38, 9, 4 ], 9 ) ][ k % 4 ];
+		const hand = ( aim, half, r ) => this._handheld( tag, aim, half, r );
+		const crowd = ( k ) => [ fit( 'low1', [ - 30, 5, 14 ], 7 ) || fit( 'high1', [ - 38, 9, 4 ], 9 ), fit( 'high3', [ 36, 7, 8 ], 8 ), fit( 'center', [ 0, 6, 26 ], 9 ), fit( 'high1', [ - 38, 9, 4 ], 9 ) ][ k % 4 ];
 		const high = { cam: 'high' };
-		if ( lt < 5 ) return { cam: 'center', aim: [ 0, 1.2, - 18 ], fov: 9 };
-		if ( lt < 40 ) return [ fit( 'high1', pile, 4.5 ), fit( 'low1', pile, 2.6 ), fit( 'high3', pile, 4 ), fit( 'center', pile, 3.2 ), fit( 'low3', pile, 3.2 ) ][ Math.floor( ( lt - 5 ) / 7 ) ];
-		if ( lt < C.stageBuild[ 0 ] ) return [ high, fit( 'high1', [ 2, 1, - 22 ], 9 ), crowd( 0 ) ][ Math.floor( ( lt - 40 ) / 7 ) % 3 ];
+		// ---- FB3 (C3B-1): the last out's shot carries on from the strike (center field, Lidge, the pile)
+		if ( lt < 5 ) return this._lastOutCut( this.director.t - this.director.lastOut.tStrike );
+		// ---- FB3 (C3B-5): the pile from high first (t16330s), then FOX's handhelds in on the grass, low,
+		// the lights over them (FOX US sheet 125, frames 3-6 and 9), high third, center field, a handheld
+		// again as it comes apart; the low cameras in the wells only if nobody's in front of them
+		if ( lt < 40 ) {
+
+			const k = Math.floor( ( lt - 5 ) / 7 );
+			tag = 'pile' + k;
+			const lo = [ 0, 1.9, - 17.8 ];
+			if ( k === 0 ) return fit( 'high1', pile, 4.5 );
+			if ( k === 1 ) return hand( lo, 2.1, 4.8 ) || fit( 'low1', pile, 2.6 ) || fit( 'high3', pile, 4 );
+			if ( k === 2 ) return fit( 'high3', pile, 4 );
+			if ( k === 3 ) return fit( 'center', pile, 3.2 );
+			return hand( lo, 2.3, 5.2 ) || fit( 'low3', pile, 3.2 ) || fit( 'high1', pile, 4.5 );
+
+		}
+
+		if ( lt < C.stageBuild[ 0 ] ) {
+
+			const k = Math.floor( ( lt - 40 ) / 7 );
+			tag = 'hug' + k;
+			return [ high, fit( 'high1', [ 2, 1, - 22 ], 9 ), crowd( 0 ) ][ k % 3 ] || high;
+
+		}
 		if ( lt < C.present[ 0 ] ) {
 
+			// ---- FB3 (C3B-9, C3B-3): while the stage goes up, not the lone box on the clay: the knots of
+			// players hugging (a handheld in among them by the dugout), the wide, the crowd, the infield; then
+			// the stage done and the car driven in, from high home; the party walking out to it
+			if ( lt >= C.party + 26 ) {
+
+				tag = 'party';
+				const party = this._partyAt();
+				if ( party ) return fit( 'high3', party, 3.4 ) || high;
+
+			}
+
 			const k = Math.floor( ( lt - C.stageBuild[ 0 ] ) / 9 );
-			return [ fit( 'high1', [ STAGE.at[ 0 ], 1.2, STAGE.at[ 1 ] ], 6 ), high, crowd( k ), fit( 'center', [ 8, 1.2, - 24 ], 5 ) ][ k % 4 ];
+			tag = 'build' + k;
+			if ( k % 4 === 0 ) return k < 4 ? hand( [ 12, 1.7, - 6.5 ], 2.0, 5.0 ) || fit( 'high1', [ 12, 1.2, - 6.5 ], 4 ) || high : fit( 'high', [ STAGE.car[ 0 ] - 2, 1.2, STAGE.car[ 1 ] + 1 ], 8 ) || high;
+			return [ null, high, crowd( k ), fit( 'center', [ 8, 1.2, - 24 ], 5 ) ][ k % 4 ] || high;
+			// ---- end FB3
 
 		}
 
@@ -785,20 +998,22 @@ export class BallparkApp {
 			// ---- FR1: the men on the stage face out of its front to the plate and the stands now (they
 			// faced right-center): their faces from the high home camera, 16 degrees off their line (FOX's
 			// interview frames and Getty 83570999 from in front); the stage from high third between
+			// (FB3, C3B-10: mid-shots, waist up with the people beside, as FOX's were, not a 1.4 m macro on
+			// one figure's face)
 			const face = 'high';
 			const man = ( id, half ) => fit( face, actor( id, 1.25 ), half );
 			// Howard up the steps with the others, then the trophy over his head, tight
 			if ( lt >= C.up + 5 ) {
 
 				const tr = trophyHold( this.director, lt );
-				return ( tr && fit( face, [ tr.x, tr.y - 0.45, tr.z ], 1.25 ) ) || man( 429667, 1.2 ) || fit( face, on, 3.2 );
+				return ( tr && fit( face, [ tr.x, tr.y - 0.7, tr.z ], 1.9 ) ) || man( 429667, 1.9 ) || fit( face, on, 3.2 );
 
 			}
 
 			if ( lt >= C.up - 1 ) return fit( face, on, 3.2 );
-			if ( lt >= C.mvp[ 0 ] && lt < C.mvp[ 1 ] ) return man( 430935, 1.5 ) || fit( face, on, 3.2 );
-			if ( lt >= C.manuel[ 0 ] && lt < C.manuel[ 1 ] ) return man( 'r:manuel', 1.0 ) || fit( face, on, 3.2 );
-			if ( lt >= C.moyer[ 0 ] + 6 && lt < C.moyer[ 1 ] ) return fit( 'high1', actor( 'r:moyer', 0.7 ), 1.3 ) || fit( 'high1', on, 3.2 );
+			if ( lt >= C.mvp[ 0 ] && lt < C.mvp[ 1 ] ) return man( 430935, 2.1 ) || fit( face, on, 3.2 );
+			if ( lt >= C.manuel[ 0 ] && lt < C.manuel[ 1 ] ) return man( 'r:manuel', 1.9 ) || fit( face, on, 3.2 );
+			if ( lt >= C.moyer[ 0 ] + 6 && lt < C.moyer[ 1 ] ) return fit( 'high1', actor( 'r:moyer', 0.7 ), 1.6 ) || fit( 'high1', on, 3.2 );
 			return Math.floor( lt / 8 ) % 2 ? fit( 'high3', on, 3.6 ) : fit( face, on, 4.2 );
 			// ---- end FR1
 
@@ -807,17 +1022,74 @@ export class BallparkApp {
 		if ( lt < C.lap[ 1 ] ) {
 
 			// the lap: the flag and the men behind it, from the camera across the field from them
+			// (FB3, C3B-2: across center, high home: the center field camera can't see the track under it;
+			// between, the crowd or Moyer's family at the mound)
 			const flag = actor( 408206, 1.2 );
 			const k = Math.floor( ( lt - C.lap[ 0 ] ) / 9 );
-			if ( ! flag || k % 3 === 2 ) return k % 2 ? crowd( k ) : high;
-			const cam = flag[ 2 ] < - 90 ? 'center' : flag[ 0 ] > 0 ? 'high3' : 'high1';
-			return fit( cam, flag, cam === 'center' ? 3.5 : 4.5 );
+			tag = 'lap' + k;
+			if ( ! flag || k % 3 === 2 ) return ( k % 2 ? crowd( k ) : fit( 'high1', actor( 'r:moyer', 0.9 ), 2.6 ) ) || high;
+			const cam = Math.abs( flag[ 0 ] ) < 26 && flag[ 2 ] < - 90 ? 'high' : flag[ 0 ] > 0 ? 'high3' : 'high1';
+			return fit( cam, flag, 4.5 ) || high;
 
 		}
 
-		return Math.floor( lt / 9 ) % 2 ? crowd( Math.floor( lt / 18 ) ) : high;
+		tag = 'end' + Math.floor( lt / 9 );
+		return Math.floor( lt / 9 ) % 2 ? crowd( Math.floor( lt / 18 ) ) || high : high;
 
 	}
+
+	// ---- FB3 (C3B-5): one of FOX's handhelds on the grass (FOX US 1yP3u4ik2gs sheet 125: the pile and the
+	// hugs low and wide from among them, the lights over them): r metres out from what it's on, on a man's
+	// shoulder, from the first side round it that's clear (the plate side first, the outfield's stands and
+	// lights behind; then the sides): nobody within a metre of the lens or between it and the first three
+	// metres of the shot (the rest of the scrum is the picture). Picked when the shot comes up, again if
+	// someone walks into it (twice at most), else null. The operator isn't drawn.
+	_handheld( tag, aim, half, r ) {
+
+		let H = this._hand;
+		const near = ( e ) => {
+
+			const dx = aim[ 0 ] - e[ 0 ], dz = aim[ 2 ] - e[ 2 ], l = Math.hypot( dx, dz ) || 1;
+			return [ e[ 0 ] + dx / l * 3.2, aim[ 1 ], e[ 2 ] + dz / l * 3.2 ];
+
+		};
+		const clear = ( e ) => ! this._lensBlocked( e, near( e ), null, 0, 1.0 );
+		if ( H?.tag !== tag || ( H.e && ! clear( H.e ) ) ) {
+
+			const tries = H?.tag === tag ? H.tries + 1 : 0;
+			let e = null;
+			if ( tries < 3 ) for ( const a of [ 0, 0.8, - 0.8, 1.6, - 1.6, 2.4, - 2.4, Math.PI ] ) {
+
+				const c = [ aim[ 0 ] + Math.sin( a ) * r, 1.45, aim[ 2 ] + Math.cos( a ) * r ];
+				if ( clear( c ) ) {
+
+					e = c;
+					break;
+
+				}
+
+			}
+
+			H = this._hand = { tag, e, tries };
+
+		}
+
+		if ( ! H.e ) return null;
+		const dd = Math.hypot( aim[ 0 ] - H.e[ 0 ], aim[ 1 ] - H.e[ 1 ], aim[ 2 ] - H.e[ 2 ] );
+		return { cam: 'hand', aim, fov: MathUtils.radToDeg( 2 * Math.atan( half / dd ) ), tag: tag + ':' + H.tries };
+
+	}
+
+	// where the presentation's party is while it walks out (the middle of the ones out), or null
+	_partyAt() {
+
+		const ps = this.places.find( ( p ) => p.press && p.party )?.party?.people;
+		let x = 0, z = 0, n = 0;
+		for ( const q of ps || [] ) if ( q.p?.visible && q.key !== 'chevy' ) { x += q.p.x; z += q.p.z; n ++; }
+		return n ? [ x / n, 1.3, z / n ] : null;
+
+	}
+	// ---- end FB3
 
 	// ---- FB2 (C2B-3): the follow camera frames the play, not the ball. While a fly is up, the operator
 	// holds the fielder and the spot it's coming down (the grass and the wall in the picture; the ball

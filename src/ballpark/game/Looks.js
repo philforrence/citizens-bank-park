@@ -127,7 +127,9 @@ export const STAFF = {
 	'-5': { skin: S.light, hair: H.dark, beard: 0, height: ht( 5, 11 ), girth: 1.12, belly: 0.3, age: 0.6 },
 	'-6': { skin: S.ruddy, hair: H.grey, beard: 1, height: ht( 6, 2 ), girth: 1.05, belly: 0.2, age: 0.8 },
 	// Charlie Manuel, 64, 6'3" and heavy, white hair; Joe Maddon in his black-framed glasses
-	manuel: { skin: S.ruddy, hair: H.white, beard: 0, stubble: 0.2, height: ht( 6, 3 ), girth: 1.2, belly: 0.75, age: 1, jaw: 0.5 },
+	// (---- FB3, C3B-10: a big man, not a ball: girth 1.2 and belly 0.75 read 10-15% wider than Getty
+	// 83570999 in the interview's mid-shot, with the jacket's hull over it)
+	manuel: { skin: S.ruddy, hair: H.white, beard: 0, stubble: 0.2, height: ht( 6, 3 ), girth: 1.1, belly: 0.5, age: 1, jaw: 0.5 },
 	maddon: { skin: S.light, hair: H.white, beard: 0, stubble: 0.1, glasses: 1, height: ht( 5, 11 ), girth: 1.0, belly: 0.1, age: 0.9 },
 	// the base coaches: Davey Lopes (1B) and Steve Smith (3B) for the Phillies, George Hendrick and Tom
 	// Foley for the Rays

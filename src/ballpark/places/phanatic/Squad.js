@@ -28,7 +28,9 @@ const HAIR = { black: [ 0.012, 0.01, 0.008 ], dark: [ 0.03, 0.019, 0.012 ], brow
 // or clapping, a bounce in the knees, the hips going
 function towelWave( t, seed ) {
 
-	const a = t * ( 9 + 3 * seed ), b = Math.sin( t * 4.2 + seed * 5 );
+	// (FB3, C3B-18: whirled at about 5 rad/s, not 9 to 12: a soaked towel goes round slower, and at that
+	// speed on TV it smeared into a stippled see-through disc under the temporal filter)
+	const a = t * ( 4.6 + 1.4 * seed ), b = Math.sin( t * 4.2 + seed * 5 );
 	const p = M.stand( t );
 	p.pelvisY -= 0.05 + 0.03 * Math.abs( Math.sin( t * 4.2 ) );
 	p.pelvis = [ 0, 0.2 * b, 0.1 * b ];
@@ -72,10 +74,11 @@ export class Squad {
 			vertex: /* wgsl */`
 	let d = length( ( v.uv - vec2f( 0.0, 1.0 ) ) * vec2f( 0.34, 0.46 ) );
 	let ph = f32( v.instance ) * 1.7;
-	let w = sin( frame.time * 11.0 - d * 14.0 + ph ) * 0.08 + sin( frame.time * 17.0 - d * 23.0 + v.uv.x * 4.0 + ph ) * 0.025;
+	let w = sin( frame.time * 6.0 - d * 12.0 + ph ) * 0.08 + sin( frame.time * 9.0 - d * 20.0 + v.uv.x * 4.0 + ph ) * 0.025;
 	v.position = v.position + vec3f( - 0.1 * d * d, - 0.22 * d * d, w * smoothstep( 0.0, 0.25, d ) + 0.15 * d * d );
 `,
-			surface: 'let t = textureSample( sqTowel, smpAnisoClamp, vec2f( in.uv.x, 1.0 - in.uv.y ) ).rgb; s.albedo = t * ( 0.9 + 0.1 * fract( sin( dot( floor( in.uv * 90.0 ), vec2f( 12.9, 78.2 ) ) ) * 43758.5 ) ); s.roughness = 0.95;',
+			// (FB3, C3B-18: the terry a soft mottle, not a per-texel stipple that sparkled at a distance)
+			surface: 'let t = textureSample( sqTowel, smpAnisoClamp, vec2f( in.uv.x, 1.0 - in.uv.y ) ).rgb; s.albedo = t * ( 0.93 + 0.07 * mx_noise_float2( in.uv * vec2f( 14.0, 18.0 ) ) ); s.roughness = 0.95;',
 		} );
 		mat.setDefine( 'DRY', 1 );
 		this.towels = new InstancedMesh( geo, mat, GIRLS.length );
