@@ -1063,15 +1063,31 @@ export class Bowl {
 	}
 
 	// a walkable box over the quad a-b-c-d (a-b along the front, d-c behind it)
+	// (FW6, C4W-3: the box covers the whole quad, from its leftmost corner to its rightmost along the front
+	// and from the front to the back, not just the length of its front edge: at every bend of a strip the
+	// quads fan out behind and the boxes didn't, leaving a wedge of drawn floor with nothing under it at
+	// each corner, up to 13 m across on the Terrace's 15 m walkway (239 m² of it, 52 m² of the club's): the
+	// walker fell through to the club or the main concourse. Where a quad is narrower behind, the box
+	// reaches over the neighbour's floor, which is floor too)
 	_walkable( a, b, c, d, y, tag ) {
 
-		const cx = ( a[ 0 ] + b[ 0 ] + c[ 0 ] + d[ 0 ] ) / 4, cz = ( a[ 1 ] + b[ 1 ] + c[ 1 ] + d[ 1 ] ) / 4;
 		const ux = b[ 0 ] - a[ 0 ], uz = b[ 1 ] - a[ 1 ];
 		const len = Math.hypot( ux, uz );
 		if ( len < 0.1 ) return;
-		const depth = Math.hypot( ( d[ 0 ] + c[ 0 ] - a[ 0 ] - b[ 0 ] ) / 2, ( d[ 1 ] + c[ 1 ] - a[ 1 ] - b[ 1 ] ) / 2 );
-		const w = this.field.toWorld( cx, cz );
-		this.colliders.addBox( new Vector3( w.x, this.field.y0 + y - 0.3, w.z ), new Vector3( len / 2, 0.3, depth / 2 ), this.ctx.worldYaw - Math.atan2( uz, ux ), { walkable: true, tag } );
+		const u = [ ux / len, uz / len ];
+		let nx = - u[ 1 ], nz = u[ 0 ];
+		if ( ( d[ 0 ] - a[ 0 ] ) * nx + ( d[ 1 ] - a[ 1 ] ) * nz < 0 ) { nx = - nx; nz = - nz; }
+		let s0 = 0, s1 = len, t1 = 0;
+		for ( const p of [ c, d ] ) {
+
+			const s = ( p[ 0 ] - a[ 0 ] ) * u[ 0 ] + ( p[ 1 ] - a[ 1 ] ) * u[ 1 ];
+			s0 = Math.min( s0, s ); s1 = Math.max( s1, s );
+			t1 = Math.max( t1, ( p[ 0 ] - a[ 0 ] ) * nx + ( p[ 1 ] - a[ 1 ] ) * nz );
+
+		}
+		const sm = ( s0 + s1 ) / 2, tm = t1 / 2;
+		const w = this.field.toWorld( a[ 0 ] + u[ 0 ] * sm + nx * tm, a[ 1 ] + u[ 1 ] * sm + nz * tm );
+		this.colliders.addBox( new Vector3( w.x, this.field.y0 + y - 0.3, w.z ), new Vector3( ( s1 - s0 ) / 2, 0.3, t1 / 2 ), this.ctx.worldYaw - Math.atan2( uz, ux ), { walkable: true, tag } );
 
 	}
 

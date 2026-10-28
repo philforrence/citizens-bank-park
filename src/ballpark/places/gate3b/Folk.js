@@ -167,7 +167,10 @@ function castLook( look, props, seed ) {
 	if ( head === HEAD.beanieRed && ! has( 'pom' ) ) L.hat = r( 18 ) < 0.5 ? HAT.knitPlain : HAT.knitRed;
 	if ( has( 'hood' ) ) L.hat = HAT.hood;
 	// a poncho: clear, MLB red, yellow, or a black trash bag
-	if ( has( 'poncho' ) ) L.poncho = [ 1, 2, 4, 6 ][ Math.floor( r( 19 ) * 4 ) ];
+	// (FW6, C4W-14: as the photos have them, as the throng and the 3B Cast are dressed: clear 62%, yellow
+	// 13, red 10, orange 6, a trash bag 6, white 3, Getty 83891095. It was a quarter each of clear, red,
+	// yellow and trash bags)
+	if ( has( 'poncho' ) ) { const u = r( 19 ); L.poncho = u < 0.62 ? 1 : u < 0.75 ? 4 : u < 0.85 ? 2 : u < 0.91 ? 5 : u < 0.97 ? 6 : 3; }
 	if ( has( 'bag' ) ) L.gear |= GEAR.messenger;
 	if ( has( 'backpack' ) ) L.gear |= GEAR.backpack;
 	if ( has( 'radio' ) ) L.gear |= GEAR.radio;

@@ -851,6 +851,20 @@ export class ConcoursePeople {
 	_walk( f, dt, ns ) {
 
 		const p = f.p;
+		// ---- FW6 (C4W-11): at strike three the ones who didn't get to the rail stop where they are, turn
+		// to the field and go through it with the rest (they strolled on as if nothing had happened), for the
+		// first two minutes; then on their way again, most of them out
+		if ( ns.celebrate && ! f.spot && ns.celebrateT < 120 ) {
+
+			this._move( f, 0, 0, dt, Walkway.yaw( - p.x, - p.z ) );
+			const a = p.pose;
+			a.walk = lerp( a.walk, 0, Math.min( 1, dt * 5 ) );
+			this._hands( f, a, ns );
+			this._react( f, a, dt, ns );
+			return;
+
+		}
+		// ---- end FW6
 		if ( f.hold > 0 && f.to?.usher ) {
 
 			// stopped for the usher: the ticket held out to him, then off down the steps
@@ -1411,6 +1425,58 @@ export class ConcoursePeople {
 				a.headYaw = lerp( a.headYaw, f.order < 0.17 ? 0.9 : - 0.9, k );
 
 			}
+			// ---- FW6 (C4W-11): after the first moment (everyone's arms up at once) each goes through it his
+			// own way and at his own pace, a beat of 4-8 s each: the towel whirled and the other fist pumped,
+			// a fist pumped, clapping over the head, both hands on his head, one arm up and the other round the
+			// next one's shoulders, the phone held up to film it, both up again (Getty 112874141, 83486360:
+			// every pose at once at the rail). They were one rank of clones in the towel's pose
+			if ( R.kind === 'champions' && t > 2.5 ) {
+
+				const beat = 4 + 4 * f.order, n = Math.floor( ( t + f.order * 13 ) / beat );
+				const h = ( ( Math.sin( n * 12.9898 + f.order * 78.233 ) * 43758.5453 ) % 1 + 1 ) % 1;
+				// (each beat eased in and out of the arms-up: no pop from one act to the next)
+				const u = ( t + f.order * 13 ) % beat;
+				const act = Math.floor( h * 7 ), w = clamp( Math.min( u, beat - u ) / 0.5, 0, 1 ) * k;
+				const pump2 = 0.3 * Math.sin( T * 8 + f.order * 5 );
+				if ( act === 0 ) {
+
+					a.propR = PROP.towel;
+					a.armL = lerpArm( a.armL, [ 2.3 + pump2, 0.25, 0.1, 1.6 ], w );
+
+				} else if ( act === 1 ) {
+
+					a.armR = lerpArm( a.armR, [ GESTURE.fist[ 1 ][ 0 ] + pump2, GESTURE.fist[ 1 ][ 1 ], GESTURE.fist[ 1 ][ 2 ], GESTURE.fist[ 1 ][ 3 ] ], w );
+					a.armL = lerpArm( a.armL, [ 0.2, 0.15, 0, 0.5 ], w );
+					if ( a.propR === PROP.towel ) a.propR = 0;
+
+				} else if ( act === 2 ) {
+
+					const open = Math.max( 0, Math.sin( T * 10 + f.order * 3 ) );
+					a.armL = lerpArm( a.armL, [ 2.5, 0.15 + 0.25 * open, 0.35 - 0.3 * open, 0.5 ], w );
+					a.armR = lerpArm( a.armR, [ 2.5, 0.15 + 0.25 * open, 0.35 - 0.3 * open, 0.5 ], w );
+					if ( a.propR === PROP.towel ) a.propR = 0;
+
+				} else if ( act === 3 ) {
+
+					a.armL = lerpArm( a.armL, GESTURE.head[ 0 ], w );
+					a.armR = lerpArm( a.armR, GESTURE.head[ 1 ], w );
+					if ( a.propR === PROP.towel ) a.propR = 0;
+
+				} else if ( act === 4 ) {
+
+					a.armL = lerpArm( a.armL, [ 1.9, 1.2, - 0.5, 0.3 ], w );
+					a.twist = lerp( a.twist, f.order < 0.5 ? 0.35 : - 0.35, w );
+
+				} else if ( act === 5 ) {
+
+					a.propR = PROP.camera;
+					a.armR = lerpArm( a.armR, GESTURE.photoHigh[ 1 ], w );
+					a.armL = lerpArm( a.armL, [ 0.3, 0.12, 0, 0.6 ], w );
+
+				}
+
+			}
+			// ---- end FW6
 			a.lean = lerp( a.lean, - 0.05, k );
 			a.mouth = k * ( 0.7 + 0.3 * Math.sin( T * 5 + f.order ) );
 			a.headPitch = lerp( a.headPitch, - 0.25, k );
@@ -1529,7 +1595,11 @@ export class ConcoursePeople {
 		// ---- end H
 		const ds = gs - f.s, dd = gd - f.d, dist = Math.hypot( ds, dd );
 		const v = dist > 0.08 ? Math.min( 0.9, dist * 1.6 ) : 0;
-		this._move( f, v ? ds / dist * v : 0, v ? dd / dist * v : 0, dt, dist < 0.5 ? S.face : null );
+		// ---- FW6 (C4W-11): at strike three the line turns round to the field for the first minute and a half
+		// (they queued on with their backs to it)
+		const turned = ns.celebrate && ns.celebrateT < 90 && f.mode === 'queue';
+		this._move( f, v ? ds / dist * v : 0, v ? dd / dist * v : 0, dt, dist < 0.5 ? ( turned ? Walkway.yaw( - f.p.x, - f.p.z ) : S.face ) : null );
+		// ---- end FW6
 		a.walk = lerp( a.walk, Math.min( 1, Math.hypot( f.vs, f.vd ) / 0.6 ), Math.min( 1, dt * 5 ) );
 		a.phase = ( a.phase + dt * Math.hypot( f.vs, f.vd ) / 1.1 * TAU ) % TAU;
 		a.lean = 0; a.twist = 0; a.drop = 0;

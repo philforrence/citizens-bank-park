@@ -65,8 +65,11 @@ const HEAD_R = [ 0.082, 0.105, 0.098 ];
 // chest, the armpits, the shoulders sloping in to a collar round the neck (a seated 47 degree crowd
 // zipped to the chin), not a drum (CP-2: Getty 83893023, the 27th)
 const TRUNK = {
-	close: [ [ - 0.08, 0.17, 0.122, 0, 2.2 ], [ 0.1, 0.166, 0.118, 0, 2.2 ], [ 0.36, 0.156, 0.11, - 0.004, 2.2 ], [ 0.64, 0.168, 0.118, - 0.01, 2.4 ],
-		[ 0.84, 0.17, 0.114, - 0.004, 2.5 ], [ 0.95, 0.165, 0.104, 0.002, 2.4 ], [ 1.0, 0.142, 0.094, 0.004, 2.2 ], [ 1.35, 0.09, 0.078, 0, 2 ], [ 1.9, 0.072, 0.066, 0, 2 ] ],
+	// (FW6, C4W-1: close up the shoulders round in plan and falling to the collar from over the arms'
+	// rounds, not squared to a shelf: the top of the trunk was a flat ellipse 0.28 m across, level with the
+	// tops of the arms)
+	close: [ [ - 0.08, 0.17, 0.122, 0, 2.2 ], [ 0.1, 0.166, 0.118, 0, 2.2 ], [ 0.36, 0.156, 0.11, - 0.004, 2.2 ], [ 0.64, 0.168, 0.118, - 0.01, 2.25 ],
+		[ 0.84, 0.166, 0.113, - 0.004, 2.1 ], [ 0.95, 0.15, 0.104, 0.002, 2.0 ], [ 1.0, 0.124, 0.094, 0.004, 2.0 ], [ 1.35, 0.088, 0.078, 0, 2 ], [ 1.9, 0.072, 0.066, 0, 2 ] ],
 	near: [ [ - 0.08, 0.17, 0.122, 0, 2.2 ], [ 0.4, 0.158, 0.11, - 0.004, 2.2 ], [ 0.8, 0.17, 0.116, - 0.008, 2.4 ],
 		[ 1.0, 0.142, 0.094, 0.004, 2.2 ], [ 1.4, 0.088, 0.077, 0, 2 ], [ 1.9, 0.072, 0.066, 0, 2 ] ],
 	mid: [ [ - 0.05, 0.172, 0.12, 0, 2 ], [ 0.85, 0.18, 0.112, - 0.004, 2 ], [ 1.4, 0.1, 0.08, 0, 2 ] ],
@@ -1011,6 +1014,13 @@ const armSeg = ( a, b, morph ) => `( ${ armJoint( b, morph ) } - ${ armJoint( a,
 const crowdModule = new ShaderModule( {
 	name: 'crowd',
 	code: /* wgsl */`
+// ---- FW6 (C4W-2): where a knit hat comes down to on the head (d on its unit sphere): two fingers over the
+// brows in front (0.3; the eyes 0.1), the ears' tops at the sides, the nape behind (as the Cast's)
+fn cwKnitEdge( d: vec3f ) -> f32 {
+	let fr = - d.z / max( length( d.xz ), 0.001 );
+	return mix( - 0.15, 0.0, smoothstep( - 1.0, 0.0, fr ) ) + 0.39 * smoothstep( 0.0, 0.95, fr );
+}
+// ---- end FW6
 // ---- FC4 (C4R-3): a tube's ring frame on a segment, as fanGeometry's ring() lays it (across, along,
 // toward the back)
 fn cwRingFrame( d: vec3f ) -> mat3x3f {
@@ -1185,7 +1195,13 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 				p = headC + q;
 			} else if ( ( flags & ( 1u << 13u ) ) != 0u ) {
 				// a knit hat: a rounded dome over the hair (CP-7: it was a gnome's cone)
-				p = headC + local * ( 1.0 + 0.06 * smoothstep( 0.1, 0.5, d.y ) ) + vec3f( 0.0, 0.018 * smoothstep( 0.7, 1.0, d.y ), 0.0 );
+				// ---- FW6 (C4W-2): sat on the head from its edge (cwKnitEdge: over the brows in front, the
+				// ears' tops at the sides, the nape behind), the cuff a step out and the crown a finger out
+				// hugging the skull, a little higher and slouched back (it came down to the eyes: a can)
+				let kr = d.y - cwKnitEdge( d );
+				let ko = smoothstep( - 0.035, 0.005, kr ) * ( 0.009 + 0.005 * smoothstep( 0.15, 0.12, kr ) );
+				p = headC + local + normalize( local ) * ko + vec3f( 0.0, 0.007 * smoothstep( 0.55, 1.0, d.y ), 0.009 * smoothstep( 0.45, 0.95, d.y ) * smoothstep( - 0.5, 0.4, d.z ) );
+				// ---- end FW6
 			} else if ( ( flags & 16u ) != 0u && lod > 0u ) {
 				// a cap, where it hasn't its own crown: the head fuller above the band and taller
 				let front = - d.z / max( length( d.xz ), 0.001 );
@@ -1469,8 +1485,15 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), female );
 		c = mix( c, mix( lip, vec3f( 0.06, 0.02, 0.02 ), smoothstep( 0.3, 0.7, open ) ), smoothstep( 1.0, 0.7, mo ) * front );
 		// a moustache, a goatee, a beard (soft at its edges, broken up, not a mask: CP-13), stubble
-		if ( facial == 1u || facial == 3u ) { c = mix( c, hairC, smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.3 ) * front ); }
-		if ( facial == 2u ) { c = mix( c, hairC, ( smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.28 ) + step( d.y, - 0.5 ) * step( ax, 0.24 ) ) * front ); }
+		// ---- FW6 (C4W-16): a moustache and a goatee in the hair's own colour, a little darker, their edges
+		// soft and broken into stubble, the skin through them (hard black cut-outs with ruler edges)
+		let fstub = 0.75 + 0.25 * sin( d.x * 211.0 + sin( d.y * 97.0 ) * 3.0 ) * sin( d.y * 183.0 + d.x * 41.0 );
+		let fcol = mix( c, hairC * 0.8, 0.85 );
+		let moust = smoothstep( 0.06, 0.02, abs( d.y + 0.33 + 0.04 * ax * ax ) ) * smoothstep( 0.33, 0.24, ax );
+		let goat = smoothstep( - 0.47, - 0.53, d.y ) * smoothstep( 0.27, 0.19, ax ) * smoothstep( 0.0, - 0.2, d.z );
+		if ( facial == 1u || facial == 3u ) { c = mix( c, fcol, clamp( moust * fstub * 1.15, 0.0, 0.92 ) * front ); }
+		if ( facial == 2u ) { c = mix( c, fcol, clamp( max( moust, goat ) * fstub * 1.15, 0.0, 0.92 ) * front ); }
+		// ---- end FW6
 		if ( facial == 3u ) {
 			// ---- FW4 (C3W-4): on the jaw and the cheeks below the cheekbone's line, up to the sideburns in front
 			// of the ears, thinning at its edges, the skin through it (it ran round the side of the head to the
@@ -1516,14 +1539,22 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 			c = capC; rough = 0.8;
 			if ( abs( fract( atan2( d.x, d.z ) * 0.955 ) - 0.5 ) > 0.47 ) { c *= 0.75; }
 		}
+		// ---- FW6 (C4W-10): the brim's shade on the face down to the nose, the eyes in it (every capped face
+		// under the lights was lit evenly from the band to the chin)
+		if ( capped && d.y <= 0.18 + 0.225 * frontness ) { c *= 1.0 - 0.38 * smoothstep( - 0.3, 0.4, d.y ) * smoothstep( - 0.1, - 0.5, d.z ); }
+		// ---- end FW6
 		// a knit hat (a folded cuff, ribs, a pom-pom; the Phillies' red one with its navy cuff and the
 		// white P on the front, Getty 83893023)
-		if ( ( hat == 3u || hat == 7u ) && ( d.y > 0.14 || piece ) ) {
+		// ---- FW6 (C4W-2): from its edge on the forehead (cwKnitEdge), the cuff 0.13 over it; it came down
+		// to d.y 0.14, over the brows to the eyes
+		let kRel = d.y - cwKnitEdge( d );
+		if ( ( hat == 3u || hat == 7u ) && ( kRel > 0.0 || piece ) ) {
 			let knit = cwLookBuf[ k + 5u ].rgb;
 			c = knit * ( 0.9 + 0.1 * sin( atan2( d.x, d.z ) * 36.0 ) );
-			if ( d.y < 0.34 ) { c = select( knit * 0.8, vec3f( 0.012, 0.016, 0.05 ), hat == 3u ); }
+			if ( kRel < 0.13 ) { c = select( knit * 0.8, vec3f( 0.012, 0.016, 0.05 ), hat == 3u ); }
+			c *= 1.0 - 0.25 * smoothstep( 0.025, 0.0, abs( kRel - 0.13 ) );
 			if ( hat == 3u && d.z < - 0.6 ) {
-				let lp = vec2f( - d.x / 0.22, ( d.y - 0.6 ) / 0.22 );
+				let lp = vec2f( - d.x / 0.22, ( kRel - 0.3 ) / 0.15 );
 				let pP = ( abs( lp.x + 0.25 ) < 0.16 && abs( lp.y ) < 0.75 ) || ( abs( length( ( lp - vec2f( 0.05, 0.3 ) ) * vec2f( 1.0, 1.3 ) ) - 0.32 ) < 0.14 && lp.x > - 0.25 );
 				if ( pP ) { c = vec3f( 0.62, 0.6, 0.55 ); }
 			}

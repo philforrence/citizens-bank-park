@@ -1,4 +1,5 @@
 import * as THREE from '../engine/index.js';
+import { castPool } from './places/Cast.js';
 
 // First-person walker for the ballpark: a capsule on the ground + walkable colliders (concourses,
 // stairs, seating rows). The walking part of Tidewater's player/Player.js, without the water and the
@@ -19,6 +20,8 @@ const SPRINT = 4.6;
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _e = new THREE.Euler( 0, 0, 0, 'YXZ' );
+const _inv = new THREE.Matrix4();
+const _f = new THREE.Vector3();
 
 export class Walker {
 
@@ -66,6 +69,43 @@ export class Walker {
 		return Math.max( this.ground.heightAt( x, z ), this.colliders.groundHeightAt( x, z, maxY ) );
 
 	}
+
+	// ---- FW6 (C4W-5): the people close by push the walker (feet p, world) out to arm's length
+	_pushFromPeople( p ) {
+
+		// (every person in the pool, where their place put them and as far as they've stepped aside: a few
+		// thousand box tests, ~20 us; the places' people stand in the field's frame)
+		const pool = castPool(), L = pool?.people;
+		if ( ! L || ! L.length || ! pool.group ) return;
+		pool.walkerSeen = true;
+		_inv.copy( pool.group.matrixWorld ).invert();
+		_f.copy( p ).applyMatrix4( _inv );
+		const fx = _f.x, fy = _f.y, fz = _f.z;
+		let mx = 0, mz = 0;
+		for ( let i = 0; i < L.length; i ++ ) {
+
+			const q = L[ i ];
+			const dx = fx - q.x - ( q._ax || 0 );
+			if ( dx > 0.7 || dx < - 0.7 ) continue;
+			const dz = fz - q.z - ( q._az || 0 );
+			if ( dz > 0.7 || dz < - 0.7 ) continue;
+			const dy = fy - q.y;
+			if ( dy < - 1.2 || dy > 1.2 || ! q.visible ) continue;
+			const R = RADIUS + 0.22 * ( q.scale || 1 ), d2 = dx * dx + dz * dz;
+			if ( d2 >= R * R ) continue;
+			const d = Math.sqrt( d2 ) || 0.001;
+			const k = ( R - d ) * 0.35;
+			mx += dx / d * k; mz += dz / d * k;
+
+		}
+		if ( mx === 0 && mz === 0 ) return;
+		// back to the world (the field's frame is turned and moved, not scaled)
+		_f.x += mx; _f.z += mz;
+		_f.applyMatrix4( pool.group.matrixWorld );
+		p.x = _f.x; p.z = _f.z;
+
+	}
+	// ---- end FW6
 
 	update( dt ) {
 
@@ -153,6 +193,12 @@ export class Walker {
 		const p = this.position;
 		const old = p.clone();
 		p.addScaledVector( this.velocity, dt );
+		// ---- FW6 (C4W-5): the people standing and walking about (everyone in the Cast's pool, where they
+		// were last drawn): each pushes you out to arm's length softly, a part of the overlap a step, so
+		// you're held behind a line or the rail's crowd and ease past someone as they step aside (they make
+		// way in the pool). You walked through them: a crowd of holograms. (Before the colliders, which have
+		// the last word: a push never puts you in a wall)
+		this._pushFromPeople( p );
 		this.colliders.resolveCapsule( p, RADIUS, HEIGHT, STEP );
 		// the seated fans: pushed back out from among them (the aisles are clear)
 		if ( this.blocked ) this.blocked( p, RADIUS );

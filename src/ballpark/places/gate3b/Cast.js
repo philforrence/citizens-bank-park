@@ -99,6 +99,9 @@ export class Cast {
 			let props = c.base;
 			// the rain gear: umbrellas up on the 27th out in the open, down on the 29th
 			if ( c.umbrella && ! w.first ) props &= ~ ( 1 << PROP.umbrella );
+			// (FW6, C4W-14: and the ponchos off: the 29th was dry, and the ones standing by the store kept
+			// the 27th's red ponchos into it)
+			if ( ! w.first ) props &= ~ ( 1 << PROP.poncho );
 			if ( c.umbrella && w.first ) {
 
 				p.flexR = 0.5; p.abductR = 0.14; p.elbowR = 1.3;
