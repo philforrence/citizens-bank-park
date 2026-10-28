@@ -167,7 +167,7 @@ export default class Entrance {
 
 		}
 
-		this._script( P, half, y0 );
+		this._script( P, y0 );
 		// (drawn only from where it can be seen: outside the park, or high in the stands' back rows)
 		this.reach = new Reach( 160 );
 		for ( const m of this.parts ) this.reach.add( m, [ cx, y0 + 10, cz ], 10 );
@@ -177,7 +177,7 @@ export default class Entrance {
 	// The Phillies script: red channel letters with white returns, the two blue stars over the i's, the
 	// swash under it, on standoffs off the glass; lit red after dark. A face and its returns (the same
 	// letters stepped back, darker) for its depth.
-	_script( P, half, y0 ) {
+	_script( P, y0 ) {
 
 		const tex = canvasTexture( 1024, 384, ( ctx, w, h ) => {
 
@@ -276,8 +276,6 @@ export default class Entrance {
 			this.parts.push( mesh );
 
 		}
-
-		void half;
 
 	}
 

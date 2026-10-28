@@ -174,7 +174,6 @@ export default class Under {
 		const home = sg.i === 2;
 		const depth = D2 - D1;
 		const P = this.P( sg );
-		const s0 = - dot( sub( sg.a, sg.b0 ), sg.u ); // how far the back line's start is along (the mitre)
 		// its lamps: cans on a grid, the spots over the bar, the bar's red glow
 		const lamps = [];
 		for ( let s = 1.6; s < sg.len - 0.8; s += 3.2 ) for ( const z of [ 2.2, 5.6 ] ) lamps.push( [ ...P( s, CL - 0.05, z ), 1.2 ] );
@@ -263,7 +262,6 @@ export default class Under {
 
 		}
 
-		void s0;
 
 	}
 
@@ -454,8 +452,6 @@ export default class Under {
 		for ( const x of [ - 0.48, 0.48 ] ) b.use( 'steel' ).box( X, x, 1.06, 0.03, 0.92, 2.12, 0.05 );
 		b.use( 'exitSign' ).box( X, 0, 2.45, 0.05, 0.4, 0.15, 0.05 );
 		// overhead: the sprinkler main, conduit, the strip lights
-		const pipe = ( z, h, r, pal ) => b.use( pal ).cyl( frame( P( len / 2, 0, z ), sg.nIn.map( ( v ) => - v ), sg.u ), 0, 0, h - r, h + r, r, r, 6, false );
-		void pipe;
 		for ( const [ z, h, r, pal ] of [ [ 0.5, CC - 0.25, 0.08, 'pipeWhite' ], [ 0.8, CC - 0.15, 0.03, 'steel' ], [ 2.4, CC - 0.2, 0.05, 'maroon' ] ] ) {
 
 			const a = P( 0.1, h, z ), c = P( len - 0.1, h, z );

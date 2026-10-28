@@ -515,12 +515,10 @@ export default class Suites {
 		// the suites' side: grey-green, their doors (built with the rooms), the plaques
 		for ( const R of this.rooms.filter( ( q ) => q.i === i ) ) {
 
-			const l = Math.hypot( R.C1[ 0 ] - R.C0[ 0 ], R.C1[ 1 ] - R.C0[ 1 ] );
 			const offs = dot( sub( R.C0, R.G0 ), u ); // (the mitred end's offset from the glass's)
 			const ds = [ R.door[ 0 ] - ( - R.hw + offs ), R.door[ 1 ] - ( - R.hw + offs ) ];
 			this._wallWithDoor( b, R.C0, R.C1, 0, CH, [ nIn[ 0 ], 0, nIn[ 1 ] ], ds, 2.13, 'paint', s0 );
 			b.use( 'black' ).panel4( at( R.C0, 0 ), at( R.C1, 0 ), at( R.C1, 0.1 ), at( R.C0, 0.1 ), [ nIn[ 0 ], 0, nIn[ 1 ] ] );
-			void l;
 			// the plaque by the door, on the latch side
 			const px = R.buffetLeft ? R.door[ 0 ] - 0.25 : R.door[ 1 ] + 0.25;
 			const Q = frame( R.P( px, 0, DROOM + WALL + 0.005 ), R.u, R.nIn );
