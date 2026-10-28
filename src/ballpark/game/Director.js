@@ -1036,7 +1036,8 @@ export class Director {
 		const d = lt - PACE.set;
 		const pid = s.defense.P;
 		const lefty = this.game.players[ pid ]?.throws === 'L';
-		this.now.pitch = e;
+		// the pitch's speed and type, once it's been thrown (FOX put it up after the pitch, not before)
+		if ( d > M.REL + seg.path.flight ) this.now.pitch = e;
 		// after ball four or strike three the count stays at 3 balls / 2 strikes (the boards never show a 3rd strike)
 		this.now.count = d > M.REL + seg.path.flight ? [ Math.min( 3, e.count[ 0 ] ), Math.min( 2, e.count[ 1 ] ) ] : [ s.balls, s.strikes ];
 		// the pitcher: set, then the delivery, the release at the pitch's own release point

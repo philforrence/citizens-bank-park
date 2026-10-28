@@ -1,4 +1,5 @@
 import { UI } from '../ui/UI.js';
+import { CAMERA_NAMES } from './BallparkApp.js';
 
 // Binds Tidewater's UI (settings panel + HUD) to the ballpark app: the sky, camera, effects and
 // performance tabs (the ocean, shore and fishing ones are gone with the sea).
@@ -27,6 +28,26 @@ export class BallparkUI {
 			grain: app.post.params.grain.value,
 			renderScale: app.settings.renderScale,
 			shadows: true,
+		};
+
+		// ---------------------------------------------------------------- the game's keys
+		// (GameHUD's: the replay; the app's: C for the cameras) on the controls sheet and the start card
+		ui.addHelpSection( 'The game', [
+			[ [ 'C' ], 'Cameras', 'Walk, FOX broadcast, center field, high home, follow the ball' ],
+			[ [ 'K' ], 'Play / pause the replay' ],
+			[ [ ',', '.' ], 'Previous / next batter' ],
+			[ [ '-', '=' ], 'Slower / faster', '½× to 16×' ],
+			[ [ 'B' ], 'Radio call on / off' ],
+			[ [ 'J' ], 'Hide the game panel', 'Its slider jumps anywhere; Moments has the big plays' ],
+		] );
+		ui.addStartKeys( [ [ 'C', 'TV cameras' ], [ 'K', 'Pause the game' ] ] );
+		// photo mode hides the game's panel too
+		const photo = ui.onPhotoMode;
+		ui.onPhotoMode = ( on ) => {
+
+			photo?.( on );
+			if ( app.gameHUD ) app.gameHUD.el.classList.toggle( 'gm-photo', on );
+
 		};
 
 		// ---------------------------------------------------------------- Sky
@@ -130,8 +151,10 @@ export class BallparkUI {
 		const ui = this.ui;
 		ui.setStats( { fps: app.fps, frameMs: dt * 1000 } );
 		this.s.renderScale = app.post.scale;
-		ui.setMode( app.freeCam ? 'Free camera' : 'Walking' );
-		if ( app.freeCam ) ui.setPrompt( 'F', 'Walk' );
+		// which camera you're watching through (the TV ones by name), else walking or flying
+		ui.setMode( app.camMode && app.camMode !== 'walk' ? CAMERA_NAMES[ app.camMode ] : app.freeCam ? 'Free camera' : 'Walking' );
+		if ( app.camMode && app.camMode !== 'walk' ) ui.setPrompt( 'C', 'Next camera' );
+		else if ( app.freeCam ) ui.setPrompt( 'F', 'Walk' );
 		else if ( app.walker.prompt ) ui.setPrompt( app.walker.prompt.key, app.walker.prompt.text );
 		else ui.setPrompt( null );
 

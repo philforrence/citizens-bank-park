@@ -151,6 +151,7 @@ function modeIcon( label ) {
 	if ( s.includes( 'div' ) ) return 'dive';
 	if ( s.includes( 'swim' ) ) return 'swim';
 	if ( s.includes( 'free' ) || s.includes( 'fly' ) ) return 'move';
+	if ( s.includes( 'camera' ) || s.includes( 'broadcast' ) || s.includes( 'following' ) ) return 'camera';
 	if ( s.includes( 'photo' ) ) return 'viewfinder';
 	if ( s.includes( 'walk' ) || s.includes( 'run' ) ) return 'walk';
 	return 'dot';
@@ -2167,6 +2168,33 @@ export class UI {
 
 		} );
 		this.root.append( el );
+
+	}
+
+	// An app's own keys on the controls sheet (F1): a section after Move / Interact / Interface. rows:
+	// [ [ [ key, ... ], text, note ], ... ]
+	addHelpSection( title, rows ) {
+
+		const k = ( keys ) => keys.map( ( x ) => `<kbd>${ x }</kbd>` ).join( '' );
+		const sec = h( 'section', 'tw-help-extra' );
+		sec.innerHTML = `<h3>${ title }</h3>` + rows.map( ( [ keys, text, note ] ) => `<div class="tw-help-row"><span class="tw-keys">${ k( keys ) }</span><span class="tw-help-text">${ text }${ note ? `<small>${ note }</small>` : '' }</span></div>` ).join( '' );
+		this.helpEl.querySelector( '.tw-help-grid' ).append( sec );
+		return sec;
+
+	}
+
+	// more keys on the start card, before "F1 All controls": [ [ key, text ], ... ]
+	addStartKeys( keys ) {
+
+		const box = this.startEl.querySelector( '.tw-start-keys' );
+		const last = box.lastElementChild;
+		for ( const [ key, text ] of keys ) {
+
+			const sp = document.createElement( 'span' );
+			sp.innerHTML = `<kbd>${ key }</kbd>${ text }`;
+			box.insertBefore( sp, last );
+
+		}
 
 	}
 
