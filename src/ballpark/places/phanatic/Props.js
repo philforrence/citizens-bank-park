@@ -1,7 +1,8 @@
 import { Group, Mesh, BoxGeometry, CylinderGeometry, SphereGeometry, LatheGeometry, PlaneGeometry, Vector2, Vector3, Quaternion, Matrix4 } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
 import { canvasTexture } from '../../geo.js';
-import { solvePose, bindMatrices, BONES, FACE } from '../../game/Rig.js';
+import { solvePose, bindMatrices, BONES, PHAN } from '../../game/Rig.js';
+import { look as lookFor } from '../../game/Looks.js';
 import { Kit } from './Kit.js';
 
 // What he wears on his head and carries in his hands, riding on his own bones: the rig is posed on the
@@ -143,17 +144,23 @@ export class Props {
 
 		}
 
-		// the rig's bind pose: the head's pivot, and where the Phanatic's big head sits on it
+		// the rig's bind pose: the head's pivot, and where the costume's head sits on it (Rig.js' PHAN): the
+		// top of it, the snout's open end and the way it points
 		const { bind } = bindMatrices();
 		const hb = new Vector3().fromArray( bind, BONES.head * 16 + 12 );
-		this.headTop = new Vector3( 0, FACE.top[ 1 ] - hb.y + 0.14, ( FACE.skull.z0 + FACE.skull.z1 ) / 2 - hb.z + 0.01 );
-		// the snout's tip (Rig.js: the snout's ring), and the way it points
-		const hy = FACE.top[ 1 ] - hb.y, hz = ( FACE.skull.z0 + FACE.skull.z1 ) / 2 - hb.z - 0.01;
-		this.snoutTip = new Vector3( 0, hy - 0.16, hz - 0.5 );
+		this.headTop = new Vector3( PHAN.head[ 0 ], PHAN.head[ 1 ] + PHAN.headR[ 1 ], PHAN.head[ 2 ] ).sub( hb );
+		const { base, tilt, len } = PHAN.snout;
+		this.snoutTip = new Vector3( base[ 0 ], base[ 1 ] - Math.sin( tilt ) * len, base[ 2 ] - Math.cos( tilt ) * len ).sub( hb );
+		this.snoutTilt = tilt;
+		// his size in the rig (Looks.js), to solve his bones as Players does
+		const lk = lookFor( 'phanatic' );
+		this.height = lk.height;
+		this.girth = lk.girth;
 		this._bones = new Float32Array( 17 * 16 );
 		this._root = new Matrix4();
 		this._m = new Matrix4();
 		this._o = new Matrix4();
+		this._k = new Matrix4();
 		this._q = new Quaternion();
 		this._v = new Vector3();
 		this._s = new Vector3();
@@ -173,7 +180,7 @@ export class Props {
 	}
 
 	// solve a figure's bones: { x, y, z, yaw, pose, height, girth }
-	solve( { x, y, z, yaw, pose, height = 1.02, girth = 1.3 } ) {
+	solve( { x, y, z, yaw, pose, height = this.height, girth = this.girth } ) {
 
 		this._q.setFromAxisAngle( this._v.set( 0, 1, 0 ), yaw );
 		this._root.compose( this._s.set( x, y, z ), this._q, new Vector3( height, height, height ) );
@@ -205,8 +212,9 @@ export class Props {
 		if ( ! want.hat && ! want.toque && ! want.banner && ! want.popcorn && ! want.blower ) return;
 		this.solve( st );
 		const o = this._o;
-		if ( want.hat ) this.place( this.hat, BONES.head, o.makeTranslation( this.headTop.x, this.headTop.y - 0.05, this.headTop.z + 0.02 ) );
-		if ( want.toque ) this.place( this.toque, BONES.head, o.makeTranslation( this.headTop.x, this.headTop.y - 0.02, this.headTop.z + 0.03 ) );
+		// (the hats were made for a head 0.25 m round: his is 0.16)
+		if ( want.hat ) this.place( this.hat, BONES.head, o.makeTranslation( this.headTop.x, this.headTop.y - 0.075, this.headTop.z + 0.02 ).multiply( this._k.makeScale( 0.66, 0.7, 0.66 ) ) );
+		if ( want.toque ) this.place( this.toque, BONES.head, o.makeTranslation( this.headTop.x, this.headTop.y - 0.04, this.headTop.z + 0.02 ).multiply( this._k.makeScale( 0.72, 0.8, 0.72 ) ) );
 		// the pole up through his right fist, a metre of it below his hand, leaned back over his shoulder with
 		// the cloth streaming out behind him (its plane turned to trail his heading)
 		if ( want.banner ) {
@@ -225,7 +233,7 @@ export class Props {
 		if ( want.blower ) {
 
 			const t = st.tau || 0, out = 0.06 + 0.3 * Math.max( 0, Math.sin( t * 3.1 ) ) ** 0.6;
-			o.makeTranslation( this.snoutTip.x, this.snoutTip.y, this.snoutTip.z ).multiply( new Matrix4().makeRotationX( Math.PI / 2 - 0.35 ) ).multiply( new Matrix4().makeScale( 1, out, 1 ) );
+			o.makeTranslation( this.snoutTip.x, this.snoutTip.y, this.snoutTip.z ).multiply( new Matrix4().makeRotationX( Math.PI / 2 - this.snoutTilt ) ).multiply( new Matrix4().makeScale( 1, out, 1 ) );
 			this.place( this.blower, BONES.head, o );
 
 		}

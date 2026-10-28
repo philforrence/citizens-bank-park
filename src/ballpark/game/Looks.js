@@ -143,8 +143,10 @@ export const STAFF = {
 	ballgirl2: { skin: S.olive, hair: H.dark, beard: 0, stubble: 0, height: ht( 5, 6 ), girth: 0.84, age: 0.1, jaw: - 0.6 },
 	// the grounds crew
 	crew: { beard: 1, age: 0.4 },
-	// the Phillie Phanatic: 6'6" of green fur and belly
-	phanatic: { skin: [ 0.06, 0.3, 0.035 ], hair: [ 0.06, 0.3, 0.035 ], beard: 0, stubble: 0, height: 1.02, girth: 1.3, belly: 1.6, age: 0, socks: 'high' },
+	// the Phillie Phanatic: the performer inside about 5'10", the costume (Rig.js' phanatic()) taking him to
+	// 6'6" at the top of his hair; his build is the costume's, so the bones aren't broadened (belly 1 is
+	// the costume's at rest: Moves.js' jiggle swings it)
+	phanatic: { skin: [ 0.09, 0.36, 0.03 ], hair: [ 0.09, 0.36, 0.03 ], beard: 0, stubble: 0, height: 0.95, girth: 1.0, belly: 1.0, age: 0, socks: 'high' },
 };
 
 // ---- R (rituals): the grounds crew with names (CAST.md): Frank Tomaselli, 57, on the crew since the

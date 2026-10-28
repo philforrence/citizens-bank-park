@@ -4,6 +4,7 @@ import * as R from './RitualMoves.js';
 import { ROLE } from './Players.js';
 import { POSITIONS, BASES, MOUND, DUGOUT, BULLPEN, boxFor, polar, dist, lerp2, yawTo } from './Plays.js';
 import { moundY } from './TarpPlan.js';
+import { neutralPose, DIM } from './Rig.js';
 
 // The last out and the celebration, on the players' rig: the Director's celebrate segment (9:58 pm on
 // October 29 onward) as a script per man, a pure function of the time since the strikeout.
@@ -78,8 +79,13 @@ export const RUBBER = [ 0, 0.255, - 18.44 - 0.076 ];
 // the relievers still in the pen at the end (Durbin and Romero had pitched and were in the dugout)
 const PEN = new Set( [ 425492, 113961, 424925, 457918 ] );
 
-// the pile's shape: slot k after the first three. Lying ones radiate from the middle, heads in, each
-// higher than the last; then men leaning in, then a ring round it jumping
+// the pile's shape: slot k after the first three. (FY2, CY-16: it was a flat starburst of men lying like
+// spokes, ringed by men with their arms out. FOX's high first base and center field shots of the 29th
+// show a tight, tall scrum: men on top of men, mostly upright or bent over, heaped a metre and a half to
+// two high in the middle, the red jackets of the bench and the pen pushing in from outside.) The ones on
+// it lean in on the middle at forty to fifty degrees, each layer higher and further out, their heads
+// together over Lidge; then men bent over the backs of the ones in front, pressing in; then a ring
+// round it jumping and pumping their fists
 function slot( k ) {
 
 	const a = k * 2.39996 + 0.7;
@@ -87,13 +93,25 @@ function slot( k ) {
 	if ( k < 9 ) {
 
 		const layer = Math.floor( k / 3 );
-		const r = 1.35 + 0.25 * ( k % 3 ) / 2 + 0.1 * layer;
-		return { kind: 'lie', dir, r, y: 0.45 + 0.3 * layer + 0.08 * ( k % 3 ), pitch: - ( 1.05 + 0.25 * hash( k + 3 ) ), roll: ( hash( k + 7 ) - 0.5 ) * 0.6 };
+		const r = 0.95 + 0.1 * ( k % 3 ) + 0.14 * layer;
+		return { kind: 'lie', dir, r, y: 0.22 + 0.3 * layer + 0.07 * ( k % 3 ), pitch: - ( 0.7 + 0.25 * hash( k + 3 ) ) + 0.06 * layer, roll: ( hash( k + 7 ) - 0.5 ) * 0.5 };
 
 	}
 
-	if ( k < 17 ) return { kind: 'lean', dir, r: 1.95 + 0.25 * hash( k ) };
-	return { kind: 'ring', dir, r: 2.7 + 0.8 * hash( k * 1.7 ) };
+	if ( k < 19 ) return { kind: 'lean', dir, r: 1.55 + 0.2 * hash( k ) };
+	return { kind: 'ring', dir, r: 2.05 + 0.5 * hash( k * 1.7 ) };
+
+}
+
+// pressing in on the pile: bent over the backs of the men in front, the arms round them, bouncing
+function pressIn( tau, h ) {
+
+	const b = Math.sin( tau * 6.5 + h * 6 ) * 0.5 + 0.5;
+	return Object.assign( neutralPose(), {
+		pelvisY: DIM.hip - 0.07 - 0.04 * b, pelvisZ: 0.06, pelvis: [ - 0.3, 0.1 * ( h - 0.5 ), 0 ], torso: [ - 0.4 - 0.12 * b, 0.25 * ( h - 0.5 ), 0.06 * ( h - 0.5 ) ], head: [ 0.3, 0.3 * ( h - 0.5 ) ],
+		footL: [ - 0.17, 0.08, 0.16 ], footR: [ 0.17, 0.08, - 0.06 ], footYawL: 0.2, footYawR: - 0.2,
+		handL: [ - 0.28, 1.12 + 0.06 * b, - 0.62 ], handR: [ 0.3, 1.18 + 0.06 * b, - 0.64 ], glove: false,
+	} );
 
 }
 
@@ -201,7 +219,7 @@ function plan( d, seg ) {
 
 		} else if ( S.kind === 'lean' ) {
 
-			st.push( { t0: tAt, t1: tUp - 3, kind: 'hold', p: root, yaw: yawIn, y: 0, pose: ( tau ) => ( Math.floor( tau / 4 + k ) % 2 ? R.kneelIn( tau, hash( k ) ) : M.embrace( tau, 0.1 ) ) } );
+			st.push( { t0: tAt, t1: tUp - 3, kind: 'hold', p: root, yaw: yawIn, y: 0, pose: ( tau ) => ( Math.floor( tau / 5 + k ) % 3 === 0 ? R.kneelIn( tau, hash( k ) ) : pressIn( tau, hash( k * 2.3 ) ) ) } );
 			info.freeAt = tUp - 3;
 			info.freeP = root;
 
