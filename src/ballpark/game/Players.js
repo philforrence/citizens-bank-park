@@ -1097,7 +1097,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			// (cropped short: the scalp shows through the grain), greying at the temples with age
 			let hairBack = max( max( smoothstep( eye.y + 0.022, eye.y + 0.032, L.y ) * smoothstep( eye.z + 0.038, eye.z + 0.052, L.z ),
 				smoothstep( eye.y - 0.058, eye.y - 0.044, L.y ) * smoothstep( eye.z + 0.098, eye.z + 0.112, L.z ) ), smoothstep( eye.y + 0.055, eye.y + 0.065, L.y ) * smoothstep( eye.z + 0.035, eye.z + 0.06, L.z ) );
-			let burn = smoothstep( 0.052, 0.06, ax ) * smoothstep( eye.z + 0.035, eye.z + 0.045, L.z ) * smoothstep( eye.y - 0.036, eye.y - 0.022, L.y );
+			let burn = 0.8 * smoothstep( 0.05, 0.062, ax ) * smoothstep( eye.z + 0.028, eye.z + 0.052, L.z ) * smoothstep( eye.y - 0.04, eye.y - 0.012, L.y );
 			let hairK = clamp( max( hairBack, burn ) * ( 1.0 - earK ) * ( 0.95 + 0.25 * g2 ), 0.0, 1.0 );
 			if ( hairK > 0.0 ) {
 				let temple = smoothstep( 0.05, 0.075, ax ) * smoothstep( eye.z + 0.13, eye.z + 0.06, L.z ) * age;
@@ -1137,8 +1137,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			let chinM = ( 1.0 - smoothstep( 0.012, 0.032, ax ) * 0.85 ) * ( 1.0 - smoothstep( 0.024, 0.034, ax ) ) * ( 1.0 - smoothstep( m.y - 0.016, m.y - 0.009, L.y ) ) * smoothstep( jawY - 0.024, jawY - 0.01, L.y ) * front * lipsOut;
 			let corner = 0.62 * smoothstep( 0.017, 0.022, ax ) * ( 1.0 - smoothstep( 0.027, 0.033, ax ) ) * smoothstep( m.y - 0.028, m.y - 0.018, L.y ) * ( 1.0 - smoothstep( m.y + 0.006, m.y + 0.012, L.y ) ) * lipsOut * fw;
 			let yTop = mix( m.y + 0.016, eye.y - 0.034, smoothstep( 0.022, 0.064, ax ) ) + 0.004 * g2;
-			let cheekTop = 1.0 - smoothstep( yTop - 0.006, yTop + 0.004, L.y );
-			let fullM = cheekTop * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * smoothstep( jl - 0.024, jl - 0.01, L.y ) * lipsOut * ( 1.0 - nose );
+			let cheekTop = 1.0 - smoothstep( yTop - 0.012, yTop + 0.004, L.y );
+			// (under the jaw only where the chin juts forward, not down the throat)
+			let fullM = cheekTop * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * smoothstep( jl - 0.024, jl - 0.01, L.y ) * max( smoothstep( jl - 0.008, jl + 0.004, L.y ), smoothstep( -0.05, -0.075, L.z ) ) * lipsOut * ( 1.0 - nose );
 			let strap = ( 1.0 - smoothstep( 0.007, 0.014, abs( L.y - jl - 0.003 ) ) ) * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * max( front, smoothstep( 0.02, 0.035, ax ) );
 			var bd = 0.0;
 			if ( beardK == 3u ) { bd = chinM; }

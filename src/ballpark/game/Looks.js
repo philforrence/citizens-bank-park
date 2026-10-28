@@ -162,11 +162,11 @@ STAFF[ 'r:moyer' ] = { skin: S.light, hair: H.dark, beard: 0, stubble: 0.3, heig
 STAFF[ 'r:hickey' ] = { skin: S.ruddy, hair: H.grey, beard: 0, height: ht( 6, 2 ), girth: 1.05, belly: 0.2, age: 0.6 };
 // ---- end R
 
-// ---- FY3 (gauntlet r4, the close-ups): the faces held against the Series' close-ups. Feliz wore a full
-// short beard along the jaw with the moustache and goatee (Getty 83483794, batting practice on the 29th),
-// not a goatee alone; Lidge's goatee over a day's stubble (Getty 83485858); Utley and Burrell a heavier
-// stubble than the rest
-LOOKS[ 150268 ].beard = 5;
+// ---- FY3 (gauntlet r4, the close-ups): the faces held against the Series' close-ups. Feliz wore a short
+// beard along the jaw joined to the moustache and the goatee, his cheeks clear (Getty 83483794, batting
+// practice on the 29th), not a goatee alone; Lidge's goatee over a day's stubble (Getty 83485858); Utley
+// and Burrell a heavier stubble than the rest
+LOOKS[ 150268 ].beard = 7;
 LOOKS[ 150268 ].stubble = 0.7;
 LOOKS[ 400058 ].stubble = 0.65;
 LOOKS[ 400284 ].stubble = 0.7;
