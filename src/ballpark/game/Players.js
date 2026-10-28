@@ -1135,7 +1135,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			let jl = jawY - 0.008 + 0.034 * smoothstep( 0.02, 0.07, ax ); // the jaw's edge, rising to the ear
 			let mx2 = ( ax / 0.028 ) * ( ax / 0.028 );
 			let mous = smoothstep( m.y + 0.003 + 0.004 * mx2, m.y + 0.008 + 0.004 * mx2, L.y ) * ( 1.0 - smoothstep( m.y + 0.016 - 0.007 * mx2, m.y + 0.022 - 0.007 * mx2, L.y ) ) * ( 1.0 - smoothstep( 0.02, 0.031, ax ) ) * lipsOut * fw;
-			let chinM = ( 1.0 - smoothstep( 0.012, 0.032, ax ) * 0.85 ) * ( 1.0 - smoothstep( 0.024, 0.034, ax ) ) * ( 1.0 - smoothstep( m.y - 0.016, m.y - 0.009, L.y ) ) * smoothstep( jawY - 0.024, jawY - 0.01, L.y ) * front * lipsOut;
+			let chinM = ( 1.0 - smoothstep( 0.012, 0.032, ax ) * 0.85 ) * ( 1.0 - smoothstep( 0.024, 0.034, ax ) ) * ( 1.0 - smoothstep( m.y - 0.016, m.y - 0.009, L.y ) ) * smoothstep( jawY - 0.018, jawY - 0.006, L.y ) * front * lipsOut;
 			let corner = 0.62 * smoothstep( 0.017, 0.022, ax ) * ( 1.0 - smoothstep( 0.027, 0.033, ax ) ) * smoothstep( m.y - 0.028, m.y - 0.018, L.y ) * ( 1.0 - smoothstep( m.y + 0.006, m.y + 0.012, L.y ) ) * lipsOut * fw;
 			let yTop = mix( m.y + 0.016, eye.y - 0.034, smoothstep( 0.022, 0.064, ax ) ) + 0.004 * g2;
 			let cheekTop = 1.0 - smoothstep( yTop - 0.012, yTop + 0.004, L.y );
