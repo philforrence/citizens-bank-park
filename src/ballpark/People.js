@@ -370,7 +370,7 @@ function peopleMaterial( info, moved, throng = null ) {
 			p.z -= belly * 0.065 * bump * smoothstep( 0.02, - 0.08, p.z );
 			p.x *= 1.0 + belly * 0.12 * bump;
 		}
-		if ( build == 2u && ( tr || v.aPart > 5.5 && v.aPart < 6.5 || v.aPart > 1.5 && v.aPart < 2.5 ) ) { p.x *= 1.0 + 0.09 * smoothstep( 1.1, 1.35, p.y ); }
+		if ( build == 2u && ( tr || ( v.aPart > 5.5 && v.aPart < 6.5 ) || ( v.aPart > 1.5 && v.aPart < 2.5 ) ) ) { p.x *= 1.0 + 0.09 * smoothstep( 1.1, 1.35, p.y ); }
 		if ( ( ( dress.x >> 29u ) & 1u ) == 1u && p.y > 0.7 && ( v.aPart < 3.5 || v.aPart > 5.5 ) ) { p.x *= mix( 1.0, 0.9, smoothstep( 1.1, 1.38, p.y ) ) * mix( 1.06, 1.0, smoothstep( 0.9, 1.05, p.y ) ); }
 	}
 #endif
@@ -1244,6 +1244,25 @@ export class People {
 		if ( kind === 2 ) yaw = W[ o + 2 ] * 6.2832 + 0.5 * Math.sin( t * 0.15 + W[ o + 1 ] * 20 );
 		out.x = x; out.z = z; out.yaw = yaw; out.s = s; out.phase = s * 5.2 * heading; out.kind = kind; out.line = k;
 		return out;
+
+	}
+
+	// (QA: how many of the throng the pass is drawing now, and their triangles: an indirect draw, so the
+	// renderer's stats don't count them)
+	throngShown() {
+
+		if ( ! this.throng?.visible || ! this._thrShareF ) return { shown: 0, triangles: 0 };
+		const c = this._thrCam, H = this._thrHide;
+		let n = 0;
+		for ( let i = 0; i < THRONG; i ++ ) {
+
+			if ( ! this._thrOut( i ) || ( H[ i >> 5 ] >> ( i & 31 ) ) & 1 ) continue;
+			const P = this._thrPlace( i, this.time, false );
+			if ( Math.hypot( P.x - c.x, STREET - c.y, P.z - c.z ) < THRONG_FAR ) n ++;
+
+		}
+
+		return { shown: n, triangles: n * this.mesh.geometry.index.count / 3 };
 
 	}
 
