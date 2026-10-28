@@ -226,30 +226,72 @@ export class Landmarks {
 		const shell = new Mesh( new BoxGeometry( W + 1.3, H + 1.3, 1.1 ), siding );
 		shell.position.set( 0, y0 + H / 2, 0.06 );
 		g.add( shell );
+		// ---- FW2 (C2W-13): the cap and ball on the board's back as the photo of the 29th has them (ronniebruce,
+		// outside the Left Field Gate after the last out): a black field in a light frame, the cap shaded
+		// round its crown with the white P outlined and the button, the ball modelled with its seams; at
+		// night floodlit from below, so it shows over the fans in the street (it was a black slab)
 		const rear = canvasTexture( 1024, 832, ( ctx, w, h ) => {
 
-			ctx.fillStyle = '#14254f';
+			ctx.fillStyle = '#8a93a6';
 			ctx.fillRect( 0, 0, w, h );
-			// the cap: red crown, bill, white P
+			const fx = w * 0.035, fy = h * 0.17;
+			let gr = ctx.createRadialGradient( w * 0.5, h * 0.55, w * 0.1, w * 0.5, h * 0.55, w * 0.7 );
+			gr.addColorStop( 0, '#10141d' ); gr.addColorStop( 1, '#05070b' );
+			ctx.fillStyle = gr;
+			ctx.fillRect( fx, fy, w - 2 * fx, h - fy - h * 0.035 );
+			// the cap: the crown a dome shaded from its top left, the panels' seams, the bill under it
+			const cx = w * 0.4, cy = h * 0.66, rx = w * 0.235, ry = h * 0.3;
+			gr = ctx.createRadialGradient( cx - rx * 0.35, cy - ry * 0.6, rx * 0.1, cx, cy - ry * 0.2, rx * 1.1 );
+			gr.addColorStop( 0, '#e8263c' ); gr.addColorStop( 0.6, '#b30d24' ); gr.addColorStop( 1, '#5e0612' );
+			ctx.fillStyle = gr;
+			ctx.beginPath(); ctx.ellipse( cx, cy, rx, ry, 0, Math.PI, 0 ); ctx.closePath(); ctx.fill();
+			ctx.strokeStyle = 'rgba( 60, 0, 8, 0.6 )'; ctx.lineWidth = 4;
+			for ( const k of [ - 0.55, 0.55 ] ) {
+
+				ctx.beginPath(); ctx.moveTo( cx, cy - ry ); ctx.quadraticCurveTo( cx + rx * k * 0.9, cy - ry * 0.55, cx + rx * k * 1.05, cy ); ctx.stroke();
+
+			}
 			ctx.fillStyle = '#c8102e';
-			ctx.beginPath(); ctx.ellipse( w * 0.38, h * 0.55, w * 0.22, h * 0.26, 0, Math.PI, 0 ); ctx.fill();
-			ctx.fillRect( w * 0.16, h * 0.54, w * 0.44, h * 0.06 );
-			ctx.beginPath(); ctx.ellipse( w * 0.52, h * 0.62, w * 0.2, h * 0.05, - 0.1, 0, Math.PI * 2 ); ctx.fill();
-			ctx.fillStyle = '#ffffff';
-			ctx.font = 'italic 700 250px Georgia, serif';
+			ctx.beginPath(); ctx.arc( cx, cy - ry, 12, 0, Math.PI * 2 ); ctx.fill();
+			gr = ctx.createLinearGradient( 0, cy - 10, 0, cy + h * 0.09 );
+			gr.addColorStop( 0, '#9e0c20' ); gr.addColorStop( 1, '#4a050e' );
+			ctx.fillStyle = gr;
+			ctx.beginPath(); ctx.moveTo( cx - rx * 0.2, cy - 6 ); ctx.quadraticCurveTo( cx + rx * 0.9, cy - 14, cx + rx * 1.45, cy + h * 0.035 );
+			ctx.quadraticCurveTo( cx + rx * 0.8, cy + h * 0.1, cx - rx * 0.1, cy + h * 0.035 ); ctx.closePath(); ctx.fill();
+			ctx.fillStyle = '#7d0918';
+			ctx.fillRect( cx - rx, cy - 8, rx * 2, 16 );
+			// the P: white, outlined in navy
+			ctx.font = 'italic 700 260px Georgia, serif';
 			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-			ctx.fillText( 'P', w * 0.37, h * 0.42 );
-			// the ball
-			ctx.beginPath(); ctx.arc( w * 0.76, h * 0.58, h * 0.14, 0, Math.PI * 2 ); ctx.fill();
-			ctx.strokeStyle = '#c8102e'; ctx.lineWidth = 8;
-			ctx.beginPath(); ctx.arc( w * 0.66, h * 0.58, h * 0.11, - 0.9, 0.9 ); ctx.stroke();
-			ctx.beginPath(); ctx.arc( w * 0.86, h * 0.58, h * 0.11, Math.PI - 0.9, Math.PI + 0.9 ); ctx.stroke();
-			ctx.fillStyle = '#1a9a50';
+			ctx.lineWidth = 14; ctx.strokeStyle = '#0d1c46'; ctx.strokeText( 'P', cx - rx * 0.05, cy - ry * 0.48 );
+			ctx.fillStyle = '#f6f2ea'; ctx.fillText( 'P', cx - rx * 0.05, cy - ry * 0.48 );
+			// the ball, lit from the upper left, its two seams in red stitches
+			const bx = w * 0.79, by = h * 0.62, br = h * 0.145;
+			gr = ctx.createRadialGradient( bx - br * 0.4, by - br * 0.4, br * 0.1, bx, by, br );
+			gr.addColorStop( 0, '#ffffff' ); gr.addColorStop( 0.7, '#e4e0d6' ); gr.addColorStop( 1, '#a8a49a' );
+			ctx.fillStyle = gr;
+			ctx.beginPath(); ctx.arc( bx, by, br, 0, Math.PI * 2 ); ctx.fill();
+			ctx.strokeStyle = '#c8102e'; ctx.lineWidth = 3;
+			for ( const [ ox, a0, a1 ] of [ [ - 0.72, - 0.95, 0.95 ], [ 0.72, Math.PI - 0.95, Math.PI + 0.95 ] ] ) {
+
+				ctx.beginPath(); ctx.arc( bx + br * ox, by, br * 0.78, a0, a1 ); ctx.stroke();
+				for ( let t = a0 + 0.08; t < a1; t += 0.14 ) {
+
+					const px = bx + br * ox + Math.cos( t ) * br * 0.78, py = by + Math.sin( t ) * br * 0.78;
+					ctx.beginPath(); ctx.moveTo( px - Math.cos( t ) * 7 - Math.sin( t ) * 4, py - Math.sin( t ) * 7 + Math.cos( t ) * 4 ); ctx.lineTo( px + Math.cos( t ) * 7 - Math.sin( t ) * 4, py + Math.sin( t ) * 7 + Math.cos( t ) * 4 ); ctx.stroke();
+
+				}
+
+			}
+			// the bank's name in green across the top
+			ctx.fillStyle = '#1fd060';
 			ctx.font = '800 64px "Helvetica Neue", Arial, sans-serif';
-			ctx.fillText( 'Citizens Bank Park', w / 2, h * 0.1 );
+			ctx.fillText( 'Citizens Bank Park', w / 2, h * 0.085 );
 
 		}, 'boardRear' );
-		const rearMat = standard( { name: 'board-rear', roughness: 0.55, textures: { bpRear: rear }, surface: 'let t = textureSample( bpRear, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.8; s.emissive = t * step( 0.5, t.g - t.r ) * smoothstep( 0.1, 0.7, frame.night ) * 1.5;' } );
+		// (lit by floods along its foot: brightest low, the green name glowing on its own)
+		const rearMat = standard( { name: 'board-rear', roughness: 0.55, textures: { bpRear: rear }, surface: 'let t = textureSample( bpRear, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.8; let nk = smoothstep( 0.1, 0.7, frame.night ); s.emissive = t * step( 0.15, t.g - t.r - t.b ) * nk * 2.5 + t * nk * mix( 0.12, 0.5, in.uv.y * in.uv.y );' } );
+		// ---- end FW2
 		rearMat.underwaterLighting = 'none';
 		const rq = new Quads();
 		// seen from behind (looking along -z in the group), +x is on the viewer's right

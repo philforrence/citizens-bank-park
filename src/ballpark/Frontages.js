@@ -44,6 +44,16 @@ fn fzRoom( ro: vec3f, rd: vec3f, x0: f32, x1: f32, y0: f32, y1: f32, d: f32 ) ->
 // where the ray crosses the plane z = z
 fn fzAt( ro: vec3f, rd: vec3f, z: f32 ) -> vec3f { return ro + rd * ( z / rd.z ); }
 
+// ---- FW2 (C2W-13): the street's high-pressure sodium lamps on the facade after dark, as light on the
+// brick (times its albedo): at u (m along the wall), v (m above the street). In the photos of both nights
+// from Pattison and the plazas the brick reads warm at its foot and darkens up the wall, brighter in a
+// pool under each lamp (one every 30 m or so), not the black mass it was
+fn fzSodium( u: f32, v: f32 ) -> vec3f {
+	let pool = 0.4 + 0.6 * pow( 0.5 + 0.5 * cos( u / 30.0 * 6.2832 ), 2.0 );
+	return vec3f( 1.0, 0.58, 0.28 ) * pool * ( 0.06 + 0.3 * exp( - max( v, 0.0 ) / 7.0 ) );
+}
+// ---- end FW2
+
 // a standing person seen from the front, p = ( across from his middle, up from the floor ) in metres:
 // 0 nothing, 1 his body, 2 his head, 3 his legs
 fn fzFigure( p: vec2f, h: f32 ) -> f32 {
