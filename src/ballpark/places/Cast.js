@@ -919,7 +919,7 @@ export function figureGeometry( lod = 0 ) {
 	fine ? F( 18, 12 ) : tiny ? 5 : 8, false, false, fine );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
 	if ( ! tiny ) loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], fine ? F( 12, 9 ) : 7, false, false );
-	loft( B.spine, PART.vest, [ [ 0.98, 0.178, 0.122, 0.01 ], [ 1.17, 0.18, 0.124, 0.006 ], [ 1.3, 0.194, 0.128, 0.012 ], [ 1.4, 0.217, 0.104, 0.024, 2.5 ] ], fine ? F( 12, 9 ) : tiny ? 5 : 7, false, false );
+	loft( B.spine, PART.vest, [ [ 0.98, 0.178, 0.122, 0.01 ], [ 1.17, 0.183, 0.125, 0.006, 2.15 ], [ 1.3, 0.2, 0.129, 0.012, 2.35 ], [ 1.4, 0.217, 0.104, 0.024, 2.5 ] ], fine ? F( 12, 9 ) : tiny ? 5 : 7, false, false );
 
 	// ---- P0: worn gear (GEAR), on the trunk
 	if ( ! tiny ) {
