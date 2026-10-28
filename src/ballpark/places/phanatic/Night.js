@@ -839,7 +839,14 @@ function nightTwo( ctx ) {
 		const standAt = foot.pts[ foot.pts.length - 4 ];
 		const edge = W.roofAt( '1B', W.dugouts[ '1B' ].len / 2 + 1, 0.2 );
 		const onto = new Way( [ standAt, foot.pts[ foot.pts.length - 3 ], foot.pts[ foot.pts.length - 2 ], [ edge[ 0 ], edge[ 1 ], edge[ 2 ] ] ] );
-		let t = plan.walk( c0, onto, { speed: 3.2, gait: ( ph, tau ) => Mv.scamper( ph, tau ), zone: 'roof1B', name: 'over the roof', excite: 1 } );
+		// ---- FR1 (gauntlet C2B-21): on his feet on the steps for the first seconds of it, then over the roof:
+		// the players had the pile to themselves at first (FOX's high first frame of the pile, ~20 s on, has
+		// no Phanatic), and he's sprinting across the grass for it with the fireworks' smoke still hanging
+		// (Getty 83486412, 83486112): at the pile about 16 s on, not 8
+		const wait = 8;
+		plan.hold( c0, c0 + wait, { x: standAt[ 0 ], y: standAt[ 1 ], z: standAt[ 2 ], yaw: Math.atan2( - ( edge[ 0 ] - standAt[ 0 ] ), - ( edge[ 2 ] - standAt[ 2 ] ) ) }, ( tau ) => ( tau < 4 ? Mv.joy( tau ) : Mv.pumpUp( tau ) ), { zone: 'stands', name: 'the last out, on the steps', excite: 1 } );
+		let t = plan.walk( c0 + wait, onto, { speed: 3.2, gait: ( ph, tau ) => Mv.scamper( ph, tau ), zone: 'roof1B', name: 'over the roof', excite: 1 } );
+		// ---- end FR1
 		// the jump down onto the track
 		const land = [ edge[ 0 ] - W.dugouts[ '1B' ].nx * 1.6, edge[ 2 ] - W.dugouts[ '1B' ].nz * 1.6 ];
 		const jy = W.roofFacing( '1B', true );
