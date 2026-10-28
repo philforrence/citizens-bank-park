@@ -331,7 +331,10 @@ export function toFacade( p, n ) {
 
 export class ConcourseSteel {
 
-	constructor( { group, bowl } ) {
+	constructor( { group, bowl, field = null, colliders = null } ) {
+
+		this.field = field;
+		this.colliders = colliders;
 
 		this.group = group;
 		this.bowl = bowl;
@@ -339,6 +342,7 @@ export class ConcourseSteel {
 		this.lamps = [];
 		const q = this.q = new Pal();
 		this._columns( q );
+		this._hallWall();
 		this._overhead( q );
 		this._lowSoffit( q );
 		this._mezzanine( q );
@@ -398,6 +402,59 @@ export class ConcourseSteel {
 			obox( q, [ C.x, C.y0 + 0.005, C.z ], u, 0.9, up, 0.03, [ - C.uz, 0, C.ux ], 0.74 );
 
 		}
+
+	}
+
+	// FI1 (CI-4): behind the stands from the First Base Gate's atrium round behind home plate to the Third
+	// Base Gate's, the outer ring closed off in brick along the outer columns (the Phillies' 2005 plan of the
+	// main concourse: along the facade a continuous row of rooms, the stands, the restrooms, the stairs and
+	// elevators). It was a hall 25 m deep behind home plate, dark and empty, open to the concourse between
+	// the stands, the private suite lobby lit at the far end of it. The stands stand in the brick now
+	// (Concourse._stands, CI-7), and the steel and the domes stop at it.
+	_hallWall() {
+
+		const bowl = this.bowl, D = bowl.D, infield = bowl.path.slice( 2, 10 );
+		const line = ( P, d ) => offsetPolyline( P, d, [ 0, - 40 ] );
+		const dOut = D.t400Back - 0.4, yU = LEVELS.clubConcourse - 0.6;
+		const OUT = this.OUT = new Along( line( infield, dOut ) );
+		const s1B = OUT.nearest( 73.5, 25.48 ), s3B = OUT.nearest( - 80.95, 32.03 );
+		this.closedS = [ s1B + 15, s3B - 15 ];
+		const WL = new Along( line( infield, dOut + 0.4 ) );
+		const w0 = WL.nearest( OUT.at( this.closedS[ 0 ] ).x, OUT.at( this.closedS[ 0 ] ).z ), w1 = WL.nearest( OUT.at( this.closedS[ 1 ] ).x, OUT.at( this.closedS[ 1 ] ).z );
+		const pts = [ w0, ...WL.cum.filter( ( c ) => c > w0 && c < w1 ), w1 ].map( ( c ) => WL.at( c ) );
+		const brick = new Quads();
+		let u = 0;
+		for ( let i = 0; i < pts.length - 1; i ++ ) {
+
+			const a = pts[ i ], b = pts[ i + 1 ], l = Math.hypot( b.x - a.x, b.z - a.z );
+			brick.add( [ a.x, STREET, a.z ], [ b.x, STREET, b.z ], [ b.x, yU, b.z ], [ a.x, yU, a.z ], [ a.nx, 0, a.nz ], u, u + l );
+			u += l;
+			if ( this.colliders && this.field ) {
+
+				const w = this.field.toWorld( ( a.x + b.x ) / 2, ( a.z + b.z ) / 2 );
+				this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + 2, w.z ), new Vector3( l / 2, 2, 0.2 ), this.field.group.rotation.y - Math.atan2( b.z - a.z, b.x - a.x ), { tag: 'concourse-wall' } );
+
+			}
+
+		}
+
+		const m = standard( { name: 'concourse-brick', color: new Color( 0.25, 0.068, 0.04 ), roughness: 0.85, surface: brickWGSL( { base: STREET + 0.6 } ) } );
+		m.underwaterLighting = 'none';
+		m.setDefine( 'DRY', 1 );
+		this.brickMaterial = m;
+		const mesh = new Mesh( brick.geometry(), m );
+		mesh.name = 'concourse-hall-wall';
+		mesh.receiveShadow = true;
+		this.group.add( mesh );
+
+	}
+
+	// is an outer column's station behind the closed wall?
+	_closed( st ) {
+
+		if ( ! this.closedS || st.seg > 6 ) return false;
+		const s = this.OUT.nearest( st.x, st.z );
+		return s > this.closedS[ 0 ] - 1 && s < this.closedS[ 1 ] + 1;
 
 	}
 
@@ -462,7 +519,7 @@ ${ SOFFIT_WGSL }
 			}
 
 			const fd = toFacade( [ st.x, st.z ], [ - st.nx, - st.nz ] );
-			st.facade = fd < 45 ? fd - 0.9 : null;
+			st.facade = fd < 45 && ! this._closed( st ) ? fd - 0.9 : null;
 			if ( st.facade ) {
 
 				const end = add( c, mul( n, - st.facade ) );

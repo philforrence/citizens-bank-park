@@ -160,12 +160,12 @@ function drawAtlas() {
 
 		};
 
-		cartSign( 'waterIce', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd23f' ], 'WATER ICE', 'CHERRY  ·  LEMON  ·  BLUE RASPBERRY   $4.00', serif, true );
-		cartSign( 'cottonCandy', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd6e8' ], 'COTTON CANDY', 'LEMONADE  ·  POPCORN   $4.50', serif, true );
+		cartSign( 'waterIce', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd23f' ], 'WATER ICE', 'CHERRY  ·  LEMON  ·  BLUE RASPBERRY   $3.50', serif, true );
+		cartSign( 'cottonCandy', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd6e8' ], 'COTTON CANDY', 'LEMONADE  ·  POPCORN   $4.00', serif, true );
 		cartSign( 'cocoaCart', [ '#3b2314', '#24150b' ], [ '#f2d7a0', '#e8b04a' ], 'HOT CHOCOLATE', 'COFFEE  ·  TEA  ·  HOT CHOCOLATE   $3.00', serif );
-		cartSign( 'nachos', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd23f' ], 'NACHOS', 'NACHOS $4.75  ·  WITH JALAPEÑOS  ·  BOTTLED WATER', sans );
+		cartSign( 'nachos', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd23f' ], 'NACHOS', 'NACHOS $4.25  ·  WITH JALAPEÑOS  ·  BOTTLED WATER', sans );
 		cartSign( 'programs', [ '#0b2a5b', '#071a3a' ], [ '#ffffff', '#e8b04a' ], 'PROGRAMS', 'OFFICIAL 2008 WORLD SERIES PROGRAM   $15', sans );
-		cartSign( 'beerCart', [ '#1f3d2a', '#122518' ], [ '#efe2bf', '#c9a45a' ], 'COLD BEER', 'YUENGLING  ·  BUD LIGHT  ·  MILLER LITE   $7.00', serif );
+		cartSign( 'beerCart', [ '#1f3d2a', '#122518' ], [ '#efe2bf', '#c9a45a' ], 'COLD BEER', 'YUENGLING  ·  BUD LIGHT  ·  MILLER LITE   $5.00', serif );
 		// the 2008 World Series program's cover (the photos from Game 4 and Game 5): black, Utley (26) on the
 		// left and Longoria on the right, the Fall Classic logo, PHILADELPHIA PHILLIES VS. TAMPA BAY
 		// RAYS, $15 printed on it

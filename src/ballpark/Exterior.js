@@ -215,7 +215,7 @@ export class Exterior {
 		}, 'philadelphia' );
 		this.brickUpper = standard( {
 			name: 'facade-upper', color: new Color( 0.24, 0.065, 0.038 ), roughness: 0.85, modules: [ commonModule, frontagesModule ],
-			uniforms: { frontN: [ 'f32', 0 ], phila: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] },
+			uniforms: { frontN: [ 'f32', 0 ], phila: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ], parkC: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] }, // ---- FI1: parkC
 			storage: { facFronts: this.frontBuffer },
 			textures: { philaTex },
 			surface: /* wgsl */`
@@ -230,7 +230,9 @@ export class Exterior {
 	let ph = mat.phila;
 	let bc = vec2f( ( floor( bu ) + 0.5 - 0.5 * ( row % 2.0 ) ) * 0.2, ( row + 0.5 ) * 0.075 );
 	let pt = vec2f( ( ph.x - bc.x ) / ( ph.x - ph.y + 1e-4 ), 1.0 - ( bc.y - ph.z ) / ( ph.w - ph.z + 1e-4 ) );
-	let inPh = pt.x > 0.0 && pt.x < 1.0 && pt.y > 0.0 && pt.y < 1.0;
+	// ---- FI1 (CI-22): the lettering is laid in the outer wythe only: none on the wall's inner face
+	let outward = dot( in.N.xz, in.P.xz - mat.parkC.xy ) > 0.0;
+	let inPh = pt.x > 0.0 && pt.x < 1.0 && pt.y > 0.0 && pt.y < 1.0 && outward;
 	let letter = textureSampleLevel( philaTex, smpLinearClamp, clamp( pt, vec2f( 0.0 ), vec2f( 1.0 ) ), 0.0 ).r * select( 0.0, 1.0, inPh );
 	let brickC = mix( mat.color, vec3f( 0.46, 0.33, 0.19 ), step( 0.5, letter ) * ( 1.0 - max( fr, fb ) * 0.5 ) );
 	var c = mix( brickC * tone, vec3f( 0.42, 0.4, 0.36 ), mortar * 0.8 );
@@ -764,6 +766,13 @@ export class Exterior {
 		for ( const m of [ this.brick, this.brickUpper ] ) m.uniforms.frontN.value = Math.min( 16, this.fronts.length );
 		const hp = GATES[ 3 ].edge;
 		if ( hp ) this.brickUpper.uniforms.phila.value.set( hp.u + 9.5, hp.u - 9.5, 0.75, 2.95 );
+		// ---- FI1 (CI-22): the park's middle (world), to tell the wall's outer face from its inner
+		{
+
+			const c = this.field.toWorld( 0, 0 );
+			this.brickUpper.uniforms.parkC.value.set( c.x, c.z, 0, 0 );
+
+		}
 		for ( const [ geo, mat, name ] of [ [ q, this.brick, 'facade' ], [ up, this.brickUpper, 'facade-upper' ], [ cap, this.stone, 'facade-coping' ], [ trim, this.coping, 'facade-trim' ] ] ) {
 
 			const m = new Mesh( geo.geometry(), mat );

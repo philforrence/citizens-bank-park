@@ -373,8 +373,7 @@ export default class Concourse3B {
 			const P = Kit.frame( U.mid, U.a, U.n );
 			if ( Array.isArray( U.what ) && U.what[ 0 ] === 'merch' ) {
 
-				K.sheet( P, 0, 4.72, 0.05, 2.6, 0.9, 'homeStand' );
-				K.use( 'lid' ).box( P, 0, 4.3, 0.0, 0.08, 0.2, 0.08 );
+				// ---- FI1 (CI-13): its sign is the bronze plaque on the brick now (Concourse.js)
 
 			}
 
