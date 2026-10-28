@@ -49,3 +49,6 @@ Under the stands is back from the floor: FI2's room material built two 58-entry 
 | 11:16 | FB2, the broadcast (rain TV high 31.2; a real 3B seat 26.7) | 23.9 | 30.4 | 20.4 | 24.0 | 20.2 | 25.4 | **32.1** |
 
 FW1's heavier close-up Cast is seen by FOX's long lens (+2 ms in TV center and high). FB2 widened high home to FOX's framing (fov 37: +14% triangles, +2.6 ms). **Left field (32.1) and the rainy TV high (31.2) are within ~1-2 ms of the floor again:** both are SP1's.
+| 11:37 | FW2, the building and outside (rain TV high 31.7; a real 3B seat 26.4) | 23.3 | 31.1 | 20.0 | 24.3 | 20.7 | 25.9 | 32.0 |
+
+FW2 cost nothing measurable in these views (its trees, cars and tents are outside them). From here the job also has the walk's first view, the 3B plaza on the 27th (`walk-plaza-3b-27th`).
