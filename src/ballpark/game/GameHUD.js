@@ -280,8 +280,15 @@ export class GameHUD {
 		const pit = P[ s.defense?.P ?? s.pitcher ], bat = P[ s.batter ];
 		const pitch = n.pitch && n.pitch.speed ? `<small> · ${ Math.round( n.pitch.speed ) } mph ${ n.pitch.typeName || '' }</small>` : '';
 		this.$( 'match' ).innerHTML = bat && pit ? `${ pit.last } <small>pitching to</small> ${ bat.name } <small>#${ bat.num }</small>${ pitch }` : '';
+		let state = null;
 		if ( tv ) this._tvGraphics( n, s, pit, bat );
-		else this.el.classList.remove( 'gm-board-on', 'gm-l3-on', 'gm-nobug' );
+		else {
+
+			this.el.classList.remove( 'gm-board-on', 'gm-l3-on', 'gm-nobug' );
+			state = this._walkCard( n, s, pit, bat );
+
+		}
+
 		this.$( 'desc' ).innerHTML = this._playLine( n, s );
 		// on TV the panel is a corner bug
 		this.el.classList.toggle( 'gm-tv', !! this.app?.camMode && this.app.camMode !== 'walk' );
@@ -295,7 +302,60 @@ export class GameHUD {
 		this.el.querySelector( '[data-a="sound"]' ).classList.toggle( 'off', !! this.sound?.muted );
 		this.el.querySelector( '[data-a="camera"]' ).classList.toggle( 'off', ( this.app?.camMode || 'walk' ) === 'walk' );
 		const inn = `${ s.half === 'top' ? 'Top' : 'Bot' } ${ ordinal( s.inning ) }`;
-		this.$( 'time' ).textContent = `${ inn } · ${ fmt( d.t ) }`;
+		this.$( 'time' ).textContent = `${ state || inn } · ${ fmt( d.t ) }`;
+
+	}
+
+	// FZ1 (C5F-3): the walking card through the 27th's delay and after the last out, as FOX's bug does on
+	// TV. It went on printing the last pitch's count, outs and matchup ("▲ 9 0-2, Lidge pitching to
+	// Hinske") through the whole celebration, and Balfour to Jenkins through the tarp and the suspension.
+	// Returns what the time label says instead of the inning, or null
+	_walkCard( n, s, pit, bat ) {
+
+		const d = this.d, g = this.g, seg = n.seg;
+		const set = ( tab, count, outs, match ) => {
+
+			if ( tab != null ) this.$( 'inning' ).textContent = tab;
+			this.$( 'count' ).textContent = count;
+			this.$( 'outs' ).querySelectorAll( 'span' ).forEach( ( o, i ) => o.classList.toggle( 'on', i < outs ) );
+			this.$( 'match' ).innerHTML = match;
+
+		};
+		if ( this._final( seg ) ) {
+
+			// Final, and the line score (runs, hits, errors) where the matchup was
+			const T = this._totals( g.plays.length - 1 );
+			const line = ( side ) => `${ g.teams[ side ].abbr } ${ T[ side ].join( ' ' ) }`;
+			set( 'Final', '', 3, `Phillies win the World Series <small>· R H E · ${ line( 'away' ) } · ${ line( 'home' ) }</small>` );
+			return 'Final';
+
+		}
+
+		if ( seg === d.suspension && d.night ) {
+
+			const N = d.night( d.t );
+			if ( N.delay ) {
+
+				const susp = N.k > 0.7;
+				set( null, '', 0, susp ? 'Game suspended <small>· to resume in the bottom of the 6th, tied 2-2</small>' : 'Rain delay <small>· the tarp is on, bottom of the 6th</small>' );
+				return susp ? 'Suspended' : 'Rain delay';
+
+			}
+
+			// the 29th, before the first pitch back: no count, nobody out
+			set( null, '', 0, bat && pit ? `${ pit.last } <small>pitching to</small> ${ bat.name } <small>#${ bat.num }</small>` : '' );
+
+		}
+
+		return null;
+
+	}
+
+	// strike three and after: the pitch past the strike, its result, the celebration
+	_final( seg ) {
+
+		const L = this.d.lastOut;
+		return !! L && ( seg === L.cel || seg === L.result || ( seg === L.pitch && this.d.t > L.tStrike + 0.8 ) );
 
 	}
 
@@ -317,7 +377,7 @@ export class GameHUD {
 			this.$( 'match' ).innerHTML = match;
 
 		};
-		const fin = L && ( seg === L.cel || seg === L.result || ( seg === L.pitch && d.t > L.tStrike + 0.8 ) );
+		const fin = this._final( seg );
 		if ( fin ) {
 
 			const lt = seg === L.cel ? d.t - seg.t0 : - 1;
@@ -364,12 +424,12 @@ export class GameHUD {
 
 	}
 
-	// the line score card: runs, hits and errors through play `upto` (an error is the fielding side's)
-	_board( sub, upto, foot ) {
+	// runs, hits and errors through play `upto` (an error is the fielding side's)
+	_totals( upto ) {
 
-		const g = this.g, T = { away: [ 0, 0, 0 ], home: [ 0, 0, 0 ] };
+		const T = { away: [ 0, 0, 0 ], home: [ 0, 0, 0 ] };
 		const HITS = /^(single|double|triple|home_run)$/;
-		g.plays.forEach( ( p, i ) => {
+		this.g.plays.forEach( ( p, i ) => {
 
 			if ( i > upto ) return;
 			const bat = p.half === 'top' ? 'away' : 'home', fld = bat === 'away' ? 'home' : 'away';
@@ -379,6 +439,14 @@ export class GameHUD {
 			T.home[ 0 ] = p.result.home;
 
 		} );
+		return T;
+
+	}
+
+	// the line score card: runs, hits and errors through play `upto`
+	_board( sub, upto, foot ) {
+
+		const g = this.g, T = this._totals( upto );
 		const row = ( side ) => `<tr><td>${ g.teams[ side ].abbr }</td>${ T[ side ].map( ( v ) => `<td class="n">${ v }</td>` ).join( '' ) }</tr>`;
 		return `<div class="gm-bh">World Series</div><div class="gm-bs">${ sub }</div><table><tr><th></th><th>R</th><th>H</th><th>E</th></tr>${ row( 'away' ) }${ row( 'home' ) }</table><div class="gm-bf">${ foot }</div>`;
 

@@ -75,7 +75,7 @@ const START = { at: [ - 112, 78 ], look: GATES[ 0 ].at };
 // Eastern Daylight Time (October 2008: the clocks went back on November 2) to local solar time in South
 // Philadelphia: an hour back for daylight saving, the equation of time (+16 min at the end of
 // October), and 75.17° W against the zone's 75° meridian (-0.7 min). 8:38 pm is 19.9 solar.
-const EDT_TO_SOLAR = - 1 + 16.2 / 60 - 0.7 / 60;
+export const EDT_TO_SOLAR = - 1 + 16.2 / 60 - 0.7 / 60;
 
 // what the mode label and the toast call each camera (C steps through them)
 export const CAMERA_NAMES = { walk: 'Walking', tv: 'FOX broadcast', center: 'Center field camera', high: 'High home camera', follow: 'Following the ball' };

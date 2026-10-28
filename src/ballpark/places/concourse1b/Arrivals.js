@@ -155,9 +155,11 @@ export class Arrivals1B {
 
 		}
 
-		// the towels: two with the cartons past the turnstiles
+		// the towels: two with the cartons past the turnstiles (FZ1, C5F-4: at is [ x, y, z ]; at[ 1 ], the
+		// floor's height, had them 8-18 m off), the cartons for the arrivals to go round
 		this.towels = ( this.gate.towelSpots || [] ).map( ( T ) => this._staffer( { top: TOP.jacket, color: COLOR.red, sleeves: COLOR.red, chest: CHEST.staff, hat: HAT.capRed, female: T.s > 0, hairStyle: T.s > 0 ? 2 : 0, age: 3, skin: T.s > 0 ? 5 : 1 },
-			[ T.at[ 0 ], T.at[ 1 ] ], out, 'towels', { give: 0 } ) );
+			[ T.at[ 0 ], T.at[ 2 ] ], out, 'towels', { give: 0 } ) );
+		for ( const T of this.gate.towelSpots || [] ) if ( T.stack ) this.obstacles.push( [ T.stack[ 0 ], T.stack[ 2 ], 0.7 ] );
 		// event security either end of the gate line, inside
 		for ( const e of [ - 1, 1 ] ) this._staffer( { top: TOP.security, color: COLOR.black, sleeves: COLOR.black, chest: CHEST.security, hat: HAT.capBlack, build: 2, skin: e > 0 ? 6 : 2, pants: 3 },
 			this._P( e * 15.4, - 2.2 ), out + e * 0.4, 'guard' );
