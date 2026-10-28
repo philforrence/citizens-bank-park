@@ -18,6 +18,7 @@ import { buildTV } from './gate3b/TV.js';
 import { Cars, LotCars } from './gate3b/Cars.js';
 import { buildTents } from './gate3b/Tents.js'; // ---- FW2 (C2I-4)
 import { CAMPS } from './concourse1b/Tailgate.js'; // ---- FW2 (C2I-2)
+import { Sounds3B } from './gate3b/Sounds.js'; // ---- FW2 (C2W-15)
 import { buildTailgates } from './gate3b/Tailgate.js';
 import { buildFurniture } from './gate3b/Furniture.js';
 import { buildDrips } from './gate3b/Drips.js';
@@ -99,6 +100,8 @@ export default class ThirdBaseGate {
 		this.cars = new Cars( { group: this.group, field, clear: [ ...tail.spots, ...this.tents.clear ] } );
 		this.lotCars = new LotCars( { group: this.group, clear: lotClear, complex: app.complex } );
 		app.complex?.lotClear?.( lotClear );
+		// (C2W-15: what the plaza sounds like, set up once the park's sound exists)
+		this.sounds = new Sounds3B( this );
 		// ---- end FW2
 		// the banners, the marquee, the balloons, the bins, the store's board (gate3b/Furniture.js)
 		this.furniture = buildFurniture( { group: this.group, exterior: app.exterior, colliders, field } );
@@ -551,6 +554,7 @@ export default class ThirdBaseGate {
 
 			const [ fx, fz ] = this.field.toField( camera.position.x, camera.position.z );
 			this.lotCars.update( [ fx, camera.position.y - this.field.y0, fz ] );
+			this.sounds?.update( dt, w, [ fx, fz ] ); // (C2W-15)
 
 		}
 		// ---- end FW2
