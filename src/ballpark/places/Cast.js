@@ -679,7 +679,7 @@ export function figureGeometry( lod = 0 ) {
 	loft( B.spine, PART.torso, fine ? [
 		[ 0.805, 0.166, 0.112, 0.012 ], [ 0.83, 0.174, 0.12, 0.012 ], [ 0.9, 0.171, 0.116, 0.011 ], [ 0.98, 0.164, 0.111, 0.009 ],
 		[ 1.06, 0.162, 0.109, 0.008 ], [ 1.14, 0.168, 0.112, 0.006 ], [ 1.22, 0.179, 0.116, 0.007, 2.15 ], [ 1.3, 0.19, 0.116, 0.013, 2.3 ],
-		[ 1.36, 0.198, 0.108, 0.021, 2.45 ], [ 1.4, 0.199, 0.096, 0.025, 2.5 ], [ 1.428, 0.186, 0.08, 0.028, 2.3 ], [ 1.45, 0.148, 0.07, 0.029, 2.1 ],
+		[ 1.36, 0.203, 0.108, 0.021, 2.5 ], [ 1.4, 0.21, 0.097, 0.025, 2.6 ], [ 1.428, 0.196, 0.081, 0.028, 2.4 ], [ 1.45, 0.154, 0.07, 0.029, 2.1 ],
 		[ 1.468, 0.094, 0.062, 0.03 ],
 	] : [
 		[ 0.83, 0.172, 0.118, 0.012 ], [ 0.95, 0.168, 0.112, 0.01 ], [ 1.06, 0.164, 0.11, 0.008 ], [ 1.17, 0.172, 0.114, 0.006 ],
@@ -857,7 +857,7 @@ export function figureGeometry( lod = 0 ) {
 			// under the shoulder's seam (its top just inside the trunk's shoulder) and fills out over the
 			// deltoid below it, one surface down the arm. (It was a round pad, an ellipsoid on the joint
 			// standing 5 cm proud of the shoulder line, on every sleeve in the park)
-			limb( B.uarm[ L ], PART.sleeve, sh, el, [ [ - 0.115, 0.022, 0.03 ], [ - 0.085, 0.043, 0.05 ], [ - 0.045, 0.057, 0.06 ], [ 0, 0.064, 0.065 ], [ 0.12, 0.065, 0.064 ],
+			limb( B.uarm[ L ], PART.sleeve, sh, el, [ [ - 0.1, 0.022, 0.03 ], [ - 0.072, 0.043, 0.05 ], [ - 0.036, 0.057, 0.06 ], [ 0.01, 0.064, 0.065 ], [ 0.12, 0.065, 0.064 ],
 				[ 0.35, 0.06, 0.062 ], [ 0.75, 0.054, 0.057 ], [ 1, 0.05, 0.052 ] ], 0.008 );
 			// ---- end FW4
 			ellipsoid( B.farm[ L ], PART.sleeve, el, [ 0.05, 0.05, 0.052 ], F( 10, 8 ), F( 5, 4 ) );
@@ -918,7 +918,7 @@ export function figureGeometry( lod = 0 ) {
 	fine ? F( 18, 12 ) : tiny ? 5 : 8, false, false, fine );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
 	if ( ! tiny ) loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], fine ? F( 12, 9 ) : 7, false, false );
-	loft( B.spine, PART.vest, [ [ 0.98, 0.178, 0.122, 0.01 ], [ 1.17, 0.18, 0.124, 0.006 ], [ 1.3, 0.194, 0.128, 0.012 ], [ 1.4, 0.205, 0.104, 0.024, 2.3 ] ], fine ? F( 12, 9 ) : tiny ? 5 : 7, false, false );
+	loft( B.spine, PART.vest, [ [ 0.98, 0.178, 0.122, 0.01 ], [ 1.17, 0.18, 0.124, 0.006 ], [ 1.3, 0.194, 0.128, 0.012 ], [ 1.4, 0.217, 0.104, 0.024, 2.5 ] ], fine ? F( 12, 9 ) : tiny ? 5 : 7, false, false );
 
 	// ---- P0: worn gear (GEAR), on the trunk
 	if ( ! tiny ) {
@@ -984,7 +984,31 @@ export function figureGeometry( lod = 0 ) {
 			} else if ( id === PROP.cottonCandy ) {
 
 				tube( bone, part, add( g, [ 0, 0.02, 0 ] ), add( g, [ 0, 0.2, 0 ] ), [ 0.008, 0.008 ], [ 0.012, 0.012 ], fine ? 5 : 3 );
-				ellipsoid( bone, part, add( g, [ 0, 0.3, 0 ] ), [ 0.11, 0.13, 0.11 ], fine ? 7 : 5, fine ? 4 : 3 );
+				if ( fine && ! mid ) {
+
+					// ---- FW4 (C3W-12): close up the floss a cloud, lumpy, on a paper cone (it was a faceted ball:
+					// a blue crystal on a stick)
+					tube( bone, part, add( g, [ 0, 0.14, 0 ] ), add( g, [ 0, 0.22, 0 ] ), [ 0.012, 0.012 ], [ 0.026, 0.026 ], 6 );
+					const c0 = add( g, [ 0, 0.3, 0 ] ), W = 12, Hh = 8, f0 = pos.length / 3;
+					for ( let j = 0; j <= Hh; j ++ ) for ( let i = 0; i < W; i ++ ) {
+
+						const th = j / Hh * Math.PI, ph = i / W * Math.PI * 2;
+						const d = [ Math.sin( th ) * Math.cos( ph ), Math.cos( th ), Math.sin( th ) * Math.sin( ph ) ];
+						const lump = 1 + 0.14 * Math.sin( th * 5 + ph * 2 ) * Math.sin( ph * 3 + th ) + 0.08 * Math.sin( ph * 7 - th * 3 );
+						vert( add( c0, [ d[ 0 ] * 0.11 * lump, d[ 1 ] * 0.12 * lump - ( d[ 1 ] < - 0.6 ? 0.02 : 0 ), d[ 2 ] * 0.11 * lump ] ), d, bone, part );
+
+					}
+
+					for ( let j = 0; j < Hh; j ++ ) for ( let i = 0; i < W; i ++ ) {
+
+						const a = f0 + j * W + i, b = f0 + j * W + ( i + 1 ) % W, cc = a + W, dd = b + W;
+						if ( j > 0 ) index.push( a, cc, b );
+						if ( j < Hh - 1 ) index.push( b, cc, dd );
+
+					}
+					// ---- end FW4
+
+				} else ellipsoid( bone, part, add( g, [ 0, 0.3, 0 ] ), [ 0.11, 0.13, 0.11 ], fine ? 7 : 5, fine ? 4 : 3 );
 
 			} else if ( id === PROP.tray ) {
 
