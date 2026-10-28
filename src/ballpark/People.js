@@ -1632,6 +1632,38 @@ export class People {
 			}
 
 		} );
+		// ---- FS1 (C4S-9): the decks above the field level have people on their steps too: one in about every
+		// other aisle (going for a beer, back with two; the same walk, and the same holds for the pitches and
+		// the 9th). Above the field level nobody ever walked the stands
+		for ( const T of [ ...( bowl.tiers || [] ).slice( 1 ), ...( bowl.upper || [] ) ] ) {
+
+			if ( /suite/.test( T.name ) || ! T.rows ) continue;
+			const tSecs = tierSections( T ), tys = rowHeights( T ), TD = T.depth, TS0 = T.start || 0, tDeep = T.rows * TD;
+			const at = ( S, d ) => {
+
+				const s = S.m0 * ( TS0 + d );
+				return [ S.a[ 0 ] + S.ux * s + S.nx * ( TS0 + d ), S.a[ 1 ] + S.uz * s + S.nz * ( TS0 + d ) ];
+
+			};
+			const yAtT = ( d ) => {
+
+				const r = Math.max( 0, Math.min( tys.length - 1, d / TD ) ), i = Math.floor( r ), f = r - i;
+				return ( tys[ i ] ?? tys[ tys.length - 1 ] ) * ( 1 - f ) + ( tys[ Math.min( tys.length - 1, i + 1 ) ] ?? tys[ tys.length - 1 ] ) * f;
+
+			};
+			tSecs.forEach( ( S, i ) => {
+
+				if ( ! S.seats || rnd( i * 29 + T.rows * 7 + T.name.length * 13 ) < 0.5 ) return;
+				const p = this._add( ROLE.fan, 0, 0, 0, 0 );
+				if ( ! p ) return;
+				p.walk = 1;
+				const d0 = ( S.skipRows || 0 ) * TD;
+				p.aisle = { S, d: d0 + rnd( i * 11 + T.rows ) * ( tDeep - d0 ), d0, dir: rnd( i * 5 + T.rows ) < 0.5 ? - 1 : 1, deep: tDeep, at, yAt: yAtT, pause: 0 };
+
+			} );
+
+		}
+		// ---- end FS1
 
 	}
 
