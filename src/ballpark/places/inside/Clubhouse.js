@@ -19,8 +19,8 @@ import { Inside, insideMaterial, frame, cellUV, rnd, yawOf, PRINT } from './Kit.
 // World Series sign, shoppers packed in); 20 Oct (jerseys with the Series patch on chrome racks). Inside:
 // a maple floor under a white ceiling of cans; the window platforms with dress forms in this year's
 // jerseys; the jersey wall down the brick side in slatwall, two rows of jerseys face out, caps above them,
-// the NATIONAL LEAGUE CHAMPIONS header; two round racks of red jackets and home whites, a four-way of
-// hoodies, tables of folded World Series tees and caps; the cash wrap across the back under the cap wall
+// the NATIONAL LEAGUE CHAMPIONS header; two round racks of red jackets and home whites and greys,
+// tables of folded World Series tees; the cash wrap across the back under the cap wall
 // and the World Series board; two hanging boards over the floor. Staff in navy polos; shoppers at the racks,
 // in the line, carrying the red bags out: packed before the first pitch and in the rain delay, fewer while
 // the game's on.
@@ -42,7 +42,9 @@ const YC = Y0 + 4.9; // its ceiling (the glass's head)
 const T = 0.8; // the facade's thickness
 const FACADE = 6.5; // the facade's ground storey (Exterior.js)
 const GLASS_IN = 0.1; // the glass, in from the facade's face
-const BACK_IN = 0.6; // the back wall, in from the block's open side
+// the back wall, in from the block's open side (D-A): the Third Base Gate's stair tower (Exterior._stairTower, 10 x 7 m)
+// stands across that line, 2 m into the block, its first landing and flight at 3.5 m over the floor
+const BACK_IN = 2.35;
 
 const sub = ( a, b ) => [ a[ 0 ] - b[ 0 ], a[ 1 ] - b[ 1 ] ];
 const add = ( a, b ) => [ a[ 0 ] + b[ 0 ], a[ 1 ] + b[ 1 ] ];
@@ -441,7 +443,7 @@ export default class Clubhouse {
 		// the World Series board over it
 		{
 
-			const zc = zBack - 1.15, x0 = 1.1, x1 = 4.5, xc = ( x0 + x1 ) / 2;
+			const zc = zBack - 1.0, x0 = 1.1, x1 = 4.5, xc = ( x0 + x1 ) / 2;
 			b.use( 'maple' ).box( F, xc, 0.48, zc, x1 - x0, 0.96, 0.62, [ 'bottom' ] );
 			b.use( 'navyWall' ).box( F, xc, 0.46, zc - 0.315, x1 - x0 - 0.04, 0.82, 0.01, [ 'back', 'bottom' ] );
 			b.use( 'granite' ).box( F, xc, 0.98, zc, x1 - x0 + 0.06, 0.04, 0.68 );
@@ -458,7 +460,7 @@ export default class Clubhouse {
 			// a stack of the red bags, folded tees waiting
 			b.use( 'bag' ).box( F, xc, 1.06, zc + 0.12, 0.45, 0.12, 0.3 );
 			// the line: out from the counter, toward the door
-			for ( let k = 0; k < 7; k ++ ) people.push( { x: xc + ( k % 2 ? 0.2 : - 0.15 ) - Math.max( 0, k - 3 ) * 0.5, z: zc - 0.85 - Math.min( k, 3 ) * 0.62, face: [ 0.15 * ( k % 2 ? 1 : - 1 ), 1 ], kind: 'line', k } );
+			for ( let k = 0; k < 5; k ++ ) people.push( { x: xc + ( k % 2 ? 0.2 : - 0.15 ) - Math.max( 0, k - 3 ) * 0.5, z: zc - 0.85 - Math.min( k, 3 ) * 0.55, face: [ 0.15 * ( k % 2 ? 1 : - 1 ), 1 ], kind: 'line', k } );
 			// the cap wall: six rows on the back's slatwall
 			const caps = [ [ 'redCloth', PRINT.capRed ], [ 'redCloth', PRINT.capRed ], [ 'navyCloth', PRINT.capNavy ], [ 'blackCloth', PRINT.capWS ], [ 'pinstripe', PRINT.capWhite ], [ 'darkRed', PRINT.capRed ] ];
 			const xa = xSide( zBack ) + T + 0.25, xb = xFar( zBack ) - 0.4;
@@ -475,7 +477,7 @@ export default class Clubhouse {
 
 		}
 
-		// ---- the floor: round racks of red jackets and home whites, a four-way of hoodies, two tables
+		// ---- the floor: round racks of red jackets and home whites, two tables
 		const round = ( x, z, pals ) => {
 
 			b.use( 'chrome' ).cyl( F, x, z, 0.0, 0.03, 0.32, 0.3, 10, true );
@@ -504,30 +506,11 @@ export default class Clubhouse {
 			}
 
 		};
-		const zm = ( 1.2 + zBack - 1.9 ) / 2;
-		round( 1.55, zm + 0.55, [ 'redCloth', 'redCloth', 'darkRed', 'blackCloth', 'redCloth' ] );
-		round( 3.75, zm + 1.25, [ 'pinstripe', 'roadGrey', 'creamCloth', 'pinstripe', 'navyCloth' ] );
-		// a four-way: two bars crossed, hoodies and greys on its arms
-		{
 
-			const x = 2.15, z = zBack - 2.75;
-			b.use( 'chrome' ).cyl( F, x, z, 0.0, 1.45, 0.02, 0.02, 6, false );
-			for ( const [ dx, dz, pal ] of [ [ 1, 0, 'navyCloth' ], [ - 1, 0, 'greyCloth' ], [ 0, 1, 'roadGrey' ], [ 0, - 1, 'blackCloth' ] ] ) {
-
-				b.use( 'chrome' ).box( F, x + dx * 0.32, 1.35 - ( dz ? 0.15 : 0 ), z + dz * 0.32, dx ? 0.6 : 0.015, 0.015, dz ? 0.6 : 0.015 );
-				for ( let k = 0; k < 7; k ++ ) {
-
-					const o = 0.12 + k * 0.065;
-					b.use( pal ).box( F, x + dx * o, 0.95 - ( dz ? 0.15 : 0 ), z + dz * o, dx ? 0.03 : 0.5, 0.72, dz ? 0.03 : 0.5, [ 'bottom' ] );
-
-				}
-
-			}
-
-		}
-
+		round( 1.3, zBack - 2.7, [ 'redCloth', 'redCloth', 'darkRed', 'blackCloth', 'redCloth' ] );
+		round( 4.3, zBack - 2.5, [ 'pinstripe', 'roadGrey', 'creamCloth', 'pinstripe', 'navyCloth' ] );
 		// two tables: folded tees in stacks, caps in a row
-		for ( const [ x, z, w ] of [ [ 1.85, 2.45, 1.3 ], [ 4.35, 2.55, 1.1 ] ] ) {
+		for ( const [ x, z, w ] of [ [ 1.75, 1.95, 1.2 ], [ 4.3, 1.95, 1.0 ] ] ) {
 
 			b.use( 'maple' ).box( F, x, 0.43, z, w, 0.04, 0.85 );
 			b.use( 'maple' ).box( F, x, 0.82, z, w + 0.06, 0.05, 0.9 );
@@ -554,7 +537,7 @@ export default class Clubhouse {
 
 		// ---- the boards hung over the floor (both faces): the World Series board toward the glass, the
 		// champions' over the racks
-		for ( const [ x, z, key, w ] of [ [ 3.0, 3.35, 'wsSign', 1.8 ], [ 2.6, zBack - 3.9, 'champsSign', 1.6 ] ] ) {
+		for ( const [ x, z, key, w ] of [ [ 3.0, 3.35, 'wsSign', 1.8 ], [ 2.0, zBack - 1.85, 'champsSign', 1.6 ] ] ) {
 
 			const h = w / 2, y0 = YC - YF - 0.9 - h;
 			b.use( key === 'wsSign' ? 'signYellow' : 'redPaint' ).box( F, x, y0 + h / 2, z, w + 0.1, h + 0.1, 0.05 );
@@ -565,8 +548,8 @@ export default class Clubhouse {
 		}
 
 		// a few more places: in the windows looking at the forms, by the side's glass
-		people.push( { x: x0 + 1.4, z: 1.45, face: [ - 0.3, - 1 ], kind: 'look' } );
-		people.push( { x: xSide( 4.2 ) + T + 0.35, z: 4.2, face: [ - 1, 0 ], kind: 'look' } );
+		people.push( { x: dmx, z: 1.2, face: [ - 0.3, - 1 ], kind: 'look' } );
+		people.push( { x: xSide( 4.8 ) + T + 0.3, z: 4.8, face: [ - 1, 0 ], kind: 'look' } );
 
 	}
 
