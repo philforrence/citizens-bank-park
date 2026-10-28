@@ -475,7 +475,7 @@ export function fanGeometry( lod ) {
 			// ---- FP2: close up, a shell round the back and sides of the head from the crown to the
 			// shoulders, framing the face in front of the ears (the card read as a panel behind her head from
 			// the aisle). Rows [ height, half width, half depth, how far round from the back ]; v down it
-			const rows = [ [ 0.045, 0.077, 0.094, 2.15 ], [ - 0.025, 0.09, 0.108, 2.05 ], [ - 0.11, 0.097, 0.121, 1.85 ], [ - 0.2, 0.105, 0.138, 1.45 ] ];
+			const rows = [ [ 0.045, 0.077, 0.094, 2.15 ], [ - 0.025, 0.09, 0.108, 2.05 ], [ - 0.11, 0.093, 0.117, 1.8 ], [ - 0.2, 0.088, 0.126, 1.4 ] ];
 			const cols = 7, q = [];
 			rows.forEach( ( [ y, rx, rz, span ], j ) => {
 
@@ -1267,10 +1267,11 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		// season ticket holder's: Getty 112873396, 83433888): the strap down from the collar either side to
 		// a white card on the chest, its band at the top
 		let lny = fract( seed * 23.17 + c1.w * 1.7 ) < 0.045 && age != 2u && ! poncho;
-		if ( lny && frontS && L.y > 0.5 ) {
-			let sx = mix( 0.014, 0.07, smoothstep( 0.72, 1.35, L.y ) );
-			if ( abs( abs( L.x ) - sx ) < 0.008 && L.y > 0.72 && L.y < 1.45 ) { c = select( vec3f( 0.02 ), vec3f( 0.32, 0.02, 0.03 ), seed > 0.5 ); rough = 0.6; }
-			if ( abs( L.x ) < 0.045 && L.y > 0.54 && L.y < 0.73 ) { c = select( vec3f( 0.78, 0.77, 0.74 ), vec3f( 0.04, 0.06, 0.22 ), L.y > 0.69 ); rough = 0.3; }
+		// (the card at mid-chest, over the arms folded or the hands in the lap)
+		if ( lny && frontS && L.y > 0.6 ) {
+			let sx = mix( 0.016, 0.07, smoothstep( 0.84, 1.4, L.y ) );
+			if ( abs( abs( L.x ) - sx ) < 0.009 && L.y > 0.84 && L.y < 1.5 ) { c = select( vec3f( 0.02 ), vec3f( 0.32, 0.02, 0.03 ), seed > 0.5 ); rough = 0.6; }
+			if ( abs( L.x ) < 0.05 && L.y > 0.66 && L.y < 0.85 ) { c = select( vec3f( 0.8, 0.79, 0.76 ), vec3f( 0.04, 0.06, 0.22 ), L.y > 0.8 ); rough = 0.3; }
 		}
 #endif
 		// a hoodie's drawstrings, its hood up
@@ -1460,7 +1461,8 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		rough = mix( 0.75, 0.35, frame.wet );
 	}
 #endif
-	if ( part == 10u ) { c = hairC; rough = 0.7; }
+	// (FP2: its strands, darker in among them and toward the ends: one flat colour read as a helmet)
+	if ( part == 10u ) { c = hairC * ( 0.8 + 0.2 * sin( atan2( L.x, L.z ) * 60.0 + L.y * 25.0 ) ) * mix( 1.0, 0.82, smoothstep( - 0.05, - 0.2, L.y ) ); rough = 0.7; }
 	// lit by the stands' fill after dark, as the seats are
 	s.albedo = c;
 	s.roughness = rough;
