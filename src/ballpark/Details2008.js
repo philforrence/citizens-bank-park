@@ -144,9 +144,13 @@ export class Details2008 {
 
 		};
 
+		// the World Series logos in foul territory, turned to the stands: each one's baseline parallel to
+		// its foul line, its top toward fair territory, so it reads upright to the fans behind that dugout
+		// and on a steep diagonal from high behind home (Getty 163678267, Game 4; luidude 2981634108, Oct
+		// 27); 11 m out along the line and 7.5 m off it
 		const wsMat = paint( ws, 'ws-logo' );
-		decal( wsMat, [ - 12.0, - 3.8 ], 6.6, 3.3, 0.38 );
-		decal( wsMat, [ 12.0, - 3.8 ], 6.6, 3.3, - 0.38 );
+		decal( wsMat, [ - 13.2, - 2.6 ], 6.6, 3.3, Math.PI / 4 );
+		decal( wsMat, [ 13.2, - 2.6 ], 6.6, 3.3, - Math.PI / 4 );
 		decal( paint( script, 'grass-script' ), [ 0, 8.5 ], 7.4, 2.4, 0 );
 		const od = paint( onDeck, 'on-deck' );
 		for ( const side of [ 'home', 'away' ] ) decal( od, ON_DECK[ side ], 1.55, 1.55, 0 );
