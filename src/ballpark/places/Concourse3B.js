@@ -12,6 +12,7 @@ import { G } from '../../core/Globals.js';
 import { Kit, trashCan, recycleBin, condiments, cart, programTable, pendant } from './Concourse3BProps.js';
 import { Tempo } from './Tempo.js'; // ---- H
 import { domeLights } from '../ConcourseSteel.js'; // ---- FI1
+import { StandSounds } from './Concourse3BSounds.js'; // ---- FW3 (C2W-15)
 
 // The main concourse from behind home plate round to the third base side (sections 123 to 135): the
 // walk in from the Third Base Gate to your seat, at street level, under the suite level and open to the
@@ -490,6 +491,36 @@ export default class Concourse3B {
 		this.steam.update( dt, G.time.value, { cast: this.cast, cam: cf ? [ cf[ 0 ], 0, cf[ 1 ] ] : null, cold: ns.first ? 0.6 : 1.0, wind: ns.first ? [ 0.12, - 0.06 ] : [ 0.2, 0.1 ] } );
 		this.cast.update( cf ? [ cf[ 0 ], 0, cf[ 1 ] ] : null );
 		this.tv.update( dt, director, ns );
+		// ---- FW3 (C2W-15): the stands' sounds (Concourse3BSounds.js): the grills, the registers and the
+		// counters' words, the program sellers and the cocoa cart calling, the murmur, the TVs' knots; heard
+		// while you're on this stretch of the concourse
+		if ( ! this.sounds3 ) {
+
+			this.sounds3 = new StandSounds( this, 'c3b' );
+			this.sounds3.grills = ( this.concourse?.units || [] ).filter( ( U ) => [ 'hatfield', 'cobblestone', 'schmitter' ].includes( U.what ) ).filter( ( U ) => {
+
+				const [ s ] = this.W.toSD( U.mid[ 0 ], U.mid[ 1 ] );
+				return s > - 2 && s < S_END + 2;
+
+			} ).map( ( U ) => [ U.mid[ 0 ] - U.n[ 0 ], U.mid[ 1 ] - U.n[ 1 ] ] );
+
+		}
+
+		{
+
+			const P = this.people, camY = ( camera || this.app?.camera )?.position.y - this.field.y0;
+			const [ s ] = camF ? this.W.toSD( camF[ 0 ], camF[ 1 ] ) : [ - 99 ];
+			const stands = P.stands || [];
+			this.sounds3.update( dt, ns, camF, {
+				grills: this.sounds3.grills, busy: ns.busy, inside: camF && camY < 14 && s > - 8 && s < S_END + 8,
+				staff: stands.filter( ( S ) => ! S.cart ).flatMap( ( S ) => S.staff ),
+				cocoa: stands.filter( ( S ) => S.brand === 'cocoa' ).flatMap( ( S ) => S.staff ),
+				programs: stands.filter( ( S ) => S.brand === 'programs' ).flatMap( ( S ) => S.staff ),
+				hawkers: stands.filter( ( S ) => S.brand === 'brewerytown' ).flatMap( ( S ) => S.staff ),
+			} );
+
+		}
+		// ---- end FW3
 		// the floor: wet on the 27th (wetter as it pours), dry prints on the 29th, the litter piling up
 		const U = this.floor.material.uniforms;
 		const game = ns.inning ? Math.min( 1, ( ( ns.inning - 1 ) * 2 + ( ns.half === 'top' ? 0 : 1 ) ) / 17 ) : 0.3;
