@@ -56,6 +56,7 @@ import { PLACES } from './places/index.js';
 import { tarpState } from './game/TarpPlan.js';
 // ---- end R
 import { Night, nightAirModule, BEAM } from './Night.js'; // ---- L: light and night
+import { when as gameClock } from './places/alley/Night.js'; // the replay's wall clock (the Alley's)
 
 const _up = new Vector3( 0, 1, 0 );
 
@@ -66,6 +67,11 @@ const LATITUDE = 39.9;
 // (see layout.js). You start in the plaza at Pattison Avenue and Citizens Bank Way, looking at the Third
 // Base Gate (field frame [ x, z ] and the point you face).
 const START = { at: [ - 112, 78 ], look: GATES[ 0 ].at };
+
+// Eastern Daylight Time (October 2008: the clocks went back on November 2) to local solar time in South
+// Philadelphia: an hour back for daylight saving, the equation of time (+16 min at the end of
+// October), and 75.17° W against the zone's 75° meridian (-0.7 min). 8:38 pm is 19.9 solar.
+const EDT_TO_SOLAR = - 1 + 16.2 / 60 - 0.7 / 60;
 
 // the sun's declination on a date (degrees): where the sun really is in the sky today
 function solarDeclination( date = new Date() ) {
@@ -83,7 +89,10 @@ export class BallparkApp {
 	constructor() {
 
 		this.settings = {
-			timeOfDay: 16.0, // local solar time, hours
+			// local solar time, hours. Both nights were night games (first pitch 8:38 pm on the 27th, the
+			// last out at 9:58 on the 29th), so it follows the replay's clock (gameClock, _gameHour()); 20
+			// until the replay is there. (It was 16, Tidewater's afternoon, from step 1.)
+			timeOfDay: 20.0,
 			sunAzimuth: 0, // degrees: turns the sun's daily path about the vertical
 			timeSpeed: 0, // hours per real second
 			exposure: 0.55,
@@ -91,8 +100,15 @@ export class BallparkApp {
 		};
 		this.skyGlow = 0.006; // the urban sky glow at night (see _weather)
 		this.qs = new URLSearchParams( location.search );
-		// ?hour=21 sets the time of day (the game started at 8:37 pm)
-		if ( this.qs.has( 'hour' ) ) this.settings.timeOfDay = Number( this.qs.get( 'hour' ) ) || this.settings.timeOfDay;
+		// the light follows the game's clock until you set the hour yourself
+		this.gameClock = true;
+		// ?hour=21 sets the time of day (local solar time) and holds it there
+		if ( this.qs.has( 'hour' ) ) {
+
+			this.settings.timeOfDay = Number( this.qs.get( 'hour' ) ) || this.settings.timeOfDay;
+			this.gameClock = false;
+
+		}
 		this.declination = solarDeclination();
 
 	}
@@ -740,6 +756,33 @@ export class BallparkApp {
 
 	}
 
+	// The light on the replay's own clock (the Alley's when(): 8:38 pm at the first pitch on the 27th to
+	// 10:40 at the suspension and on into the delay, then 8:37 to 9:58 on the 29th and the celebration
+	// after), as local solar time. It lets go for good once the hour is set some other way (?hour=, the
+	// Sky panel's slider, T, a QA shot's hour); the Sky panel's "Game clock" picks it up again.
+	_gameHour() {
+
+		const s = this.settings;
+		if ( ! this.gameClock || ! this.director ) return;
+		if ( s.timeSpeed !== 0 || ( this._autoHour != null && Math.abs( s.timeOfDay - this._autoHour ) > 1e-6 ) ) {
+
+			this.gameClock = false;
+			this._autoHour = null;
+			if ( this.ui ) {
+
+				this.ui.s.gameClock = false;
+				this.ui.ui.refresh?.();
+
+			}
+
+			return;
+
+		}
+
+		s.timeOfDay = this._autoHour = ( ( gameClock( this.director ).clock + EDT_TO_SOLAR ) % 24 + 24 ) % 24;
+
+	}
+
 	// T: let the day run (about 8 minutes per day) or stop it
 	toggleTime() {
 
@@ -852,6 +895,7 @@ export class BallparkApp {
 
 		}
 
+		this._gameHour();
 		if ( this.input.hit( 'KeyC' ) && this.director ) this.cycleCamera();
 		if ( this.camMode && this.camMode !== 'walk' ) this._broadcastCamera( dt );
 		else if ( this.freeCam ) this.fly.update( dt );

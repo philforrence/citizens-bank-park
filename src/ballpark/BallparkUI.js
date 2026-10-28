@@ -11,6 +11,7 @@ export class BallparkUI {
 
 		// ---- plain values the controls bind to; onChange pushes them into the app
 		const s = this.s = {
+			gameClock: !! app.gameClock,
 			advance: app.settings.timeSpeed !== 0,
 			timeSpeed: app.settings.timeSpeed || 0.05,
 			clouds: app.clouds ? app.clouds.coverage.value : 0.45,
@@ -32,6 +33,20 @@ export class BallparkUI {
 		const sky = ui.addTab( 'sky', 'Sky', 'sky' );
 		const sun = sky.addFolder( 'Sun', { icon: 'clock' } );
 		sun.addTimeOfDay( { object: app.settings, key: 'timeOfDay' } );
+		// the light on the replay's clock (BallparkApp._gameHour): moving the time yourself lets go of it
+		sun.addToggle( { label: 'Game clock', object: s, key: 'gameClock', tooltip: 'The time of day follows the replay: 8:38 pm at the first pitch on the 27th, 9:58 pm at the last out on the 29th. Set the time yourself and it lets go.', onChange: ( v ) => {
+
+			app.gameClock = v;
+			app._autoHour = null;
+			if ( v ) {
+
+				app.settings.timeSpeed = 0;
+				s.advance = false;
+				speed.setVisible( false );
+
+			}
+
+		} } );
 		sun.addSlider( { label: 'Sun azimuth', object: app.settings, key: 'sunAzimuth', min: - 180, max: 180, step: 1, format: ( v ) => `${ Math.round( v ) }°`, tooltip: 'Turns the sun\'s path around the ballpark (0 = the real path: rises in the east, sets in the west).' } );
 		let speed = null;
 		sun.addToggle( { label: 'Advance time', object: s, key: 'advance', onChange: ( v ) => {
