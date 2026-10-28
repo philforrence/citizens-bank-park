@@ -918,7 +918,9 @@ export class BallparkApp {
 
 		const C = CEL;
 		const pile = [ 0, 1.1, - 17.8 ];
-		const tag = 'cel' + Math.floor( lt / 7 );
+		// (the shot's name: one per slot of the schedule, so a handheld or a blocked camera holds for the
+		// whole of its slot, not cut at every seventh second)
+		let tag = 'cel' + Math.floor( lt / 7 );
 		const fit = ( cam, aim, half ) => {
 
 			if ( ! aim ) return null;
@@ -951,6 +953,7 @@ export class BallparkApp {
 		if ( lt < 40 ) {
 
 			const k = Math.floor( ( lt - 5 ) / 7 );
+			tag = 'pile' + k;
 			const lo = [ 0, 1.9, - 17.8 ];
 			if ( k === 0 ) return fit( 'high1', pile, 4.5 );
 			if ( k === 1 ) return hand( lo, 2.1, 4.8 ) || fit( 'low1', pile, 2.6 ) || fit( 'high3', pile, 4 );
@@ -960,7 +963,13 @@ export class BallparkApp {
 
 		}
 
-		if ( lt < C.stageBuild[ 0 ] ) return [ high, fit( 'high1', [ 2, 1, - 22 ], 9 ), crowd( 0 ) ][ Math.floor( ( lt - 40 ) / 7 ) % 3 ] || high;
+		if ( lt < C.stageBuild[ 0 ] ) {
+
+			const k = Math.floor( ( lt - 40 ) / 7 );
+			tag = 'hug' + k;
+			return [ high, fit( 'high1', [ 2, 1, - 22 ], 9 ), crowd( 0 ) ][ k % 3 ] || high;
+
+		}
 		if ( lt < C.present[ 0 ] ) {
 
 			// ---- FB3 (C3B-9, C3B-3): while the stage goes up, not the lone box on the clay: the knots of
@@ -968,12 +977,14 @@ export class BallparkApp {
 			// the stage done and the car driven in, from high home; the party walking out to it
 			if ( lt >= C.party + 26 ) {
 
+				tag = 'party';
 				const party = this._partyAt();
 				if ( party ) return fit( 'high3', party, 3.4 ) || high;
 
 			}
 
 			const k = Math.floor( ( lt - C.stageBuild[ 0 ] ) / 9 );
+			tag = 'build' + k;
 			if ( k % 4 === 0 ) return k < 4 ? hand( [ 12, 1.7, - 6.5 ], 2.0, 5.0 ) || fit( 'high1', [ 12, 1.2, - 6.5 ], 4 ) || high : fit( 'high', [ STAGE.car[ 0 ] - 2, 1.2, STAGE.car[ 1 ] + 1 ], 8 ) || high;
 			return [ null, high, crowd( k ), fit( 'center', [ 8, 1.2, - 24 ], 5 ) ][ k % 4 ] || high;
 			// ---- end FB3
@@ -1015,12 +1026,14 @@ export class BallparkApp {
 			// between, the crowd or Moyer's family at the mound)
 			const flag = actor( 408206, 1.2 );
 			const k = Math.floor( ( lt - C.lap[ 0 ] ) / 9 );
+			tag = 'lap' + k;
 			if ( ! flag || k % 3 === 2 ) return ( k % 2 ? crowd( k ) : fit( 'high1', actor( 'r:moyer', 0.9 ), 2.6 ) ) || high;
 			const cam = Math.abs( flag[ 0 ] ) < 26 && flag[ 2 ] < - 90 ? 'high' : flag[ 0 ] > 0 ? 'high3' : 'high1';
 			return fit( cam, flag, 4.5 ) || high;
 
 		}
 
+		tag = 'end' + Math.floor( lt / 9 );
 		return Math.floor( lt / 9 ) % 2 ? crowd( Math.floor( lt / 18 ) ) || high : high;
 
 	}
