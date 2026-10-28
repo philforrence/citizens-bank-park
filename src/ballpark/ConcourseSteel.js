@@ -1,4 +1,4 @@
-import { Mesh, Color, Vector3 } from '../engine/index.js';
+import { Mesh, Color, Vector3, Vector4 } from '../engine/index.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads, SOFFIT_WGSL } from './Stands.js';
@@ -547,12 +547,25 @@ export class ConcourseSteel {
 
 			}
 
+			// ---- FW2 (C2W-13): over the gates' frames this deck too is the ceiling the street sees, lit
+			// as the outer ring's floors are (Bowl.js _outerRing): a metal halide every 6 m, its pool
+			const F = this.field, gw = F ? [ [ - 80.95, 32.03 ], [ 73.5, 25.48 ] ].map( ( [ x, z ] ) => F.toWorld( x, z ) ) : [ { x: 1e5, z: 1e5 }, { x: 1e5, z: 1e5 } ];
 			const m = standard( { name: 'concourse-deck', color: new Color( 0.36, 0.35, 0.33 ), roughness: 0.75, modules: [ commonModule ],
+				uniforms: { gates: [ 'vec4f', new Vector4( gw[ 0 ].x, gw[ 0 ].z, gw[ 1 ].x, gw[ 1 ].z ) ] },
 				surface: /* wgsl */`
 	if ( in.N.y < - 0.6 ) {
 ${ SOFFIT_WGSL }
+		let gd = min( length( in.P.xz - mat.gates.xy ), length( in.P.xz - mat.gates.zw ) );
+		let gk = 1.0 - smoothstep( 26.0, 38.0, gd );
+		if ( gk > 0.0 ) {
+			let cl = fract( in.P.xz / 6.0 ) - 0.5;
+			let r = length( cl ) * 6.0;
+			let lens = 1.0 - smoothstep( 0.2, 0.28, r );
+			s.emissive += vec3f( 0.82, 1.0, 0.86 ) * smoothstep( 0.15, 0.7, frame.night ) * gk * ( vec3f( 0.34, 0.33, 0.31 ) * ( 0.25 + 0.75 * exp( - r * r / 4.0 ) ) * 0.9 + vec3f( 9.0 ) * lens );
+		}
 	}
 ` } );
+			// ---- end FW2
 			m.underwaterLighting = 'none';
 			m.setDefine( 'DRY', 1 );
 			const mesh = new Mesh( deck.geometry(), m );

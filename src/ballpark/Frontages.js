@@ -50,7 +50,7 @@ fn fzAt( ro: vec3f, rd: vec3f, z: f32 ) -> vec3f { return ro + rd * ( z / rd.z )
 // pool under each lamp (one every 30 m or so), not the black mass it was
 fn fzSodium( u: f32, v: f32 ) -> vec3f {
 	let pool = 0.4 + 0.6 * pow( 0.5 + 0.5 * cos( u / 30.0 * 6.2832 ), 2.0 );
-	return vec3f( 1.0, 0.58, 0.28 ) * pool * ( 0.06 + 0.3 * exp( - max( v, 0.0 ) / 7.0 ) );
+	return vec3f( 1.0, 0.6, 0.3 ) * pool * ( 0.04 + 0.2 * exp( - max( v, 0.0 ) / 7.0 ) );
 }
 // ---- end FW2
 

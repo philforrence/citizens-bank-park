@@ -48,7 +48,7 @@ const params = new UniformBlock( 'NightAir', {
 	veil: [ 'vec3f', new Vector3( 0.004, 0.0032, 0.0026 ) ],
 	rainExt: [ 'f32', 0 ],
 	// ---- FW2 (C2W-5): how lit the air must be for the far sheets' drops to show in it (from, to)
-	streakGate: [ 'vec2f', new Vector2( 0.0015, 0.01 ) ],
+	streakGate: [ 'vec2f', new Vector2( 0.0008, 0.005 ) ],
 	// ---- end FW2
 }, { label: 'nightAir' } );
 
