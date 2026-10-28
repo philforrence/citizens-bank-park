@@ -75,25 +75,26 @@ fn hookLocalLights( s: Surface, P: vec3f, N: vec3f, V: vec3f, acc: ptr<function,
 			let c = localLights.col[ i ];
 			let sd = localLights.dir[ i ];
 			let L = d * inverseSqrt( max( d2, 1e-6 ) );
-			// smooth range window (1 - (d/r)^4)^2 on the inverse-square law
-			let x = d2 / p.w;
-			let win = sat( 1.0 - x * x );
 			// spot: hot centre, soft edge at the outer cone, faint wide spill
 			let spot = localLightsSpotProfile( dot( -L, sd.xyz ), c.w, sd.w );
-			// Beer-Lambert over the underwater part of the path (straight, mean sea level): red dies
-			// within metres, so what the torch lights far away under water is dim and blue-green
-			let r = d2 * inverseSqrt( max( d2, 1e-6 ) );
-			let under = sat( ( frame.seaLevel - min( P.y, p.y ) ) / max( abs( p.y - P.y ), 1e-3 ) );
-			// (SP1: the exponentials only where some of the path is under water: on dry land, for every
-			// light at every pixel, they came to exp( 0 ))
-			var Tw = vec3f( 1.0 );
-			if ( under > 0.0 ) { Tw = exp( -( frame.waterAbsorption + frame.waterScattering ) * ( r * under ) ); }
-			// the + 0.15 m^2 softens the near field of a lamp's finite size (no hot spot on the post)
-			let lightColor = c.xyz * Tw * ( win * win * spot / ( d2 + 0.15 ) );
 			let nl = dot( N, L );
-			// (SP1: a surface turned away from the light gets nothing from it, so the BRDF isn't evaluated:
-			// half the lights at half the pixels, the far side of every fan and seat from each bank)
-			if ( nl > 0.0 ) {
+			// (SP1: a surface turned away from the light, or outside its spill, gets nothing from it, so the
+			// rest isn't worked out: it was multiplied by zero. Half the lights at half the pixels: the far
+			// side of every fan and seat from each bank, the stands behind the banks)
+			if ( nl > 0.0 && spot > 0.0 ) {
+				// smooth range window (1 - (d/r)^4)^2 on the inverse-square law
+				let x = d2 / p.w;
+				let win = sat( 1.0 - x * x );
+				// Beer-Lambert over the underwater part of the path (straight, mean sea level): red dies
+				// within metres, so what the torch lights far away under water is dim and blue-green
+				let r = d2 * inverseSqrt( max( d2, 1e-6 ) );
+				let under = sat( ( frame.seaLevel - min( P.y, p.y ) ) / max( abs( p.y - P.y ), 1e-3 ) );
+				// (SP1: the exponentials only where some of the path is under water: on dry land, for every
+				// light at every pixel, they came to exp( 0 ))
+				var Tw = vec3f( 1.0 );
+				if ( under > 0.0 ) { Tw = exp( -( frame.waterAbsorption + frame.waterScattering ) * ( r * under ) ); }
+				// the + 0.15 m^2 softens the near field of a lamp's finite size (no hot spot on the post)
+				let lightColor = c.xyz * Tw * ( win * win * spot / ( d2 + 0.15 ) );
 				let irradiance = nl * lightColor;
 #if LOCAL_LIGHTS_CHEAP
 				// foliage (heavy overdraw): Lambert only
