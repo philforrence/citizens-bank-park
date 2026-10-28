@@ -1367,7 +1367,16 @@ export class BallparkApp {
 		const rain = firstNight ? 0.3 + 0.7 * k : 0;
 		const wet = firstNight ? 0.35 + 0.65 * k : 0.25;
 		this.rain.amount = rain;
-		this.rain.material.uniforms.wind.value.set( firstNight ? 1.2 : 0, firstNight ? 0.8 : 0 );
+		// ---- FC4 (C4R-1): a driving rain: the 27th's north-westerly at ~4 m/s in the bowl leans the drops ~25
+		// degrees off the vertical (it was 1.4 m/s: they fell straight down). Steady: a drop is where its wind
+		// times the clock puts it, so a changing wind would sweep them all sideways. The night air's far
+		// sheets lean with it (Night.js copies it). And the drops' side light as the eye or FOX's cameras see it
+		this.rain.material.uniforms.wind.value.set( firstNight ? 3.3 : 0, firstNight ? 2.2 : 0 );
+		this.rain.broadcast = !! this.camMode && this.camMode !== 'walk';
+		// (the night air's far sheets of drops only where the air's well lit: the beams, round a bank; three
+		// times FW2's gate, so the dim spill over the black sky draws none: Night.js streakGate)
+		this.night?.air.streakGate.value.set( 0.0024, 0.015 );
+		// ---- end FC4
 		flagWind( 1.2, 0.8, firstNight ? 0.5 + 0.2 * k : 0.9 );
 		this.field.surfaceMaterial.uniforms.wet.value = wet;
 		// everything else open to the sky: soaked on the 27th, drying out on the 29th
