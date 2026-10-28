@@ -295,7 +295,7 @@ function peopleMaterial( info, moved, throng = null ) {
 	const T = throng;
 	const mat = standard( {
 		name: 'people', roughness: 0.8, side: 'double',
-		storage: T ? { thrOut: T.out, thrDress: T.dress, thrPal: T.pal } : { pplInfo: info, pplMoved: moved },
+		storage: T ? { thrOut: T.out, thrDress: T.dress, thrPal: T.pal, thrList: T.list } : { pplInfo: info, pplMoved: moved },
 		defines: { THRONG: T ? 1 : 0 },
 		attributes: { aWalk: 'vec3f', aReach: 'vec3f', aPart: 'f32' },
 		varyings: { vPart: 'f32', vInfo: 'vec4f', vLocal: 'vec3f', vDress: 'vec4u' },
@@ -306,10 +306,11 @@ function peopleMaterial( info, moved, throng = null ) {
 #if THRONG
 	// (the throng: where he is and was, from its pass: [ x, y, z, yaw ], the info, last frame's place;
 	// his clothes, THRONG_DRESS: the throng's info.z is what he has on tonight, WEAR_*)
-	let thrAt = thrOut[ v.instance * 3u ];
-	let inf = thrOut[ v.instance * 3u + 1u ];
-	let thrWas = thrOut[ v.instance * 3u + 2u ];
-	let dress = thrDress[ v.instance ];
+	let who = thrList[ v.instance ];
+	let thrAt = thrOut[ who * 3u ];
+	let inf = thrOut[ who * 3u + 1u ];
+	let thrWas = thrOut[ who * 3u + 2u ];
+	let dress = thrDress[ who ];
 	let wear = u32( inf.z + 0.5 );
 	let seedV = f32( dress.z & 65535u ) / 65536.0;
 	let hat = dress.y & 31u;
@@ -778,6 +779,11 @@ fn main( @builtin( global_invocation_id ) gid: vec3u ) {
 	thrOut[ i * 3u ] = cur.at;
 	thrOut[ i * 3u + 1u ] = vec4f( cur.phase, cur.walking, f32( wear ), select( - 1.0, select( 0.0, 0.55, kind == 1u ), shown ) );
 	thrOut[ i * 3u + 2u ] = was.at;
+	// (FW1: only those shown are drawn: each takes the next place in the list, the draw's instance count)
+	if ( shown ) {
+		let slot = atomicAdd( &thrArgs[ 1 ], 1u );
+		thrList[ slot ] = i;
+	}
 }
 `;
 // ---- end FW1
@@ -1001,6 +1007,11 @@ export class People {
 		this.thrDressBuf = new StorageBuffer( { label: 'throng dress', count: THRONG, type: 'vec4u', data: dressBuf } );
 		this.thrPal = new StorageBuffer( { label: 'throng palette', count: 72, type: 'vec4f', data: throngPalette() } );
 		this.thrOut = new StorageBuffer( { label: 'throng', count: THRONG * 3, type: 'vec4f' } );
+		// (FW1: those shown, packed, and the draw's arguments: the index count, how many, the rest zero; the
+		// count reset from here each frame, before the pass counts them in)
+		this.thrList = new StorageBuffer( { label: 'throng shown', count: THRONG, type: 'u32' } );
+		this.thrArgs = new StorageBuffer( { label: 'throng draw', count: 5, type: 'u32', usage: [ 'indirect' ] } );
+		this._thrArgs = new Uint32Array( [ this.mesh.geometry.index.count, 0, 0, 0, 0 ] );
 		this._thrObs = new Float32Array( OBS * 4 );
 		this.thrObs = new StorageBuffer( { label: 'throng obstacles', count: OBS, type: 'vec4f' } );
 		this._thrHide = new Uint32Array( Math.ceil( THRONG / 32 ) );
@@ -1014,10 +1025,16 @@ export class People {
 			bindings: {
 				thr: { uniform: this.thrParams }, thrSeg: { storage: this.thrSeg }, thrLines: { storage: this.thrLines }, thrWho: { storage: this.thrWho },
 				thrDress: { storage: this.thrDressBuf }, thrObs: { storage: this.thrObs }, thrHide: { storage: this.thrHide }, thrOut: { storage: this.thrOut, access: 'read_write' },
+				thrList: { storage: this.thrList, access: 'read_write' }, thrArgs: { storage: this.thrArgs, access: 'read_write', type: 'atomic<u32>' },
 			},
 			code: throngCode,
 		} );
-		this.throng = new InstancedMesh( this.mesh.geometry, peopleMaterial( null, null, { out: this.thrOut, dress: this.thrDressBuf, pal: this.thrPal } ), THRONG );
+		const tg = new BufferGeometry();
+		for ( const [ k, a ] of Object.entries( this.mesh.geometry.attributes ) ) tg.setAttribute( k, a );
+		tg.setIndex( this.mesh.geometry.index );
+		tg.boundingSphere = this.mesh.geometry.boundingSphere;
+		tg.setIndirect( { buffer: this.thrArgs, offset: 0 } );
+		this.throng = new InstancedMesh( tg, peopleMaterial( null, null, { out: this.thrOut, dress: this.thrDressBuf, pal: this.thrPal, list: this.thrList } ), THRONG );
 		this.throng.name = 'people-throng';
 		this.throng.frustumCulled = false;
 		this.throng.castShadow = false;
@@ -1281,6 +1298,7 @@ export class People {
 		U.cam.value.set( c.x, c.y, c.z, this._thrObsN );
 		U.share.value.set( ...this._thrShareF.slice( 0, 4 ) );
 		this.thrObs.write( this._thrObs );
+		this.thrArgs.write( this._thrArgs );
 		this.thrKernel.dispatch( Math.ceil( THRONG / 64 ) );
 
 	}

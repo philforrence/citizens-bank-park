@@ -5,6 +5,12 @@ import { UniformBlock } from '../engine/gpu/Uniforms.js';
 import { StorageBuffer } from '../engine/gpu/Texture.js';
 import { standard } from '../materials/Materials.js';
 import { SEAT_BACK } from './Stands.js';
+// ---- FW1 (CP-12): the backs' names and numbers come from the Cast's atlas (a blank one without it)
+import { castPool } from './places/Cast.js';
+import { canvasTexture } from './geo.js';
+let _blank = null;
+const BLANK = () => _blank ||= canvasTexture( 8, 8, ( ctx ) => { ctx.fillStyle = '#000'; ctx.fillRect( 0, 0, 8, 8 ); }, 'crowdBlank' );
+// ---- end FW1
 
 // The crowd: Game 5 was a sellout (45,940 on October 27, the same again for the resumption on the 29th),
 // so a fan in nearly every seat. One low-poly seated figure, instanced on the seats' own matrices (the
@@ -1107,6 +1113,8 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 		modules: [ crowdModule ],
 		defines: { CROWD_LOD: lod },
 		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf },
+		// ---- FW1 (CP-12): the Cast's atlas, for the names and numbers on the backs
+		textures: { cwAtlas: () => castPool()?.atlas || BLANK() },
 		attributes: { aStand: 'vec3f', aStandN: 'vec3f', aSitUp: 'vec3f', aStandUp: 'vec3f', aSitFace: 'vec3f', aStandFace: 'vec3f', aInfo: 'vec4f' },
 		varyings: { vPart: 'u32', vFan: 'u32', vLocal: 'vec3f' },
 		vertex: /* wgsl */`
@@ -1186,6 +1194,28 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 			if ( L.y > 1.3 ) { c = vec3f( 0.3, 0.02, 0.03 ); }
 		}
 		if ( trim == 2u && L.y > 0.82 && L.y < 1.3 ) { c = vec3f( 0.03, 0.07, 0.3 ); }
+#if CROWD_LOD <= 1
+		// ---- FW1 (CP-12): a name and number on the back (the Cast's atlas): the home whites, and the red
+		// name-and-number tees; UTLEY 26 most of all, then HOWARD, ROLLINS, HAMELS (the 2008 photos' backs)
+		let tee = outfit == 2u && seed > 0.7 && shirt.r > 0.2 && shirt.g < 0.1;
+		if ( ( trim == 1u || tee ) && L.z > 0.05 && L.y > 0.36 && L.y < 0.98 ) {
+			let uv = vec2f( 0.5 + L.x / 0.3, ( 0.98 - L.y ) / 0.6 );
+			if ( all( uv > vec2f( 0.0 ) ) && all( uv < vec2f( 1.0 ) ) ) {
+				let pu = fract( seed * 13.7 + c1.w * 3.1 );
+				var cell = 13u;
+				if ( pu < 0.9 ) { cell = 7u; }
+				if ( pu < 0.84 ) { cell = 8u; }
+				if ( pu < 0.78 ) { cell = 6u; }
+				if ( pu < 0.71 ) { cell = 5u; }
+				if ( pu < 0.63 ) { cell = 4u; }
+				if ( pu < 0.5 ) { cell = 3u; }
+				if ( pu < 0.34 ) { cell = 2u; }
+				if ( pu < 0.2 ) { cell = 1u; }
+				let a = textureSample( cwAtlas, smpAnisoClamp, ( vec2f( f32( cell % 8u ), f32( cell / 8u ) ) + uv ) / vec2f( 8.0, 10.0 ) ).r;
+				c = mix( c, select( vec3f( 0.72, 0.71, 0.68 ), vec3f( 0.32, 0.018, 0.024 ), trim == 1u ), a );
+			}
+		}
+#endif
 		// a hoodie's drawstrings, its hood up
 		if ( outfit == 0u && hood && frontS && abs( abs( L.x ) - 0.035 ) < 0.006 && L.y > 0.62 && L.y < 1.2 ) { c = vec3f( 0.6, 0.59, 0.56 ); }
 		// a scarf: round the collar, its two ends hanging down the chest
@@ -1674,13 +1704,42 @@ export class Crowd {
 
 		this.time += dt;
 		const target = d ? this.mood( d ) : this._mood;
+		// ---- FW1 (CP-8): a sudden lift (a hit, a strikeout, the last out) goes through the stands as a wave
+		// from the play outward (the kernel's ripple, which was set flat): each fan takes it up as it reaches
+		// him, a beat late of his own. A jump in the replay starts on the new moment, no wave
+		const leap = d && this._lastD !== undefined && Math.abs( d.t - this._lastD - dt ) > 1;
+		this._lastD = d ? d.t : undefined;
+		// (the mood's target runs ahead of where the crowd is by a good margin: that's a lift)
+		const lift = ! this._rip && [ 'stand', 'towel', 'cheer' ].some( ( key ) => ( target[ key ] || 0 ) - ( this._mood[ key ] || 0 ) > 0.25 );
+		if ( lift && ! leap && d ) {
+
+			const b = d.ballFocus ?? d.ballAt;
+			const o = this.toWorld ? this.toWorld( b ? b[ 0 ] : 0, b ? b[ 2 ] : 0 ) : { x: 0, z: 0 };
+			this._rip = { a: { ...this._mood }, t0: this.time, x: o.x, z: o.z };
+
+		}
+
+		if ( leap ) this._rip = null;
 		// the crowd takes a moment to rise and to settle
-		const k = 1 - Math.exp( - dt * 2.5 );
+		const k = leap ? 1 : 1 - Math.exp( - dt * 2.5 );
 		for ( const key of [ 'stand', 'cheer', 'clap', 'jump', 'towel', 'tense' ] ) this._mood[ key ] += ( ( target[ key ] || 0 ) - this._mood[ key ] ) * k;
 		const M = this._mood;
 		const U = this.params.fields;
-		U.moodA.value.set( M.stand, M.cheer, M.towel, M.jump );
-		U.moodB.value.set( M.stand, M.cheer, M.towel, M.jump );
+		const R = this._rip && this.time - this._rip.t0 < 8 ? this._rip : null;
+		if ( R ) {
+
+			U.moodA.value.set( R.a.stand, R.a.cheer, R.a.towel, R.a.jump );
+			U.moodB.value.set( target.stand || 0, target.cheer || 0, target.towel || 0, target.jump || 0 );
+			U.ripple.value.set( R.x, R.z, 1 / 45, this.time - R.t0 );
+
+		} else {
+
+			this._rip = null;
+			U.moodA.value.set( M.stand, M.cheer, M.towel, M.jump );
+			U.moodB.value.set( M.stand, M.cheer, M.towel, M.jump );
+
+		}
+		// ---- end FW1
 		U.act1.value.set( M.clap, 0, Math.min( 1, M.tense ), 0 );
 		U.misc.value.set( this.time, dt, rain, this.count );
 		this._focusUpdate( dt );
