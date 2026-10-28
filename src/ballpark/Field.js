@@ -1759,7 +1759,9 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		if ( pud > 0.0 ) {
 			// (FB2, C2B-13: muddy water, not ink: it was col * 0.3)
 			col = mix( col, col * vec3f( 0.5, 0.5, 0.55 ), pud );
-			rough = mix( rough, 0.03, pud );
+			// (FB3, C3B-12: not a mirror for the one key light, which stands for six banks: from high first
+			// its glint filled the plate's whole puddle with white; rippled water, the glints its own)
+			rough = mix( rough, 0.17, pud );
 			// the rim of the puddle: wet sheen, a hint darker
 			col = col * ( 1.0 - 0.15 * smoothstep( 0.0, 0.5, pud ) * ( 1.0 - smoothstep( 0.5, 1.0, pud ) ) );
 			// its surface: flat, then ringed by the drops (the 27th: the rain's still falling)
@@ -1795,8 +1797,14 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		let band = exp( - ( Rv.y - 0.4 ) * ( Rv.y - 0.4 ) / 0.012 );
 		let rn = 0.5 + 0.5 * mx_noise_float2( vec2f( atan2( Rv.x, Rv.z ) * 3.0, 3.0 ) );
 		let ring = rn * rn * rn;
-		let gloss = pud * 0.4 + select( 0.012, 0.05, dirt || track ) * smoothstep( 0.3, 0.9, wet ) * ( 1.0 - pud );
-		sheen = vec3f( 0.82, 0.87, 0.95 ) * band * ring * gloss * wet;
+		// ---- FB3 (C3B-12): on standing water the banks come back as glints off the rain-broken surface, not
+		// a mirror: from high first the plate's whole puddle went to a blown-out white disc (the replays of
+		// the runs home on the 27th). Broken up into specks and held under a tenth (Getty 84081866, Upton's
+		// slide: dark, speckled mud, the highlights small glints)
+		let glint = smoothstep( 0.58, 0.88, mx_noise_float2( p * 7.0 + 2.3 ) * 0.5 + 0.5 );
+		let gloss = pud * 0.4 * ( 0.1 + 0.9 * glint ) + select( 0.012, 0.05, dirt || track ) * smoothstep( 0.3, 0.9, wet ) * ( 1.0 - pud );
+		sheen = min( vec3f( 0.82, 0.87, 0.95 ) * band * ring * gloss * wet, vec3f( 0.09 ) );
+		// ---- end FB3
 		// ---- end FB2
 	}
 

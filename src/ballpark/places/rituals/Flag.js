@@ -16,18 +16,27 @@ export class Flag {
 		this.root.name = 'lap-flag';
 		const tex = typeof OffscreenCanvas === 'undefined' ? null : canvasTexture( 512, 320, drawFlag, 'lapFlag' );
 		this.cloth = standard( { name: 'lap-flag-cloth', color: new Color( 0.42, 0.02, 0.03 ), roughness: 0.8, side: 'double', textures: tex ? { lfTex: tex } : {},
-			uniforms: { wave: [ 'f32', 0 ] },
+			uniforms: { wave: [ 'f32', 0 ], wavePrev: [ 'f32', 0 ] },
 			vertex: /* wgsl */`
 	// streaming back from the pole, rippling more toward the fly
+	// (FB3, C3B-16: in the air it's cloth, not a board: waves running down it from the pole and the fly
+	// sagging, its lower corner most, Getty 83570906)
 	let u = v.uv.x;
-	let w = sin( u * 9.0 - mat.wave * 8.0 ) * 0.09 * u + sin( u * 17.0 - mat.wave * 13.0 + v.uv.y * 3.0 ) * 0.03 * u;
-	let p = v.position + vec3f( 0.0, - 0.12 * u * u, w );
+	let sag = vec3f( - 0.1 * u * u, - ( 0.22 + 0.2 * v.uv.y ) * u * u, 0.0 );
+	let w = sin( u * 7.0 - mat.wave * 7.0 ) * 0.16 * u + sin( u * 15.0 - mat.wave * 12.0 + v.uv.y * 3.0 ) * 0.045 * u;
+	let p = v.position + sag + vec3f( 0.0, 0.04 * sin( u * 7.0 - mat.wave * 7.0 + 1.3 ) * u, w );
+	// (and where it was a frame ago, for the motion vectors: the ripple and the walk, or the temporal
+	// filter leaves a speckled half-image of it)
+	let w0 = sin( u * 7.0 - mat.wavePrev * 7.0 ) * 0.16 * u + sin( u * 15.0 - mat.wavePrev * 12.0 + v.uv.y * 3.0 ) * 0.045 * u;
+	let p0 = v.position + sag + vec3f( 0.0, 0.04 * sin( u * 7.0 - mat.wavePrev * 7.0 + 1.3 ) * u, w0 );
 	v.useWorld = true;
 	v.worldPos = ( v.model * vec4f( p, 1.0 ) ).xyz;
 	v.worldNormal = normalize( ( v.model * vec4f( v.normal, 0.0 ) ).xyz );
-	v.prevWorldPos = v.worldPos;
+	v.prevWorldPos = ( v.prevModel * vec4f( p0, 1.0 ) ).xyz;
 `,
-			surface: ( tex ? 's.albedo = textureSample( lfTex, smpAnisoClamp, in.uv ).rgb;' : '' ) + 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.3;' } );
+			// (FB3, C3B-16: printed through, as a flag is: from its back the 2008 reads the right way round,
+			// not "8002")
+			surface: ( tex ? 's.albedo = textureSample( lfTex, smpAnisoClamp, vec2f( select( 1.0 - in.uv.x, in.uv.x, in.front ), in.uv.y ) ).rgb;' : '' ) + 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.3;' } );
 		this.cloth.underwaterLighting = 'none';
 		this.cloth.setDefine( 'WET_FABRIC', 1 );
 		// the cloth off the pole's top, subdivided so it ripples (---- FR1: the big one, about 2.6 x 1.6 m: in
@@ -87,7 +96,9 @@ export class Flag {
 		if ( flag ) {
 
 			this.root.position.set( flag.x, flag.y - 1.2, flag.z );
-			this.root.rotation.y = flag.yaw + Math.PI / 2;
+			// (FB3, C3B-16: the fly behind him as he walks: it was turned to stream out ahead of the pole)
+			this.root.rotation.y = flag.yaw - Math.PI / 2;
+			this.cloth.uniforms.wavePrev.value = this.cloth.uniforms.wave.value;
 			this.cloth.uniforms.wave.value = time;
 
 		}
