@@ -52,3 +52,6 @@ FW1's heavier close-up Cast is seen by FOX's long lens (+2 ms in TV center and h
 | 11:37 | FW2, the building and outside (rain TV high 31.7; a real 3B seat 26.4) | 23.3 | 31.1 | 20.0 | 24.3 | 20.7 | 25.9 | 32.0 |
 
 FW2 cost nothing measurable in these views (its trees, cars and tents are outside them). From here the job also has the walk's first view, the 3B plaza on the 27th (`walk-plaza-3b-27th`).
+| 12:05 | SP1's last commits and FP2, the people's polish (rain TV high 31.3; a real 3B seat 27.0; the 3B plaza on the 27th 23.7) | 23.4 | 31.6 | 20.4 | 23.3 | 20.4 | 24.8 | 31.8 |
+
+Holding under the floor; TV high, its rainy twin and left field sit at 31-32 ms. SP2 (the local lights' tile list, a players LOD, TAAU) is on them.
