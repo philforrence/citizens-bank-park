@@ -2311,6 +2311,30 @@ export class Crowd {
 		this._sol = ( this._sol || 0 ) + ( sol - ( this._sol || 0 ) ) * ( leap ? 1 : 1 - Math.exp( - dt * 3 ) );
 		// the delay: from the tarp going on (a few seconds into the break) to the end of the 27th
 		const dl = N && N.delay ? ease( 4, 20, N.lt ) : 0;
+		// (C4S-8) the 27th from the 5th on: a few of the open seats already empty, gone under the decks or home
+		// (luidude 2981634108, 22:11: empty seats scattered through the lower rows); written only when it
+		// changes (Crowd.vacate rewrites every fan's flag)
+		const gap = N && N.night === 27 && ! N.susp && ( seg?.snap?.inning || 0 ) >= 5 ? 0.07 : 0;
+		if ( ! this._gapTest ) {
+
+			this._gapTest = true;
+			this.vacate( ( p ) => {
+
+				if ( ! ( this._gap > 0 ) || ! ( p.cover < 0.5 ) ) return false;
+				const s = Math.sin( p.x * 31.7 + p.z * 17.3 + p.y * 5.1 ) * 43758.5453;
+				return s - Math.floor( s ) < this._gap;
+
+			} );
+
+		}
+
+		if ( gap !== ( this._gap || 0 ) ) {
+
+			this._gap = gap;
+			if ( this._ids ) this._writeIds();
+
+		}
+
 		U.fs1.value.set( champ ? champ.lt : - 1, this._sol, dl, 0 );
 
 	}

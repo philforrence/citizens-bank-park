@@ -1762,12 +1762,31 @@ export class People {
 		const fsJump = !! d && this._fsT !== undefined && Math.abs( d.t - this._fsT - dt ) > 2;
 		this._fsT = d ? d.t : undefined;
 		if ( fsJump && fsNinth ) for ( const p of this.list ) if ( p.aisle ) { p.aisle.d = p.aisle.deep; p.aisle.dir = 1; }
+		// (C4S-4: the rain delay, people leaving up the aisles in a steady file, each from a row part way down;
+		// the 29th's filling, coming down them to their seats: the steps were empty while the seats emptied)
+		let fsFlow = 0;
+		let fsN = null;
+		try { fsN = d?.night ? d.night( d.t ) : null; } catch ( e ) { fsN = null; }
+		if ( fsN?.delay && fsN.lt > 8 ) fsFlow = 1;
+		else if ( fsN?.back && d.t - fsN.split > 6 && d.t - fsN.split < 26 ) fsFlow = - 1;
 		// ---- end FS1
 		for ( const p of this.list ) if ( p.aisle ) {
 
 			const A = p.aisle;
 			if ( fsNinth && A.dir < 0 ) A.dir = 1; // ---- FS1
-			if ( fsLive || ( fsNinth && A.d >= A.deep - 0.01 ) ) p.walk = 0; // ---- FS1
+			if ( fsFlow ) {
+
+				// ---- FS1 (C4S-4): the file up (or down) the steps, a new one from his row as one goes out
+				p.walk = 1;
+				A.dir = fsFlow;
+				A.pause = 0;
+				A.d += fsFlow * 0.95 * dt;
+				if ( A.d > A.deep ) A.d = ( A.d0 || 0 ) + rnd( p.seed * 3 + this.time ) * 0.7 * ( A.deep - ( A.d0 || 0 ) );
+				if ( A.d < ( A.d0 || 0 ) ) A.d = A.deep - rnd( p.seed * 5 + this.time ) * 0.3 * ( A.deep - ( A.d0 || 0 ) );
+				p.phase += dt * 5.2;
+				// ---- end FS1
+
+			} else if ( fsLive || ( fsNinth && A.d >= A.deep - 0.01 ) ) p.walk = 0; // ---- FS1
 			else if ( A.pause > 0 ) {
 
 				A.pause -= dt;
