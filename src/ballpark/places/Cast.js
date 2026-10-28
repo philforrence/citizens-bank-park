@@ -1601,6 +1601,14 @@ function castMaterial( pool ) {
 	if ( female && ( part == ${ PART.sleeve }u || part == ${ PART.hand }u ) ) { q.x *= 0.95; }
 	// ---- FW1 (C2W-2): a hoodie's pouch stands off the belly; a hand in the pocket takes the forearm's end
 	// in to the hip with it
+	// ---- FW6 (C4W-1): a jersey hangs loose and straight from the chest over what's under it (auds
+	// 2988587598: the home whites over a red hoodie), not shrunk to the trunk like a jacket's waist
+	if ( part == ${ PART.torso }u && ( top == ${ TOP.homeJersey }u || top == ${ TOP.roadJersey }u || top == ${ TOP.powder }u ) ) {
+		let lo = smoothstep( 1.24, 1.02, q.y );
+		q.x *= 1.0 + 0.075 * lo;
+		q.z = ( q.z - 0.01 ) * ( 1.0 + 0.06 * lo ) + 0.01;
+	}
+	// ---- end FW6
 	if ( part == ${ PART.torso }u && top == ${ TOP.hoodie }u ) {
 		q.z -= 0.012 * smoothstep( 0.87, 0.91, q.y ) * smoothstep( 1.08, 1.04, q.y ) * smoothstep( 0.125, 0.095, abs( q.x ) ) * smoothstep( 0.0, - 0.07, q.z );
 	}
