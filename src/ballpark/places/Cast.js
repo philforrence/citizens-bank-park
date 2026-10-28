@@ -1545,6 +1545,8 @@ function castMaterial( pool ) {
 	let female = ( ( lx >> 12u ) & 1u ) == 1u;
 	let build = ( lx >> 15u ) & 3u;
 	let belly = select( select( select( 0.0, 0.3, build == 1u ), 0.55, build == 2u ), 1.0, build == 3u );
+	// (FW4: a hanging arm held clear of a belly, and of a hi-vis vest's sides, which it would cut through)
+	let armOut = min( 1.0, belly + select( 0.0, 0.8, top == ${ TOP.security }u ) );
 	var q = v.position;
 	var n = v.normal;
 	// the build: a belly, broad shoulders, a woman's narrower shoulders and fuller hips; a kid's big head
@@ -1664,6 +1666,15 @@ function castMaterial( pool ) {
 		let hc = select( headC, ${ f3( J.neck ) } + ( headC - ${ f3( J.neck ) } ) * 1.22, age == 2u );
 		q = vec3f( 2.0 * hc.x - q.x, q.y, 2.0 * hc.z - q.z );
 		n = vec3f( - n.x, n.y, - n.z );
+		// ---- FW4: its crown's low back edge, now over the forehead, up over the brows (as the paint, below)
+		if ( part == ${ PART.crown }u ) {
+			let hr = ${ ( HEAD_R[ 1 ] ).toFixed( 3 ) } * select( 1.0, 1.22, age == 2u );
+			let dz = ( q.z - hc.z ) / ( ${ HEAD_R[ 2 ].toFixed( 3 ) } * select( 1.0, 1.22, age == 2u ) );
+			let dy0 = ( q.y - hc.y ) / hr;
+			let dy1 = mix( dy0, max( dy0, 0.39 ), smoothstep( 0.1, - 0.45, dz ) );
+			let k = sqrt( max( 0.05, 1.0 - dy1 * dy1 ) / max( 0.05, 1.0 - dy0 * dy0 ) );
+			q = vec3f( hc.x + ( q.x - hc.x ) * k, hc.y + dy1 * hr, hc.z + ( q.z - hc.z ) * k );
+		}
 	}
 	// ---- end FP2
 	// ---- FW4 (C3W-2): faces of their own, from the seed: the jaw wider or narrower, the face below the
@@ -1736,14 +1747,14 @@ function castMaterial( pool ) {
 	// this vertex's arm (the left's row or the right's)
 	let armRow = k + select( 4u, 5u, bone == 4u || bone == 6u || bone == 12u );
 	let at = c3Pose[ k ];
-	var r0 = c3Rig( q, n, bone, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Hang( c3Pose[ armRow ], belly ), c3Pose[ k + 6u ], a7.x );
+	var r0 = c3Rig( q, n, bone, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Hang( c3Pose[ armRow ], armOut ), c3Pose[ k + 6u ], a7.x );
 	// ---- FW1 (C2W-16): a poncho's sides go where the arms do (rigged with the upper arm too, and blended:
 	// over the arm it's the arm's, the hem and the middle the trunk's), swinging as they swing walking
 	let wArm = select( 0.0, smoothstep( 0.17, 0.27, abs( q.x ) ) * smoothstep( 0.86, 1.1, q.y ), part == ${ PART.poncho }u && poncho > 0u && poncho < 7u );
 	let armB = select( 3u, 4u, q.x > 0.0 );
 	let armR2 = k + select( 4u, 5u, q.x > 0.0 );
 	if ( wArm > 0.0 ) {
-		let ra = c3Rig( q, n, armB, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Hang( c3Pose[ armR2 ], belly ), c3Pose[ k + 6u ], a7.x );
+		let ra = c3Rig( q, n, armB, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Hang( c3Pose[ armR2 ], armOut ), c3Pose[ k + 6u ], a7.x );
 		r0.p = mix( r0.p, ra.p, wArm );
 		r0.n = normalize( mix( r0.n, ra.n, wArm ) );
 	}
@@ -1753,8 +1764,8 @@ function castMaterial( pool ) {
 	v.worldNormal = normalize( ( v.model * vec4f( r0.n, 0.0 ) ).xyz );
 	if ( lod == 0u || lod == 3u ) {
 		// the near ones (and the middle ones) rigged again in last frame's pose: the arms' and legs' own motion for the TAA
-		var r1 = c3Rig( q, n, bone, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Hang( c3Prev[ armRow ], belly ), c3Prev[ k + 6u ], c3Prev[ k + 7u ].x );
-		if ( wArm > 0.0 ) { r1.p = mix( r1.p, c3Rig( q, n, armB, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Hang( c3Prev[ armR2 ], belly ), c3Prev[ k + 6u ], c3Prev[ k + 7u ].x ).p, wArm ); }
+		var r1 = c3Rig( q, n, bone, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Hang( c3Prev[ armRow ], armOut ), c3Prev[ k + 6u ], c3Prev[ k + 7u ].x );
+		if ( wArm > 0.0 ) { r1.p = mix( r1.p, c3Rig( q, n, armB, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Hang( c3Prev[ armR2 ], armOut ), c3Prev[ k + 6u ], c3Prev[ k + 7u ].x ).p, wArm ); }
 		v.prevWorldPos = ( v.prevModel * vec4f( r1.p, 1.0 ) ).xyz;
 	} else {
 		// further off, only where they've walked
@@ -2059,7 +2070,10 @@ function castMaterial( pool ) {
 		let capped = ${ any( 'hat', capHats ) };
 		// (FP1: down to the crown's band, capRim: just above the brows, the tops of the ears, low behind)
 		let capFront = select( - d.z, d.z, hat == ${ HAT.capBack }u ) / max( length( d.xz ), 0.001 );
-		if ( capped && ( d.y > ${ capRim( 0 ).toFixed( 3 ) } + 0.225 * capFront || ( motor && d.y > - 0.05 && d.z > - 0.55 ) ) ) {
+		// ---- FW4: a cap turned round sits up on the forehead, its back's band over the brows (its low back
+		// edge came round over the eyes: a blindfold)
+		let capY = select( ${ capRim( 0 ).toFixed( 3 ) } + 0.225 * capFront, max( ${ capRim( 0 ).toFixed( 3 ) } + 0.225 * capFront, 0.36 * smoothstep( 0.1, - 0.45, d.z ) ), hat == ${ HAT.capBack }u );
+		if ( capped && ( d.y > capY || ( motor && d.y > - 0.05 && d.z > - 0.55 ) ) ) {
 			c = capC; rough = select( 0.8, 0.18, motor );
 			// the logo on the front panel (the back, turned round)
 			let lz = select( d.z, - d.z, hat == ${ HAT.capBack }u );
