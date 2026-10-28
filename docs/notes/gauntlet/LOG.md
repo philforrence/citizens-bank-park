@@ -46,3 +46,8 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 - **FP2, the people's polish** (notes [FP2.md](FP2.md)): the floating caps (backwards caps drawn 1.6 m over the head) fixed everywhere; C2B-16 (the crowd behind home: whirled towels, varied knits, 4,096 camera flashes peaking at the last out), CP-12 (signs with the night's words, lanyards), CP-19 (RailFigures rebuilt in place), long hair as a shell, the stands settling after the first minute. Shots: `.claude/gauntlet/r2/FP2-shots/`.
 - **FI3, the insides' polish** (launched 12:03): the Majestic Clubhouse Store, the glass's tint, the home plate entrance at night, the suites', the lounge's, the gallery's and the cages' details.
 - **SP2's first speed win, merged early**: the players' far figure (a quarter of the triangles for a player under 64 px tall, from a precomputed simplified body), less arithmetic per local light, alpha-tested materials drawn last in the opaque layer, the TAA's lock luma once. SP2 measured 2-3.5 ms back in TV high, left field and the walking views, with shot pairs the same.
+- **FR1, the celebration** (notes [FR1.md](FR1.md)): the stage faces the plate and the stands and Howard lifts the trophy to the crowd; the press come out of the wells at 9-13 s and the Phanatic reaches the pile at 16 s; Manuel's jacket and the 2008 jackets' blue piping and script; the MVP at the Camaro; leis, streamers, families on the field; the big red 2008 flag on the lap. Not done: the tarp roll's route on the 27th. Shots: `.claude/gauntlet/r2/FR1/`.
+
+## Round 3
+
+- **C3B, the broadcast end to end** (launched 12:16): fresh eyes on the whole replay through the broadcast mode, regressions first.
