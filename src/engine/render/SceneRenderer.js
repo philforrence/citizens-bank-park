@@ -48,8 +48,15 @@ export class SceneRenderer {
 		this.opaqueCopy = new RenderTarget( 1, 1, { colors: [ 'rgba16float' ], depth: DEPTH_FORMAT, label: 'opaqueCopy' } );
 		// the opaque depth again as half float (reversed-Z keeps its relative precision): for many
 		// scattered reads that tolerate centimetres, e.g. the water's screen-space reflection march
-		this.opaqueDepthHalf = new RenderTarget( 1, 1, { colors: [ 'r16float' ], label: 'opaqueDepthHalf' } );
+		this._opaqueDepthHalf = new RenderTarget( 1, 1, { colors: [ 'r16float' ], label: 'opaqueDepthHalf' } );
 		this._depthHalfPass = null;
+		// ---- SP2 (speed): the copies only for those who read them. The half float depth is made once
+		// something has asked for it (the getter below: the ocean's water); the colour copy unless an app
+		// says nobody samples it (the ballpark: its post chain reads only the depth copy). 8 MB copied and a
+		// full-screen pass a frame (0.2-0.3 ms) for no reader
+		this._wantDepthHalf = false;
+		this.copyColor = true;
+		// ---- end SP2
 		this.hullMaskRT = new RenderTarget( 1, 1, { colors: [ 'r16float' ], depth: DEPTH_FORMAT, label: 'hullMask' } );
 		this.hullMaskScene = new Scene();
 		this.hullMaskMaterial = new Material( { name: 'hullMask', lit: false, side: 'double', surface: 's.albedo = vec3f( length( in.P - frame.cameraPos ), 0.0, 0.0 ); s.emissive = vec3f( 0.0 );' } );
@@ -63,13 +70,22 @@ export class SceneRenderer {
 
 	}
 
+	// ---- SP2: see the constructor
+	get opaqueDepthHalf() {
+
+		this._wantDepthHalf = true;
+		return this._opaqueDepthHalf;
+
+	}
+	// ---- end SP2
+
 	setSize( w, h ) {
 
 		this.width = w;
 		this.height = h;
 		this.sceneRT.setSize( w, h );
 		this.opaqueCopy.setSize( w, h );
-		this.opaqueDepthHalf.setSize( w, h );
+		this._opaqueDepthHalf.setSize( w, h );
 		this.hullMaskRT.setSize( w, h );
 
 	}
@@ -131,14 +147,18 @@ export class SceneRenderer {
 		// 2. copies for refraction
 		const enc = GPU.getEncoder();
 		const size = { width: rt.width, height: rt.height };
-		enc.copyTextureToTexture( { texture: rt.texture.getGPU() }, { texture: this.opaqueCopy.texture.getGPU() }, size );
+		if ( this.copyColor ) enc.copyTextureToTexture( { texture: rt.texture.getGPU() }, { texture: this.opaqueCopy.texture.getGPU() }, size ); // ---- SP2: if read
 		enc.copyTextureToTexture( { texture: rt.depthTexture.getGPU() }, { texture: this.opaqueCopy.depthTexture.getGPU() }, size );
-		if ( ! this._depthHalfPass ) this._depthHalfPass = new FullscreenPass( {
-			label: 'opaque depth half', colorFormats: [ 'r16float' ],
-			bindings: { srcDepth: { texture: () => this.opaqueCopy.depthTexture } },
-			code: 'fn fragment( in: FSIn ) -> vec4f { return vec4f( textureLoad( srcDepth, vec2i( in.pos.xy ), 0 ), 0.0, 0.0, 1.0 ); }',
-		} );
-		this._depthHalfPass.render( { colorViews: [ this.opaqueDepthHalf.texture ], clear: [ 0, 0, 0, 0 ] } );
+		if ( this._wantDepthHalf ) { // ---- SP2: if read
+
+			if ( ! this._depthHalfPass ) this._depthHalfPass = new FullscreenPass( {
+				label: 'opaque depth half', colorFormats: [ 'r16float' ],
+				bindings: { srcDepth: { texture: () => this.opaqueCopy.depthTexture } },
+				code: 'fn fragment( in: FSIn ) -> vec4f { return vec4f( textureLoad( srcDepth, vec2i( in.pos.xy ), 0 ), 0.0, 0.0, 1.0 ); }',
+			} );
+			this._depthHalfPass.render( { colorViews: [ this._opaqueDepthHalf.texture ], clear: [ 0, 0, 0, 0 ] } );
+
+		}
 
 		// 3. hull interiors
 		if ( this.hullMasks.length > 0 ) this._renderHullMasks( camera );

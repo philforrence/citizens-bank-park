@@ -292,6 +292,7 @@ export class BallparkApp {
 		} ) } );
 
 		this.sceneRenderer = new SceneRenderer( engine.meshRenderer, scene, camera );
+		this.sceneRenderer.copyColor = false; // ---- SP2 (speed): nothing here samples the opaque colour's copy (no water)
 		if ( this.sky.background ) this.sceneRenderer.background = this.sky.background;
 		// point and spot lights: the flashlight (L) and, after dusk, the light towers aimed at the field
 		this.localLights = new LocalLights();
