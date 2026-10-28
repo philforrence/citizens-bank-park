@@ -94,7 +94,7 @@ export default class ThirdBaseGate {
 		// ---- FW2 (C2I-4, C2I-2): the World Series tents on the plaza and along the lots' Pattison sides
 		// (gate3b/Tents.js); and every other lot filled (gate3b/Cars.js LotCars: real cars near you, the
 		// lots' shader painting the rest), clear of the tailgates (both gates') and the tents
-		this.tents = buildTents( { group: this.group, colliders, field } );
+		this.tents = buildTents( { group: this.group, colliders, field, cast: this.cast } ); // (---- FW3 (C2I-4): its people)
 		for ( const [ x, z, r ] of this.tents.clear ) this.obstacles.push( [ x, z, r - 1.5 ] );
 		const lotClear = [ ...tail.spots, ...CAMPS.map( ( [ x, z ] ) => [ x, z, 8 ] ), ...this.tents.clear ];
 		this.cars = new Cars( { group: this.group, field, clear: [ ...tail.spots, ...this.tents.clear ] } );
