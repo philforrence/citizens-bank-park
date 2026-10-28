@@ -941,9 +941,9 @@ export function figureGeometry( lod = 0 ) {
 	// (FW6, C4W-4: narrower, over the narrower shoulders: it stood 9 cm out from the arms at the elbow, a
 	// bell 0.67 m across; and falling in a little under the hands to its hem, as film does round the legs,
 	// not a box's straight sides)
-	loft( B.spine, PART.poncho, fine ? [ [ 0.7, 0.29, 0.186, 0.02 ], [ 0.82, 0.3, 0.192, 0.02 ], [ 0.98, 0.302, 0.185, 0.018 ], [ 1.14, 0.296, 0.172, 0.018 ],
-		[ 1.27, 0.288, 0.156, 0.022 ], [ 1.35, 0.272, 0.138, 0.026 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.45, 0.163, 0.088, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ]
-		: [ [ 0.7, 0.29, 0.186, 0.02 ], [ 0.98, 0.302, 0.185, 0.018 ], [ 1.27, 0.288, 0.156, 0.022 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ],
+	loft( B.spine, PART.poncho, fine ? [ [ 0.7, 0.29, 0.186, 0.02 ], [ 0.82, 0.3, 0.192, 0.02 ], [ 0.98, 0.302, 0.19, 0.018 ], [ 1.14, 0.296, 0.178, 0.018 ],
+		[ 1.27, 0.288, 0.162, 0.022 ], [ 1.35, 0.272, 0.142, 0.026 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.45, 0.163, 0.088, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ]
+		: [ [ 0.7, 0.29, 0.186, 0.02 ], [ 0.98, 0.302, 0.19, 0.018 ], [ 1.27, 0.288, 0.162, 0.022 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ],
 	fine ? F( 18, 12 ) : tiny ? 5 : 8, false, false, fine );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
 	if ( ! tiny ) loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], fine ? F( 12, 9 ) : 7, false, false );
