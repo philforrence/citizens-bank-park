@@ -101,13 +101,16 @@ export default class Rituals {
 		this.flag.update( cel != null ? flagHold( director, cel ) : null, cel != null ? rubberHold( director, cel ) : null, RUBBER, t );
 		// the cameras: after their men, and some after Harry once he sings
 		this.press.update( cel, director.actors, jumped ? 0 : dt, this.party.kalasAt );
-		this.fireworks.update( cel );
+		// ---- FB3 (C3B-1): the fireworks go up with strike three (the celebrate segment starts 3.6 s after it)
+		const L = director.lastOut, fw = L && t >= L.tStrike ? t - L.tStrike : null;
+		this.fireworks.update( fw );
+		// ---- end FB3
 		this.leis.update( cel, director ); // ---- FR1
 		this.streamers.update( cel ); // ---- FR1
 		this.families.update( cel, director.actors ); // ---- FR1
 		// (the sound's made once the app has it: it's built after the places)
 		if ( ! this.fwSound && this.app?.sound ) this.fwSound = new FireworksSound( { sound: this.app.sound, field: this.field, plan: this.fireworks.plan } );
-		this.fwSound?.update( cel, director.playing && ! jumped, this.app?.camera?.position );
+		this.fwSound?.update( fw, director.playing && ! jumped, this.app?.camera?.position ); // ---- FB3: on the strike's clock
 		this.motors.update( cel, this._lapBike( cel ) );
 		// the fans along the lap's way up at the rail, arms out to them (Crowd.focus following the flag)
 		const flag = cel != null ? flagHold( director, cel ) : null;

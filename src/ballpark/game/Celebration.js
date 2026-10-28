@@ -26,7 +26,10 @@ export const CEL = {
 	pileHold: 30, upStep: 0.75, freeFrom: 44,
 	// the stage goes up (its pieces set down in turn), the MVP's car driven in, the trophy out on its
 	// pedestal, the party up the stairs; the presentation; the lap with the flag; Harry Kalas sings
-	stageBuild: [ 60, 100 ], carIn: [ 96, 112 ], trophyOut: 112, party: 114, gather: 120,
+	// (FB3, C3B-3: the party out at 86, not 114: it's a 38 m walk from the first base side's gate, so they
+	// were still on the infield when Selig began at 126 and handed over the trophy at 140; now they're up
+	// from 120 to 125, all at the microphones when it starts, as FOX US's sheet 131 has them)
+	stageBuild: [ 60, 100 ], carIn: [ 96, 112 ], trophyOut: 112, party: 86, gather: 120,
 	present: [ 126, 198 ], hand: 140, manuel: [ 152, 166 ], mvp: [ 166, 182 ], up: 184, lap: [ 200, 292 ], kalas: [ 206, 246 ], moyer: [ 128, 150 ],
 };
 // The stage (anthonydefrancesco 2986359720: on the first base side of second, on the clay), facing the
@@ -152,14 +155,17 @@ function plan( d, seg ) {
 	const L = new Map();
 	const add = ( id, info ) => {
 
-		const e = { id, steps: [], ...info };
+		// (FB3, C3B-14: each man on his own stride: a phase and a stride length of his own, or men who set
+		// off together run and walk in step the whole way, like a drill team)
+		const n = typeof id === 'number' ? id : String( id ).split( '' ).reduce( ( h, ch ) => ( h * 31 + ch.charCodeAt( 0 ) ) % 100003, 7 );
+		const e = { id, steps: [], phase: hash( n * 1.37 + 0.5 ), stride: 0.92 + 0.16 * hash( n * 2.71 + 0.3 ), ...info };
 		L.set( id, e );
 		return e;
 
 	};
 	// who's where at the last out
 	const people = [];
-	for ( const pos of [ '1B', '3B', '2B', 'SS', 'LF', 'CF', 'RF' ] ) if ( def[ pos ] ) people.push( { id: def[ pos ], from: POSITIONS[ pos ], react: 0.55 + hash( def[ pos ] ) * 0.4, speed: 7.6 } );
+	for ( const pos of [ '1B', '3B', '2B', 'SS', 'LF', 'CF', 'RF' ] ) if ( def[ pos ] ) people.push( { id: def[ pos ], from: POSITIONS[ pos ], react: 0.55 + hash( def[ pos ] ) * 0.4, speed: 7.6, field: true } );
 	for ( const id of seg.plan.bench ) {
 
 		if ( PEN.has( id ) ) people.push( { id, from: polar( 6 + ( hash( id ) - 0.5 ) * 4, 398 ), react: 2.2 + hash( id ) * 1.5, speed: 7.2 } );
@@ -188,7 +194,8 @@ function plan( d, seg ) {
 	const C = PILE, cy = moundY( C[ 0 ], C[ 1 ] );
 	const lidge = def.P, ruiz = def.C;
 	const tHit = 3.3;
-	add( lidge, {} ).steps.push(
+	// (FB3, C3B-1: `field`: on the field at the last out, so on the strike's clock: showLastOut)
+	add( lidge, { field: true } ).steps.push(
 		{ t0: 0, t1: 0.4, kind: 'hold', p: C, yaw: Math.PI, y: cy, pose: ( tau ) => M.jump( tau ) },
 		{ t0: 0.4, t1: tHit, kind: 'hold', p: C, yaw: Math.PI, y: cy, pose: ( tau ) => M.kneel( tau ) },
 		// over backward under Ruiz and Howard
@@ -196,12 +203,14 @@ function plan( d, seg ) {
 		{ t0: tHit + 0.5, t1: CEL.pileHold + 13, kind: 'lie', p: C, yaw: Math.PI, y: cy + 0.1, pitch: 1.15, roll: 0.1, pose: ( tau ) => R.inPile( 2, tau ) },
 	);
 	// ---- Ruiz: from behind the plate in his gear, the mask off, the arms round him; down on top of him
-	const rTo = [ C[ 0 ], C[ 1 ] + 0.55 ];
-	add( ruiz, { role: ROLE.gear | ROLE.ccap } ).steps.push(
-		{ t0: 0, t1: 2.4, kind: 'go', a: POSITIONS.C, b: rTo, gait: 'run' },
-		{ t0: 2.4, t1: tHit, kind: 'hold', p: rTo, yaw: Math.PI, y: cy, pose: ( tau ) => M.embrace( tau, 0.35 ) },
-		{ t0: tHit, t1: tHit + 0.5, kind: 'fall', p: rTo, yaw: 0, y0: cy, y1: cy + 0.42, pitch: - 1.05, roll: - 0.15, pose0: () => M.embrace( 1, 0.35 ), pose: () => R.inPile( 5 ) },
-		{ t0: tHit + 0.5, t1: CEL.pileHold + 12, kind: 'lie', p: rTo, yaw: 0, y: cy + 0.42, pitch: - 1.05, roll: - 0.15, pose: ( tau ) => R.inPile( 5, tau ) },
+	// (FB3, C3B-1: he comes in on Lidge's left, as FOX's center field camera had him at the side of the
+	// picture (sheet 125), and holds him facing him: he faced the plate, his back to Lidge)
+	const rTo = [ C[ 0 ], C[ 1 ] + 0.55 ], rIn = [ C[ 0 ] - 0.42, C[ 1 ] + 0.5 ];
+	add( ruiz, { role: ROLE.gear | ROLE.ccap, field: true } ).steps.push(
+		{ t0: 0, t1: 2.4, kind: 'go', a: POSITIONS.C, b: rIn, gait: 'run' },
+		{ t0: 2.4, t1: tHit, kind: 'hold', p: rIn, yaw: yawTo( rIn, C ), y: cy, pose: ( tau ) => M.embrace( tau, 0.35 ) },
+		{ t0: tHit, t1: tHit + 0.5, kind: 'fall', a: rIn, p: rTo, yaw: yawTo( rIn, C ), y0: cy, y1: cy + 0.42, pitch: - 1.05, roll: - 0.15, pose0: () => M.embrace( 1, 0.35 ), pose: () => R.inPile( 5 ) },
+		{ t0: tHit + 0.5, t1: CEL.pileHold + 12, kind: 'lie', p: rTo, yaw: yawTo( rIn, C ), y: cy + 0.42, pitch: - 1.05, roll: - 0.15, pose: ( tau ) => R.inPile( 5, tau ) },
 	);
 	// ---- Howard: the dive from the first base side
 	if ( howard ) {
@@ -209,7 +218,7 @@ function plan( d, seg ) {
 		const dir = [ r2, r2 ];
 		const root = at( [ dir[ 0 ] * 0.2 + 0.98 * r2, dir[ 1 ] ], 1.25 );
 		const approach = at( dir, 3.2 );
-		add( howard.id, {} ).steps.push(
+		add( howard.id, { field: true } ).steps.push(
 			{ t0: 0, t1: howard.react, kind: 'hold', p: howard.from, yaw: yawTo( howard.from, C ), y: 0, pose: ( tau ) => M.jump( tau ) },
 			{ t0: howard.react, t1: tHit - 0.35, kind: 'go', a: howard.from, b: approach, gait: 'run' },
 			{ t0: tHit - 0.35, t1: tHit + 0.2, kind: 'dive', a: approach, p: root, yaw: yawTo( root, C ), y: cy + 0.8, pitch: - 1.25, roll: 0.2, pose: () => R.inPile( 9 ) },
@@ -225,7 +234,7 @@ function plan( d, seg ) {
 		const root = at( S.dir, S.r ), approach = at( S.dir, S.r + ( S.kind === 'lie' ? 1.9 : 1.0 ) );
 		const yawIn = yawTo( root, C );
 		const tA = Math.max( q.arrive, tHit + 0.3 + k * 0.25 );
-		const info = add( q.id, { who: q.who, role: q.coach ? ROLE.jacket : PEN.has( q.id ) ? ROLE.jacket : 0 } );
+		const info = add( q.id, { who: q.who, role: q.coach ? ROLE.jacket : PEN.has( q.id ) ? ROLE.jacket : 0, field: !! q.field } );
 		const st = info.steps;
 		// the first beat where they are: fielders jump and throw their arms up, the rest are coming
 		if ( q.react > 0.1 ) st.push( { t0: 0, t1: q.react, kind: q.coach || ! POSITIONS_OF( def, q.id ) ? 'none' : 'hold', p: q.from, yaw: yawTo( q.from, C ), y: 0, pose: ( tau ) => M.jump( tau + k ) } );
@@ -587,10 +596,11 @@ function evalSteps( steps, t, info ) {
 	const tau = t - s.t0, k = s.t1 > s.t0 ? Math.min( 1, tau / ( s.t1 - s.t0 ) ) : 1;
 	if ( s.kind === 'none' ) return null;
 	if ( s.kind === 'hold' ) return { x: s.p[ 0 ], z: s.p[ 1 ], yaw: s.yaw, y: s.y || 0, pose: s.pose( tau ) };
+	const ph = info?.phase ?? 0, sl = info?.stride ?? 1;
 	if ( s.kind === 'stairs' ) {
 
 		const p = lerp2( s.a, s.b, k );
-		const pose = R.walk( dist( s.a, s.b ) * k / 1.6 );
+		const pose = R.walk( dist( s.a, s.b ) * k / 1.6 + ph );
 		return { x: p[ 0 ], z: p[ 1 ], yaw: yawTo( s.a, s.b ), y: s.y0 + ( s.y1 - s.y0 ) * k, pose };
 
 	}
@@ -604,14 +614,14 @@ function evalSteps( steps, t, info ) {
 		if ( tau2 < 0 ) {
 
 			const p = lerp2( s.from, start, tau * LAP_SPEED / Math.max( 0.01, lead ) );
-			return { x: p[ 0 ], z: p[ 1 ], yaw: yawTo( s.from, start ), y: 0, pose: R.walk( tau * LAP_SPEED / 2.3 ) };
+			return { x: p[ 0 ], z: p[ 1 ], yaw: yawTo( s.from, start ), y: 0, pose: R.walk( tau * LAP_SPEED / ( 2.3 * sl ) + ph ) };
 
 		}
 
 		const w = lapAt( Math.max( 0, tau2 - s.off[ 1 ] ) );
 		const side = [ Math.cos( w.yaw ), - Math.sin( w.yaw ) ];
 		const x = w.p[ 0 ] + side[ 0 ] * s.off[ 0 ], z = w.p[ 1 ] + side[ 1 ] * s.off[ 0 ];
-		const pose = w.end ? M.stand( t ) : R.walk( tau2 / 2.3 );
+		const pose = w.end ? M.stand( t ) : R.walk( tau2 / ( 2.3 * sl ) + ph );
 		// Myers with the flag held up on its pole, Howard with the trophy, the rest now and then waving
 		if ( s.flag ) { pose.handR = [ 0.12, 1.75, - 0.2 ]; pose.handL = [ 0.08, 1.2, - 0.22 ]; }
 		else if ( s.trophy ) { pose.handL = [ - 0.13, 2.0, - 0.1 ]; pose.handR = [ 0.13, 2.0, - 0.1 ]; }
@@ -626,7 +636,7 @@ function evalSteps( steps, t, info ) {
 		if ( k >= 1 ) return { x: s.b[ 0 ], z: s.b[ 1 ], yaw: yawTo( s.a, s.b ), y: s.y ?? moundY( s.b[ 0 ], s.b[ 1 ] ), pose: M.stand( t ) };
 		const p = lerp2( s.a, s.b, k );
 		const L = dist( s.a, s.b ) * k;
-		const pose = s.gait === 'walk' ? R.walk( L / 2.3 ) : M.run( L / 3.4, 0.9 );
+		const pose = s.gait === 'walk' ? R.walk( L / ( 2.3 * sl ) + ph ) : M.run( L / ( 3.4 * sl ) + ph, 0.9 );
 		pose.glove = false;
 		return { x: p[ 0 ], z: p[ 1 ], yaw: yawTo( s.a, s.b ), y: s.y ?? moundY( p[ 0 ], p[ 1 ] ), pose };
 
@@ -734,13 +744,53 @@ export function flagHold( d, lt ) {
 
 }
 
+// ---- FB3 (C3B-1): the men on the field at the last out run on the strike's clock (lead: the seconds from
+// strike three to the celebrate segment's start, 3.6), which comes back to the segment's over the first
+// 40 s (9% slow, in the pile, where nobody can tell), so the presentation and everything after are where
+// they were. The bench, the pen and the coaches come out on the segment's (their figures in the dugout
+// and the pen are there till it starts).
+export const fieldClock = ( lt, lead ) => lt + lead * Math.max( 0, 1 - lt / 40 );
+
+// Strike three to the celebrate segment's start (the pitch's tail and the result): Lidge, Ruiz and the
+// fielders as the celebration has them, s seconds after the strike, eased in from what the pitch had
+// them doing over the first 0.6 s (Lidge's follow-through, Ruiz's crouch). Called after the segment's
+// own scene, so it overrides those men only; the batter, the runners and the umpires stay its.
+export function showLastOut( d, seg, s ) {
+
+	const L = seg._rituals ||= plan( d, seg );
+	const k = ease( s / 0.6 );
+	for ( const [ id, info ] of L ) {
+
+		if ( ! info.field ) continue;
+		const a = gettingUp( info.steps, s ) || evalSteps( info.steps, s, info );
+		if ( ! a ) continue;
+		const was = d.actors.get( id );
+		const extra = { y: a.y || 0, tilt: a.tilt || null };
+		if ( id === seg.snap.defense.C ) extra.role = info.role;
+		if ( was && was.pose && k < 1 ) {
+
+			let dy = a.yaw - was.yaw;
+			dy -= Math.round( dy / ( 2 * Math.PI ) ) * 2 * Math.PI;
+			d.act( id, was.x + ( a.x - was.x ) * k, was.z + ( a.z - was.z ) * k, was.yaw + dy * k, M.blend( was.pose, a.pose, k ), { ...extra, y: ( was.y || 0 ) + ( extra.y - ( was.y || 0 ) ) * k } );
+
+		} else d.act( id, a.x, a.z, a.yaw, a.pose, extra );
+
+	}
+
+}
+// ---- end FB3
+
 export function showCelebration( d, seg, lt ) {
 
 	const s = seg.snap;
 	const L = seg._rituals ||= plan( d, seg );
+	// ---- FB3 (C3B-1): on the field at the strike: the strike's clock
+	const lc = fieldClock( lt, d.lastOut?.lead ?? 0 );
+	// ---- end FB3
 	for ( const [ id, info ] of L ) {
 
-		let a = gettingUp( info.steps, lt ) || evalSteps( info.steps, lt, info );
+		const tt = info.field ? lc : lt;
+		let a = gettingUp( info.steps, tt ) || evalSteps( info.steps, tt, info );
 		if ( ! a ) continue;
 		let role = info.role ?? 0;
 		if ( lt > info.tChamps ) role = role & ROLE.jacket ? role | ROLE.champCap : ( role & ~ ( ROLE.gear | ROLE.ccap ) ) | ROLE.tee | ROLE.champCap;
@@ -757,10 +807,12 @@ export function showCelebration( d, seg, lt ) {
 	for ( const [ id, from ] of out ) {
 
 		const to = DUGOUT.away;
-		const k = Math.min( 1, lt * 1.6 / dist( from, to ) );
+		// (FB3: the batter's been walking off since the result: on from where it left him)
+		const lw = lt + ( id === s.batter ? d.lastOut?.result?.dur ?? 0 : 0 );
+		const k = Math.min( 1, lw * 1.6 / dist( from, to ) );
 		if ( k >= 1 ) continue;
 		const p = lerp2( from, to, k );
-		d.act( id, p[ 0 ], p[ 1 ], yawTo( from, to ), R.walk( lt * 0.7 ) );
+		d.act( id, p[ 0 ], p[ 1 ], yawTo( from, to ), R.walk( lw * 0.7 ) );
 
 	}
 
