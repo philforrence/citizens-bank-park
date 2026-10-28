@@ -76,3 +76,6 @@ FW5 cost nothing measurable (left field 29.3 as before). The 400s seat's wall ti
 | 14:36 | FI3, the insides' polish (rain TV high 24.8; a real 3B seat 23.4; the plaza 22.7; celebration 24.8 / 23.6; the 400s seat 32.4) | 22.5 | 24.7 | 17.8 | 20.4 | 17.3 | 20.9 | 29.7 |
 
 FI3 cost nothing measurable (under the stands is cheaper: no discard, no local lights). Every view under the floor; the 400s seat (32.4) and left field (29.7) are SP3's.
+| 14:56 | SP3, only the varyings that vary (SP3's own standard run: the 400s seat 28.3) | - | - | - | - | - | - | 25.4 |
+
+**A correction to the metric:** SP3 found that the "wall" in every row above includes ~5-6 ms of the profiler itself (resolving, copying and reading back the GPU timestamps every frame). A player never runs that (only `?profile` does), so a player's frame is about the GPU column, 5-6 ms under the wall column. Every view has always had that much more room than this table shows. From SP3's next commit on, `wall` is measured without the timestamps and the old figure is kept as `wallTs`.
