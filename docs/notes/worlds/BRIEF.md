@@ -15,6 +15,24 @@ You walk in through the Third Base Gate and watch the replay, with TV cameras, t
 
 > "don't make fidelity and textured sacrifices, I LOOOOVE the details"
 
+## Wave 4: what's new (2026-10-28, step 9)
+
+**Everything in the wave-3 and wave-2 sections below still applies.** For wave 4:
+- **Read [STEP9.md](STEP9.md)** (why this wave, who builds what, what the places hand each other), then [WAVE3.md](WAVE3.md) and the wave-3 notes `S.md`, `R.md`, `L.md` and `H.md`. [CAST.md](CAST.md) is the register so far.
+- **The shared space is now `/Users/phillipforrence/citizens-bank-park/.claude/wave4/`:** your live notes (`NOTES-<KEY>.md`), the cast register `CAST.md`, and requests between builders (`ASK-<KEY>.md`). Its README says how.
+- **Hooks wave 3 added:**
+  - `director.night( t )` (which night it is, the suspension and the return) and `director.radioTime( t )`; everything is a pure function of `director.t`, so scrubbing works;
+  - **`Tempo`** (`places/Tempo.js`): `new Tempo( [ cast ] ).step( dt, camera )`, so a place's people run at full rate only while seen. **New people use Tempo and `cadence()`**, with no arrays or closures per person per frame (H.md, "For the next builders");
+  - **the rain:** a cloth or people material sets `setDefine( 'WET_FABRIC', 1 )`, or `DRY` under cover (L.md);
+  - **the sound:** `app.sound.spot()` and `sample()` place a sound in the park's one reverb; the soundscape knows where you stand (the bowl, under a roof, shut away, the plaza). Give your place its sounds through it (S.md);
+  - the rituals' timeline (R.md): the 27th's tarp and emptying stands, the 29th's return, the celebration. Your place's people should live through those moments too.
+- **Photoreal surfaces (T) are new this wave.** T's recipe lands in its notes as it's ready. E, F and G: build your surfaces so the material is chosen in one place in your module, and switch to T's recipe when its notes say it's usable; don't make your own photo-scan pipeline.
+- **Ownership:**
+  - E owns the right field corner, the Pavilion and the RF gate; F owns the 300 and 400 levels and the stairs above the main concourse (E and F agree the RF stair towers in `ASK-` files); G owns the Hall of Fame Club, the suites and the elevator landings;
+  - T owns the new surface recipe (its own module) and its application to the Third Base Gate's brick, the facade and the concourse floors, each in a small marked block;
+  - `Crowd.js` is still the coordinator's (a `Crowd.thin( k )` is coming this wave).
+- **The record:** check names, numbers and times against the record. Wave 3 found Madson wore 63 and Hinske 32 in 2008, the crew chief was Welke and the plate umpire Kellogg; the coordinator is fixing those.
+
 ## Wave 3: what's new (2026-09-27)
 
 **Everything in the wave-2 section below still applies.** For wave 3:
