@@ -263,9 +263,13 @@ fn fzSaloon( x: f32, v: f32, len: f32, rd: vec3f, night: f32, base: FzOut ) -> F
 	if ( v > 3.42 ) { fr += step( abs( fract( ( x - 0.3 ) / 0.42 ) - 0.5 ) * 0.42, 0.025 ); }
 	if ( door ) { fr += step( abs( x - ( len - 1.25 ) ), 0.05 ) + step( abs( x - ( len - 2.2 ) ), 0.07 ); }
 	if ( fr > 0.5 ) { o.c = green; o.r = 0.3; o.e = vec3f( 0.0 ); return o; }
+	// ---- FW2 (C2W-18): the room as the 2009 photo from inside has it (pvsbond 3992273398): tall under a
+	// pressed-tin ceiling washed blue-violet, an island bar in the middle with a big TV and neon over it, TVs
+	// on every wall, packed shoulder to shoulder on a Series night; the crowd in four ranks at jittered
+	// depths and heights, caps and jackets, the near ones' shoulders filling the glass
 	let ro = vec3f( x, v, 0.0 );
-	let hit = fzRoom( ro, rd, 0.0, len, 0.0, 4.2, 10.0 );
-	let th = hit.z / rd.z;
+	let hit = fzRoom( ro, rd, 0.0, len, 0.0, 6.5, 12.0 );
+	var th = hit.z / rd.z;
 	var inside = vec3f( 0.16, 0.09, 0.05 );
 	var glow = vec3f( 0.0 );
 	if ( hit.w == 0.0 ) {
@@ -280,7 +284,6 @@ fn fzSaloon( x: f32, v: f32, len: f32, rd: vec3f, night: f32, base: FzOut ) -> F
 		}
 		let tv = abs( fract( hit.x / 3.2 ) - 0.5 ) * 3.2;
 		if ( tv < 0.55 && abs( hit.y - 3.1 ) < 0.33 ) {
-			// the broadcast: grass, the infield dirt, the score bug
 			let ty = ( hit.y - 2.77 ) / 0.66;
 			var scr = mix( vec3f( 0.08, 0.35, 0.08 ), vec3f( 0.2, 0.2, 0.25 ), step( 0.7, ty ) );
 			if ( ty < 0.35 && abs( fract( hit.x / 3.2 ) - 0.5 ) < 0.06 ) { scr = vec3f( 0.45, 0.28, 0.15 ); }
@@ -288,34 +291,83 @@ fn fzSaloon( x: f32, v: f32, len: f32, rd: vec3f, night: f32, base: FzOut ) -> F
 			glow = scr * 2.5;
 			if ( tv > 0.52 || abs( hit.y - 3.1 ) > 0.3 ) { glow = vec3f( 0.0 ); inside = vec3f( 0.01 ); }
 		}
+		// the dark wainscot and the brick above
+		if ( hit.y > 3.6 ) { inside = vec3f( 0.16, 0.06, 0.04 ) * ( 0.85 + 0.15 * step( 0.5, fract( hit.y / 0.075 ) ) ); }
 	}
 	if ( hit.w == 1.0 ) { inside = vec3f( 0.1, 0.05, 0.025 ); }
 	if ( hit.w == 2.0 ) {
-		inside = vec3f( 0.07, 0.04, 0.02 );
+		// the pressed tin: 0.6 m squares with a raised boss, painted and washed blue-violet by the uplights,
+		// the pendants' glow
+		let tc = abs( fract( hit.xz / 0.6 ) - 0.5 );
+		let boss = 1.0 - smoothstep( 0.12, 0.16, length( tc ) );
+		let ribs = step( 0.46, max( tc.x, tc.y ) );
+		inside = vec3f( 0.16, 0.13, 0.36 ) * ( 0.75 + 0.35 * boss - 0.3 * ribs );
 		let sp = abs( fract( hit.xz / vec2f( 2.2, 2.5 ) ) - 0.5 ) * vec2f( 2.2, 2.5 );
-		glow = vec3f( 3.5, 2.2, 1.0 ) * ( 1.0 - smoothstep( 0.1, 0.16, length( sp ) ) );
+		glow = vec3f( 3.5, 2.2, 1.0 ) * ( 1.0 - smoothstep( 0.1, 0.16, length( sp ) ) ) + vec3f( 0.12, 0.08, 0.3 ) * ( 0.6 + 0.4 * boss );
 	}
-	// neon beer signs on the side walls
+	// neon beer signs on the side walls, and TVs between them
 	if ( hit.w == 3.0 && abs( hit.y - 2.4 ) < 0.3 && fract( hit.z / 3.0 ) < 0.3 ) {
 		let k = fzHash( floor( hit.z / 3.0 ) + hit.x * 0.01 );
 		glow = select( select( vec3f( 3.0, 0.2, 0.2 ), vec3f( 0.3, 0.6, 3.0 ), k > 0.4 ), vec3f( 2.8, 1.6, 0.3 ), k > 0.75 );
 	}
-	// the bar: people along it and at the tables in front, heads turned to the TVs
-	let barP = fzAt( ro, rd, 7.0 );
-	if ( 7.0 / rd.z < th && barP.y < 1.1 ) { inside = vec3f( 0.14, 0.06, 0.025 ); glow = vec3f( 0.0 ); if ( barP.y > 1.02 ) { inside = vec3f( 0.5, 0.36, 0.12 ); } }
-	for ( var k = 0; k < 3; k ++ ) {
-		let z = 6.2 - f32( k ) * 1.9;
-		let p = fzAt( ro, rd, z );
-		let cell = floor( p.x / 0.75 );
+	if ( hit.w == 3.0 && abs( hit.y - 3.3 ) < 0.3 && abs( fract( hit.z / 3.0 ) - 0.65 ) < 0.18 ) { glow = vec3f( 0.1, 0.4, 0.1 ) * 2.2; }
+	// the island bar in the middle of the room: its bottles and taps, a big TV and a neon sign over it
+	{
+		let zI = 7.2;
+		let p = fzAt( ro, rd, zI );
+		let i0 = len * 0.22; let i1 = len * 0.78;
+		if ( zI / rd.z < th && p.x > i0 && p.x < i1 && p.y < 4.0 ) {
+			th = zI / rd.z;
+			glow = vec3f( 0.0 );
+			inside = vec3f( 0.14, 0.06, 0.025 );
+			if ( p.y > 1.0 && p.y < 1.1 ) { inside = vec3f( 0.5, 0.36, 0.12 ); }
+			if ( p.y > 1.15 && p.y < 2.3 && fract( p.y / 0.38 ) > 0.4 && fract( p.x / 0.1 ) < 0.6 ) {
+				let b = fzHash( floor( p.x / 0.1 ) * 1.3 + floor( p.y / 0.38 ) * 17.0 );
+				glow = select( select( vec3f( 0.7, 0.4, 0.1 ), vec3f( 0.12, 0.45, 0.14 ), b > 0.5 ), vec3f( 0.75 ), b > 0.82 ) * 0.9;
+			}
+			// the canopy over it: the big TV in the middle, a neon each side
+			let cx = ( i0 + i1 ) * 0.5;
+			if ( p.y > 2.6 && p.y < 3.9 ) {
+				inside = vec3f( 0.05, 0.03, 0.02 );
+				if ( abs( p.x - cx ) < 1.1 && abs( p.y - 3.25 ) < 0.55 ) {
+					let ty = ( p.y - 2.7 ) / 1.1;
+					var scr = mix( vec3f( 0.08, 0.38, 0.08 ), vec3f( 0.22, 0.2, 0.26 ), step( 0.68, ty ) );
+					if ( ty < 0.3 && abs( p.x - cx ) < 0.18 ) { scr = vec3f( 0.45, 0.28, 0.15 ); }
+					glow = scr * 2.8;
+				}
+				let nx = abs( abs( p.x - cx ) - 2.4 );
+				if ( nx < 0.7 && abs( p.y - 3.2 ) < 0.18 && fract( p.x / 0.12 ) < 0.7 ) { glow = select( vec3f( 3.0, 0.3, 0.2 ), vec3f( 2.6, 1.8, 0.3 ), p.x > cx ); }
+			}
+		}
+	}
+	// the bar along the back
+	let barP = fzAt( ro, rd, 11.0 );
+	if ( 11.0 / rd.z < th && barP.y < 1.1 ) { inside = vec3f( 0.14, 0.06, 0.025 ); glow = vec3f( 0.0 ); if ( barP.y > 1.02 ) { inside = vec3f( 0.5, 0.36, 0.12 ); } }
+	// the crowd: four ranks, each at a jittered depth, shoulders and heads, caps on many
+	for ( var k = 0; k < 4; k ++ ) {
+		let z0 = 1.3 + f32( k ) * 1.45;
+		let p0 = fzAt( ro, rd, z0 );
+		let cell = floor( p0.x / 0.62 );
 		let hh = fzHash( cell * 5.1 + f32( k ) * 17.0 );
-		let f = fzFigure( vec2f( p.x - ( cell + 0.5 ) * 0.75 - ( hh - 0.5 ) * 0.25, p.y ), 1.62 + 0.25 * hh );
-		if ( z / rd.z < th && hh > 0.25 && f > 0.5 ) {
-			inside = select( select( select( vec3f( 0.3, 0.02, 0.03 ), vec3f( 0.04 ), hh > 0.62 ), vec3f( 0.45, 0.45, 0.45 ), hh > 0.85 ), vec3f( 0.4, 0.26, 0.18 ) * ( 0.6 + 0.6 * hh ), f > 1.5 && f < 2.5 );
+		let z = z0 + ( hh - 0.5 ) * 0.6;
+		let p = fzAt( ro, rd, z );
+		let ht = 1.6 + 0.28 * fzHash( cell * 2.3 + f32( k ) );
+		let f = fzFigure( vec2f( p.x - ( cell + 0.5 ) * 0.62 - ( hh - 0.5 ) * 0.2, p.y ), ht );
+		if ( z / rd.z < th && hh > 0.12 && f > 0.5 ) {
+			let jk = fzHash( cell * 9.7 + f32( k ) * 3.0 );
+			var coat = vec3f( 0.3, 0.02, 0.03 );
+			if ( jk > 0.5 ) { coat = vec3f( 0.035 ); }
+			if ( jk > 0.72 ) { coat = vec3f( 0.42, 0.42, 0.42 ); }
+			if ( jk > 0.86 ) { coat = vec3f( 0.7, 0.68, 0.64 ); }
+			inside = select( coat, vec3f( 0.42, 0.27, 0.18 ) * ( 0.6 + 0.6 * hh ), f > 1.5 && f < 2.5 );
+			// a cap on the top of most heads
+			if ( f > 1.5 && f < 2.5 && p.y > ht * 0.955 && jk < 0.7 ) { inside = vec3f( 0.32, 0.02, 0.03 ); }
 			if ( f > 2.5 ) { inside = vec3f( 0.03, 0.04, 0.08 ); }
 			glow = vec3f( 0.0 );
 			break;
 		}
 	}
+	// ---- end FW2
 	let lit = inside * vec3f( 1.0, 0.75, 0.45 ) * 0.9 + glow;
 	o.c = vec3f( 0.03, 0.035, 0.035 ) + lit * 0.1 * ( 1.0 - night );
 	o.e = lit * mix( 0.05, 0.3, night );
