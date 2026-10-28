@@ -49,7 +49,11 @@ export class Sky {
 			glow: [ 'f32', 0 ],
 			glowDir: [ 'vec3f', new Vector3( 0, 0, - 1 ) ],
 			glowColor: [ 'vec3f', new Vector3( 1.0, 0.62, 0.34 ) ],
+			// ---- FC4 (C4R-12, ballpark): an overcast day, 0..1: the dome a low cloud deck's grey, no sun disc
+			overcast: [ 'f32', 0 ],
+			// ---- end FC4
 		}, { label: 'sky' } );
+		this.overcast = this.params.fields.overcast; // ---- FC4
 		this.glow = this.params.fields.glow;
 		this.glowDir = this.params.fields.glowDir;
 		this.glowColor = this.params.fields.glowColor;
@@ -101,7 +105,7 @@ fn skySunDisk( dir: vec3f ) -> vec3f {
 	let limb = 1.0 - 0.6 * ( 1.0 - mu );
 	let T = atmosphereTransmittanceToSpace( dir );
 	// physically the disk radiance is E / solid angle (~1.6e5); clamp for fp16 targets
-	return T * mask * limb * 2500.0 * skyParams.sunDiskIntensity * smoothstep( -0.02, 0.0, dir.y );
+	return T * mask * limb * 2500.0 * skyParams.sunDiskIntensity * smoothstep( -0.02, 0.0, dir.y ) * ( 1.0 - skyParams.overcast ); // (FC4: behind the cloud)
 }
 
 // Stars: one candidate per cell of a cube-face grid, jittered inside it, with a power law
@@ -177,6 +181,14 @@ fn skyGlow( dir: vec3f ) -> vec3f {
 // evaluated at night (uniform branch).
 fn skyBackground( dir: vec3f, starK: f32 ) -> vec3f {
 	var L = atmosphereSkyLuminance( dir );
+	// ---- FC4 (C4R-12, ballpark): overcast, the CIE overcast sky: an even grey, three times as bright
+	// overhead as at the horizon, as bright on the whole as the clear sky was overhead
+	if ( skyParams.overcast > 0.001 ) {
+		let z = dot( atmosphereSkyLuminance( vec3f( 0.0, 1.0, 0.0 ) ), vec3f( 0.3, 0.55, 0.15 ) );
+		let g = z * ( 1.0 + 2.0 * sat( dir.y ) ) / 3.0 * 1.3;
+		L = mix( L, vec3f( g * 0.96, g * 0.98, g * 1.03 ), skyParams.overcast );
+	}
+	// ---- end FC4
 	if ( skyParams.starIntensity > 0.001 ) {
 		L += skyMoonSky( dir ) + skyStars( dir ) * starK;
 	}

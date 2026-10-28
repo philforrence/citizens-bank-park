@@ -1390,6 +1390,14 @@ export class BallparkApp {
 		// ponchos in the stands while it rains
 		this._crowdRain = firstNight ? Math.min( 1, rain * 3 ) : 0;
 		if ( this.clouds ) this.clouds.coverage.value = firstNight ? 0.85 + 0.12 * k : 0.55;
+		// ---- FC4 (C4R-12): the 27th was a grey day (rain, wind and cold forecast, light rain from the first
+		// inning: SABR / Baseball-Reference): set the hour by day and it rained out of a blue sky under a
+		// hard sun. Under the overcast the sun's direct light is mostly gone (soft shadows) and the sky's
+		// light is grey and comes from all over (applyAtmosphereReadback)
+		this._overcast = firstNight ? 0.88 + 0.1 * k : 0;
+		if ( this.clouds && firstNight ) this.clouds.coverage.value = Math.max( this.clouds.coverage.value, 0.97 );
+		if ( this.sky?.overcast ) this.sky.overcast.value = this._overcast;
+		// ---- end FC4
 		if ( this.haze ) this.haze.density.value = firstNight ? 1.3 + 1.2 * k : 1.0;
 		// ---- L: the 29th at the airport: broken cloud at 7:54 pm clearing to a few by 8:54 and 9:54, 10 mi
 		// visibility, a dew point of 28 F (ref/night INDEX, the KPHL METARs): a clear, dry, black sky. After
@@ -1508,10 +1516,22 @@ export class BallparkApp {
 		// to it: a neutral, faintly cool white (blue-white uniforms, a grey-green field), not a warm one
 		else c = new Color( 0.94, 0.965, 1.0 ).multiplyScalar( 0.75 * G.night.value );
 		// ---- end FB2
+		// ---- FC4 (C4R-12): an overcast day (the 27th's): the sun behind the cloud, its light the sky's, grey
+		const oc = sunUp ? ( this._overcast || 0 ) * horizonFade : 0;
+		if ( oc > 0 ) c.multiplyScalar( 1 - 0.85 * oc );
+		// ---- end FC4
 		G.sunColor.value.copy( c );
 		const irr = a.skyIrradiance;
 		const nightAmb = 0.012 * G.night.value;
 		G.skyIrradiance.value.setRGB( irr[ 0 ] + nightAmb * 0.6, irr[ 1 ] + nightAmb * 0.7, irr[ 2 ] + nightAmb );
+		// ---- FC4 (C4R-12): the cloud's grey: the sky's light evened out and some of the sun's scattered into it
+		if ( oc > 0 ) {
+
+			const sky = G.skyIrradiance.value, grey = ( sky.r + sky.g + sky.b ) / 3 + 0.04 * SUN_ILLUMINANCE * horizonFade * oc;
+			sky.setRGB( sky.r + ( grey * 0.97 - sky.r ) * oc * 0.8, sky.g + ( grey - sky.g ) * oc * 0.8, sky.b + ( grey * 1.04 - sky.b ) * oc * 0.8 );
+
+		}
+		// ---- end FC4
 		G.horizonColor.value.setRGB( a.horizon[ 0 ], a.horizon[ 1 ], a.horizon[ 2 ] );
 
 	}
