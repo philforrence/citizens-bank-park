@@ -365,7 +365,9 @@ export function dress( r, o = {} ) {
 	L.hat = top === 'rays' ? HAT.capRays : HAT[ hat ];
 	if ( L.hat === HAT.hood && top !== 'hoodie' && top !== 'puffer' && top !== 'fleece' ) L.hat = HAT.knitRed;
 	// in a poncho on the 27th: clear plastic mostly, some red, a few white
-	L.poncho = o.poncho ? Number( pick( r, { 1: 60, 2: 25, 3: 10, 4: 5 } ) ) : 0;
+	// ---- FX1 (FW4's note): the 27th's mix as Getty 83891095 and 83457911 have it (FW4's for the throng): mostly
+	// clear, then yellow, red, orange and a few trash bags, white rare (it was a quarter red, one in ten white)
+	L.poncho = o.poncho ? Number( pick( r, { 1: 62, 4: 13, 2: 10, 5: 6, 6: 6, 3: 3 } ) ) : 0;
 	return L;
 
 }

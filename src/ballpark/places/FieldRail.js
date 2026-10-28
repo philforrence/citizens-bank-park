@@ -93,7 +93,7 @@ export default class FieldRail {
 		const k = S.first ? Math.min( 1, ( ( inning - 1 ) * 2 + ( half === 'top' ? 0 : 1 ) ) / 10 ) : 0;
 		S.rain = S.first ? 0.3 + 0.7 * k : 0;
 		S.wet = S.first ? 0.35 + 0.65 * k : 0.12;
-		S.celebrate = seg.kind === 'celebrate';
+		S.celebrate = seg.kind === 'celebrate' || !! d.champsAt?.( t ); // ---- FX1: from strike three (the wells turn to the pile)
 		// the half inning's start
 		let h0 = 0;
 		for ( const h of this._halves ) if ( h <= t ) h0 = h;

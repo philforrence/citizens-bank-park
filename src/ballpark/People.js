@@ -1699,7 +1699,7 @@ export class People {
 	update( dt, d ) {
 
 		this.time += dt;
-		const seg = d ? d.segmentAt( d.t ) : null;
+		const seg = d ? ( d.champsAt?.( d.t )?.seg || d.segmentAt( d.t ) ) : null; // ---- FX1: the celebration from strike three
 		const snap = seg?.snap || {};
 		// the lines: longer while the Rays bat (the home fans go for food) and between innings
 		const between = seg && ( seg.kind === 'switch' || seg.kind === 'intro' );

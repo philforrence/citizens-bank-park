@@ -66,15 +66,50 @@ function gearGeometry() {
 	b.use( 'white' ).cyl( P, 0.27, 0.0, 0.72, 1.02, 0.12, 0.14, 8, false );
 	for ( let i = 0; i < 7; i ++ ) b.use( 'kraft' ).box( P, 0.22 + ( i % 3 ) * 0.05, 1.07, - 0.06 + Math.floor( i / 3 ) * 0.06, 0.06, 0.16, 0.035 );
 	strap( 0.2, 1.02, 0.02, - 0.08, 1.43, 0.04 );
-	// 5 cotton candy: the pole in the left hand (at the hip), the bags round its top
+	// ---- FX1 (C3W-12, FW4's note): 5 cotton candy as the park's hawkers carried it (Getty 89878128, Aug
+	// 2009; pompomflipflop 2109470277, Sept 2007): a stained plywood board on the head, steadied with one
+	// hand, the bags standing up on it in two staggered rows, each on its paper cone pushed through a hole
+	// (the cones' ends showing under the board): pink and blue floss in a clear bag pinched to its tie. It
+	// was a steel pole at the hip with twelve six-sided blocks round its top
 	b.tagWith( GEAR.cotton );
-	b.use( 'steel' ).cyl( P, - 0.24, - 0.12, 0.72, 2.25, 0.012, 0.012, 6 );
-	for ( let i = 0; i < 12; i ++ ) {
+	const yB = 1.79;
+	b.use( 'plywood' ).box( P, 0.02, yB, - 0.02, 0.94, 0.024, 0.32 );
+	for ( const ez of [ - 0.175, 0.135 ] ) b.use( 'plywood' ).box( P, 0.02, yB + 0.025, ez, 0.94, 0.05, 0.016 );
+	const bag = ( x, z, h, w, dp, seed ) => {
 
-		const a = i / 6 * Math.PI * 2, y = 1.7 + Math.floor( i / 6 ) * 0.28;
-		b.use( i % 3 === 1 ? 'blue' : 'pink' ).blob( P, - 0.24 + Math.cos( a ) * 0.13, y, - 0.12 + Math.sin( a ) * 0.13, 0.08, 0.12, 0.08, 6, 4 );
+		const n = 10, m = 6;
+		const prof = ( t ) => t < 0.15 ? 0.55 + 0.45 * Math.sin( t / 0.15 * Math.PI / 2 ) : t < 0.62 ? 1 : Math.max( 0.1, Math.cos( ( t - 0.62 ) / 0.38 * Math.PI / 2 ) );
+		const lump = ( i, j ) => 1 + 0.12 * Math.sin( i * 2.7 + j * 1.9 + seed * 5.1 ) + 0.07 * Math.sin( i * 5.3 - j * 3.1 + seed );
+		const y0 = yB + 0.014;
+		const pt = ( i, j ) => {
+
+			const t = j / m, a = i / n * Math.PI * 2, k = prof( t ) * ( j > 0 && j < m ? lump( i % n, j ) : 1 );
+			const c = Math.cos( a ), sn = Math.sin( a );
+			return [ P( x + c * w / 2 * k, y0 + h * t, z + sn * dp / 2 * k ), P.dir( c * dp, ( prof( Math.max( 0, t - 0.15 ) ) - prof( Math.min( 1, t + 0.15 ) ) ) * 0.5, sn * w ) ];
+
+		};
+		for ( let j = 0; j < m; j ++ ) for ( let i = 0; i < n; i ++ ) {
+
+			const [ p0, n0 ] = pt( i, j ), [ p1, n1 ] = pt( i + 1, j ), [ p2, n2 ] = pt( i + 1, j + 1 ), [ p3, n3 ] = pt( i, j + 1 );
+			b.tri( p0, p1, p2, n0, n1, n2 );
+			b.tri( p0, p2, p3, n0, n2, n3 );
+
+		}
+
+		// the tie and the bag's twisted neck above it; the cone's end under the board
+		b.use( 'white' ).box( P, x, y0 + h + 0.006, z, 0.016, 0.014, 0.016 );
+		b.use( 'water' ).cyl( P, x, z, y0 + h + 0.012, y0 + h + 0.05, 0.008, 0.02, 5 );
+		b.use( 'cupWhite' ).cyl( P, x, z, yB - 0.075, yB - 0.012, 0.003, 0.014, 5, false );
+
+	};
+	for ( let i = 0; i < 10; i ++ ) {
+
+		const row = i % 2, x = - 0.38 + i * 0.084;
+		b.use( i % 3 === 1 ? 'flossBlue' : 'flossPink' );
+		bag( x, row ? 0.05 : - 0.08, 0.27 + 0.03 * Math.sin( i * 2.3 ), 0.115, 0.09, i + 1 );
 
 	}
+	// ---- end FX1
 
 	// 6 a bag of peanuts in flight (its own origin)
 	b.tagWith( GEAR.bag );

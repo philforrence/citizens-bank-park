@@ -474,10 +474,10 @@ function* vendor( w, N0 ) {
 
 }
 
-// how he carries what he's selling: both hands on the bin's rim; the tree upright in the left
+// how he carries what he's selling: both hands on the bin's rim; the cotton candy's board on the head, a hand up to it
 function holdGear( kind ) {
 
-	if ( kind === GEAR.cotton ) return [ armIK( - 1, [ - 0.24, 1.05, - 0.14 ] ), null ];
+	if ( kind === GEAR.cotton ) return [ armIK( - 1, [ - 0.34, 1.76, - 0.02 ] ), null ]; // ---- FX1: steadying the board on the head
 	if ( kind === GEAR.peanuts ) return [ null, armIK( 1, [ 0.25, 1.08, - 0.02 ] ) ];
 	return [ armIK( - 1, [ - 0.2, 1.05, - 0.3 ] ), armIK( 1, [ 0.2, 1.05, - 0.3 ] ) ];
 

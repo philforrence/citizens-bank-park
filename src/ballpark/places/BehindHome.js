@@ -192,11 +192,14 @@ export default class BehindHome {
 
 		}
 
-		const t = d.t, seg = d.segmentAt( t ), s = seg.snap || {};
+		// ---- FX1: from strike three it's the celebration (Director.champsAt), its clock from the strike
+		const champ = d.champsAt ? d.champsAt( d.t ) : null;
+		const t = d.t, seg = champ ? champ.seg : d.segmentAt( t ), s = seg.snap || {};
 		N.t = t;
 		N.seg = seg;
 		N.kind = seg.kind;
-		N.lt = t - seg.t0;
+		N.lt = champ ? champ.lt : t - seg.t0;
+		// ---- end FX1
 		N.snap = s;
 		N.inning = s.inning || 1;
 		N.half = s.half || 'top';

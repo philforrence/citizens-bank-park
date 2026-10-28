@@ -149,6 +149,13 @@ export class Fascia {
 		// mirrored about the point behind home plate (the deck no longer runs pole to pole: it ends at The
 		// Break in right)
 		const mid = alongTo( segs, [ 0, 30 ] );
+		// ---- FX1 (FW5's note): nothing hung in front of the press box (the tier's skipped front, where the
+		// booths stand): from below the booths' sill shows over brick, their black bunting on it (yeago81
+		// 5247698087 and 5247898427, 2009, the booths unchanged since 2008); the boards hid the sill and the
+		// people at the windows from close below
+		const sk = ( t.skip || [] )[ 0 ];
+		const press = sk && t.front[ sk[ 0 ] ] && t.front[ sk[ 1 ] + 1 ] ? [ alongTo( segs, t.front[ sk[ 0 ] ] ), alongTo( segs, t.front[ sk[ 1 ] + 1 ] ) ].sort( ( p, q ) => p - q ) : null;
+		// ---- end FX1
 		for ( const dir of [ 1, - 1 ] ) {
 
 			let s = mid + dir * 0.6;
@@ -158,6 +165,12 @@ export class Fascia {
 				const w = arg ? Number( arg ) : ADS[ name ].w;
 				const a = dir > 0 ? s : s - w, b = a + w;
 				if ( a < 8 || b > total - 8 ) break;
+				if ( press && b > press[ 0 ] + 0.3 && a < press[ 1 ] - 0.3 ) { // ---- FX1: not in front of the booths
+
+					s += dir * ( w + gap );
+					continue;
+
+				}
 				if ( name === 'LED' ) along( led, segs, a, b, y0, y1, 0.05, ( ss ) => ss / RIB_TILE, 0, 1 );
 				else if ( name !== '-' ) {
 

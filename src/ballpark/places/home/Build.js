@@ -56,6 +56,11 @@ export const PAL = {
 	label: [ [ 0.7, 0.66, 0.55 ], 0.6, 0.0, 0, 0 ],
 	lamp: [ [ 1.0, 0.92, 0.75 ], 0.5, 0.0, 3.0, 0 ],
 	ball: [ [ 0.85, 0.84, 0.8 ], 0.5, 0.0, 0.25, 0 ],
+	// ---- FX1: the cotton candy hawker's board and bags (floss in clear plastic: a sheen over pastel)
+	plywood: [ [ 0.3, 0.16, 0.08 ], 0.7, 0.0, 0, 0 ],
+	flossPink: [ [ 0.86, 0.5, 0.63 ], 0.4, 0.0, 0.05, 0 ],
+	flossBlue: [ [ 0.47, 0.68, 0.9 ], 0.4, 0.0, 0.05, 0 ],
+	// ---- end FX1
 };
 export const PAL_KEYS = Object.keys( PAL );
 const IDX = Object.fromEntries( PAL_KEYS.map( ( k, i ) => [ k, i ] ) );

@@ -50,7 +50,11 @@ const turn = ( a, b, k ) => {
 export function nightState( d ) {
 
 	if ( ! d ) return { busy: 0.8, first: true, rain: 0.5, suspended: false, celebrate: false, top: true, between: false, t: 0, inning: 5, half: 'top', snap: {} };
-	const seg = d.segmentAt( d.t );
+	// ---- FX1: from strike three it's the celebration (Director.champsAt: the celebrate segment, its clock
+	// from the strike), not 3.6 s later when that segment starts
+	const champ = d.champsAt ? d.champsAt( d.t ) : null;
+	const seg = champ ? champ.seg : d.segmentAt( d.t );
+	// ---- end FX1
 	const s = seg.snap || {};
 	// ---- R (rituals): the suspension's break is the 27th's rain delay for its first part (Director.night());
 	// the rest is the 29th, the park filling for the resumption
@@ -81,7 +85,7 @@ export function nightState( d ) {
 
 	}
 
-	return { busy, first, rain: first ? 0.3 + 0.7 * k : 0, suspended, celebrate, top: s.half === 'top', between, seg, snap: s, t: d.t, inning: s.inning, half: s.half, result, ball: d.ballAt, celebrateT: celebrate ? d.t - seg.t0 : 0 };
+	return { busy, first, rain: first ? 0.3 + 0.7 * k : 0, suspended, celebrate, top: s.half === 'top', between, seg, snap: s, t: d.t, inning: s.inning, half: s.half, result, ball: d.ballAt, celebrateT: celebrate ? ( champ ? champ.lt : d.t - seg.t0 ) : 0 }; // ---- FX1: champ.lt
 
 }
 
@@ -1232,6 +1236,32 @@ export class ConcoursePeople {
 			return;
 
 		}
+
+		// ---- FX1 (FW4's note, C3W's j2-06): the standing rows behind home stepped up to the drink rail when
+		// a place on it in front of them came free, to lean on it; they were left standing a metre back
+		// from an empty rail. The front row looks every second or three; the rows behind fill in as before
+		if ( f.standing && spot.row === 0 && ( f._up = ( f._up ?? this.r() * 2 ) - dt ) <= 0 ) {
+
+			f._up = 1 + this.r() * 2;
+			this._railHome ??= this.rail.filter( ( q ) => q.s < 24 );
+			let q = null;
+			for ( const r of this._railHome ) if ( ! r.who && Math.abs( r.s - spot.s ) < 0.9 && ( ! q || Math.abs( r.s - spot.s ) < Math.abs( q.s - spot.s ) ) ) q = r;
+			if ( q ) {
+
+				spot.who = null;
+				q.who = f;
+				f.spot = q;
+				f.standing = false;
+				f.mode = 'walk';
+				f.phase = 'in';
+				f.side = 0; f.stuck = 0; f.tried = false;
+				f.lane = q.d;
+				return;
+
+			}
+
+		}
+		// ---- end FX1
 
 		f.s = spot.s; f.d = spot.d;
 		// ---- H: a spot's point on the walkway looked up once

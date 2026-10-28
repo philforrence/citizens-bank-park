@@ -269,7 +269,7 @@ export class FieldLevel {
 		const seg = director ? director.segmentAt( director.t ) : null;
 		// the Phillies' bench (and pen) run out to the pile at the last out; both teams went in to the
 		// clubhouses in the rain delay
-		const cel = seg?.kind === 'celebrate';
+		const cel = seg?.kind === 'celebrate' || !! director?.champsAt?.( director.t ); // ---- FX1: from strike three
 		// ---- R (rituals): in the clubhouses only through the 27th's part of the suspension
 		const susp = seg?.kind === 'switch' && seg.snap?.inning === 6 && seg.snap?.half === 'bottom' && ( director.night ? director.night( director.t ).delay : true );
 		// ---- end R

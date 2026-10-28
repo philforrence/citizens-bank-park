@@ -893,7 +893,14 @@ export class Exterior {
 		steel.underwaterLighting = 'none';
 		const q = new Quads();
 		// the frame gates' canopy runs the width of the frame, over the stair towers
-		const half = g.frame ? 25 : W / 2 + 1.2, out = g.frame ? 5 : 4.6, inn = - 2.6, under = y0 + ( g.frame ? 5.6 : 4.9 ), top = y0 + ( g.frame ? 6.8 : 6.0 );
+		const half = g.frame ? 25 : W / 2 + 1.2, out = g.frame ? 5 : 4.6, inn = - 2.6;
+		// ---- FX1 (FW5's note): the Left Field Gate's canopy came down 0.7 m. In the 2008 photos (the Game 5
+		// arrival, Oct 27; the postgame on the 29th; flickr 2006-08-12 under it) the bar gates reach nearly to
+		// its beams and its top runs along the foot of the Phanatic's picture; at 4.9 m there was a metre and
+		// a half of air over the 3.5 m gates and the fascia hid the middle of the picture from the plaza
+		const lf = /LEFT FIELD/.test( g.name );
+		const under = y0 + ( g.frame ? 5.6 : lf ? 4.2 : 4.9 ), top = y0 + ( g.frame ? 6.8 : lf ? 5.3 : 6.0 );
+		// ---- end FX1
 		// the canopy: a deck, its fascia all round, and the steel under it
 		q.add( P( - half, inn, top ), P( half, inn, top ), P( half, out, top ), P( - half, out, top ), [ 0, 1, 0 ] );
 		const soffit = new Quads();
