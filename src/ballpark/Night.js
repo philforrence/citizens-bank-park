@@ -47,6 +47,9 @@ const params = new UniformBlock( 'NightAir', {
 	// the rain's extinction beyond the park (1/m) and the colour it fades to
 	veil: [ 'vec3f', new Vector3( 0.004, 0.0032, 0.0026 ) ],
 	rainExt: [ 'f32', 0 ],
+	// ---- FW2 (C2W-5): how lit the air must be for the far sheets' drops to show in it (from, to)
+	streakGate: [ 'vec2f', new Vector2( 0.0015, 0.01 ) ],
+	// ---- end FW2
 }, { label: 'nightAir' } );
 
 export const nightAirModule = new ShaderModule( {
@@ -156,6 +159,12 @@ fn nightAirApply( c: vec3f, d: vec3f, dist: f32, sky: bool, air: f32 ) -> vec3f 
 		let side = dot( nightAir.wind, vec2f( cos( az ), - sin( az ) ) );
 		if ( 45.0 < dist ) { drops += naStreaks( az, slope, side, 45.0, px * 45.0, 0.11 ); }
 		if ( 80.0 < dist ) { drops += naStreaks( az, slope, side, 80.0, px * 80.0, 0.48 ); }
+		// ---- FW2 (C2W-5): only where the air is really lit (the beams, round a bank). The spill all
+		// round the banks lights every ray a little, and 25 times that ruled dashes over the whole black
+		// sky from the plaza; in the photos of the 27th the rain shows in the cones under the banks and
+		// in the glare round them, not against the dark
+		drops *= smoothstep( nightAir.streakGate.x, nightAir.streakGate.y, air );
+		// ---- end FW2
 	}
 	return base + nightAir.color * air * ( 1.0 + drops * nightAir.streaks );
 }
