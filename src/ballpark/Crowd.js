@@ -4,6 +4,7 @@ import { ComputeKernel } from '../engine/gpu/Compute.js';
 import { UniformBlock } from '../engine/gpu/Uniforms.js';
 import { StorageBuffer } from '../engine/gpu/Texture.js';
 import { standard } from '../materials/Materials.js';
+import { SEAT_BACK } from './Stands.js';
 
 // The crowd: Game 5 was a sellout (45,940 on October 27, the same again for the resumption on the 29th),
 // so a fan in nearly every seat. One low-poly seated figure, instanced on the seats' own matrices (the
@@ -84,7 +85,7 @@ const capRim = ( front ) => 0.18 + 0.225 * front;
 // aStandFace (3 each), aInfo (4: the part and side, then t, a, b: where on the part)
 const STRIDE = 28;
 
-function fanGeometry( lod ) {
+export function fanGeometry( lod ) {
 
 	const L = LODS[ lod ];
 	const verts = [], index = [];
@@ -1007,6 +1008,16 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 	}
 	p = p * r3.y;
 	p.y += ( 1.0 - r3.y ) * 0.47 * ( 1.0 - st );
+	// ---- FW1 (C2W-3): his back against the seat's back, not through it. The lofted trunk is deep and he
+	// leans back his own way, so from behind every navy seat back had a patch of his jacket in it; up to
+	// the seat back's top his jacket presses flat against its front face (Stands.js SEAT_BACK), above it
+	// it's free (the shoulders over the top of the seat, as in the photos)
+	{
+		let yb = clamp( p.y, ${ ( SEAT_BACK.y0 - 0.06 ).toFixed( 3 ) }, ${ SEAT_BACK.y1.toFixed( 3 ) } );
+		let zb = ${ ( SEAT_BACK.z0 - 0.012 ).toFixed( 3 ) } + ( yb - ${ SEAT_BACK.y0.toFixed( 3 ) } ) * ${ Math.tan( SEAT_BACK.lean ).toFixed( 4 ) };
+		p.z = mix( min( p.z, zb ), p.z, smoothstep( ${ SEAT_BACK.y1.toFixed( 3 ) }, ${ ( SEAT_BACK.y1 + 0.08 ).toFixed( 3 ) }, p.y ) );
+	}
+	// ---- end FW1
 
 	// up and down with the jumping, a little sway
 	p.y += r2.x;
