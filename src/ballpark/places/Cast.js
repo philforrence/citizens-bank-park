@@ -949,7 +949,8 @@ export function figureGeometry( lod = 0 ) {
 		: [ [ 0.7, 0.29, 0.186, 0.02 ], [ 0.98, 0.302, 0.19, 0.018 ], [ 1.27, 0.288, 0.162, 0.022 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ],
 	fine ? F( 18, 12 ) : tiny ? 5 : 8, false, false, fine );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
-	if ( ! tiny ) loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], fine ? F( 12, 9 ) : 7, false, false );
+	// (FW6: square at its corners over the jacket's skirt, which is now)
+	if ( ! tiny ) loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0, 2.4 ], [ 0.8, 0.184, 0.129, 0.006, 2.45 ], [ 1.02, 0.176, 0.124, 0.006, 2.3 ] ], fine ? F( 12, 9 ) : 7, false, false );
 	loft( B.spine, PART.vest, [ [ 0.98, 0.172, 0.122, 0.01 ], [ 1.17, 0.177, 0.125, 0.006, 2.15 ], [ 1.3, 0.193, 0.129, 0.012, 2.2 ], [ 1.4, 0.192, 0.106, 0.024, 2.05 ] ], fine ? F( 12, 9 ) : tiny ? 5 : 7, false, false );
 
 	// ---- P0: worn gear (GEAR), on the trunk
