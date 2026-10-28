@@ -1,42 +1,43 @@
-# Step 9: all the way round (outline, 2026-10-28)
+# Step 9: the gauntlet (2026-10-28)
 
-Step 8 ("The night itself") is tagged and live. Step 9 fills the rest of the park the scouting ranked ([SCOUT.md](SCOUT.md), places 5–7), starts the photoreal surfaces the owner approved, and clears the record fixes wave 3 left ([WAVE3.md](WAVE3.md)). It runs as **little worlds wave 4**, on the same loop as before ([WAVES.md](WAVES.md)).
+Step 8 ("The night itself") is tagged and live. Step 9 isn't new places. It's a **critique-and-fix loop over the whole park**: critics go round the stadium taking shots, hold each one up against real photos of Citizens Bank Park in October 2008, and list what looks wrong. Fixers fix it, piece by piece, and the loop goes round again.
 
-**The owner, 2026-10-28:** outline step 9, then run it in a loop while they're away.
+## What the owner asked for (2026-10-28, in their words)
 
-## Wave 4: four builders, one place each
+> "go around the stadium and just basically make things look better ... take random shots, screenshots, and compare them to real photos of the 2008 Citizens Bank Park. Or if they're like innocuous enough, the current photos of Citizens Bank Park, but try to get 2008. I'm looking for banners hanging from the rafters. I'm looking for the all the people, their hats are all messed up and their torsos, and the fanatic looks weird."
 
-| Key | Work | Module |
-|---|---|---|
-| E | **The right field corner:** the Pavilion's concourse and deck, the right field foul pole and flags, the RF gate and its plaza, the corner's stands and life. This is the long empty stretch from SCOUT (18 people on the RF concourse). | `places/RightField.js` (`rightfield`) |
-| F | **The upper deck:** the 300 and 400 levels' concourses, ramps and stairs, the vendors up top, the wind, and the view of Center City, the Linc and the lots. It has one person in it now. | `places/UpperDeck.js` (`upper`) |
-| G | **The Hall of Fame Club and the suites:** the 200-level club behind third (its bar, memorabilia cases and TVs), the suite parties (T8's lit-suite figures "read as pills"), and the elevators' landings. | `places/Club.js` (`club`) |
-| T | **Photoreal surfaces:** CC0 scans in the texture recipe (a layer array, parallax, weathering, grime), starting with the "one wall, three ways" experiment on the Third Base Gate's brick, then the winner rolled out to the facade brick, the concourse concrete and the painted steel. Approved from the spiderbench research. | the material recipe in `geo.js` / `materials`, applied in Exterior.js and the concourse floors |
+> "split up into agents and have all those agents just like find really like messed up things and just fix them ... improve the stadium like piece by piece, bit by bit. You can feel free to add like under the stadium. You can feel free to add inside the boxes, inside different stores ... and improve the play."
 
-Every builder works from [BRIEF.md](BRIEF.md) (with a new "Wave 4" section), reads WAVE1–3, uses Cast.js for people, shares live notes in `.claude/wave4/`, and adds its invented people to CAST.md.
+> "I want like sub agents to critique everything that's going on. And when I come back, I just want it to look so much more realistic ... while also trying to keep the frames per second somewhat high so that it's a playable game."
 
-**What the places should hand each other:**
-- E and F share the ramps and the right field stair towers. F owns the stairs above the main concourse.
-- G's club TVs and the upper deck's concourse TVs show FOX's feed (the concourse TVs already exist, W2).
-- T's recipe should be one the places can use too: E's Pavilion brick and F's concrete should come from it, not their own.
-- The Phanatic (`director.phanatic.at( t )`) and the soundscape (`app.sound.spot()`) reach the new places.
+**Their answers to my questions:**
+- **How long:** until they message, or until 7 pm on the 28th, whichever is first. At 7 pm, wind down (finish what's running), don't hard stop.
+- **Frame rate:** a **30 fps floor** in the walking and TV views.
+- **"The play":** both. The players on the field (how they look and move) and how it plays (walking, the cameras, the controls, the scrubber and HUD).
+- **Publishing:** yes. When the loop ends, tag step-9 with a screenshot and push it to the site.
 
-## The coordinator, alongside (CPU first, on `ballpark`)
+## The loop
 
-1. **Record fixes** (WAVE3.md): Madson wore 63 and Hinske 32 in 2008 (the jerseys show 46 and 11); the crew chief was Welke and the plate umpire Kellogg; the first pitch on the 27th was 8:30 pm. Check each against the record before changing it.
-2. **`Crowd.thin( k )`** (R's request): the stands empty and fill cheaply, without `vacate`'s ~15 ms refresh, for the 27th's rain and the 29th's return.
-3. **Keep the builders unblocked:** answer the `ASK-*.md` requests, and watch the GPU queue.
+The full briefs are in [../gauntlet/BRIEF.md](../gauntlet/BRIEF.md). The working files (tickets, findings, shots, references) are in `.claude/gauntlet/` (local).
 
-## When the wave returns
+1. **Critics** (read-only on the code) each take a zone of the park. They shoot it through the render desk (day, night, rain, close and far), find 2008 photos of the same spot, and write ranked findings: what's wrong, the shot, the reference, a suggested fix, the files, and the frame-rate risk.
+2. **The coordinator triages** the findings into **tickets** (`.claude/gauntlet/TICKETS.md`), ranked by how glaring each is times how much it's on screen, and bundled so that no two fixers touch the same files.
+3. **Fixers** each take a bundle, in their own worktree: before and after shots of the same views against the reference, `npm test`, a clean load.
+4. **The coordinator verifies** the before and after against the reference, merges, loads the combined park clean, and checks the frame rate under exclusive. A fix that breaks the floor is optimized (LOD, batching, caching) before it stays. Never by deleting detail.
+5. **Rolling, not in lockstep:** at most 4 agents at once (the GPU rule). When a slot frees, it goes to the next ticket, or to a critic for a zone that hasn't been looked at since its last fixes.
 
-1. Merge each branch, and load the combined park clean through the desk.
-2. `npm test`, then profile under exclusive; each place has a ~1 ms budget.
-3. Write [WAVE4.md](WAVE4.md): what each built, what to reuse, the named characters, problems flagged elsewhere.
-4. The step-9 screenshot as `docs/stages/step-9.jpg`, and START-HERE.md updated.
-5. **Stop for the owner's review.** Nothing is pushed or tagged for the site until they've looked (WAVES.md's standing rule).
+**Zones for the critics** (round 1 follows the owner's list first):
+- **People:** the seated fans up close (the hats and torsos), the standing and walking people, the vendors, the Phillie Phanatic.
+- **The bowl, the roof and the boards:** the banners hanging from the rafters, the roofs and light towers, Phanavision and the ribbon boards, the fascia, the field, the view from the seats, the skyline.
+- **The play:** the players' look and motion (pitching, swinging, running, fielding, the pile), the umpires, the TV cameras against FOX's 2008 broadcast, and the controls (walking, the free camera, the scrubber, the HUD).
+- **Inside and under:** the concourses and the stands' insides, the stores, the suites and boxes, the Hall of Fame Club, under the stadium, the gates and outside.
 
-## Left for the owner
+## The frame-rate floor
 
-- **Listen to the soundscape and trim it** (wave 3's S): it needs ears.
-- **Pictures to supply:** whatever the builders ask for in their notes.
-- **The next waves:** outside the rest of the way round (the 1B, RF and LF plazas, the lots, Pattison), the booths and the press box, "your seat among people", and scripted Blender fan bodies once the crowd's shaders settle.
+30 fps is 33.3 ms a frame. The baseline is step 8, measured under exclusive at 1280 × 800 before the first fix ([../gauntlet/PERF.md](../gauntlet/PERF.md)). Every merge is re-measured in the same views.
+
+## At the end
+
+1. The last merges, the combined park loaded clean, `npm test`, and the final frame-rate check.
+2. [../gauntlet/LOG.md](../gauntlet/LOG.md): every fix, with its before and after and its reference.
+3. `docs/stages/step-9.jpg`, START-HERE.md updated, then `git tag -a step-9` and `git push origin ballpark step-9`.
