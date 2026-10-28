@@ -1595,7 +1595,11 @@ export class ConcoursePeople {
 		// ---- end H
 		const ds = gs - f.s, dd = gd - f.d, dist = Math.hypot( ds, dd );
 		const v = dist > 0.08 ? Math.min( 0.9, dist * 1.6 ) : 0;
-		this._move( f, v ? ds / dist * v : 0, v ? dd / dist * v : 0, dt, dist < 0.5 ? S.face : null );
+		// ---- FW6 (C4W-11): at strike three the line turns round to the field for the first minute and a half
+		// (they queued on with their backs to it)
+		const turned = ns.celebrate && ns.celebrateT < 90 && f.mode === 'queue';
+		this._move( f, v ? ds / dist * v : 0, v ? dd / dist * v : 0, dt, dist < 0.5 ? ( turned ? Walkway.yaw( - f.p.x, - f.p.z ) : S.face ) : null );
+		// ---- end FW6
 		a.walk = lerp( a.walk, Math.min( 1, Math.hypot( f.vs, f.vd ) / 0.6 ), Math.min( 1, dt * 5 ) );
 		a.phase = ( a.phase + dt * Math.hypot( f.vs, f.vd ) / 1.1 * TAU ) % TAU;
 		a.lean = 0; a.twist = 0; a.drop = 0;
