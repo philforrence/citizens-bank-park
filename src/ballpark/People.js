@@ -1752,10 +1752,23 @@ export class People {
 		}
 
 		// the aisles
+		// ---- FS1 (C4S-9): the steps during play. With a pitch on its way the walkers stop where they are and
+		// watch it (the ushers held people at the tops of the aisles during play); in the top of the 9th they
+		// go up and wait at the top, so the steps are clear for the last outs. They strolled down through
+		// every pitch, the 0-2 with two out in the 9th among them
+		const fsLive = !! d && seg?.kind === 'pitch' && d.t - seg.t0 > 0.6;
+		const fsNinth = ( snap.inning || 0 ) >= 9 && snap.half === 'top' && seg?.kind !== 'celebrate';
+		// (a jump into the 9th finds them already up there)
+		const fsJump = !! d && this._fsT !== undefined && Math.abs( d.t - this._fsT - dt ) > 2;
+		this._fsT = d ? d.t : undefined;
+		if ( fsJump && fsNinth ) for ( const p of this.list ) if ( p.aisle ) { p.aisle.d = p.aisle.deep; p.aisle.dir = 1; }
+		// ---- end FS1
 		for ( const p of this.list ) if ( p.aisle ) {
 
 			const A = p.aisle;
-			if ( A.pause > 0 ) {
+			if ( fsNinth && A.dir < 0 ) A.dir = 1; // ---- FS1
+			if ( fsLive || ( fsNinth && A.d >= A.deep - 0.01 ) ) p.walk = 0; // ---- FS1
+			else if ( A.pause > 0 ) {
 
 				A.pause -= dt;
 				p.walk = 0;
@@ -1779,6 +1792,7 @@ export class People {
 			const [ x, z ] = A.at( A.S, A.d );
 			p.x = x; p.z = z; p.y = A.yAt( A.d ) + 0.02;
 			p.yaw = Math.atan2( A.S.nx * A.dir, A.S.nz * A.dir ) + Math.PI;
+			if ( p.walk === 0 && ( fsLive || fsNinth ) ) p.yaw = Math.atan2( - A.S.nx, - A.S.nz ) + Math.PI; // ---- FS1: held, facing the play
 
 		}
 
