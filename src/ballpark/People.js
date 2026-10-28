@@ -637,18 +637,19 @@ export class People {
 		this.thrShare[ 0 ] += ( w - this.thrShare[ 0 ] ) * k;
 		this.thrShare[ 1 ] += ( s - this.thrShare[ 1 ] ) * k;
 		this.thrShare[ 2 ] += ( g - this.thrShare[ 2 ] ) * k;
-		// only when the camera's on or near the concourse (not the TV's cameras over the field)
+		// only when the camera's on the concourse (not the TV's cameras, not from the seats)
 		const c = this._thrCam;
 		let near = Infinity;
 		for ( const g of this._thrNear ) {
 
 			const ux = ( g.b[ 0 ] - g.a[ 0 ] ) / g.l, uz = ( g.b[ 1 ] - g.a[ 1 ] ) / g.l;
 			const f = Math.max( 0, Math.min( g.l, ( c.x - g.a[ 0 ] ) * ux + ( c.z - g.a[ 1 ] ) * uz ) );
-			near = Math.min( near, Math.hypot( g.a[ 0 ] + ux * f - c.x, STREET - c.y, g.a[ 1 ] + uz * f - c.z ) );
+			near = Math.min( near, Math.hypot( g.a[ 0 ] + ux * f - c.x, g.a[ 1 ] + uz * f - c.z ) );
 
 		}
 
-		this.throng.visible = near < 45;
+		// (on the concourse's level: walking it, at the gates; not from the seats, the suites or the press box)
+		this.throng.visible = near < 40 && Math.abs( c.y - STREET - 1.6 ) < 4;
 		if ( ! this.throng.visible ) return;
 		const U = this.thrParams.fields;
 		U.misc.value.x = this.time;

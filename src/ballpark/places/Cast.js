@@ -1422,7 +1422,7 @@ function castMaterial( pool ) {
 		if ( facial == 2u ) { c = mix( c, hairC, ( smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.28 ) + step( d.y, - 0.5 ) * step( ax, 0.24 ) ) * front ); }
 		// (FP1, CP-13: the beard soft at its edges and broken up, not a black mask)
 		if ( facial == 3u ) {
-			let grain = 0.75 + 0.25 * sin( d.x * 90.0 + sin( d.y * 70.0 ) * 2.0 );
+			let grain = 0.88 + 0.12 * sin( d.x * 37.0 + sin( d.y * 23.0 ) * 1.5 );
 			let cover = smoothstep( - 0.12, - 0.32, d.y ) * step( d.z, 0.4 ) * smoothstep( 0.5, 0.7, mo ) * smoothstep( 0.98, 0.72, ax + max( 0.0, d.y + 0.2 ) );
 			c = mix( c, hairC * grain, 0.72 * cover );
 		}
@@ -1438,7 +1438,8 @@ function castMaterial( pool ) {
 		c *= mix( vec3f( 1.0 ), vec3f( 1.1, 0.8, 0.78 ), smoothstep( 0.86, 0.95, ax ) * step( abs( d.y ), 0.25 ) * step( abs( d.z ), 0.35 ) );
 		// the hair: short (a hairline, the back and sides), long, pulled back, or a horseshoe round a bald
 		// crown (which shines)
-		var hairy = d.y > 0.42 - 0.55 * smoothstep( - 0.35, 0.5, d.z ) || ( ax > 0.8 && d.y > - 0.05 && d.z > - 0.3 );
+		// (FP1: at the sides above the ears and behind them, not over them: under a cap it was a blindfold)
+		var hairy = d.y > 0.42 - 0.55 * smoothstep( - 0.35, 0.5, d.z ) || ( ax > 0.8 && d.z > - 0.3 && ( d.y > 0.24 || ( d.z > 0.3 && d.y > - 0.15 ) ) );
 		if ( hairStyle == 1u ) { hairy = d.y > 0.4 - 1.4 * smoothstep( - 0.55, 0.25, d.z ) || ( ax > 0.72 && d.y > - 0.55 && d.z > - 0.45 ); }
 		if ( hairStyle == 2u ) { hairy = d.y > 0.36 - 0.6 * smoothstep( - 0.4, 0.4, d.z ) || ( d.z > 0.6 && d.y > - 0.4 && ax < 0.25 ); }
 		if ( hairStyle == 3u ) { hairy = d.y > - 0.35 && d.y < 0.2 + 0.15 * smoothstep( 0.2, 0.8, d.z ) && d.z > - 0.15; rough = select( rough, 0.3, d.y > 0.2 ); }

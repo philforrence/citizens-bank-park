@@ -458,18 +458,20 @@ function fanGeometry( lod ) {
 
 		}
 
-		// long hair (or a ponytail) down the back of the head
+		// long hair (or a ponytail) down the back of the head: a card curved round it (close up and near:
+		// three columns; a flat one was a board behind the head)
 		if ( L.hair ) {
 
-			const q = [];
-			for ( const [ u, v ] of [ [ 0, 0 ], [ 1, 0 ], [ 1, 1 ], [ 0, 1 ] ] ) {
+			const cols = L.trunk >= 6 && L.head[ 0 ] >= 8 ? 3 : 2, q = [];
+			for ( const v of [ 0, 1 ] ) for ( let i = 0; i < cols; i ++ ) {
 
-				const o = [ ( 0.085 + 0.015 * v ) * ( 1 - 2 * u ), 0.03 - 0.23 * v, 0.066 + 0.02 * v ];
-				q.push( vert( fixed( add( SIT.head, o ), add( STAND.head, o ) ), [ 0, 0.2, 1 ], [ 0, 0.2, 1 ], P.hair, 0, 0, u, v ) );
+				const u = i / ( cols - 1 ), x = 1 - 2 * u;
+				const o = [ ( 0.085 + 0.015 * v ) * x, 0.03 - 0.23 * v, 0.05 + 0.02 * v + 0.035 * ( 1 - x * x ) ];
+				q.push( vert( fixed( add( SIT.head, o ), add( STAND.head, o ) ), [ x * 0.6, 0.2, 1 ], [ x * 0.6, 0.2, 1 ], P.hair, 0, 0, u, v ) );
 
 			}
 
-			index.push( q[ 0 ], q[ 2 ], q[ 1 ], q[ 0 ], q[ 3 ], q[ 2 ] );
+			for ( let i = 0; i < cols - 1; i ++ ) index.push( q[ i ], q[ cols + i + 1 ], q[ i + 1 ], q[ i ], q[ cols + i ], q[ cols + i + 1 ] );
 
 		}
 
@@ -560,7 +562,9 @@ function fanGeometry( lod ) {
 
 			}
 
-			index.push( q[ 0 ], q[ 1 ], q[ 2 ], q[ 0 ], q[ 2 ], q[ 3 ] );
+			// (wound out from the box: its points are all at the hand until the shaders size it)
+			if ( sg > 0 ) index.push( q[ 0 ], q[ 1 ], q[ 2 ], q[ 0 ], q[ 2 ], q[ 3 ] );
+			else index.push( q[ 0 ], q[ 2 ], q[ 1 ], q[ 0 ], q[ 3 ], q[ 2 ] );
 
 		}
 
@@ -761,7 +765,7 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwFanPose {
 	o.r1 = vec4f( face * ( 1.0 - aUR ), tw, th, yaw );
 	o.r2 = vec4f( max( 0.0, sin( t * 8.0 + h.w * 30.0 ) ) * 0.14 * jump, sin( t * 0.6 + h.z * 20.0 ) * 0.012, sin( t * 9.0 + h.w * 50.0 ) * 0.16, cos( t * 7.0 + h.z * 20.0 ) * 0.06 );
 	o.r3 = vec4f( wide, sc, max( upAll, jump ), f32( flags ) );
-	o.r4 = vec4f( lean, roll, nod, 0.0 );
+	o.r4 = vec4f( lean, roll, nod, f32( prop ) );
 	return o;
 }
 
@@ -904,6 +908,15 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 	let aF = select( select( 0.0, r1.x, isR ), r0.w, isL );
 	var p = mix( pos + sitUp * aU + sitFace * aF, stp + standUp * aU + standFace * aF, st );
 	var n = normalize( mix( nrm, stn, st ) );
+
+	// what's in his left hand, held upright (CP-12): a cup, a phone, a camera (the box's corners in t a b)
+	if ( part == 8u ) {
+		let id = u32( r4.w + 0.5 );
+		var sz = vec3f( 0.08, 0.13, 0.08 );
+		if ( id == 3u ) { sz = vec3f( 0.065, 0.12, 0.014 ); }
+		if ( id == 4u ) { sz = vec3f( 0.11, 0.07, 0.06 ); }
+		p += vec3f( info.z * sz.x, ( info.y + 0.5 ) * sz.y - 0.03, info.w * sz.z );
+	}
 
 	// the towel: twirled round over the head, the loose end trailing the turn and fluttering, the cloth
 	// sagging between
@@ -1154,7 +1167,7 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 		if ( facial == 1u || facial == 3u ) { c = mix( c, hairC, smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.3 ) * front ); }
 		if ( facial == 2u ) { c = mix( c, hairC, ( smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.28 ) + step( d.y, - 0.5 ) * step( ax, 0.24 ) ) * front ); }
 		if ( facial == 3u ) {
-			let grain = 0.75 + 0.25 * sin( d.x * 90.0 + sin( d.y * 70.0 ) * 2.0 );
+			let grain = 0.88 + 0.12 * sin( d.x * 37.0 + sin( d.y * 23.0 ) * 1.5 );
 			let cover = smoothstep( - 0.12, - 0.32, d.y ) * step( d.z, 0.4 ) * smoothstep( 0.5, 0.7, mo ) * smoothstep( 0.98, 0.72, ax + max( 0.0, d.y + 0.2 ) );
 			c = mix( c, hairC * grain, 0.75 * cover );
 		}
@@ -1233,6 +1246,18 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 			}
 		}
 		if ( in.N.y < - 0.25 && ! piece ) { c = mix( capC * 0.5, vec3f( 0.06, 0.07, 0.06 ), 0.45 ); e = c * 0.25; }
+	}
+	if ( part == 8u ) {
+		// a clear cup of lager with its head; a white cup of hot chocolate with its black lid; a phone's
+		// lit screen; a camera, silver or black; a soda's red and white cup
+		let id = u32( cwPoseBuf[ fan * ${ POSE_N * 2 }u + 4u ].w + 0.5 );
+		let top = in.N.y > 0.7;
+		rough = 0.4;
+		if ( id == 1u ) { c = select( vec3f( 0.55, 0.33, 0.04 ), vec3f( 0.75, 0.72, 0.62 ), top ); rough = select( 0.1, 0.9, top ); }
+		if ( id == 2u ) { c = select( vec3f( 0.72, 0.7, 0.66 ), vec3f( 0.02 ), top ); }
+		if ( id == 3u ) { c = vec3f( 0.03 ); rough = 0.2; if ( in.N.z < - 0.5 || in.N.z > 0.5 ) { e = vec3f( 0.25, 0.4, 0.6 ) * 0.6; } }
+		if ( id == 4u ) { c = select( vec3f( 0.5, 0.51, 0.53 ), vec3f( 0.03 ), seed > 0.5 ); rough = 0.3; }
+		if ( id == 5u ) { c = select( vec3f( 0.45, 0.03, 0.03 ), vec3f( 0.7, 0.68, 0.64 ), top ); }
 	}
 	if ( part == 5u ) {
 		// the 2008 rally towel: white terry, the red square with the script across it in white
@@ -1324,10 +1349,13 @@ function randomFan( r ) {
 	// a cold October night's clothes (CP-12), from his seed (not the sequence, so the rest of the crowd
 	// stays who it was): a hoodie, a jacket zipped to the chin or a sweatshirt; a scarf (more over a
 	// sweatshirt's bare neck); gloves
-	const [ a, b, c ] = rand4( f.seed * 3 + 40503 );
+	const [ a, b, c, d ] = rand4( f.seed * 3 + 40503 );
 	f.outfit = a < 0.3 ? 0 : a < 0.75 ? 1 : 2;
 	f.scarf = b < ( f.outfit === 2 ? 0.32 : 0.14 ) ? 1 : 0;
 	f.gloves = c < 0.3 ? 1 : 0;
+	// in his left hand (one in seven): a beer, the cold night's hot chocolate, a phone, a camera, a soda
+	if ( f.age !== 2 && d < 0.15 ) f.prop = d < 0.05 ? 1 : d < 0.1 ? 2 : d < 0.12 ? 3 : d < 0.14 ? 4 : 5;
+	else if ( f.age === 2 && d < 0.1 ) f.prop = 2;
 	return f;
 
 }
