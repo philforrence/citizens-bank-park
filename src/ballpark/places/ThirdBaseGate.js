@@ -15,7 +15,9 @@ import { buildStreet, LIFT, pattisonZ, eleventhX } from './gate3b/Street.js';
 import { buildVendors } from './gate3b/Vendors.js';
 import { Horses, manure } from './gate3b/Horses.js';
 import { buildTV } from './gate3b/TV.js';
-import { Cars } from './gate3b/Cars.js';
+import { Cars, LotCars } from './gate3b/Cars.js';
+import { buildTents } from './gate3b/Tents.js'; // ---- FW2 (C2I-4)
+import { CAMPS } from './concourse1b/Tailgate.js'; // ---- FW2 (C2I-2)
 import { buildTailgates } from './gate3b/Tailgate.js';
 import { buildFurniture } from './gate3b/Furniture.js';
 import { buildDrips } from './gate3b/Drips.js';
@@ -88,7 +90,16 @@ export default class ThirdBaseGate {
 		this.obstacles.push( ...this.tv.obstacles );
 		// the lots filled, the streets running, the tailgaters (gate3b/Cars.js, Tailgate.js)
 		const tail = buildTailgates( { group: this.group, cast: this.cast } );
-		this.cars = new Cars( { group: this.group, field, clear: tail.spots } );
+		// ---- FW2 (C2I-4, C2I-2): the World Series tents on the plaza and along the lots' Pattison sides
+		// (gate3b/Tents.js); and every other lot filled (gate3b/Cars.js LotCars: real cars near you, the
+		// lots' shader painting the rest), clear of the tailgates (both gates') and the tents
+		this.tents = buildTents( { group: this.group, colliders, field } );
+		for ( const [ x, z, r ] of this.tents.clear ) this.obstacles.push( [ x, z, r - 1.5 ] );
+		const lotClear = [ ...tail.spots, ...CAMPS.map( ( [ x, z ] ) => [ x, z, 8 ] ), ...this.tents.clear ];
+		this.cars = new Cars( { group: this.group, field, clear: [ ...tail.spots, ...this.tents.clear ] } );
+		this.lotCars = new LotCars( { group: this.group, clear: lotClear, complex: app.complex } );
+		app.complex?.lotClear?.( lotClear );
+		// ---- end FW2
 		// the banners, the marquee, the balloons, the bins, the store's board (gate3b/Furniture.js)
 		this.furniture = buildFurniture( { group: this.group, exterior: app.exterior, colliders, field } );
 		this.obstacles.push( ...this.furniture.obstacles );
@@ -266,6 +277,15 @@ export default class ThirdBaseGate {
 				cosInner: Math.cos( 0.45 ), cosOuter: Math.cos( 0.95 ), kind: 'lamp' } );
 
 		}
+
+		// ---- FW2 (C2I-4): each tent's lamps, one light for the pair, warm on the paving round it
+		for ( const [ a, b ] of ( this.tents?.lamps || [] ).reduce( ( o, l, i, L ) => ( i % 2 ? o : [ ...o, [ l, L[ i + 1 ] ] ] ), [] ) ) {
+
+			const w = F.toWorld( ( a[ 0 ] + b[ 0 ] ) / 2, ( a[ 2 ] + b[ 2 ] ) / 2 );
+			this.app.localLights.add( { position: new Vector3( w.x, F.y0 + a[ 1 ] - 0.3, w.z ), color: new Color( 1.0, 0.84, 0.62 ), intensity: 35, range: 11, kind: 'lamp' } );
+
+		}
+		// ---- end FW2
 
 	}
 
@@ -526,6 +546,14 @@ export default class ThirdBaseGate {
 		}
 
 		this.cars?.update( Math.min( dt, 0.1 ), w );
+		// ---- FW2 (C2I-2): the lots' near cars round you
+		if ( camera && this.lotCars ) {
+
+			const [ fx, fz ] = this.field.toField( camera.position.x, camera.position.z );
+			this.lotCars.update( [ fx, camera.position.y - this.field.y0, fz ] );
+
+		}
+		// ---- end FW2
 		this.clock += dt;
 		this.furniture?.update( w, this.clock );
 		this._lights();

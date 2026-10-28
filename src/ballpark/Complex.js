@@ -1,4 +1,5 @@
-import { Group, Mesh, InstancedMesh, BufferGeometry, Float32BufferAttribute, Matrix4, Quaternion, Vector2, Vector3, Color } from '../engine/index.js';
+import { Group, Mesh, InstancedMesh, BufferGeometry, Float32BufferAttribute, Matrix4, Quaternion, Vector2, Vector3, Vector4, Color } from '../engine/index.js';
+import { ShaderModule } from '../engine/gpu/Shader.js';
 import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
@@ -7,6 +8,9 @@ import { beam, box, canvasTexture } from './geo.js';
 import { LEVELS } from './layout.js';
 import * as OSM from './data/complex.js';
 import { NEIGHBOURS } from './data/surroundings.js';
+import { plantTrees } from './places/gate3b/Trees.js'; // ---- FW2 (C2I-1): the near trees grown
+import { rng } from './places/gate3b/Mesher.js';
+import { W1_LOTS } from './places/gate3b/Cars.js'; // ---- FW2 (C2I-2): where W1 parks its real cars
 
 // The South Philadelphia Sports Complex and the blocks round it as they were in October 2008, from
 // OpenStreetMap (tools/build-complex.mjs): every building on its footprint (the rowhouses of South
@@ -130,6 +134,67 @@ const hash = ( x ) => {
 
 };
 
+// ---- FW2 (C2I-2): a parked car in a stall, for the lots' shader. q: the point in the lot's frame (x along
+// its rows, y across them, as Complex._lots and Cars.js lay the stalls out); seed: the lot's. The car's
+// local point (x across it, y along it, its nose +y to the aisle), its half extents, kind (0 none; 1
+// sedan, 2 SUV, 3 pickup, 4 van, in Cars.js's mix), paint, its body's and cabin's heights and the
+// cabin's span along it. Nine stalls in ten taken
+const lotCarsModule = new ShaderModule( {
+	name: 'lotCars',
+	deps: [ commonModule ],
+	code: /* wgsl */`
+struct LotCar { l: vec2f, ext: vec2f, kind: f32, paint: f32, bodyH: f32, cabH: f32, cab: vec2f }
+
+fn lcCar( q: vec2f, seed: f32 ) -> LotCar {
+	var o = LotCar( vec2f( 0.0 ), vec2f( 0.0 ), 0.0, 0.0, 0.0, 0.0, vec2f( 0.0 ) );
+	let m = fract( q.y / 18.3 ) * 18.3;
+	let row = floor( q.y / 18.3 );
+	var cy = 2.75; var dirY = 1.0; var sd = 0.0;
+	if ( m > 12.8 ) { cy = 15.55; dirY = - 1.0; sd = 1.0; } else if ( m >= 5.5 ) { return o; }
+	let col = floor( q.x / 2.7 );
+	let h = hash21( vec2f( col + seed * 977.0, row * 2.0 + sd + seed * 131.0 ) );
+	if ( h > 0.9 ) { return o; }
+	let t = fract( h * 37.13 );
+	o.paint = fract( h * 113.71 );
+	let jit = ( fract( h * 7.73 ) - 0.5 ) * 0.25;
+	o.l = vec2f( q.x - ( col + 0.5 ) * 2.7 - jit, ( m - cy ) * dirY );
+	if ( t < 0.4 ) { o.kind = 1.0; o.ext = vec2f( 0.9, 2.45 ); o.bodyH = 0.95; o.cabH = 1.45; o.cab = vec2f( - 1.5, 0.6 ); }
+	else if ( t < 0.68 ) { o.kind = 2.0; o.ext = vec2f( 0.95, 2.4 ); o.bodyH = 1.05; o.cabH = 1.8; o.cab = vec2f( - 2.2, 0.9 ); }
+	else if ( t < 0.86 ) { o.kind = 3.0; o.ext = vec2f( 0.97, 2.7 ); o.bodyH = 1.0; o.cabH = 1.85; o.cab = vec2f( - 0.2, 1.15 ); }
+	else { o.kind = 4.0; o.ext = vec2f( 0.95, 2.5 ); o.bodyH = 1.05; o.cabH = 1.8; o.cab = vec2f( - 2.3, 1.2 ); }
+	return o;
+}
+
+// 0 outside the car at height h, 1 in its body, 2 in its cabin
+fn lcInside( c: LotCar, h: f32 ) -> f32 {
+	if ( c.kind < 0.5 ) { return 0.0; }
+	let ax = abs( c.l.x );
+	if ( ax < c.ext.x && abs( c.l.y ) < c.ext.y && h < c.bodyH ) { return 1.0; }
+	if ( ax < c.ext.x * 0.86 && c.l.y > c.cab.x && c.l.y < c.cab.y && h < c.cabH ) { return 2.0; }
+	return 0.0;
+}
+
+// 2008's paints (Cars.js): silver, black, white, grey, dark red, navy, a green, a gold, light grey
+fn lcPaint( u: f32 ) -> vec3f {
+	let i = i32( floor( u * 9.0 ) );
+	var c = vec3f( 0.4, 0.4, 0.42 );
+	switch i {
+		case 0: { c = vec3f( 0.5, 0.51, 0.52 ); }
+		case 1: { c = vec3f( 0.012, 0.012, 0.014 ); }
+		case 2: { c = vec3f( 0.75, 0.75, 0.73 ); }
+		case 3: { c = vec3f( 0.2, 0.2, 0.21 ); }
+		case 4: { c = vec3f( 0.22, 0.02, 0.025 ); }
+		case 5: { c = vec3f( 0.02, 0.03, 0.09 ); }
+		case 6: { c = vec3f( 0.03, 0.08, 0.05 ); }
+		case 7: { c = vec3f( 0.35, 0.3, 0.2 ); }
+		default: {}
+	}
+	return c;
+}
+`,
+} );
+// ---- end FW2
+
 export class Complex {
 
 	constructor( { field } ) {
@@ -206,7 +271,7 @@ export class Complex {
 			for ( const [ i, j, k ] of triangles( P ) ) {
 
 				const v = ( q ) => [ P[ q ][ 0 ], STREET + 0.03, P[ q ][ 1 ] ];
-				b.tri( v( i ), v( j ), v( k ), [ 0, 1, 0 ], undefined, undefined, undefined, [ ang, 0 ] );
+				b.tri( v( i ), v( j ), v( k ), [ 0, 1, 0 ], undefined, undefined, undefined, [ ang, ( LOTS.indexOf( P ) * 0.618034 ) % 1 ] ); // ---- FW2: its seed
 
 			}
 
@@ -229,13 +294,28 @@ export class Complex {
 
 		}
 
-		this._add( b.geometry( 'aLot' ), standard( {
-			name: 'parking-lots', color: new Color( 0.075, 0.075, 0.072 ), roughness: 0.9, modules: [ commonModule ],
+		// ---- FW2 (C2I-2): the lots full. The stalls laid out in the field frame (as Cars.js parks its real
+		// cars: in the world frame the striping ran ten degrees off the lots' edges), and a car painted in
+		// nine stalls in ten wherever there isn't a real one: W1's round the Third Base plaza, LotCars' round
+		// you on the ground (lotNear), the tailgates and the tents (lotClear). From above each has a little
+		// relief (the view ray stepped down through its body and cabin), so from the decks and the air the
+		// lots read packed to the fences, as Getty's photos from the north-east on the 27th have them
+		const rot = this.field.group.rotation.y;
+		const mat = standard( {
+			name: 'parking-lots', color: new Color( 0.075, 0.075, 0.072 ), roughness: 0.9, modules: [ commonModule, lotCarsModule ],
 			attributes: { aLot: 'vec2f' }, varyings: { vLot: 'vec2f' }, vertex: 'o.vLot = v.aLot;',
+			uniforms: {
+				fieldRot: [ 'vec4f', new Vector4( Math.cos( rot ), Math.sin( rot ), 0, 0 ) ],
+				near: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ],
+				w1: [ 'vec4f', new Vector4( W1_LOTS.c[ 0 ], W1_LOTS.c[ 1 ], W1_LOTS.r + 2, 0 ) ],
+				clear: [ 'vec4f[12]', Array.from( { length: 12 }, () => new Vector4( 0, 0, 0, 0 ) ) ],
+			},
 			surface: /* wgsl */`
 	let a = in.vs.vLot.x;
 	let ca = cos( a ); let sa = sin( a );
-	let q = vec2f( in.P.x * ca + in.P.z * sa, - in.P.x * sa + in.P.z * ca );
+	// the field frame (the stalls are laid out in it), then the lot's own
+	let fp = vec2f( in.P.x * mat.fieldRot.x - in.P.z * mat.fieldRot.y, in.P.x * mat.fieldRot.y + in.P.z * mat.fieldRot.x );
+	let q = vec2f( fp.x * ca + fp.y * sa, - fp.x * sa + fp.y * ca );
 	// asphalt: patches, grain, oil down the middle of the stalls
 	var c = mat.color * ( 0.8 + 0.3 * mx_noise_float2( in.P.xz * 0.08 ) + 0.12 * mx_noise_float2( in.P.xz * 3.0 ) );
 	let m = fract( q.y / 18.3 ) * 18.3; // across a module: stalls 0-5.5, aisle 5.5-12.8, stalls 12.8-18.3
@@ -249,7 +329,56 @@ export class Complex {
 	let oil = select( 0.0, smoothstep( 0.8, 0.0, abs( fract( q.x / 2.7 ) - 0.5 ) * 2.0 ) * 0.25, inStall && ( ( m > 1.0 && m < 4.0 ) || ( m > 14.0 && m < 17.0 ) ) );
 	let asphalt = c * ( 1.0 - oil );
 	c = mix( asphalt, vec3f( 0.52, 0.52, 0.5 ), paint );
+	// ---- FW2 (C2I-2): the parked cars, where there's no real one
+	var painted = true;
+	if ( length( fp - mat.near.xy ) < mat.near.z || length( fp - mat.w1.xy ) < mat.w1.z ) { painted = false; }
+	for ( var i = 0; i < 12; i ++ ) {
+		let k = mat.clear[ i ];
+		if ( k.z > 0.0 && length( fp - k.xy ) < k.z ) { painted = false; }
+	}
+	var carHit = false;
+	if ( painted ) {
+		// the view ray in the lot's frame: back toward the eye across the ground, and how steeply it falls
+		let V = normalize( in.P - frame.cameraPos );
+		let vf = vec2f( V.x * mat.fieldRot.x - V.z * mat.fieldRot.y, V.x * mat.fieldRot.y + V.z * mat.fieldRot.x );
+		let vq = vec2f( vf.x * ca + vf.y * sa, - vf.x * sa + vf.y * ca );
+		let lh = max( length( vq ), 1e-4 );
+		let back = - vq / lh;
+		let tanT = max( - V.y / lh, 0.04 );
+		// from 1.9 m down to the ground: the first height at which the ray is inside a car
+		var prevQ = q + back * ( 2.2 / tanT );
+		for ( var k = 0; k < 7; k ++ ) {
+			let h = 1.9 - f32( k ) * 0.3;
+			let p = q + back * ( h / tanT );
+			let car = lcCar( p, in.vs.vLot.y );
+			let hit = lcInside( car, h );
+			if ( hit > 0.0 ) {
+				// in through the top (the step between samples short: seen from above) or a side
+				let sideOn = length( p - prevQ ) > 0.45 && k > 0;
+				let col = lcPaint( car.paint );
+				if ( hit > 1.5 ) {
+					// the cabin: glass round it, its roof the paint
+					c = select( col * 0.9, vec3f( 0.025, 0.03, 0.035 ), sideOn && h < car.cabH - 0.12 );
+				} else {
+					c = col * select( 0.95, 0.6 + 0.4 * ( h / car.bodyH ), sideOn );
+				}
+				carHit = true;
+				break;
+			}
+			prevQ = p;
+		}
+		if ( ! carHit ) {
+			// the dark under each car, round its footprint
+			let car = lcCar( q, in.vs.vLot.y );
+			if ( car.kind > 0.5 ) {
+				let d = max( abs( car.l.x ) - car.ext.x, abs( car.l.y ) - car.ext.y );
+				c = c * mix( 0.35, 1.0, smoothstep( - 0.1, 0.45, d ) );
+			}
+		}
+	}
 	s.albedo = c;
+	if ( carHit ) { s.roughness = mix( 0.35, 0.15, frame.wet ); }
+	// ---- end FW2
 	// pools under the poles
 	let g = ( fract( vec2f( q.x / ${ LOT_U.toFixed( 2 ) }, q.y / ${ LOT_V.toFixed( 2 ) } ) + 0.5 ) - 0.5 ) * vec2f( ${ LOT_U.toFixed( 2 ) }, ${ LOT_V.toFixed( 2 ) } );
 	let pool = exp( - dot( g, g ) / ( 2.0 * 10.0 * 10.0 ) );
@@ -258,10 +387,28 @@ export class Complex {
 	// (CB-14: the pool lights the asphalt; the stall lines only a little more than it, so they don't comb
 	// the lots with glowing stripes, and the light falls off sooner between the poles: roadieshow
 	// 3024603196, Getty 83476764, Oct 27)
-	s.emissive = mix( asphalt, c, 0.35 ) * vec3f( ${ HALIDE.join( ', ' ) } ) * ( pool * pool * 3.2 + pool * 0.22 ) * smoothstep( 0.2, 0.8, frame.night );
-` } ), 'parking-lots' );
+	s.emissive = select( mix( asphalt, c, 0.35 ), c * 0.45, carHit ) * vec3f( ${ HALIDE.join( ', ' ) } ) * ( pool * pool * 3.2 + pool * 0.22 ) * smoothstep( 0.2, 0.8, frame.night );
+` } );
+		this.lotMaterial = mat;
+		this._add( b.geometry( 'aLot' ), mat, 'parking-lots' );
 
 	}
+
+	// ---- FW2 (C2I-2): where the real cars are round you (LotCars), so the shader leaves those stalls be
+	lotNear( x, z, R ) {
+
+		this.lotMaterial?.uniforms.near.value.set( x, z, R > 0 ? R + 3 : 0, 0 );
+
+	}
+
+	// and where nobody parks: [ [ x, z, r ], ... ] (up to 12)
+	lotClear( list ) {
+
+		const U = this.lotMaterial?.uniforms.clear.value;
+		if ( U ) list.slice( 0, 12 ).forEach( ( [ x, z, r ], i ) => U[ i ].set( x, z, r, 0 ) );
+
+	}
+	// ---- end FW2
 
 	// ---------------------------------------------------------------- highways and rail
 
@@ -498,39 +645,171 @@ export class Complex {
 
 	// ---------------------------------------------------------------- trees and poles
 
+	// C2I-1 (gauntlet r2, FW2): the street trees were 713 faceted icosahedra on posts, hard octagonal
+	// shadows under the lot lights, five of them across the home plate entrance, beside W1's honey locusts
+	// grown branch by branch on the 3B plaza: two kinds of tree on one street. In the photos Pattison's
+	// trees are young honey locusts in grates, lacy and gone yellow in October (rdowens Jul 2008, bps52769
+	// Oct 29 2008), and the home plate entrance has low planters, no trees across its doors
+	// (thephillyfly Apr 2008). So: the trees within 250 m of the park are grown as W1's are (gate3b's
+	// grower: honey locusts, and some bigger, broader ones), in their October colours, in two draws; the
+	// ones further out a crown of crossed leaf cards round the trunk (lacy, the light through it), one
+	// instanced draw each for the cards and the trunks; none of them cast shadows (W1's on the plaza do).
+	// W1's place (ThirdBaseGate) still takes the instanced trees in its area and grows those itself.
 	_trees() {
 
-		const trunks = new Quads(), crowns = new Builder();
-		beam( trunks, [ 0, 0, 0 ], [ 0, 3.2, 0 ], 0.35 );
-		// a low-poly crown: an icosahedron-ish ball, pulled a little flat
-		const t = ( 1 + Math.sqrt( 5 ) ) / 2;
-		const V = [ [ - 1, t, 0 ], [ 1, t, 0 ], [ - 1, - t, 0 ], [ 1, - t, 0 ], [ 0, - 1, t ], [ 0, 1, t ], [ 0, - 1, - t ], [ 0, 1, - t ], [ t, 0, - 1 ], [ t, 0, 1 ], [ - t, 0, - 1 ], [ - t, 0, 1 ] ].map( ( p ) => {
+		const C = [ 0, - 40 ];
+		// the home plate entrance's front: planters there, not trees
+		const entrance = ( [ x, z ] ) => Math.abs( x ) < 17 && z > 92 && z < 106;
+		// W1's area (places/ThirdBaseGate.js AREA): it grows those
+		const w1 = ( [ x, z ] ) => x >= - 200 && x <= - 15 && z >= - 20 && z <= 185;
+		const all = TREES.filter( ( t ) => ! entrance( t ) );
+		const grown = all.filter( ( t ) => ! w1( t ) && Math.hypot( t[ 0 ] - C[ 0 ], t[ 1 ] - C[ 1 ] ) < 250 );
+		const carded = all.filter( ( t ) => ! grown.includes( t ) );
+		// the near ones: two thirds honey locusts as W1's, the rest bigger and broader (planes, oaks in the
+		// lots' islands); in grates along Pattison's sidewalk
+		const spots = grown.map( ( [ x, z ], i ) => {
 
-			const l = Math.hypot( ...p );
-			return [ p[ 0 ] / l * 3, p[ 1 ] / l * 2.6 + 5.6, p[ 2 ] / l * 3 ];
+			const r = hash( i * 5.3 + x * 0.1 ), big = hash( i * 2.9 + z * 0.1 ) > 0.65;
+			return [ x, z, 1000 + i, big ? { h: 8.2 + r * 2.4, trunk: 2.5 + r * 0.4, r: 0.1 + r * 0.04, thin: 0.25 } : { thin: 0.3 + r * 0.3 } ];
 
 		} );
-		const F = [ [ 0, 11, 5 ], [ 0, 5, 1 ], [ 0, 1, 7 ], [ 0, 7, 10 ], [ 0, 10, 11 ], [ 1, 5, 9 ], [ 5, 11, 4 ], [ 11, 10, 2 ], [ 10, 7, 6 ], [ 7, 1, 8 ], [ 3, 9, 4 ], [ 3, 4, 2 ], [ 3, 2, 6 ], [ 3, 6, 8 ], [ 3, 8, 9 ], [ 4, 9, 5 ], [ 2, 4, 11 ], [ 6, 2, 10 ], [ 8, 6, 7 ], [ 9, 8, 1 ] ];
-		for ( const [ a, b, c ] of F ) {
+		const sidewalk = ( [ , z ] ) => z > 92 && z < 112;
+		// in blocks of 140 m, each kept out of the static batching (userData.dynamic) so it keeps its own
+		// bounds: the blocks out of view or behind the walls (Occlusion.js) aren't drawn
+		const blocks = new Map();
+		for ( const p of spots ) {
 
-			const n = [ 0, 1, 2 ].map( ( k ) => V[ a ][ k ] + V[ b ][ k ] + V[ c ][ k ] - ( k === 1 ? 16.8 : 0 ) );
-			crowns.tri( V[ a ], V[ b ], V[ c ], n );
+			const k = `${ Math.floor( p[ 0 ] / 140 ) },${ Math.floor( p[ 1 ] / 140 ) }`;
+			if ( ! blocks.has( k ) ) blocks.set( k, [] );
+			blocks.get( k ).push( p );
 
 		}
 
-		const n = TREES.length;
-		const bark = standard( { name: 'tree-bark', color: new Color( 0.12, 0.09, 0.07 ), roughness: 0.9 } );
-		const leaves = standard( { name: 'tree-leaves', color: new Color( 1, 1, 1 ), roughness: 0.8, modules: [ commonModule ],
-			surface: 's.albedo = s.albedo * ( 0.75 + 0.4 * mx_noise_float2( in.P.xz * 1.3 + in.P.y ) );' } );
-		const tm = new InstancedMesh( trunks.geometry(), bark, n ), cm = new InstancedMesh( crowns.geometry(), leaves, n );
+		this.treeMeshes = [];
+		for ( const list of blocks.values() ) {
+
+			const g = new Group();
+			g.userData.dynamic = true;
+			this.group.add( g );
+			this.treeMeshes.push(
+				...plantTrees( g, list.filter( sidewalk ), { grates: true, shadows: false } ),
+				...plantTrees( g, list.filter( ( p ) => ! sidewalk( p ) ), { grates: false, shadows: false } ),
+			);
+
+		}
+		this.treeCount = { grown: grown.length, carded: carded.length };
+
+		// the far ones: four crossed cards and two across the top, the crown's texture lacy with gaps
+		const trunks = new Quads(), cards = new Builder();
+		beam( trunks, [ 0, 0, 0 ], [ 0, 3.4, 0 ], 0.2 );
+		const cy = 5.6, R = 3.1, y0 = 2.4, y1 = 8.8;
+		for ( let k = 0; k < 4; k ++ ) {
+
+			const a = k * Math.PI / 4, cx = Math.cos( a ) * R, cz = Math.sin( a ) * R;
+			const A = [ - cx, y0, - cz ], B = [ cx, y0, cz ], Cc = [ cx, y1, cz ], D = [ - cx, y1, - cz ];
+			const n = [ - cz, 0, cx ];
+			cards.tri( A, B, Cc, n, [ 0, 1 ], [ 0.5, 1 ], [ 0.5, 0 ] );
+			cards.tri( A, Cc, D, n, [ 0, 1 ], [ 0.5, 0 ], [ 0, 0 ] );
+
+		}
+
+		// two across the top, a little apart, the upper one smaller
+		for ( const [ yt, rt ] of [ [ cy - 0.3, R * 0.95 ], [ cy + 1.1, R * 0.72 ] ] ) {
+
+			cards.tri( [ - rt, yt, - rt ], [ rt, yt, - rt ], [ rt, yt, rt ], [ 0, 1, 0 ], [ 0.5, 1 ], [ 1, 1 ], [ 1, 0 ] );
+			cards.tri( [ - rt, yt, - rt ], [ rt, yt, rt ], [ - rt, yt, rt ], [ 0, 1, 0 ], [ 0.5, 1 ], [ 1, 0 ], [ 0.5, 0 ] );
+
+		}
+		const crownGeo = cards.geometry();
+		// each vertex's normal out from the crown's middle (and up), so the cards shade like a crown
+		{
+
+			const P = crownGeo.attributes.position.array, N = crownGeo.attributes.normal.array;
+			for ( let i = 0; i < P.length; i += 3 ) {
+
+				const n = [ P[ i ], P[ i + 1 ] - cy + 2.0, P[ i + 2 ] ], l = Math.hypot( ...n );
+				N[ i ] = n[ 0 ] / l; N[ i + 1 ] = n[ 1 ] / l; N[ i + 2 ] = n[ 2 ] / l;
+
+			}
+
+		}
+
+		const tex = canvasTexture( 1024, 512, ( ctx, W, H ) => {
+
+			ctx.clearRect( 0, 0, W, H );
+			const r = rng( 11 );
+			// R the cluster's shade, G a random for its colour, B the wood
+			const blob = ( x, y, rx, ry, a ) => {
+
+				ctx.fillStyle = `rgb(${ Math.round( 120 + 135 * r() ) },${ Math.round( 255 * r() ) },0)`;
+				ctx.beginPath();
+				ctx.ellipse( x, y, rx, ry, a, 0, Math.PI * 2 );
+				ctx.fill();
+
+			};
+
+			// the side view (left half): limbs fanning up from the trunk's top, leaf clusters over them
+			ctx.strokeStyle = 'rgb(60,30,255)';
+			ctx.lineCap = 'round';
+			for ( let k = 0; k < 7; k ++ ) {
+
+				const a = - Math.PI / 2 + ( k / 6 - 0.5 ) * 1.9 + ( r() - 0.5 ) * 0.2;
+				const L = 150 + r() * 70;
+				ctx.lineWidth = 7 - k % 3;
+				ctx.beginPath(); ctx.moveTo( 256, H ); ctx.lineTo( 256 + Math.cos( a ) * L, 470 + Math.sin( a ) * L ); ctx.stroke();
+
+			}
+
+			for ( let i = 0; i < 1500; i ++ ) {
+
+				// in an ellipse over the trunk, thinner toward the edge, with holes (October)
+				const t = Math.sqrt( r() ), a = r() * Math.PI * 2;
+				const x = 256 + Math.cos( a ) * t * 235, y = 225 + Math.sin( a ) * t * 200;
+				if ( r() < t * t * 0.55 ) continue;
+				if ( Math.sin( x * 0.045 + y * 0.03 ) * Math.cos( y * 0.05 - x * 0.02 ) > 0.55 ) continue;
+				blob( x, y, 5 + r() * 7, 3 + r() * 4, r() * 3 );
+
+			}
+
+			// the top view (right half): a round crown of clusters
+			for ( let i = 0; i < 1300; i ++ ) {
+
+				const t = Math.sqrt( r() ), a = r() * Math.PI * 2;
+				const x = 768 + Math.cos( a ) * t * 230, y = 256 + Math.sin( a ) * t * 230;
+				if ( r() < t * t * 0.5 ) continue;
+				if ( Math.sin( x * 0.05 ) * Math.cos( y * 0.045 ) > 0.6 ) continue;
+				blob( x, y, 6 + r() * 8, 4 + r() * 5, r() * 3 );
+
+			}
+
+		}, 'tree-cards' );
+		const n = carded.length;
+		const bark = standard( { name: 'tree-bark', color: new Color( 0.075, 0.062, 0.052 ), roughness: 0.9 } );
+		const leaves = standard( { name: 'tree-leaves', color: new Color( 1, 1, 1 ), roughness: 0.7, alphaTest: 0.5, side: 'double', modules: [ commonModule ],
+			textures: { treeCards: tex },
+			surface: /* wgsl */`
+	let t = textureSample( treeCards, smpLinearClamp, in.uv );
+	// (the clusters hold together into the distance: the cut-out's coverage kept as the mips average it)
+	s.alpha = t.a * ( 1.0 + clamp( fwidth( in.uv.x ) * 250.0, 0.0, 1.2 ) );
+	// the tree's own October tint (its instance colour), each cluster a little greener or more gold
+	let gold = vec3f( 0.44, 0.31, 0.045 );
+	let green = vec3f( 0.12, 0.16, 0.035 );
+	var c = mix( s.albedo, mix( green, gold, t.g ), 0.3 ) * ( 0.55 + 0.6 * t.r );
+	c = mix( c, vec3f( 0.05, 0.035, 0.025 ), smoothstep( 0.6, 0.9, t.b ) );
+	s.albedo = c * mix( 1.0, 0.8, frame.wet );
+	s.translucency = c * 0.2;
+	s.specularIntensity = 0.35;
+` } );
+		leaves.setDefine( 'DRY', 1 );
+		const tm = new InstancedMesh( trunks.geometry(), bark, Math.max( 1, n ) ), cm = new InstancedMesh( crownGeo, leaves, Math.max( 1, n ) );
 		const m = new Matrix4(), q = new Quaternion(), sc = new Vector3(), col = new Color();
 		// October: mostly green going yellow, some orange and rust
 		const autumn = [ [ 0.12, 0.2, 0.06 ], [ 0.16, 0.22, 0.06 ], [ 0.3, 0.3, 0.07 ], [ 0.45, 0.35, 0.08 ], [ 0.45, 0.2, 0.06 ], [ 0.3, 0.12, 0.05 ] ];
-		TREES.forEach( ( [ x, z ], i ) => {
+		carded.forEach( ( [ x, z ], i ) => {
 
 			const r = hash( i * 1.7 + x ), s = 0.8 + 0.5 * r;
 			q.setFromAxisAngle( new Vector3( 0, 1, 0 ), r * 6.28 );
-			m.compose( new Vector3( x, STREET, z ), q, sc.set( s, s, s ) );
+			m.compose( new Vector3( x, STREET, z ), q, sc.set( s, s * ( 0.9 + 0.25 * hash( i * 4.1 ) ), s ) );
 			tm.setMatrixAt( i, m );
 			cm.setMatrixAt( i, m );
 			const k = autumn[ Math.floor( hash( i * 3.1 ) * autumn.length ) ];
@@ -541,7 +820,7 @@ export class Complex {
 
 			mat.underwaterLighting = 'none';
 			mesh.name = name;
-			mesh.castShadow = true;
+			mesh.castShadow = false;
 			mesh.receiveShadow = true;
 			mesh.computeBoundingBox?.();
 			mesh.computeBoundingSphere?.();
@@ -803,7 +1082,8 @@ export class Complex {
 	var e = vec3f( 0.0 );
 	if ( v < 4.0 ) { c = vec3f( 0.06, 0.07, 0.08 ); e = vec3f( 0.9, 0.8, 0.6 ) * smoothstep( 0.2, 0.8, frame.night ) * 0.3; }
 	if ( v > 17.0 ) {
-		let t = textureSample( bpSpec, smpAnisoRepeat, vec2f( in.uv.x / 90.0, 1.0 - ( v - 17.0 ) / 5.0 ) ).rgb;
+		// (C2W-9, FW2: u runs anticlockwise round the drum, so from outside the name read backwards)
+		let t = textureSample( bpSpec, smpAnisoRepeat, vec2f( - in.uv.x / 90.0, 1.0 - ( v - 17.0 ) / 5.0 ) ).rgb;
 		c = t * 0.8;
 		e = t * step( 0.6, t.r ) * smoothstep( 0.2, 0.8, frame.night ) * 1.2;
 	}
