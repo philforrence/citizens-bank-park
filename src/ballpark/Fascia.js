@@ -4,6 +4,7 @@ import { Quads } from './Stands.js';
 import { canvasTexture, refreshCanvasTexture } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
 import { FT, FOUL_TERRITORY, FOUL_WALL_HEIGHT, DUGOUTS } from './layout.js';
+import { SEASON } from './Phanavision.js';
 
 // The fronts of the decks as they were for the 2008 World Series (from photos of Games 3-5):
 //   - the LED ribbon board along the suite level round the infield: WORLD SERIES 2008 on FOX, the batter,
@@ -430,20 +431,22 @@ export class Fascia {
 
 		const d = director, seg = d.segmentAt( d.t ), s = seg.snap;
 		let design;
+		// (CB-7: through the Series the ribbon was mostly red: the World Series graphics with the line
+		// score and the batter set into them in black boxes, Getty 84080911; between innings THERE'S ONLY
+		// ONE OCTOBER on red, 83571001; blue 2008 graphics for the intros, 163678267)
 		if ( seg.kind === 'celebrate' ) design = 'champs';
 		else if ( seg.kind === 'intro' ) design = 'ws';
-		else if ( seg.kind === 'switch' ) design = 'score';
-		else if ( seg.kind === 'walkup' ) design = 'batter';
+		else if ( seg.kind === 'switch' || seg.kind === 'walkup' ) design = 'game';
 		else if ( seg.kind === 'change' ) design = 'october';
 		else {
 
-			const cycle = [ 'ws', 'batter', 'october', 'nlchamps', 'msg', 'score', 'citizens' ];
+			const cycle = [ 'game', 'october', 'game', 'nlchamps', 'game', 'msg', 'game', 'citizens' ];
 			design = cycle[ Math.floor( d.t / 14 ) % cycle.length ];
 			if ( s.half === 'bottom' && ( s.bases[ 1 ] || s.bases[ 2 ] ) && Math.floor( d.t / 7 ) % 2 === 0 ) design = 'noise';
 
 		}
 
-		const key = JSON.stringify( [ design, design === 'batter' ? [ st.batter, st.today ] : 0, design === 'score' ? [ st.score, st.inning, st.half, st.outs ] : 0 ] );
+		const key = JSON.stringify( [ design, design === 'game' ? [ st.batter, st.score, st.line, st.hits, st.errors ] : 0 ] );
 		if ( key !== this._key ) {
 
 			this._key = key;
@@ -656,56 +659,113 @@ function drawRibbon( ctx, w, h, design, st ) {
 	const H = h / 2;
 	if ( design === 'ws' ) {
 
-		// magenta with a diamond pattern, the logo block in the middle, the Phillies P at the sides
+		// the intros' blue 2008 graphics (Getty 163678267, Game 4): a blue ground with a pale swoosh,
+		// 2008 big in white, WORLD SERIES between
 		const g = ctx.createLinearGradient( 0, 0, 0, h );
-		g.addColorStop( 0, '#ff2d8a' ); g.addColorStop( 1, '#b0005a' );
+		g.addColorStop( 0, '#1d56c4' ); g.addColorStop( 1, '#0a2a78' );
 		ctx.fillStyle = g;
 		ctx.fillRect( 0, 0, w, h );
-		ctx.fillStyle = 'rgba( 255, 255, 255, 0.12 )';
-		for ( let x = - h; x < w; x += 48 ) {
+		ctx.strokeStyle = 'rgba( 170, 210, 255, 0.45 )';
+		ctx.lineWidth = 10;
+		for ( const y0 of [ 20, 70 ] ) {
 
-			ctx.beginPath();
-			ctx.moveTo( x, H ); ctx.lineTo( x + 24, 0 ); ctx.lineTo( x + 48, H ); ctx.lineTo( x + 24, h );
-			ctx.fill();
+			ctx.beginPath(); ctx.moveTo( 0, y0 );
+			for ( let x = 0; x <= w; x += 64 ) ctx.lineTo( x, y0 + 14 * Math.sin( x / 220 + y0 ) );
+			ctx.stroke();
 
 		}
 
-		// the logo, WORLD SERIES 2008, "on", FOX: measured and centred on a navy block
-		const parts = [ [ 'WORLD SERIES 2008', '700 66px Georgia, "Times New Roman", serif', 0 ], [ 'on', 'italic 600 30px ' + SANS, 6 ], [ 'FOX', 'italic 900 62px ' + SANS, 0 ] ];
-		const gap = 18, logoW = 110;
-		const widths = parts.map( ( [ t, f ] ) => {
+		for ( const x of [ w * 0.16, w * 0.5, w * 0.84 ] ) text( ctx, '2008', x, H + 4, 'italic 900 84px ' + SANS, '#ffffff' );
+		for ( const x of [ w * 0.33, w * 0.67 ] ) {
 
-			ctx.font = f;
-			return ctx.measureText( t ).width;
+			mlbLogo( ctx, x - 230, 22, 80, 52 );
+			text( ctx, 'WORLD SERIES', x + 40, H + 3, '700 58px Georgia, "Times New Roman", serif', '#ffffff' );
 
-		} );
-		const total = logoW + gap + widths.reduce( ( a, b ) => a + b + gap, 0 ) - gap;
-		let x = ( w - total ) / 2;
-		ctx.fillStyle = '#0d1f4f';
-		ctx.fillRect( x - 30, 4, total + 60, h - 8 );
-		mlbLogo( ctx, x, 14, logoW, 68 );
-		x += logoW + gap;
-		parts.forEach( ( [ t, f, dy ], i ) => {
+		}
 
-			text( ctx, t, x, H + 2 + dy, f, '#ffffff', 'left' );
-			x += widths[ i ] + gap;
+	} else if ( design === 'game' ) {
 
-		} );
-		for ( const x of [ w * 0.1, w * 0.9 ] ) {
+		// the Series' main look (Getty 84080911, Game 3): on red, the WS2008 block, the line score in a
+		// black box, the Rays' TR and WORLD SERIES 2008 and the Phillies' P, the batter in a black box
+		// (a head shot, his number, name and position, his 2008 AVG, HR and RBI)
+		const g = ctx.createLinearGradient( 0, 0, 0, h );
+		g.addColorStop( 0, '#e0283a' ); g.addColorStop( 1, '#a50f20' );
+		ctx.fillStyle = g;
+		ctx.fillRect( 0, 0, w, h );
+		const S = st || { score: { away: 0, home: 0 }, hits: { away: 0, home: 0 }, errors: { away: 0, home: 0 }, line: [] };
+		// the WS2008 block
+		ctx.fillStyle = '#f2d0d4';
+		ctx.fillRect( 6, 6, 252, h - 12 );
+		ctx.fillStyle = '#c8102e';
+		ctx.fillRect( 10, 10, 244, h - 20 );
+		mlbLogo( ctx, 20, 26, 62, 44 );
+		text( ctx, 'WS2008', 168, H + 4, '700 50px Georgia, "Times New Roman", serif', '#ffffff' );
+		// the line score
+		ctx.fillStyle = '#040506';
+		ctx.fillRect( 268, 4, 500, h - 8 );
+		const LED = '700 30px "Courier New", monospace', AMBER = '#ffd98a';
+		text( ctx, 'TB', 300, 30, '900 26px ' + SANS, '#ffffff' );
+		text( ctx, 'PHI', 300, 68, '900 26px ' + SANS, '#ffffff' );
+		for ( let i = 0; i < 9; i ++ ) {
 
-			ctx.fillStyle = '#ffffff';
-			ctx.beginPath(); ctx.arc( x, H, 38, 0, Math.PI * 2 ); ctx.fill();
-			text( ctx, 'P', x, H + 4, 'italic 700 64px Georgia, serif', '#c8102e' );
+			const inn = S.line?.[ i ];
+			for ( const [ k, y ] of [ [ 0, 30 ], [ 1, 68 ] ] ) {
+
+				const v = inn ? inn[ k ] : null;
+				text( ctx, v === null || v === undefined ? '' : String( v ), 360 + i * 30, y, LED, AMBER );
+
+			}
+
+		}
+
+		for ( const [ k, y ] of [ [ 'away', 30 ], [ 'home', 68 ] ] ) {
+
+			text( ctx, String( S.score[ k ] ?? 0 ), 664, y, LED, '#ffffff' );
+			text( ctx, String( S.hits?.[ k ] ?? 0 ), 704, y, LED, '#ffffff' );
+			text( ctx, String( S.errors?.[ k ] ?? 0 ), 744, y, LED, '#ffffff' );
+
+		}
+
+		// the middle: the Rays' roundel, the Series, the Phillies' P
+		mlbLogo( ctx, 790, 24, 70, 48 );
+		ctx.fillStyle = '#ffffff';
+		ctx.beginPath(); ctx.arc( 930, H, 38, 0, Math.PI * 2 ); ctx.fill();
+		text( ctx, 'TR', 930, H + 3, '900 40px Georgia, serif', '#0b2a5b' );
+		mlbLogo( ctx, 1010, 26, 60, 44 );
+		text( ctx, 'WORLD SERIES 2008', 1084, H + 4, '700 52px Georgia, "Times New Roman", serif', '#ffffff', 'left', 340 );
+		ctx.fillStyle = '#ffffff';
+		ctx.beginPath(); ctx.arc( 1470, H, 38, 0, Math.PI * 2 ); ctx.fill();
+		text( ctx, 'P', 1470, H + 4, 'italic 700 60px Georgia, serif', '#c8102e' );
+		// the batter
+		ctx.fillStyle = '#040506';
+		ctx.fillRect( 1528, 4, 512, h - 8 );
+		const b = st && st.batter;
+		if ( b ) {
+
+			// the head shot: his cap and face, small
+			ctx.fillStyle = '#2a3a5a'; ctx.fillRect( 1538, 10, 62, h - 20 );
+			ctx.fillStyle = '#b07a58'; ctx.beginPath(); ctx.ellipse( 1569, 54, 17, 22, 0, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = st.batting === 'home' ? '#c8102e' : '#0b2a5b';
+			ctx.beginPath(); ctx.ellipse( 1569, 36, 19, 11, 0, Math.PI, Math.PI * 2 ); ctx.fill();
+			ctx.fillRect( 1550, 34, 40, 5 );
+			text( ctx, `${ b.num }  ${ b.last }`, 1616, 30, '900 34px ' + SANS, '#ffffff', 'left', 300 );
+			text( ctx, b.pos || '', 2010, 30, '800 32px ' + SANS, '#ffffff', 'right' );
+			const sea = SEASON[ b.last.charAt( 0 ) + b.last.slice( 1 ).toLowerCase() ];
+			if ( sea ) text( ctx, `AVG ${ sea[ 0 ] }   HR ${ sea[ 1 ] }   RBI ${ sea[ 2 ] }`, 1616, 70, LED, AMBER, 'left', 410 );
 
 		}
 
 	} else if ( design === 'october' ) {
 
-		ctx.fillStyle = '#0a1a3c';
+		// between innings: MLB's slogan for the 2008 postseason, white on red (Getty 83571001)
+		const g = ctx.createLinearGradient( 0, 0, 0, h );
+		g.addColorStop( 0, '#d8203a' ); g.addColorStop( 1, '#a00d1e' );
+		ctx.fillStyle = g;
 		ctx.fillRect( 0, 0, w, h );
-		for ( let i = 0; i < 40; i ++ ) star( ctx, ( i * 211 ) % w, 12 + ( i * 37 ) % ( h - 24 ), 5, 'rgba( 255, 255, 255, 0.35 )' );
-		text( ctx, "THERE'S ONLY ONE", w * 0.36, H + 3, '900 62px ' + SANS, '#ffffff' );
-		text( ctx, 'OCTOBER', w * 0.66, H + 3, 'italic 900 76px ' + SANS, '#ffc425' );
+		ctx.fillStyle = '#ffffff';
+		ctx.fillRect( 0, 5, w, 3 ); ctx.fillRect( 0, h - 8, w, 3 );
+		text( ctx, "THERE'S ONLY ONE", w * 0.38, H + 3, '900 62px ' + SANS, '#ffffff' );
+		text( ctx, 'OCTOBER', w * 0.67, H + 3, 'italic 900 76px ' + SANS, '#ffffff' );
 		mlbLogo( ctx, w * 0.08, 14, 110, 68 );
 		mlbLogo( ctx, w * 0.87, 14, 110, 68 );
 
@@ -724,42 +784,6 @@ function drawRibbon( ctx, w, h, design, st ) {
 		ctx.fillText( 'Phillies', w * 0.2, H + 2 );
 		star( ctx, w * 0.105, H - 20, 12, '#1d3f94' ); star( ctx, w * 0.3, H + 16, 12, '#1d3f94' );
 		text( ctx, '2008 NATIONAL LEAGUE CHAMPIONS', w * 0.64, H + 3, '900 60px ' + SANS, '#ffffff' );
-
-	} else if ( design === 'batter' ) {
-
-		ctx.fillStyle = '#050608';
-		ctx.fillRect( 0, 0, w, h );
-		const b = st && st.batter;
-		ctx.fillStyle = '#c8102e';
-		ctx.fillRect( 20, 10, 330, h - 20 );
-		text( ctx, 'NOW BATTING', 185, H + 2, '900 44px ' + SANS, '#ffffff' );
-		if ( b ) {
-
-			text( ctx, `#${ b.num }  ${ b.name }`, 390, H + 3, '900 64px ' + SANS, '#ffffff', 'left', 900 );
-			text( ctx, b.pos || '', 1310, H + 3, '800 52px ' + SANS, '#ffc425', 'left' );
-			const today = ( st.today || [] ).slice( - 3 ).join( '   ' ) || 'FIRST AT BAT TODAY';
-			text( ctx, today, 1420, H + 3, '700 40px "Courier New", monospace', '#ffb000', 'left', w - 1440 );
-
-		}
-
-	} else if ( design === 'score' ) {
-
-		ctx.fillStyle = '#050608';
-		ctx.fillRect( 0, 0, w, h );
-		const S = st || { score: { away: 0, home: 0 }, inning: 1, half: 'top', outs: 0 };
-		const block = ( x, club, runs, bg ) => {
-
-			ctx.fillStyle = bg;
-			ctx.fillRect( x, 10, 560, h - 20 );
-			text( ctx, club.toUpperCase(), x + 30, H + 3, '900 60px ' + SANS, '#ffffff', 'left' );
-			text( ctx, String( runs ), x + 520, H + 3, '900 72px ' + SANS, '#ffffff', 'right' );
-
-		};
-
-		block( 120, 'Rays', S.score.away, '#0b2a5b' );
-		block( 720, 'Phillies', S.score.home, '#b0101f' );
-		text( ctx, `${ S.half === 'top' ? 'TOP' : 'BOT' } ${ S.inning }`, 1480, H + 3, '900 60px ' + SANS, '#ffc425' );
-		text( ctx, `${ S.outs } OUT${ S.outs === 1 ? '' : 'S' }`, 1780, H + 3, '800 52px ' + SANS, '#ffffff' );
 
 	} else if ( design === 'msg' ) {
 
