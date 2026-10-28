@@ -68,7 +68,7 @@ export function buildTerrace( group, bowl ) {
 	let n1 = mx_noise_float2( in.P.xz * 0.35 );
 	let n2 = mx_noise_float2( in.P.xz * 2.3 );
 	let gum = step( 0.86, mx_noise_float2( in.P.xz * 9.0 ) ) * lane;
-	var c = vec3f( 0.27, 0.265, 0.25 ) * ( 0.88 + 0.12 * n1 + 0.05 * n2 );
+	var c = vec3f( 0.22, 0.215, 0.205 ) * ( 0.88 + 0.12 * n1 + 0.05 * n2 );
 	c = c * ( 1.0 - 0.12 * lane - 0.25 * joint - 0.15 * drip ) * ( 1.0 - 0.5 * gum );
 	c = c * ( 1.0 - 0.1 * smoothstep( 9.5, 12.0, in.uv.y ) * smoothstep( 0.4, 0.8, n1 ) );
 	// open to the sky in front of the 400s: wet on the 27th
@@ -156,8 +156,9 @@ export function buildTerrace( group, bowl ) {
 
 			const e = ( d ) => [ Math.min( S.len, S.m0 * d ), Math.max( Math.min( S.len, S.m0 * d ), S.len - S.m1 * d ) ];
 			const at = ( s, d ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, t400.y0 - t400.soffit - 0.04 + d * rake, S.a[ 1 ] + S.uz * s + S.nz * d ];
-			const [ f0, f1 ] = e( 0.02 ), [ b0, b1 ] = e( dB - 0.02 );
-			dq.add( at( f0, 0.02 ), at( f1, 0.02 ), at( b1, dB - 0.02 ), at( b0, dB - 0.02 ), [ S.nx * rake, - 1, S.nz * rake ] );
+			const dF = 0.02 - ( t400.frontWall?.ahead || 0 );
+			const [ f0, f1 ] = e( dF ), [ b0, b1 ] = e( dB - 0.02 );
+			dq.add( at( f0, dF ), at( f1, dF ), at( b1, dB - 0.02 ), at( b0, dB - 0.02 ), [ S.nx * rake, - 1, S.nz * rake ] );
 
 		}
 

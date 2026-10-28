@@ -430,7 +430,7 @@ export class Bowl {
 			// up, every other section (Commons 2008-03-29, the 3B decks from the left field corner: the white
 			// boxes and their rails). They sat on the walkway's back edge, the front row's feet on it.
 			// (CB-13, gauntlet r1, had taken the tunnels out when the 400s were entered from their front)
-			{ name: 'terrace-400', front: line( main, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + T400.lift, rows: ROWS.t400, depth: ROW, rise: T400.rise, section: 14, aisle: 1.2, soffit: T400.soffit, frontWall: { top: L.terraceConcourse + T400.lift + 0.75 }, back: { height: 1.1 }, base: L.terraceConcourse + T400.lift - T400.soffit, portals: T400.portals },
+			{ name: 'terrace-400', front: line( main, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + T400.lift, rows: ROWS.t400, depth: ROW, rise: T400.rise, section: 14, aisle: 1.2, soffit: T400.soffit, frontWall: { top: L.terraceConcourse + T400.lift + 0.75, ahead: 0.45 }, back: { height: 1.1 }, base: L.terraceConcourse + T400.lift - T400.soffit, portals: T400.portals },
 			// ---- end FW3
 			// the Arcade (233-237): down the left field line from the end of the club, ten rows on the suite
 			// level's fascia (the ribbon board runs on along it) right under the 300s

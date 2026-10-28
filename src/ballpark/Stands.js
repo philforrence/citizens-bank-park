@@ -27,7 +27,9 @@ import { beam } from './geo.js';
 //   skip: [ [ i0, i1 ] ]        front segment index ranges with no seats (landings, tunnels, cameras)
 //   base                        bottom of the stepped block (m): the ground below the lower bowl, or
 //                               the underside of an upper deck
-//   frontWall: { top }          a fascia / wall in front of the first row, from `base` up to `top`
+//   frontWall: { top, ahead }   a fascia / wall in front of the first row, from `base` up to `top`
+//                               (---- FW3: `ahead` m in front of it, a ledge between: the front row's feet
+//                               stay behind it)
 //   back: { height }            a wall behind the last row
 //   soffit                      an upper deck: its underside runs this far below the rows (m), and
 //                               the stepped profile is closed at the tier's two ends
@@ -297,7 +299,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	if ( tier.soffit ) {
 
 		const t = tier.soffit, yB = ys[ ys.length - 1 ];
-		const dF = S0, dB = S0 + tier.rows * D;
+		const dF = S0 - ( tier.frontWall?.ahead || 0 ), dB = S0 + tier.rows * D; // ---- FW3: from the wall
 		for ( const S of secs ) {
 
 			const e = ( d ) => [ Math.min( S.len, S.m0 * d ), Math.max( Math.min( S.len, S.m0 * d ), S.len - S.m1 * d ) ];
@@ -337,9 +339,10 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const bottom = ys[ 0 ] - ( tier.soffit || 1 );
 		for ( const S of secs ) {
 
-			const s0 = Math.min( S.len, S.m0 * S0 ), s1 = Math.max( s0, S.len - S.m1 * S0 );
+			const F0 = S0 - ( tier.frontWall.ahead || 0 ); // ---- FW3
+			const s0 = Math.min( S.len, S.m0 * F0 ), s1 = Math.max( s0, S.len - S.m1 * F0 );
 			const mid = ( s0 + s1 ) / 2;
-			const cx = S.a[ 0 ] + S.ux * mid + S.nx * ( S0 - 0.1 ), cz = S.a[ 1 ] + S.uz * mid + S.nz * ( S0 - 0.1 );
+			const cx = S.a[ 0 ] + S.ux * mid + S.nx * ( F0 - 0.1 ), cz = S.a[ 1 ] + S.uz * mid + S.nz * ( F0 - 0.1 );
 			const w = toWorld( cx, cz );
 			colliders.addBox( new Vector3( w.x, ( top + bottom ) / 2, w.z ), new Vector3( ( s1 - s0 ) / 2, ( top - bottom ) / 2, 0.12 ), worldYaw - Math.atan2( S.uz, S.ux ), { tag: tier.name + '-front' } );
 
@@ -354,13 +357,32 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	if ( tier.frontWall ) {
 
 		const top = tier.frontWall.top ?? ys[ 0 ];
+		const FA = tier.frontWall.ahead || 0, F0 = S0 - FA; // ---- FW3
 		if ( top - base > 1.8 ) {
 
-			wallAlong( fq, secs, S0, top - 1.0, top, - 1 );
-			wallAlong( eq, secs, S0 + 0.05, top - 1.5, top - 1.0, - 1 );
-			wallAlong( q, secs, S0 + 0.3, base, top - 1.5, - 1 );
+			wallAlong( fq, secs, F0, top - 1.0, top, - 1 );
+			wallAlong( eq, secs, F0 + 0.05, top - 1.5, top - 1.0, - 1 );
+			wallAlong( q, secs, F0 + 0.3, base, top - 1.5, - 1 );
 
-		} else wallAlong( fq, secs, S0, base, top, - 1 );
+		} else wallAlong( fq, secs, F0, base, top, - 1 );
+		// ---- FW3: the ledge between the wall and the first row (its tread carried forward), and the wall's
+		// back face above it
+		if ( FA > 0 ) {
+
+			for ( const S of secs ) {
+
+				const e = ( d ) => [ Math.min( S.len, S.m0 * d ), Math.max( Math.min( S.len, S.m0 * d ), S.len - S.m1 * d ) ];
+				const at = ( s, d ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, S.a[ 1 ] + S.uz * s + S.nz * d ];
+				const [ f0, f1 ] = e( F0 ), [ b0, b1 ] = e( S0 );
+				const A0 = at( f0, F0 ), A1 = at( f1, F0 ), B1 = at( b1, S0 ), B0 = at( b0, S0 );
+				q.add( [ A0[ 0 ], ys[ 0 ], A0[ 1 ] ], [ A1[ 0 ], ys[ 0 ], A1[ 1 ] ], [ B1[ 0 ], ys[ 0 ], B1[ 1 ] ], [ B0[ 0 ], ys[ 0 ], B0[ 1 ] ], [ 0, 1, 0 ] );
+
+			}
+
+			wallAlong( fq, secs, F0 + 0.12, ys[ 0 ], top, 1 );
+
+		}
+		// ---- end FW3
 
 	}
 	if ( tier.back ) wallAlong( q, secs, S0 + tier.rows * D, ys[ ys.length - 1 ], ys[ ys.length - 1 ] + tier.back.height, 1 );
@@ -401,7 +423,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const top = tier.frontWall.top ?? ys[ 0 ], y = top + 0.32;
 		for ( const S of secs ) {
 
-			const d = S0 - 0.12;
+			const d = S0 - ( tier.frontWall.ahead || 0 ) - 0.12; // ---- FW3: ahead
 			const s0 = Math.min( S.len, S.m0 * d ), s1 = Math.max( s0, S.len - S.m1 * d );
 			const P = ( s, yy ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, yy, S.a[ 1 ] + S.uz * s + S.nz * d ];
 			beam( rq, P( s0, y ), P( s1, y ), 0.05 );
