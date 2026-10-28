@@ -42,7 +42,7 @@ import { Players } from './game/Players.js';
 import * as Motions from './game/Motions.js';
 import { Ball } from './game/Ball.js';
 import { Director } from './game/Director.js';
-import { CEL, STAGE, PILE, trophyHold } from './game/Celebration.js';
+import { CEL, STAGE, PILE, MVP, trophyHold } from './game/Celebration.js'; // (---- FB4: MVP)
 import { replayPlan, replayAt } from './game/Replays.js';
 import { BASES, DUGOUT, BULLPEN } from './game/Plays.js';
 import { GameHUD } from './game/GameHUD.js';
@@ -1053,17 +1053,35 @@ export class BallparkApp {
 			// one figure's face)
 			const face = 'high';
 			const man = ( id, half ) => fit( face, actor( id, 1.25 ), half );
+			// ---- FB4 (C4B-10): the interviews and the trophy at eye level, as FOX shot them: from a riser at the
+			// stage's foot over the heads of the crowd in front (Manuel, Howard), and the MVP from a handheld on
+			// the clay in front of the four of them (FOX US sheets 128-131; Getty 83486314). From high home, 75 m
+			// back and 26 m up, they were the tops of caps and the coats' shoulders. High home if blocked
+			const riser = ( aim, half ) => aim && this._handheld( tag, aim, half, 6.2, { y: 2.75, a0: STAGE.yaw, spread: [ 0, 0.3, - 0.3, 0.6, - 0.6 ] } );
+			// ---- end FB4
 			// Howard up the steps with the others, then the trophy over his head, tight
 			if ( lt >= C.up + 5 ) {
 
+				tag = 'trophy'; // (---- FB4: one riser spot for the trophy's whole time)
 				const tr = trophyHold( this.director, lt );
-				return ( tr && fit( face, [ tr.x, tr.y - 0.7, tr.z ], 1.9 ) ) || man( 429667, 1.9 ) || fit( face, on, 3.2 );
+				return riser( tr ? [ tr.x, tr.y - 0.75, tr.z ] : actor( 429667, 1.25 ), 1.55 ) || ( tr && fit( face, [ tr.x, tr.y - 0.7, tr.z ], 1.9 ) ) || man( 429667, 1.9 ) || fit( face, on, 3.2 );
 
 			}
 
 			if ( lt >= C.up - 1 ) return fit( face, on, 3.2 );
-			if ( lt >= C.mvp[ 0 ] && lt < C.mvp[ 1 ] ) return man( 430935, 2.1 ) || fit( face, on, 3.2 );
-			if ( lt >= C.manuel[ 0 ] && lt < C.manuel[ 1 ] ) return man( 'r:manuel', 1.9 ) || fit( face, on, 3.2 );
+			if ( lt >= C.mvp[ 0 ] && lt < C.mvp[ 1 ] ) {
+
+				tag = 'mvp'; // (---- FB4)
+				return this._handheld( tag, actor( 430935, 1.3 ), 1.15, 4.2, { y: 1.6, a0: MVP.yaw + Math.PI, spread: [ 0, 0.35, - 0.35, 0.7, - 0.7 ] } ) || man( 430935, 2.1 ) || fit( face, on, 3.2 );
+
+			}
+
+			if ( lt >= C.manuel[ 0 ] && lt < C.manuel[ 1 ] ) {
+
+				tag = 'manuel'; // (---- FB4)
+				return riser( actor( 'r:manuel', 1.25 ), 1.15 ) || man( 'r:manuel', 1.9 ) || fit( face, on, 3.2 );
+
+			}
 			if ( lt >= C.moyer[ 0 ] + 6 && lt < C.moyer[ 1 ] ) return fit( 'high1', actor( 'r:moyer', 0.7 ), 1.6 ) || fit( 'high1', on, 3.2 );
 			return Math.floor( lt / 8 ) % 2 ? fit( 'high3', on, 3.6 ) : fit( face, on, 4.2 );
 			// ---- end FR1
@@ -1095,7 +1113,10 @@ export class BallparkApp {
 	// lights behind; then the sides): nobody within a metre of the lens or between it and the first three
 	// metres of the shot (the rest of the scrum is the picture). Picked when the shot comes up, again if
 	// someone walks into it (twice at most), else null. The operator isn't drawn.
-	_handheld( tag, aim, half, r ) {
+	// (---- FB4, C4B-10: o.y, the lens's height (a riser at the stage's foot: over the heads in front); o.a0,
+	// the side to try first, as an angle round the aim (0: toward the plate, +z); o.spread, the tries round
+	// it)
+	_handheld( tag, aim, half, r, o = {} ) {
 
 		let H = this._hand;
 		const near = ( e ) => {
@@ -1109,9 +1130,9 @@ export class BallparkApp {
 
 			const tries = H?.tag === tag ? H.tries + 1 : 0;
 			let e = null;
-			if ( tries < 3 ) for ( const a of [ 0, 0.8, - 0.8, 1.6, - 1.6, 2.4, - 2.4, Math.PI ] ) {
+			if ( tries < 3 ) for ( const a of o.spread || [ 0, 0.8, - 0.8, 1.6, - 1.6, 2.4, - 2.4, Math.PI ] ) {
 
-				const c = [ aim[ 0 ] + Math.sin( a ) * r, 1.45, aim[ 2 ] + Math.cos( a ) * r ];
+				const c = [ aim[ 0 ] + Math.sin( a + ( o.a0 || 0 ) ) * r, o.y ?? 1.45, aim[ 2 ] + Math.cos( a + ( o.a0 || 0 ) ) * r ];
 				if ( clear( c ) ) {
 
 					e = c;
