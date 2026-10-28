@@ -199,7 +199,7 @@ export const BACKS = [
 	null, [ 'UTLEY', '26' ], [ 'HOWARD', '6' ], [ 'ROLLINS', '11' ], [ 'HAMELS', '35' ], [ 'VICTORINO', '8' ], [ 'BURRELL', '5' ],
 	[ 'WERTH', '28' ], [ 'LIDGE', '54' ], [ 'MYERS', '39' ], [ 'FELIZ', '7' ], [ 'RUIZ', '51' ], [ 'MOYER', '50' ],
 	[ 'SCHMIDT', '20' ], [ 'CARLTON', '32' ], [ 'ROSE', '14' ], [ 'BOWA', '10' ], [ 'KRUK', '29' ], [ 'DYKSTRA', '4' ],
-	[ 'DAULTON', '10' ], [ 'ASHBURN', '1' ], [ 'THOME', '25' ], [ 'CRAWFORD', '13' ], [ 'LONGORIA', '3' ], [ 'MADSON', '46' ],
+	[ 'DAULTON', '10' ], [ 'ASHBURN', '1' ], [ 'THOME', '25' ], [ 'CRAWFORD', '13' ], [ 'LONGORIA', '3' ], [ 'MADSON', '63' ],
 	[ 'BLANTON', '56' ], [ 'DOBBS', '19' ], [ 'STAIRS', '12' ], [ 'KALAS', '' ], [ 'WESTBROOK', '36' ], [ 'DAWKINS', '20' ],
 	// ---- P0 (31-47): more players (31-39), then the words across a back (40-47)
 	[ 'LUZINSKI', '19' ], [ 'McNABB', '5' ], [ 'UPTON', '2' ], [ 'JENKINS', '23' ], [ 'COSTE', '27' ], null, null, null, null,
