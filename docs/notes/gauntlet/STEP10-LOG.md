@@ -7,3 +7,5 @@ Every agent, merge and measurement in step 10 ([STEP10.md](../worlds/STEP10.md))
 - **FF1, the fans' faces from the players' MakeHuman head** (launched 19:24).
 - **WA1, a walkability flood fill of the whole park** (launched 19:24).
 - **WA2, the outfield seats and the inner bowl against the real stadium** (launched 19:24).
+- **FF1, the fans' faces** (notes [FF1.md](FF1.md); merged 19:54): the fans' heads from the players' MakeHuman head, in three decimated levels (1,200 / 400 / 90 triangles), with eight blend shapes from MakeHuman's own gender, age, ethnicity, weight, face and head targets (holding 78% of how 1,500 faces drawn like the 2008 crowd differ). Each fan's weights come from who he is plus his seed; the face paint, caps, hats, hoods, hair, beards and glasses follow the modelled features. Before and after: `.claude/gauntlet/s10/FF1/` (b0, a2). Left: expressions, the blink, the 400-triangle level's facets, the chin.
+- **FF2, the faces' second round** (launched 19:56): critique first, then expressions (cheering, singing), smoother close heads, the blink, the chin; then the players sharing the blend shapes.
