@@ -88,8 +88,18 @@ function materials() {
 		surface: /* wgsl */`
 	let t = textureSample( tentPrint, smpAnisoClamp, in.uv ).rgb;
 	// the panels sag a little between the rafters (every 3 m along the ridge)
-	s.albedo = t * ( 0.92 + 0.08 * abs( sin( in.uv.x * 15.7 ) ) );
-	s.emissive = t * vec3f( 1.0, 0.86, 0.66 ) * ${ night } * 0.55;
+	let fold = abs( sin( in.uv.x * 15.7 ) );
+	s.albedo = t * ( 0.92 + 0.08 * fold ) * ( 1.0 - 0.25 * ${ night } );
+	// FZ1 (C5F-6): lit from inside, not one even glow: brightest over the two lamps under the ridge (a
+	// quarter of the way in from each end; uv.x runs along the ridge, uv.y from the ridge, 0, to the
+	// eave, 1), falling off toward the ends, the gables and the eaves, the folds between the rafters
+	// darker
+	let lx = in.uv.x;
+	let l0 = ( lx - 0.25 ) / 0.2;
+	let l1 = ( lx - 0.75 ) / 0.2;
+	let lamp = exp( - l0 * l0 ) + exp( - l1 * l1 );
+	let lit = ( 0.4 + 0.6 * lamp ) * ( 0.6 + 0.55 * ( 1.0 - in.uv.y ) ) * ( 0.68 + 0.32 * fold );
+	s.emissive = t * vec3f( 1.0, 0.86, 0.66 ) * ${ night } * 0.6 * lit;
 	s.roughness = mix( 0.45, 0.2, frame.wet );
 ` } );
 	const wall = standard( {
@@ -107,15 +117,23 @@ function materials() {
 		if ( y < edge + 0.12 ) { c = vec3f( 0.42, 0.02, 0.03 ); }
 	}
 	// the panels between the legs (every 3 m) fall a shade darker toward their seams
-	c = c * ( 0.86 + 0.14 * sin( fract( in.uv.x / 3.0 ) * 3.1416 ) );
-	var glow = 0.28;
+	let pf = fract( in.uv.x / 3.0 );
+	c = c * ( 0.86 + 0.14 * sin( pf * 3.1416 ) );
+	// FZ1 (C5F-6): the walls glow from the lamps under the ridge, not evenly: most up by the eave, least
+	// at the foot, brightest mid-panel; the frame's uprights (every 3 m, the gables' posts too) stand
+	// in silhouette against it; the valance, outside the eave, only a little
+	let hgt = clamp( y - select( 0.0, 4.0, y > 3.5 ), 0.0, 1.0 );
+	var glow = 0.46 * ( 0.22 + 0.78 * smoothstep( 0.0, 1.0, hgt ) ) * ( 0.55 + 0.45 * sin( pf * 3.1416 ) );
+	let up = 1.0 - smoothstep( 0.035, 0.09, min( pf, 1.0 - pf ) * 3.0 );
+	glow = glow * ( 1.0 - 0.85 * up );
+	if ( y > 1.5 && y < 3.5 ) { glow = 0.16; }
 	if ( y > 3.5 ) {
 		let wy = y - 4.0;
 		let win = step( 0.55, wy ) * step( wy, 0.8 ) * step( 0.12, abs( fract( in.uv.x / 2.0 ) - 0.5 ) );
 		c = mix( c, vec3f( 0.05, 0.06, 0.07 ), win * 0.85 );
-		glow = mix( 0.28, 1.6, win );
+		glow = mix( glow, 1.6, win );
 	}
-	s.albedo = c;
+	s.albedo = c * ( 1.0 - 0.3 * ${ night } );
 	s.emissive = c * vec3f( 1.0, 0.86, 0.66 ) * ${ night } * glow + vec3f( 1.0, 0.82, 0.6 ) * ${ night } * select( 0.0, 0.25, y > 3.5 && glow > 1.0 );
 	s.roughness = mix( 0.5, 0.25, frame.wet );
 ` } );
@@ -176,7 +194,8 @@ export function buildTents( { group, colliders = null, field = null, cast = null
 		for ( const e of [ - 1, 1 ] ) {
 
 			const a = e * ( hl + 0.2 );
-			const A = roof.v( P( a, He - 0.05, - hw - 0.2 ), [ ux * e, 0, uz * e ], [ 0.02, 0.98 ] ), B = roof.v( P( a, He - 0.05, hw + 0.2 ), [ ux * e, 0, uz * e ], [ 0.04, 0.98 ] ), C = roof.v( P( a, Hr, 0 ), [ ux * e, 0, uz * e ], [ 0.03, 0.9 ] );
+			// (FZ1, C5F-6: the apex's uv up the margin, so the glow brightens toward the ridge, as on the slopes)
+			const A = roof.v( P( a, He - 0.05, - hw - 0.2 ), [ ux * e, 0, uz * e ], [ 0.02, 0.98 ] ), B = roof.v( P( a, He - 0.05, hw + 0.2 ), [ ux * e, 0, uz * e ], [ 0.04, 0.98 ] ), C = roof.v( P( a, Hr, 0 ), [ ux * e, 0, uz * e ], [ 0.03, 0.55 ] );
 			roof.tri( A, B, C );
 
 		}
@@ -228,6 +247,9 @@ export function buildTents( { group, colliders = null, field = null, cast = null
 		}
 
 		fr.tube( [ P( - hl, Hr - 0.12, 0 ), P( hl, Hr - 0.12, 0 ) ], [ 0.04, 0.04 ], 6 );
+		// (FZ1, C5F-6) the gable ends' posts, every 3 m across, up to the end rafters (their shadows are
+		// in the walls' glow)
+		for ( const e of [ - 1, 1 ] ) for ( let b = - hw + 3; b < hw - 0.5; b += 3 ) fr.tube( [ P( e * hl, - 0.1, b ), P( e * hl, He + ( Hr - 0.12 - He ) * ( 1 - Math.abs( b ) / hw ), b ) ], [ 0.04, 0.04 ], 6 );
 		for ( const s of [ - 1, 1 ] ) fr.tube( [ P( - hl, He, s * hw ), P( hl, He, s * hw ) ], [ 0.035, 0.035 ], 5 );
 		// inside: racks of jackets or tables in white cloth, and two lamps under the ridge
 		if ( T.kind === 'shop' ) {
