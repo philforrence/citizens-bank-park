@@ -15,6 +15,9 @@ import { dress, pick } from '../Concourse3BKit.js';
 export function dressBoth( r, o = {} ) {
 
 	const base = dress( r, { age: o.age, female: o.female, top: o.top, hat: o.hat } );
+	// (FP1, CP-11: the 1980 powder blue was a rare sight in 2008's crowds, about one in a hundred: most of
+	// those become the red jackets that were everywhere)
+	if ( base.top === TOP.powder && ! o.top && r() < 0.6 ) Object.assign( base, { top: TOP.jacket, color: COLOR.red, back: BACK.NONE, chest: CHEST.none } );
 	if ( o.club && base.age === 3 && r() < 0.6 ) base.age = 0;
 	if ( o.club && base.age === 0 && r() < 0.18 ) {
 
