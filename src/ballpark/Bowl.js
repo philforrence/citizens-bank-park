@@ -3,7 +3,7 @@ import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { ShaderModule } from '../engine/gpu/Shader.js';
 import { standard } from '../materials/Materials.js';
-import { beam, box, alongPolyline, nearestAlong } from './geo.js';
+import { beam, box, alongPolyline, nearestAlong, canvasTexture } from './geo.js';
 import { GATES } from './Exterior.js';
 import { buildTier, tierTop, standsMaterials, Quads, SOFFIT_WGSL } from './Stands.js';
 import { Crowd } from './Crowd.js';
@@ -417,8 +417,10 @@ export class Bowl {
 			// Terrace: the 300s over the club seats, up to the terrace walkway
 			// (behind home plate the press box takes its place: no seats there)
 			{ name: 'terrace-300', front: line( main, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1, skip: [ [ 2, 4 ] ] },
-			// ... and the 400s behind the walkway
-			{ name: 'terrace-400', front: line( main, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, portals: { every: 2, row: 5, rows: 4, width: 3 }, back: { height: 1.1 }, base: L.terraceConcourse - 0.7 },
+			// ... and the 400s behind the walkway (CB-13, gauntlet r1: entered from the walkway along their
+			// front, up the aisles: no tunnels mid-section, whose flat roofs read as grey slabs scattered
+			// across the deck; Commons 2008-03-29, the 1B 400s from across the field)
+			{ name: 'terrace-400', front: line( main, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, back: { height: 1.1 }, base: L.terraceConcourse - 0.7 },
 			// the Arcade (233-237): down the left field line from the end of the club, ten rows on the suite
 			// level's fascia (the ribbon board runs on along it) right under the 300s
 			{ name: 'arcade', front: span( 9, 11, D.suites ), outward: [ 0, - 40 ], y0: L.suites + 0.4, rows: 10, depth: ROW, rise: 0.5, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.suites + 1.4 }, back: { height: 1.1 }, base: L.suites - 1.5 },
@@ -591,8 +593,10 @@ export class Bowl {
 	let media = abs( id ) < 2.5 || id == 7.0; // ---- B (home): and the PA's
 	var room = vec3f( 0.45, 0.43, 0.4 );
 	if ( t == ty && rd.y > 0.0 ) {
+		// (CB-15: the ceiling's lights a good deal dimmer: rows of them across every booth read as one
+		// bright white hall from the field)
 		let g = abs( fract( hit.xz / vec2f( 1.2, 1.5 ) ) - 0.5 );
-		room = mix( vec3f( 0.5, 0.5, 0.48 ), vec3f( 0.95, 0.97, 1.0 ) * 2.5, step( g.x, 0.25 ) * step( g.y, 0.1 ) );
+		room = mix( vec3f( 0.32, 0.32, 0.31 ), vec3f( 0.95, 0.97, 1.0 ) * 1.3, step( g.x, 0.25 ) * step( g.y, 0.1 ) );
 	} else if ( t == ty ) {
 		room = vec3f( 0.1, 0.1, 0.11 );
 	} else if ( t == tx ) {
@@ -694,11 +698,43 @@ export class Bowl {
 	}
 	let fox = select( 1.0, 1.7, id == 0.0 );
 	let fres = pow( 1.0 - max( dot( - Vd, Nh ), 0.0 ), 3.0 );
-	s.emissive = room * fox * mix( 0.14, 0.4, smoothstep( 0.1, 0.7, frame.night ) ) * ( 1.0 - fres * 0.8 );
+	s.emissive = room * fox * mix( 0.12, 0.3, smoothstep( 0.1, 0.7, frame.night ) ) * ( 1.0 - fres * 0.8 );
 ` } );
-		for ( const m of [ maroon, trim, glass ] ) m.underwaterLighting = 'none';
+		// CB-15 (gauntlet r1): the band over the booths is the navy fascia with the stations' signs on it
+		// (yeago81 5247898427, 2009: Comcast SportsNet over the TV booth FOX had for the Series, 1210 AM The
+		// Big Talker over the Phillies' radio), not white trim
+		const signs = canvasTexture( 2048, 64, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#1b2a55';
+			ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = 'rgba( 255, 255, 255, 0.08 )';
+			ctx.fillRect( 0, h - 4, w, 2 );
+			const cx = ( k ) => ( ( mid + k + 0.5 ) * bw ) / total * w, sw = 3.2 / total * w;
+			// Comcast SportsNet: a white panel, the swoosh, the name
+			ctx.fillStyle = '#f2f0ea';
+			ctx.fillRect( cx( 0 ) - sw / 2, 6, sw, h - 12 );
+			ctx.strokeStyle = '#c8102e'; ctx.lineWidth = 3;
+			ctx.beginPath(); ctx.ellipse( cx( 0 ) - sw * 0.05, h * 0.42, sw * 0.42, h * 0.22, - 0.08, Math.PI * 1.05, Math.PI * 1.95 ); ctx.stroke();
+			ctx.fillStyle = '#2b2b2b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.font = '600 20px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'comcast', cx( 0 ), h * 0.45, sw * 0.8 );
+			ctx.font = 'italic 800 13px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'SPORTSNET', cx( 0 ) + sw * 0.08, h * 0.74, sw * 0.6 );
+			// 1210 AM The Big Talker: white on the navy
+			ctx.font = 'italic 900 26px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillStyle = '#f2f0ea';
+			ctx.fillText( '1210', cx( 1 ) - sw * 0.12, h * 0.38, sw * 0.6 );
+			ctx.font = '800 14px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'AM', cx( 1 ) + sw * 0.32, h * 0.38 );
+			ctx.font = 'italic 800 15px "Helvetica Neue", Arial, sans-serif';
+			ctx.fillText( 'The Big Talker', cx( 1 ), h * 0.76, sw * 0.9 );
+
+		}, 'pressSigns' );
+		const fascia = standard( { name: 'press-fascia', roughness: 0.55, textures: { bpSigns: signs },
+			surface: `let t = textureSample( bpSigns, smpAnisoClamp, vec2f( in.uv.x / ${ total.toFixed( 3 ) }, 1.0 - ( in.uv.y - ${ yG.toFixed( 3 ) } ) / ${ ( y1 - yG ).toFixed( 3 ) } ) ).rgb; s.albedo = t * 0.85; s.emissive = t * smoothstep( 0.15, 0.7, frame.night ) * 0.2;` } );
+		for ( const m of [ maroon, trim, glass, fascia ] ) m.underwaterLighting = 'none';
 		glass.setDefine( 'DRY', 1 );
-		const qm = new Quads(), qt = new Quads(), qg = new Quads();
+		const qm = new Quads(), qt = new Quads(), qg = new Quads(), qf = new Quads();
 		const back = offsetPolyline( P, depth, [ 0, - 40 ] );
 		let u = 0;
 		for ( let i = 0; i < P.length - 1; i ++ ) {
@@ -717,7 +753,7 @@ export class Bowl {
 			const A = [ ax, az ], B = [ bx, bz ];
 			qm.add( at( A, 0, y0 ), at( B, 0, y0 ), at( B, 0, yS ), at( A, 0, yS ), [ nx, 0, nz ], u, u + len );
 			qg.add( at( A, 0, yS ), at( B, 0, yS ), at( B, tilt, yG ), at( A, tilt, yG ), [ nx, 0.16, nz ], u, u + len );
-			qt.add( at( A, tilt, yG ), at( B, tilt, yG ), at( B, tilt, y1 ), at( A, tilt, y1 ), [ nx, 0, nz ], u, u + len );
+			qf.add( at( A, tilt, yG ), at( B, tilt, yG ), at( B, tilt, y1 ), at( A, tilt, y1 ), [ nx, 0, nz ], u, u + len );
 			qt.add( at( A, tilt, yS - 0.12 ), at( B, tilt, yS - 0.12 ), at( B, 0, yS + 0.05 ), at( A, 0, yS + 0.05 ), [ nx, 1, nz ], u, u + len );
 			// the roof it carries (the walkway's approach), from the front back to the walkway
 			qm.add( at( A, tilt, y1 ), at( B, tilt, y1 ), [ back[ i + 1 ][ 0 ], y1, back[ i + 1 ][ 1 ] ], [ back[ i ][ 0 ], y1, back[ i ][ 1 ] ], [ 0, 1, 0 ] );
@@ -733,7 +769,7 @@ export class Bowl {
 
 		}
 
-		for ( const [ q, m, name ] of [ [ qm, maroon, 'press-box' ], [ qt, trim, 'press-trim' ], [ qg, glass, 'press-glass' ] ] ) {
+		for ( const [ q, m, name ] of [ [ qm, maroon, 'press-box' ], [ qt, trim, 'press-trim' ], [ qg, glass, 'press-glass' ], [ qf, fascia, 'press-fascia' ] ] ) {
 
 			const mesh = new Mesh( q.geometry(), m );
 			mesh.name = name;
@@ -1048,7 +1084,7 @@ export class Bowl {
 
 		// under the front edge: a continuous steel truss (a lower chord 2 m down, posts every 6 m, a
 		// zig-zag of diagonals), with sports lights and speaker cabinets hung from it
-		const tq = new Quads(), lq = new Quads(), sq = new Quads();
+		const tq = new Quads(), lq = new Quads(), sq = new Quads(), hq = new Quads();
 		for ( let i = 0; i < P.length - 1; i ++ ) {
 
 			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
@@ -1074,13 +1110,21 @@ export class Bowl {
 					const tm = ( k + 0.5 ) / n, t1 = ( k + 1 ) / n;
 					beam( tq, at( t0, yb ), at( tm, yt ), 0.13 );
 					beam( tq, at( tm, yt ), at( t1, yb ), 0.13 );
-					// a light and, every other bay, a speaker cabinet under the chord
-					const L = at( tm, yb - 0.35 );
-					box( lq, L, [ 0.7, 0.5, 0.7 ] );
+					// a light and, every other bay, a speaker cabinet under the chord. (CB-16, gauntlet r1:
+					// they were bare cubes, white and grey sugar lumps overhead from the top rows. The real
+					// fixtures, Getty 51873653 and 84081811: round metal-halide heads, a dark drum with a
+					// visor and a glowing face, on a yoke tilted down to the field; the PA cabinets dark,
+					// tapered, their grilles toward the field)
+					const L = at( tm, yb - 0.45 );
+					const aim = [ nx * 0.55, - 0.83, nz * 0.55 ];
+					lampHead( hq, lq, L, aim, [ - nz, 0, nx ], 0.3, 0.42 );
+					beam( tq, [ L[ 0 ] - nz * 0.36, yb, L[ 2 ] + nx * 0.36 ], [ L[ 0 ] - nz * 0.36, L[ 1 ], L[ 2 ] + nx * 0.36 ], 0.05 );
+					beam( tq, [ L[ 0 ] + nz * 0.36, yb, L[ 2 ] - nx * 0.36 ], [ L[ 0 ] + nz * 0.36, L[ 1 ], L[ 2 ] - nx * 0.36 ], 0.05 );
 					if ( k % 2 === 0 ) {
 
 						const S = at( t0 + 0.12 / n * 3, yb - 0.7 );
-						box( sq, S, [ 0.6, 1.0, 0.6 ] );
+						cabinet( sq, S, [ nx, - 0.35, nz ], [ - nz, 0, nx ] );
+						beam( tq, [ S[ 0 ], yb, S[ 2 ] ], [ S[ 0 ], S[ 1 ] + 0.4, S[ 2 ] ], 0.06 );
 
 					}
 
@@ -1094,13 +1138,25 @@ export class Bowl {
 		tm.name = 'roof-front-truss';
 		tm.castShadow = true;
 		this.group.add( tm );
+		// the lamps' glowing faces (round: the lens, brightest in the middle), and their dark housings
 		const lampMat = this._edgeLamp || ( this._edgeLamp = standard( { name: 'roof-edge-lights', color: new Color( 0.2, 0.2, 0.2 ), roughness: 0.4,
-			surface: 'if ( in.N.y < - 0.5 ) { s.emissive = vec3f( 1.0, 0.95, 0.85 ) * mix( 0.2, 6.0, smoothstep( 0.15, 0.75, frame.night ) ); }' } ) );
+			surface: 'let r = length( in.uv - vec2f( 0.5 ) ) * 2.0; s.emissive = vec3f( 1.0, 0.95, 0.85 ) * mix( 0.2, 6.0, smoothstep( 0.15, 0.75, frame.night ) ) * mix( 1.15, 0.55, r * r );' } ) );
 		lampMat.underwaterLighting = 'none';
-		this.group.add( new Mesh( lq.geometry(), lampMat ) );
-		const spk = this._speakerMat || ( this._speakerMat = standard( { name: 'pa-speakers', color: new Color( 0.03, 0.03, 0.035 ), roughness: 0.6 } ) );
+		const faces = new Mesh( lq.geometry(), lampMat );
+		faces.name = 'roof-edge-lights';
+		this.group.add( faces );
+		const housing = this._lampHousing || ( this._lampHousing = standard( { name: 'roof-lamp-housings', color: new Color( 0.05, 0.05, 0.055 ), roughness: 0.45, metalness: 0.5 } ) );
+		housing.underwaterLighting = 'none';
+		const hm = new Mesh( hq.geometry(), housing );
+		hm.name = 'roof-lamp-housings';
+		this.group.add( hm );
+		// the PA cabinets: black, a fine grille on the face toward the field (its uv)
+		const spk = this._speakerMat || ( this._speakerMat = standard( { name: 'pa-speakers', color: new Color( 0.03, 0.03, 0.035 ), roughness: 0.6,
+			surface: 'if ( in.uv.x > 1.5 ) { let g = step( 0.5, fract( ( in.uv.x - 2.0 ) * 30.0 ) ) * step( 0.5, fract( in.uv.y * 40.0 ) ); s.albedo = mix( vec3f( 0.012 ), vec3f( 0.045 ), g ); s.roughness = 0.8; }' } ) );
 		spk.underwaterLighting = 'none';
-		this.group.add( new Mesh( sq.geometry(), spk ) );
+		const sm = new Mesh( sq.geometry(), spk );
+		sm.name = 'pa-speakers';
+		this.group.add( sm );
 		// the deck's underside ribbed: see the roof-deck material (in.N.y < 0)
 		if ( towers ) this.roofBack = { line: B, y };
 
@@ -1558,35 +1614,60 @@ ${ SOFFIT_WGSL }
 		const sign = standard( { name: 'elevator-sign', color: new Color( 0.02, 0.1, 0.05 ), roughness: 0.5, emissive: new Color( 0.05, 0.6, 0.3 ) } );
 		for ( const m of [ door, sign ] ) m.underwaterLighting = 'none';
 		this.elevators = [];
-		// where along the path: behind home plate (the backstop segment), first base side, third base side
+		// where along the path: behind home plate (the backstop segment), first base side, third base side.
+		// (CB-6, gauntlet r1: the Terrace stops stood free on the open walkway, the home one dead centre
+		// in the 400s' view of home plate, its black back and green glow in the middle of the picture. They
+		// stand at the walkway's front edge now, their backs to the field and the sign facing the walkway
+		// only, the home bank's at the press box's first base end by the aisle)
+		const at = ( seg, t, d ) => {
+
+			const P = offsetPolyline( path, d, [ 0, - 40 ] );
+			const [ ax, az ] = P[ seg ], [ bx, bz ] = P[ seg + 1 ];
+			const x = ax + ( bx - ax ) * t, z = az + ( bz - az ) * t;
+			const len = Math.hypot( bx - ax, bz - az );
+			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
+			if ( nx * x + nz * ( z + 40 ) > 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			return { x, z, nx, nz };
+
+		};
+		const signFace = ( w, h ) => {
+
+			const q = new Quads();
+			q.add( [ - w / 2, - h / 2, 0 ], [ w / 2, - h / 2, 0 ], [ w / 2, h / 2, 0 ], [ - w / 2, h / 2, 0 ], [ 0, 0, 1 ] );
+			return q.geometry();
+
+		};
 		for ( const [ seg, t ] of [ [ 5, 0.5 ], [ 3, 0.35 ], [ 8, 0.65 ] ] ) {
 
 			const bank = { stops: [] };
 			for ( const lv of levels ) {
 
-				const P = offsetPolyline( path, lv.d, [ 0, - 40 ] );
-				const [ ax, az ] = P[ seg ], [ bx, bz ] = P[ seg + 1 ];
-				const x = ax + ( bx - ax ) * t, z = az + ( bz - az ) * t;
-				// the doors face the field side of the path
-				const len = Math.hypot( bx - ax, bz - az );
-				let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
-				if ( nx * x + nz * ( z + 40 ) > 0 ) {
+				const terrace = lv.name === 'Terrace';
+				const [ sg, tt ] = terrace && seg === 5 ? [ 4, 0.2 ] : [ seg, t ];
+				let { x, z, nx, nz } = at( sg, tt, terrace ? this.D.t300Back + 0.2 : lv.d );
+				// the doors face the field side of the path (the Terrace's face the walkway)
+				if ( terrace ) {
 
 					nx = - nx; nz = - nz;
 
 				}
 
 				const g = new Group();
-				g.position.set( x - nx * 0.6, lv.y, z - nz * 0.6 );
+				g.position.set( x - nx * 0.6 * ( terrace ? 0 : 1 ), lv.y, z - nz * 0.6 * ( terrace ? 0 : 1 ) );
 				g.rotation.y = Math.atan2( - nx, - nz ) + Math.PI;
 				const d = new Mesh( new BoxGeometry( 2.2, 2.4, 0.15 ), door );
 				d.position.y = 1.2;
 				g.add( d );
-				const sgn = new Mesh( new BoxGeometry( 1.6, 0.35, 0.1 ), sign );
-				sgn.position.set( 0, 2.75, 0.05 );
+				const sgn = new Mesh( signFace( 1.6, 0.35 ), sign );
+				sgn.position.set( 0, 2.75, 0.1 );
 				g.add( sgn );
 				this.group.add( g );
-				// you stand in front of the doors, on the field side
+				// you stand in front of the doors
 				bank.stops.push( { name: lv.name, x: x + nx * 1.2, z: z + nz * 1.2, y: lv.y, face: [ nx, nz ] } );
 
 			}
@@ -2112,6 +2193,54 @@ ${ SOFFIT_WGSL }
 // ---------------------------------------------------------------- geometry helpers
 
 // A polyline moved d to the side away from `outward`, mitred at the corners (the rows' back edge).
+// A round lamp head (CB-16): a dark drum of radius r and depth d along `aim` (unit, the way it shines) at
+// c, `side` across it; its housing and visor into hq, its round face (uv 0..1 across it) into fq
+function lampHead( hq, fq, c, aim, side, r, d ) {
+
+	const N = 10;
+	const up = [ aim[ 1 ] * side[ 2 ] - aim[ 2 ] * side[ 1 ], aim[ 2 ] * side[ 0 ] - aim[ 0 ] * side[ 2 ], aim[ 0 ] * side[ 1 ] - aim[ 1 ] * side[ 0 ] ];
+	const P = ( a, rr, t ) => [ c[ 0 ] + ( side[ 0 ] * Math.cos( a ) + up[ 0 ] * Math.sin( a ) ) * rr + aim[ 0 ] * t, c[ 1 ] + ( side[ 1 ] * Math.cos( a ) + up[ 1 ] * Math.sin( a ) ) * rr + aim[ 1 ] * t, c[ 2 ] + ( side[ 2 ] * Math.cos( a ) + up[ 2 ] * Math.sin( a ) ) * rr + aim[ 2 ] * t ];
+	const back = [ - aim[ 0 ], - aim[ 1 ], - aim[ 2 ] ];
+	for ( let k = 0; k < N; k ++ ) {
+
+		const a0 = k / N * Math.PI * 2, a1 = ( k + 1 ) / N * Math.PI * 2, am = ( a0 + a1 ) / 2;
+		const n = [ side[ 0 ] * Math.cos( am ) + up[ 0 ] * Math.sin( am ), side[ 1 ] * Math.cos( am ) + up[ 1 ] * Math.sin( am ), side[ 2 ] * Math.cos( am ) + up[ 2 ] * Math.sin( am ) ];
+		// the drum, the back's cap (narrower), the face and its rim
+		hq.add( P( a0, r, - d / 2 ), P( a1, r, - d / 2 ), P( a1, r, d / 2 ), P( a0, r, d / 2 ), n );
+		hq.tri( P( 0, 0, - d / 2 - 0.08 ), P( a1, r, - d / 2 ), P( a0, r, - d / 2 ), back );
+		fq.tri( P( 0, 0, d / 2 + 0.005 ), P( a0, r * 0.9, d / 2 + 0.005 ), P( a1, r * 0.9, d / 2 + 0.005 ), aim, [ 0.5, 0.5 ], [ 0.5 + 0.5 * Math.cos( a0 ), 0.5 + 0.5 * Math.sin( a0 ) ], [ 0.5 + 0.5 * Math.cos( a1 ), 0.5 + 0.5 * Math.sin( a1 ) ] );
+		// the visor over the top half of the face
+		if ( Math.sin( am ) > 0.2 ) hq.add( P( a0, r, d / 2 ), P( a1, r, d / 2 ), P( a1, r * 1.05, d / 2 + 0.16 ), P( a0, r * 1.05, d / 2 + 0.16 ), n );
+
+	}
+
+}
+
+// A PA cabinet (CB-16): tapered toward the back, its face ( 0.6 x 0.95 m ) toward `face` (tilted down), the
+// grille's uv on the face from 2 up (pa-speakers)
+function cabinet( q, c, face, side ) {
+
+	const l = Math.hypot( ...face );
+	const f = face.map( ( v ) => v / l );
+	const up = [ f[ 1 ] * side[ 2 ] - f[ 2 ] * side[ 1 ], f[ 2 ] * side[ 0 ] - f[ 0 ] * side[ 2 ], f[ 0 ] * side[ 1 ] - f[ 1 ] * side[ 0 ] ];
+	const u = up[ 1 ] < 0 ? up.map( ( v ) => - v ) : up;
+	const P = ( x, y, t ) => [ c[ 0 ] + side[ 0 ] * x + u[ 0 ] * y + f[ 0 ] * t, c[ 1 ] + side[ 1 ] * x + u[ 1 ] * y + f[ 1 ] * t, c[ 2 ] + side[ 2 ] * x + u[ 2 ] * y + f[ 2 ] * t ];
+	const fw = 0.3, fh = 0.475, bw = 0.2, bh = 0.36, D = 0.3;
+	const F = [ P( - fw, - fh, D ), P( fw, - fh, D ), P( fw, fh, D ), P( - fw, fh, D ) ];
+	const B = [ P( - bw, - bh, - D ), P( bw, - bh, - D ), P( bw, bh, - D ), P( - bw, bh, - D ) ];
+	q.tri( F[ 0 ], F[ 1 ], F[ 2 ], f, [ 2, 0 ], [ 3, 0 ], [ 3, 1 ] );
+	q.tri( F[ 0 ], F[ 2 ], F[ 3 ], f, [ 2, 0 ], [ 3, 1 ], [ 2, 1 ] );
+	q.add( B[ 1 ], B[ 0 ], B[ 3 ], B[ 2 ], f.map( ( v ) => - v ) );
+	for ( let i = 0; i < 4; i ++ ) {
+
+		const j = ( i + 1 ) % 4;
+		const n = [ ( F[ i ][ 0 ] + F[ j ][ 0 ] - 2 * c[ 0 ] ), ( F[ i ][ 1 ] + F[ j ][ 1 ] - 2 * c[ 1 ] ), ( F[ i ][ 2 ] + F[ j ][ 2 ] - 2 * c[ 2 ] ) ];
+		q.add( F[ i ], B[ i ], B[ j ], F[ j ], n );
+
+	}
+
+}
+
 export function offsetPolyline( P, d, outward ) {
 
 	const n = P.length;
