@@ -11,6 +11,7 @@ import { offsetPolyline } from './Bowl.js';
 import { LibertyBell } from './LibertyBell.js';
 import { memoryLane } from './AshburnAlley.js';
 import { Phanavision, FACE_W, FACE_H, LAMPS, VIDEO } from './Phanavision.js';
+import { drawWorldSeriesLogo } from './Details2008.js';
 
 // The ballpark's landmarks round the outfield: the main scoreboard in left field (152 x 86 ft since 2023,
 // its steel topping out 143 ft above the field), the Liberty Bell sign in right-center (35 x 50 ft, 100 ft
@@ -21,6 +22,11 @@ const STREET = LEVELS.mainConcourse;
 // the rooftop bleachers' spans along the roofs in right-center (x, field frame): clear of the retired numbers'
 // house on the roof left of them (x 4 to 16); the Alley puts their fans in them (AshburnAlley2008.js)
 export const BLEACHERS = [ [ 17, 30 ], [ 36, 60 ] ];
+// the champions' banner on the batter's eye: its centre's bearing (degrees from home, + toward right), its
+// bottom over the shrubs (m above the field), width / depth (Getty 83486029), and when it drops: seconds
+// into the celebration (the replay's 300 s stand for the hour after the last out; it went up 25 minutes
+// on), and how long it takes to unroll
+const BANNER = { bearing: - 1.7, bottom: 1.3, aspect: 0.76, at: 150, unroll: 9 };
 
 export class Landmarks {
 
@@ -459,10 +465,19 @@ export class Landmarks {
 
 	}
 
-	// every frame: the bell (it rings from the replay's time)
+	// every frame: the bell (it rings from the replay's time); the champions' banner after the last out
 	update( dt, director, sound ) {
 
 		this.bell?.update( dt, director, sound );
+		const b = this.champsBanner;
+		if ( b && director ) {
+
+			this._cel ??= director.segments?.find( ( s ) => s.kind === 'celebrate' ) || null;
+			const k = this._cel ? Math.min( 1, Math.max( 0, ( director.t - this._cel.t0 - BANNER.at ) / BANNER.unroll ) ) : 0;
+			b.visible = k > 0;
+			b.material.uniforms.drop.value = k * k * ( 3 - 2 * k );
+
+		}
 
 	}
 
@@ -1371,6 +1386,98 @@ export class Landmarks {
 
 		// its back in the Alley: Memory Lane
 		memoryLane( this.group, walls );
+		this._champsBanner( walls );
+
+	}
+
+	// The banner the night actually hung (Getty 83486029; pompomflipflop 2986379660 at 10:23, police
+	// motorcycles on the track below it): after the last out on the 29th the grounds crew dropped a big
+	// red WinCraft banner from the batter's eye's cap down over the middle of its ivy to the shrubs, WORLD
+	// SERIES CHAMPIONS 2008 round the P on its globe, a white panel with the Phillies script. It's a
+	// creased nylon sheet hung by its top edge a hand's width off the brick, following the wall, swaying a
+	// little; it unrolls from the top `BANNER.at` seconds into the celebration. One mesh, one texture.
+	_champsBanner( walls ) {
+
+		if ( ! walls.length ) return;
+		const deg = ( x, z ) => Math.atan2( x, - z ) * 180 / Math.PI;
+		const mid = ( w ) => deg( ( w.a[ 0 ] + w.b[ 0 ] ) / 2, ( w.a[ 1 ] + w.b[ 1 ] ) / 2 );
+		// centred over the middle ivy mass, between the other two (as in pompomflipflop's photo)
+		const c = walls.reduce( ( a, w ) => Math.abs( mid( w ) - BANNER.bearing ) < Math.abs( mid( a ) - BANNER.bearing ) ? w : a );
+		const uc = ( c.u0 + c.u1 ) / 2, top = c.top - 0.06, H = top - BANNER.bottom, W = H * BANNER.aspect;
+		// a point on the wall's face at u (the pieces in order along it), and its normal
+		const sorted = walls.filter( ( w ) => Math.abs( w.top - c.top ) < 0.01 ).sort( ( a, b ) => a.u0 - b.u0 );
+		const onWall = ( u ) => {
+
+			const w = sorted.find( ( w ) => u <= w.u1 ) || sorted[ sorted.length - 1 ];
+			const t = Math.min( 1, Math.max( 0, ( u - w.u0 ) / ( w.u1 - w.u0 ) ) );
+			return { x: w.a[ 0 ] + ( w.b[ 0 ] - w.a[ 0 ] ) * t, z: w.a[ 1 ] + ( w.b[ 1 ] - w.a[ 1 ] ) * t, n: w.n };
+
+		};
+		// which way u runs as seen from the field (right is ( n.z, -n.x ) with n toward the viewer)
+		const p0 = onWall( uc - 0.5 ), p1 = onWall( uc + 0.5 );
+		const dir = Math.sign( ( p1.x - p0.x ) * c.n[ 1 ] - ( p1.z - p0.z ) * c.n[ 0 ] ) || 1;
+		const NU = 12, NV = 16;
+		const pos = [], nrm = [], uv = [], index = [];
+		for ( let j = 0; j <= NV; j ++ ) for ( let i = 0; i <= NU; i ++ ) {
+
+			const fu = i / NU, fv = j / NV;
+			const p = onWall( uc + ( fu - 0.5 ) * W * dir );
+			// hung off the cap at the top, the cloth lies out a little more lower down, over the ivy
+			const off = 0.1 + 0.18 * Math.sin( fv * Math.PI * 0.5 ) + 0.05 * Math.sin( fu * 9.0 + fv * 3.0 ) * fv;
+			pos.push( p.x + p.n[ 0 ] * off, top - fv * H, p.z + p.n[ 1 ] * off );
+			nrm.push( p.n[ 0 ], 0, p.n[ 1 ] );
+			uv.push( fu, fv );
+
+		}
+
+		for ( let j = 0; j < NV; j ++ ) for ( let i = 0; i < NU; i ++ ) {
+
+			const a = j * ( NU + 1 ) + i;
+			index.push( a, a + NU + 1, a + 1, a + 1, a + NU + 1, a + NU + 2 );
+
+		}
+
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		g.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
+		g.setAttribute( 'uv', new Float32BufferAttribute( uv, 2 ) );
+		g.setIndex( index );
+		g.computeBoundingBox();
+		g.computeBoundingSphere();
+		const tex = canvasTexture( 768, 1024, drawChampsBanner, 'champsBanner' );
+		const mat = standard( {
+			name: 'champs-banner', roughness: 0.55, side: 'double', textures: { bpBanner: tex }, modules: [ commonModule ],
+			uniforms: { drop: [ 'f32', 0 ], bTop: [ 'f32', top ], bH: [ 'f32', H ] },
+			vertex: /* wgsl */`
+	// unrolling from the top: what's still rolled sits in the roll at the bottom of what's out
+	let fv = v.uv.y;
+	let out = min( fv, mat.drop );
+	v.position.y = mat.bTop - out * mat.bH;
+	// it breathes off the wall in the wind, more toward its free bottom
+	let t = frame.time;
+	v.position += v.normal * out * ( 0.06 * sin( t * 0.9 + v.uv.x * 2.6 ) + 0.04 * sin( t * 0.41 + 1.3 ) );
+`,
+			surface: /* wgsl */`
+	let t = textureSample( bpBanner, smpAnisoClamp, in.uv ).rgb;
+	// creases: the fold lines from being packed (a grid about 1.1 m), and soft wrinkles where it hangs
+	let fu = in.uv * vec2f( ${ ( W / 1.1 ).toFixed( 2 ) }, ${ ( H / 1.1 ).toFixed( 2 ) } );
+	let fold = 1.0 - smoothstep( 0.0, 0.06, min( abs( fract( fu.x ) - 0.5 ), abs( fract( fu.y ) - 0.5 ) ) );
+	let wr = mx_noise_float2( in.uv * vec2f( 9.0, 4.0 ) ) + 0.5 * mx_noise_float2( in.uv * vec2f( 21.0, 7.0 ) );
+	s.albedo = t * 0.82 * ( 0.94 + 0.08 * wr - 0.12 * fold );
+	s.normal = normalize( in.N + vec3f( 0.0, 0.12 * wr, 0.0 ) );
+	s.roughness = 0.5 + 0.15 * fold;
+	// under the lights, as the brick round it is (the banks' spill)
+	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.3;
+`,
+		} );
+		mat.underwaterLighting = 'none';
+		const m = new Mesh( g, mat );
+		m.name = 'champs-banner';
+		m.receiveShadow = true;
+		m.castShadow = false;
+		m.visible = false;
+		this.group.add( m );
+		this.champsBanner = m;
 
 	}
 
@@ -1408,6 +1515,143 @@ function star( ctx, cx, cy, r, color ) {
 	ctx.closePath();
 	ctx.fillStyle = color;
 	ctx.fill();
+
+}
+
+// The World Series Champions banner (Getty 83486029), drawn in its spirit: the red sheet; the globe in
+// navy and sky blue with its orbit ring and a baseball riding it, the Phillies' P in a ring on top; WORLD
+// SERIES in sky blue on a navy plaque across it, CHAMPIONS big in white serif edged in blue, 20 and 08
+// either side of the Series' own logo; low down a white band with the red script and its two blue stars,
+// the swash under it; WinCraft's tag at the bottom left
+function drawChampsBanner( ctx, w, h ) {
+
+	const SERIF = 'Georgia, "Times New Roman", serif', SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+	const NAVY = '#16264f', SKY = '#86b4e2', RED = '#c8202f', WHITE = '#f6f3ec';
+	const g = ctx.createLinearGradient( 0, 0, w, h );
+	g.addColorStop( 0, '#cf2533' );
+	g.addColorStop( 1, '#bf1c2b' );
+	ctx.fillStyle = g;
+	ctx.fillRect( 0, 0, w, h );
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.lineJoin = 'round';
+	// the globe
+	const gx = w * 0.5, gy = h * 0.39, R = w * 0.31;
+	ctx.fillStyle = NAVY;
+	ctx.beginPath(); ctx.arc( gx, gy, R + 8, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = '#3d6fb0';
+	ctx.beginPath(); ctx.arc( gx, gy, R, 0, Math.PI * 2 ); ctx.fill();
+	ctx.save();
+	ctx.beginPath(); ctx.arc( gx, gy, R, 0, Math.PI * 2 ); ctx.clip();
+	// the land, pale
+	ctx.fillStyle = '#dfe9f3';
+	for ( const [ ax, ay, rx, ry, rot ] of [ [ 0.35, - 0.35, 0.42, 0.28, 0.4 ], [ 0.55, 0.15, 0.25, 0.38, - 0.3 ], [ - 0.55, 0.45, 0.3, 0.2, 0.2 ], [ 0.1, 0.62, 0.35, 0.16, 0 ] ] ) {
+
+		ctx.beginPath(); ctx.ellipse( gx + ax * R, gy + ay * R, rx * R, ry * R, rot, 0, Math.PI * 2 ); ctx.fill();
+
+	}
+
+	// the meridians and parallels
+	ctx.strokeStyle = NAVY;
+	ctx.lineWidth = 5;
+	for ( let k = - 2; k <= 2; k ++ ) {
+
+		ctx.beginPath(); ctx.ellipse( gx, gy, Math.abs( k ) * R * 0.33 + 2, R, 0, 0, Math.PI * 2 ); ctx.stroke();
+		ctx.beginPath(); ctx.moveTo( gx - R, gy + k * R * 0.36 ); ctx.lineTo( gx + R, gy + k * R * 0.36 ); ctx.stroke();
+
+	}
+
+	ctx.restore();
+	// the orbit ring, round from lower left up over the right, and the ball riding it on the left
+	ctx.strokeStyle = SKY;
+	ctx.lineWidth = 10;
+	ctx.beginPath(); ctx.ellipse( gx, gy + R * 0.05, R * 1.22, R * 0.42, - 0.32, 0, Math.PI * 2 ); ctx.stroke();
+	ctx.strokeStyle = NAVY;
+	ctx.lineWidth = 3;
+	ctx.beginPath(); ctx.ellipse( gx, gy + R * 0.05, R * 1.22 + 6, R * 0.42 + 6, - 0.32, 0, Math.PI * 2 ); ctx.stroke();
+	const bx = gx - R * 1.02, by = gy - R * 0.5;
+	ctx.fillStyle = WHITE; ctx.strokeStyle = NAVY; ctx.lineWidth = 5;
+	ctx.beginPath(); ctx.arc( bx, by, R * 0.15, 0, Math.PI * 2 ); ctx.fill(); ctx.stroke();
+	ctx.strokeStyle = RED; ctx.lineWidth = 3;
+	for ( const s of [ - 1, 1 ] ) {
+
+		ctx.beginPath(); ctx.arc( bx + s * R * 0.2, by, R * 0.13, Math.PI / 2 + s * Math.PI / 2 - 0.9, Math.PI / 2 + s * Math.PI / 2 + 0.9 ); ctx.stroke();
+
+	}
+
+	// the P in its ring on top of the globe
+	const px = gx, py = gy - R * 0.72, pr = R * 0.36;
+	ctx.fillStyle = NAVY; ctx.beginPath(); ctx.arc( px, py, pr + 10, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc( px, py, pr + 3, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = RED; ctx.beginPath(); ctx.arc( px, py, pr - 6, 0, Math.PI * 2 ); ctx.fill();
+	ctx.font = `italic 700 ${ Math.round( pr * 1.7 ) }px ${ SERIF }`;
+	ctx.fillStyle = WHITE;
+	ctx.fillText( 'P', px, py + pr * 0.08 );
+	// WORLD SERIES on its plaque
+	const wy = gy - R * 0.05;
+	ctx.fillStyle = WHITE;
+	ctx.beginPath(); ctx.roundRect( w * 0.2 - 6, wy - 46, w * 0.6 + 12, 92, 14 ); ctx.fill();
+	ctx.fillStyle = NAVY;
+	ctx.beginPath(); ctx.roundRect( w * 0.2, wy - 40, w * 0.6, 80, 10 ); ctx.fill();
+	ctx.font = `900 58px ${ SANS }`;
+	ctx.fillStyle = SKY;
+	ctx.fillText( 'WORLD SERIES', w / 2, wy + 3, w * 0.56 );
+	// CHAMPIONS on its band
+	const cy = gy + R * 0.33;
+	ctx.fillStyle = NAVY;
+	ctx.beginPath(); ctx.roundRect( w * 0.07, cy - 64, w * 0.86, 128, 16 ); ctx.fill();
+	ctx.font = `700 112px ${ SERIF }`;
+	ctx.lineWidth = 10; ctx.strokeStyle = SKY;
+	ctx.strokeText( 'CHAMPIONS', w / 2, cy + 4, w * 0.82 );
+	ctx.fillStyle = WHITE;
+	ctx.fillText( 'CHAMPIONS', w / 2, cy + 4, w * 0.82 );
+	// 20 · the Series' logo · 08
+	const yy = gy + R * 0.72;
+	ctx.font = `700 92px ${ SERIF }`;
+	ctx.lineWidth = 10; ctx.strokeStyle = NAVY;
+	for ( const [ t, x ] of [ [ '20', w * 0.34 ], [ '08', w * 0.66 ] ] ) {
+
+		ctx.strokeText( t, x, yy );
+		ctx.fillStyle = WHITE;
+		ctx.fillText( t, x, yy );
+
+	}
+
+	ctx.save();
+	ctx.translate( w * 0.5, yy + 18 );
+	ctx.rotate( Math.PI / 4 );
+	ctx.fillStyle = '#e8dcc0'; ctx.strokeStyle = NAVY; ctx.lineWidth = 5;
+	ctx.fillRect( - 44, - 44, 88, 88 ); ctx.strokeRect( - 44, - 44, 88, 88 );
+	ctx.restore();
+	ctx.save();
+	ctx.translate( w * 0.5 - 62, yy - 18 );
+	drawWorldSeriesLogo( ctx, 124, 62, { clear: false } );
+	ctx.restore();
+	// the white band and the script
+	const sy0 = h * 0.73, sy1 = h * 0.885;
+	ctx.fillStyle = WHITE;
+	ctx.fillRect( 0, sy0, w, sy1 - sy0 );
+	ctx.save();
+	ctx.translate( w / 2, ( sy0 + sy1 ) / 2 + 4 );
+	ctx.rotate( - 0.04 );
+	ctx.font = `italic 700 150px ${ SERIF }`;
+	ctx.fillStyle = RED;
+	ctx.fillText( 'Phillies', 0, 0, w * 0.86 );
+	ctx.restore();
+	for ( const x of [ 0.475, 0.62 ] ) star( ctx, w * x, sy0 + ( sy1 - sy0 ) * 0.2, 17, '#22409a' );
+	ctx.strokeStyle = RED;
+	ctx.lineWidth = 9;
+	ctx.lineCap = 'round';
+	ctx.beginPath();
+	ctx.moveTo( w * 0.22, sy1 + 24 ); ctx.quadraticCurveTo( w * 0.5, sy1 + 30, w * 0.8, sy1 + 18 );
+	ctx.stroke();
+	ctx.strokeStyle = WHITE;
+	ctx.lineWidth = 3;
+	ctx.stroke();
+	ctx.font = `700 13px ${ SANS }`;
+	ctx.fillStyle = WHITE;
+	ctx.textAlign = 'left';
+	ctx.fillText( 'WinCraft/MLBP 2008   Made in the U.S.A.', w * 0.11, h * 0.955 );
 
 }
 

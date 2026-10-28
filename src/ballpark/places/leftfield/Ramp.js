@@ -114,11 +114,30 @@ export function buildRamp( place, K ) {
 	for ( const [ x, y, z ] of lamps ) K.use( 'lamp' ).box( I, x, y, z, 0.5, 0.18, 0.5 );
 	// the Gulf disc on the top landing's rail, facing home, and the BUBBA burger boxes on the ramp's
 	// field-side face (lit at night)
-	const face = [ 0.71, 0, 0.71 ];
-	const right = [ 0.71, 0, - 0.71 ];
-	const gulfAt = [ X0 + W + 0.5, TOP + 2.2, Z0 - 6 ];
-	K.panelAt( [ gulfAt[ 0 ] - right[ 0 ] * 1.75, gulfAt[ 1 ] - 1.75, gulfAt[ 2 ] - right[ 2 ] * 1.75 ], right, [ 0, 1, 0 ], 3.5, 3.5, face, 'gulf' );
-	beam( steel, [ gulfAt[ 0 ] + 0.3, TOP, gulfAt[ 2 ] + 0.3 ], [ gulfAt[ 0 ] + 0.3, gulfAt[ 1 ], gulfAt[ 2 ] + 0.3 ], 0.2 );
+	// ---- FB1 (gauntlet r1, CB's cross-zone note): the disc hung under the west end of the left field
+	// deck, over the top rows of the seats, about 2.4 m across (Commons 2008-03-29, the zoom on it), not
+	// up on the ramp's top landing, where it stood over the stands at night like an orange moon
+	let face = [ 0.71, 0, 0.71 ], right = [ 0.71, 0, - 0.71 ], gulfAt = [ X0 + W + 0.5, TOP + 2.2, Z0 - 6 ], R = 1.75, hang = null;
+	const deck = place.app?.bowl?.upper?.find( ( t ) => t.name === 'lf-deck' );
+	if ( deck ) {
+
+		const P = deck.front, west = P[ 0 ][ 0 ] < P[ P.length - 1 ][ 0 ];
+		const a = west ? P[ 0 ] : P[ P.length - 1 ], b = west ? P[ 1 ] : P[ P.length - 2 ];
+		const l = Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] );
+		const c = [ a[ 0 ] + ( b[ 0 ] - a[ 0 ] ) / l * 4, a[ 1 ] + ( b[ 1 ] - a[ 1 ] ) / l * 4 ];
+		const h = Math.hypot( c[ 0 ], c[ 1 ] );
+		face = [ - c[ 0 ] / h, 0, - c[ 1 ] / h ];
+		right = [ face[ 2 ], 0, - face[ 0 ] ];
+		R = 1.2;
+		gulfAt = [ c[ 0 ] + face[ 0 ] * 0.6, deck.base - 0.3 - R, c[ 1 ] + face[ 2 ] * 0.6 ];
+		hang = deck.base;
+
+	}
+
+	K.panelAt( [ gulfAt[ 0 ] - right[ 0 ] * R, gulfAt[ 1 ] - R, gulfAt[ 2 ] - right[ 2 ] * R ], right, [ 0, 1, 0 ], 2 * R, 2 * R, face, 'gulf' );
+	if ( hang !== null ) for ( const s of [ - 0.6, 0.6 ] ) beam( steel, [ gulfAt[ 0 ] + right[ 0 ] * s - face[ 0 ] * 0.05, hang, gulfAt[ 2 ] + right[ 2 ] * s - face[ 2 ] * 0.05 ], [ gulfAt[ 0 ] + right[ 0 ] * s - face[ 0 ] * 0.05, gulfAt[ 1 ] + R * 0.8, gulfAt[ 2 ] + right[ 2 ] * s - face[ 2 ] * 0.05 ], 0.05 );
+	else beam( steel, [ gulfAt[ 0 ] + 0.3, TOP, gulfAt[ 2 ] + 0.3 ], [ gulfAt[ 0 ] + 0.3, gulfAt[ 1 ], gulfAt[ 2 ] + 0.3 ], 0.2 );
+	// ---- end FB1
 	for ( const [ y, z ] of [ [ STREET + 3 * rise + 1.4, - 72 ], [ STREET + 5 * rise + 1.4, - 86 ] ] ) {
 
 		K.panelAt( [ X0 + W + 0.35, y, z + 1.5 ], [ 0, 0, - 1 ], [ 0, 1, 0 ], 3.0, 0.75, [ 1, 0, 0 ], 'bubba' );

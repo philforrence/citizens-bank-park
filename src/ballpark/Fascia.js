@@ -3,6 +3,8 @@ import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
 import { canvasTexture, refreshCanvasTexture } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
+import { FT, FOUL_TERRITORY, FOUL_WALL_HEIGHT, DUGOUTS } from './layout.js';
+import { SEASON } from './Phanavision.js';
 
 // The fronts of the decks as they were for the 2008 World Series (from photos of Games 3-5):
 //   - the LED ribbon board along the suite level round the infield: WORLD SERIES 2008 on FOX, the batter,
@@ -338,29 +340,72 @@ export class Fascia {
 
 	}
 
-	// red, white and blue half fans hung from the top of the fascias, one every ~13 m
+	// Red, white and blue pleated half fans, as the photos of Games 3-5 and the 2007 NLDS show them
+	// (yeago81 2007, Getty 163678267, 83571001, 84080911; luidude Oct 27): about one a section along the
+	// Hall of Fame Club's fascia, the Arcade's and the Pavilion's, each ~2.1 m across and ~1.5 m deep,
+	// tied along the rail on top and draped over the precast band, so the lower third hangs below its
+	// edge. Down at the field a few smaller ones hung on the low wall's rail: a pair just past each
+	// dugout's far end (the photographers' wells) and one in each corner where the stands meet the
+	// outfield wall. Each is 14 folds radiating from the top centre, every other one standing out, so
+	// they catch the light the way the cloth does; one batch of a few hundred triangles.
 	_bunting( tiers ) {
 
 		const tex = canvasTexture( 512, 256, drawBunting, 'bunting' );
-		const mat = standard( { name: 'bunting', roughness: 0.9, alphaTest: 0.5, side: 'double', textures: { bpFan: tex },
+		const mat = standard( { name: 'bunting', roughness: 0.88, alphaTest: 0.5, side: 'double', textures: { bpFan: tex },
 			surface: 'let t = textureSample( bpFan, smpAnisoClamp, in.uv ); s.albedo = t.rgb * 0.8; s.alpha = t.a;' } );
 		mat.underwaterLighting = 'none';
 		const q = new Quads();
-		const W = 2.0, H = 1.0;
+		const W = 2.2, H = 1.6;
 		for ( const t of tiers ) {
 
 			const segs = facing( t.front, t.outward );
 			const total = segs.reduce( ( a, S ) => a + S.len, 0 );
 			const n = Math.max( 1, Math.round( total / 13 ) );
-			const top = t.frontWall.top - 0.08;
+			// tied on at the pipe rail, 0.3 m over the fascia's top (Stands.js puts the rail there, 0.12 m
+			// out from the face)
+			const top = t.frontWall.top + 0.28;
 			for ( let k = 0; k < n; k ++ ) {
 
 				const c = ( k + 0.5 ) * total / n;
-				along( q, segs, c - W / 2, c + W / 2, top - H, top, 0.09, ( ss ) => ( ss - ( c - W / 2 ) ) / W, 0, 1 );
+				const S = segs.find( ( S ) => c >= S.s0 && c <= S.s0 + S.len ) || segs[ segs.length - 1 ];
+				const s = c - S.s0;
+				// (a fan that would fold round a corner of the fascia slides along to sit on one piece)
+				const sc = Math.min( Math.max( s, Math.min( W / 2, S.len / 2 ) ), Math.max( S.len - W / 2, S.len / 2 ) );
+				fan( q, [ S.a[ 0 ] + S.ux * sc, S.a[ 1 ] + S.uz * sc ], [ S.nz, - S.nx ], [ S.nx, S.nz ], top, W, H, 0.15, 0.06 );
 
 			}
 
 		}
+
+		// the field level: on the low wall's pipe rail (Field.js: 0.2 m back on the cap, its top rail
+		// 0.95 m up), smaller fans, from s metres along the wall from p toward p1
+		const wallTop = FOUL_WALL_HEIGHT * FT;
+		const onWall = ( p, p1, s ) => {
+
+			const len = Math.hypot( p1[ 0 ] - p[ 0 ], p1[ 1 ] - p[ 1 ] );
+			const ux = ( p1[ 0 ] - p[ 0 ] ) / len, uz = ( p1[ 1 ] - p[ 1 ] ) / len;
+			// n toward the field
+			let nx = - uz, nz = ux;
+			if ( nx * ( 0 - p[ 0 ] ) + nz * ( - 40 - p[ 1 ] ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			fan( q, [ p[ 0 ] + ux * s - nx * 0.2, p[ 1 ] + uz * s - nz * 0.2 ], [ nz, - nx ], [ nx, nz ], wallTop + 0.97, 1.8, 1.0, 0.07, 0.04 );
+
+		};
+		// a pair just past each dugout's far end (luidude 2981634108, Commons 2008-03-29)
+		for ( const [ end, next ] of [ [ DUGOUTS.first[ 1 ], FOUL_TERRITORY[ 3 ] ], [ DUGOUTS.third[ 1 ], FOUL_TERRITORY[ 10 ] ] ] ) {
+
+			onWall( end, next, 2.2 );
+			onWall( end, next, 4.6 );
+
+		}
+
+		// the corners: on the stands' last straight run before each pole, 6 m from its end (Getty 84080911)
+		onWall( FOUL_TERRITORY[ 0 ], FOUL_TERRITORY[ 1 ], 6 );
+		onWall( FOUL_TERRITORY[ 13 ], FOUL_TERRITORY[ 12 ], 6 );
 
 		this._mesh( q, mat, 'bunting', true );
 
@@ -386,20 +431,22 @@ export class Fascia {
 
 		const d = director, seg = d.segmentAt( d.t ), s = seg.snap;
 		let design;
+		// (CB-7: through the Series the ribbon was mostly red: the World Series graphics with the line
+		// score and the batter set into them in black boxes, Getty 84080911; between innings THERE'S ONLY
+		// ONE OCTOBER on red, 83571001; blue 2008 graphics for the intros, 163678267)
 		if ( seg.kind === 'celebrate' ) design = 'champs';
 		else if ( seg.kind === 'intro' ) design = 'ws';
-		else if ( seg.kind === 'switch' ) design = 'score';
-		else if ( seg.kind === 'walkup' ) design = 'batter';
+		else if ( seg.kind === 'switch' || seg.kind === 'walkup' ) design = 'game';
 		else if ( seg.kind === 'change' ) design = 'october';
 		else {
 
-			const cycle = [ 'ws', 'batter', 'october', 'nlchamps', 'msg', 'score', 'citizens' ];
+			const cycle = [ 'game', 'october', 'game', 'nlchamps', 'game', 'msg', 'game', 'citizens' ];
 			design = cycle[ Math.floor( d.t / 14 ) % cycle.length ];
 			if ( s.half === 'bottom' && ( s.bases[ 1 ] || s.bases[ 2 ] ) && Math.floor( d.t / 7 ) % 2 === 0 ) design = 'noise';
 
 		}
 
-		const key = JSON.stringify( [ design, design === 'batter' ? [ st.batter, st.today ] : 0, design === 'score' ? [ st.score, st.inning, st.half, st.outs ] : 0 ] );
+		const key = JSON.stringify( [ design, design === 'game' ? [ st.batter, st.score, st.line, st.hits, st.errors ] : 0 ] );
 		if ( key !== this._key ) {
 
 			this._key = key;
@@ -482,6 +529,40 @@ function along( q, segs, a, b, y0, y1, off, u, v0, v1 ) {
 		const s0 = Math.max( a, S.s0 ), s1 = Math.min( b, S.s0 + S.len );
 		if ( s1 - s0 < 0.01 ) continue;
 		panel( q, S, s0 - S.s0, s1 - S.s0, y0, y1, off, u( s0 ), u( s1 ), v0, v1 );
+
+	}
+
+}
+
+// A pleated half fan of bunting hung by its top edge: c the top centre [ x, z ], r the unit vector to the
+// right as seen from in front, n the unit normal out toward the viewer, top its top edge's height, w and
+// h its width and depth (the cloth's; the texture's scallops trim it), off how far it stands out in front
+// of c, pleat how deep the folds are at the rim. FAN_FOLDS wedges from the top centre, the even folds
+// standing out and the odd ones in, so each wedge is one flat facet tilted the other way from its
+// neighbours; the lower edge bellies out a little. uv: the half disc of drawBunting
+const FAN_FOLDS = 14;
+function fan( q, c, r, n, top, w, h, off, pleat ) {
+
+	const P = ( rho, a, k ) => {
+
+		const ca = Math.cos( a ), sa = Math.sin( a );
+		const x = rho * ca * w / 2, y = top - rho * sa * h;
+		const o = off + rho * sa * 0.06 + ( k % 2 ? - 1 : 1 ) * pleat * rho;
+		return {
+			p: [ c[ 0 ] + r[ 0 ] * x + n[ 0 ] * o, y, c[ 1 ] + r[ 1 ] * x + n[ 1 ] * o ],
+			uv: [ 0.5 + 0.5 * rho * ca, rho * sa ],
+		};
+
+	};
+	const C = P( 0, 0, 0 );
+	for ( let k = 0; k < FAN_FOLDS; k ++ ) {
+
+		// from the right end round the bottom to the left end
+		const a = P( 1, k / FAN_FOLDS * Math.PI, k ), b = P( 1, ( k + 1 ) / FAN_FOLDS * Math.PI, k + 1 );
+		const e1 = [ a.p[ 0 ] - C.p[ 0 ], a.p[ 1 ] - C.p[ 1 ], a.p[ 2 ] - C.p[ 2 ] ], e2 = [ b.p[ 0 ] - C.p[ 0 ], b.p[ 1 ] - C.p[ 1 ], b.p[ 2 ] - C.p[ 2 ] ];
+		let nn = [ e1[ 1 ] * e2[ 2 ] - e1[ 2 ] * e2[ 1 ], e1[ 2 ] * e2[ 0 ] - e1[ 0 ] * e2[ 2 ], e1[ 0 ] * e2[ 1 ] - e1[ 1 ] * e2[ 0 ] ];
+		if ( nn[ 0 ] * n[ 0 ] + nn[ 2 ] * n[ 1 ] < 0 ) nn = nn.map( ( v ) => - v );
+		q.tri( C.p, a.p, b.p, nn, C.uv, a.uv, b.uv );
 
 	}
 
@@ -578,56 +659,113 @@ function drawRibbon( ctx, w, h, design, st ) {
 	const H = h / 2;
 	if ( design === 'ws' ) {
 
-		// magenta with a diamond pattern, the logo block in the middle, the Phillies P at the sides
+		// the intros' blue 2008 graphics (Getty 163678267, Game 4): a blue ground with a pale swoosh,
+		// 2008 big in white, WORLD SERIES between
 		const g = ctx.createLinearGradient( 0, 0, 0, h );
-		g.addColorStop( 0, '#ff2d8a' ); g.addColorStop( 1, '#b0005a' );
+		g.addColorStop( 0, '#1d56c4' ); g.addColorStop( 1, '#0a2a78' );
 		ctx.fillStyle = g;
 		ctx.fillRect( 0, 0, w, h );
-		ctx.fillStyle = 'rgba( 255, 255, 255, 0.12 )';
-		for ( let x = - h; x < w; x += 48 ) {
+		ctx.strokeStyle = 'rgba( 170, 210, 255, 0.45 )';
+		ctx.lineWidth = 10;
+		for ( const y0 of [ 20, 70 ] ) {
 
-			ctx.beginPath();
-			ctx.moveTo( x, H ); ctx.lineTo( x + 24, 0 ); ctx.lineTo( x + 48, H ); ctx.lineTo( x + 24, h );
-			ctx.fill();
+			ctx.beginPath(); ctx.moveTo( 0, y0 );
+			for ( let x = 0; x <= w; x += 64 ) ctx.lineTo( x, y0 + 14 * Math.sin( x / 220 + y0 ) );
+			ctx.stroke();
 
 		}
 
-		// the logo, WORLD SERIES 2008, "on", FOX: measured and centred on a navy block
-		const parts = [ [ 'WORLD SERIES 2008', '700 66px Georgia, "Times New Roman", serif', 0 ], [ 'on', 'italic 600 30px ' + SANS, 6 ], [ 'FOX', 'italic 900 62px ' + SANS, 0 ] ];
-		const gap = 18, logoW = 110;
-		const widths = parts.map( ( [ t, f ] ) => {
+		for ( const x of [ w * 0.16, w * 0.5, w * 0.84 ] ) text( ctx, '2008', x, H + 4, 'italic 900 84px ' + SANS, '#ffffff' );
+		for ( const x of [ w * 0.33, w * 0.67 ] ) {
 
-			ctx.font = f;
-			return ctx.measureText( t ).width;
+			mlbLogo( ctx, x - 230, 22, 80, 52 );
+			text( ctx, 'WORLD SERIES', x + 40, H + 3, '700 58px Georgia, "Times New Roman", serif', '#ffffff' );
 
-		} );
-		const total = logoW + gap + widths.reduce( ( a, b ) => a + b + gap, 0 ) - gap;
-		let x = ( w - total ) / 2;
-		ctx.fillStyle = '#0d1f4f';
-		ctx.fillRect( x - 30, 4, total + 60, h - 8 );
-		mlbLogo( ctx, x, 14, logoW, 68 );
-		x += logoW + gap;
-		parts.forEach( ( [ t, f, dy ], i ) => {
+		}
 
-			text( ctx, t, x, H + 2 + dy, f, '#ffffff', 'left' );
-			x += widths[ i ] + gap;
+	} else if ( design === 'game' ) {
 
-		} );
-		for ( const x of [ w * 0.1, w * 0.9 ] ) {
+		// the Series' main look (Getty 84080911, Game 3): on red, the WS2008 block, the line score in a
+		// black box, the Rays' TR and WORLD SERIES 2008 and the Phillies' P, the batter in a black box
+		// (a head shot, his number, name and position, his 2008 AVG, HR and RBI)
+		const g = ctx.createLinearGradient( 0, 0, 0, h );
+		g.addColorStop( 0, '#e0283a' ); g.addColorStop( 1, '#a50f20' );
+		ctx.fillStyle = g;
+		ctx.fillRect( 0, 0, w, h );
+		const S = st || { score: { away: 0, home: 0 }, hits: { away: 0, home: 0 }, errors: { away: 0, home: 0 }, line: [] };
+		// the WS2008 block
+		ctx.fillStyle = '#f2d0d4';
+		ctx.fillRect( 6, 6, 252, h - 12 );
+		ctx.fillStyle = '#c8102e';
+		ctx.fillRect( 10, 10, 244, h - 20 );
+		mlbLogo( ctx, 20, 26, 62, 44 );
+		text( ctx, 'WS2008', 168, H + 4, '700 50px Georgia, "Times New Roman", serif', '#ffffff' );
+		// the line score
+		ctx.fillStyle = '#040506';
+		ctx.fillRect( 268, 4, 500, h - 8 );
+		const LED = '700 30px "Courier New", monospace', AMBER = '#ffd98a';
+		text( ctx, 'TB', 300, 30, '900 26px ' + SANS, '#ffffff' );
+		text( ctx, 'PHI', 300, 68, '900 26px ' + SANS, '#ffffff' );
+		for ( let i = 0; i < 9; i ++ ) {
 
-			ctx.fillStyle = '#ffffff';
-			ctx.beginPath(); ctx.arc( x, H, 38, 0, Math.PI * 2 ); ctx.fill();
-			text( ctx, 'P', x, H + 4, 'italic 700 64px Georgia, serif', '#c8102e' );
+			const inn = S.line?.[ i ];
+			for ( const [ k, y ] of [ [ 0, 30 ], [ 1, 68 ] ] ) {
+
+				const v = inn ? inn[ k ] : null;
+				text( ctx, v === null || v === undefined ? '' : String( v ), 360 + i * 30, y, LED, AMBER );
+
+			}
+
+		}
+
+		for ( const [ k, y ] of [ [ 'away', 30 ], [ 'home', 68 ] ] ) {
+
+			text( ctx, String( S.score[ k ] ?? 0 ), 664, y, LED, '#ffffff' );
+			text( ctx, String( S.hits?.[ k ] ?? 0 ), 704, y, LED, '#ffffff' );
+			text( ctx, String( S.errors?.[ k ] ?? 0 ), 744, y, LED, '#ffffff' );
+
+		}
+
+		// the middle: the Rays' roundel, the Series, the Phillies' P
+		mlbLogo( ctx, 790, 24, 70, 48 );
+		ctx.fillStyle = '#ffffff';
+		ctx.beginPath(); ctx.arc( 930, H, 38, 0, Math.PI * 2 ); ctx.fill();
+		text( ctx, 'TR', 930, H + 3, '900 40px Georgia, serif', '#0b2a5b' );
+		mlbLogo( ctx, 1010, 26, 60, 44 );
+		text( ctx, 'WORLD SERIES 2008', 1084, H + 4, '700 52px Georgia, "Times New Roman", serif', '#ffffff', 'left', 340 );
+		ctx.fillStyle = '#ffffff';
+		ctx.beginPath(); ctx.arc( 1470, H, 38, 0, Math.PI * 2 ); ctx.fill();
+		text( ctx, 'P', 1470, H + 4, 'italic 700 60px Georgia, serif', '#c8102e' );
+		// the batter
+		ctx.fillStyle = '#040506';
+		ctx.fillRect( 1528, 4, 512, h - 8 );
+		const b = st && st.batter;
+		if ( b ) {
+
+			// the head shot: his cap and face, small
+			ctx.fillStyle = '#2a3a5a'; ctx.fillRect( 1538, 10, 62, h - 20 );
+			ctx.fillStyle = '#b07a58'; ctx.beginPath(); ctx.ellipse( 1569, 54, 17, 22, 0, 0, Math.PI * 2 ); ctx.fill();
+			ctx.fillStyle = st.batting === 'home' ? '#c8102e' : '#0b2a5b';
+			ctx.beginPath(); ctx.ellipse( 1569, 36, 19, 11, 0, Math.PI, Math.PI * 2 ); ctx.fill();
+			ctx.fillRect( 1550, 34, 40, 5 );
+			text( ctx, `${ b.num }  ${ b.last }`, 1616, 30, '900 34px ' + SANS, '#ffffff', 'left', 300 );
+			text( ctx, b.pos || '', 2010, 30, '800 32px ' + SANS, '#ffffff', 'right' );
+			const sea = SEASON[ b.last.charAt( 0 ) + b.last.slice( 1 ).toLowerCase() ];
+			if ( sea ) text( ctx, `AVG ${ sea[ 0 ] }   HR ${ sea[ 1 ] }   RBI ${ sea[ 2 ] }`, 1616, 70, LED, AMBER, 'left', 410 );
 
 		}
 
 	} else if ( design === 'october' ) {
 
-		ctx.fillStyle = '#0a1a3c';
+		// between innings: MLB's slogan for the 2008 postseason, white on red (Getty 83571001)
+		const g = ctx.createLinearGradient( 0, 0, 0, h );
+		g.addColorStop( 0, '#d8203a' ); g.addColorStop( 1, '#a00d1e' );
+		ctx.fillStyle = g;
 		ctx.fillRect( 0, 0, w, h );
-		for ( let i = 0; i < 40; i ++ ) star( ctx, ( i * 211 ) % w, 12 + ( i * 37 ) % ( h - 24 ), 5, 'rgba( 255, 255, 255, 0.35 )' );
-		text( ctx, "THERE'S ONLY ONE", w * 0.36, H + 3, '900 62px ' + SANS, '#ffffff' );
-		text( ctx, 'OCTOBER', w * 0.66, H + 3, 'italic 900 76px ' + SANS, '#ffc425' );
+		ctx.fillStyle = '#ffffff';
+		ctx.fillRect( 0, 5, w, 3 ); ctx.fillRect( 0, h - 8, w, 3 );
+		text( ctx, "THERE'S ONLY ONE", w * 0.38, H + 3, '900 62px ' + SANS, '#ffffff' );
+		text( ctx, 'OCTOBER', w * 0.67, H + 3, 'italic 900 76px ' + SANS, '#ffffff' );
 		mlbLogo( ctx, w * 0.08, 14, 110, 68 );
 		mlbLogo( ctx, w * 0.87, 14, 110, 68 );
 
@@ -646,42 +784,6 @@ function drawRibbon( ctx, w, h, design, st ) {
 		ctx.fillText( 'Phillies', w * 0.2, H + 2 );
 		star( ctx, w * 0.105, H - 20, 12, '#1d3f94' ); star( ctx, w * 0.3, H + 16, 12, '#1d3f94' );
 		text( ctx, '2008 NATIONAL LEAGUE CHAMPIONS', w * 0.64, H + 3, '900 60px ' + SANS, '#ffffff' );
-
-	} else if ( design === 'batter' ) {
-
-		ctx.fillStyle = '#050608';
-		ctx.fillRect( 0, 0, w, h );
-		const b = st && st.batter;
-		ctx.fillStyle = '#c8102e';
-		ctx.fillRect( 20, 10, 330, h - 20 );
-		text( ctx, 'NOW BATTING', 185, H + 2, '900 44px ' + SANS, '#ffffff' );
-		if ( b ) {
-
-			text( ctx, `#${ b.num }  ${ b.name }`, 390, H + 3, '900 64px ' + SANS, '#ffffff', 'left', 900 );
-			text( ctx, b.pos || '', 1310, H + 3, '800 52px ' + SANS, '#ffc425', 'left' );
-			const today = ( st.today || [] ).slice( - 3 ).join( '   ' ) || 'FIRST AT BAT TODAY';
-			text( ctx, today, 1420, H + 3, '700 40px "Courier New", monospace', '#ffb000', 'left', w - 1440 );
-
-		}
-
-	} else if ( design === 'score' ) {
-
-		ctx.fillStyle = '#050608';
-		ctx.fillRect( 0, 0, w, h );
-		const S = st || { score: { away: 0, home: 0 }, inning: 1, half: 'top', outs: 0 };
-		const block = ( x, club, runs, bg ) => {
-
-			ctx.fillStyle = bg;
-			ctx.fillRect( x, 10, 560, h - 20 );
-			text( ctx, club.toUpperCase(), x + 30, H + 3, '900 60px ' + SANS, '#ffffff', 'left' );
-			text( ctx, String( runs ), x + 520, H + 3, '900 72px ' + SANS, '#ffffff', 'right' );
-
-		};
-
-		block( 120, 'Rays', S.score.away, '#0b2a5b' );
-		block( 720, 'Phillies', S.score.home, '#b0101f' );
-		text( ctx, `${ S.half === 'top' ? 'TOP' : 'BOT' } ${ S.inning }`, 1480, H + 3, '900 60px ' + SANS, '#ffc425' );
-		text( ctx, `${ S.outs } OUT${ S.outs === 1 ? '' : 'S' }`, 1780, H + 3, '800 52px ' + SANS, '#ffffff' );
 
 	} else if ( design === 'msg' ) {
 
@@ -743,59 +845,86 @@ function drawSpeed( ctx, w, h, p ) {
 
 }
 
-// a red, white and blue half fan: the flat edge at the top, pleated, with stars in the blue
+// A red, white and blue pleated half fan (yeago81 2007, Getty 84080911): a wide red outer band, a white
+// band, a blue fan in the middle with white stars, gathered at the top centre. The flat edge is at the
+// top, the half disc fills the canvas as fan() maps it (u across, v down), and the cloth's edge sits a
+// little inside that, scalloped between the folds. Fold lines run out from the centre at the same
+// FAN_FOLDS angles as the geometry's: a crease in shadow on the inner folds, a sheen on the outer ones
 function drawBunting( ctx, w, h ) {
 
 	ctx.clearRect( 0, 0, w, h );
-	const cx = w / 2, R = w / 2 - 6;
-	const bands = [ [ 1.0, '#b3122c' ], [ 0.8, '#f4f1ea' ], [ 0.6, '#b3122c' ], [ 0.42, '#f4f1ea' ], [ 0.3, '#1b2f6b' ] ];
-	for ( const [ f, c ] of bands ) {
+	const cx = w / 2, rx = w / 2 * 0.95, ry = h * 0.95;
+	const at = ( a, f ) => [ cx + Math.cos( a ) * rx * f, Math.sin( a ) * ry * f ];
+	// a band's outline out to f of the radius, scalloped between the folds (each fold's tip on the
+	// radius, the cloth between them sagging back in)
+	const outline = ( f, sag ) => {
 
+		ctx.beginPath();
+		ctx.moveTo( cx, 0 );
+		ctx.lineTo( ...at( 0, f ) );
+		for ( let k = 0; k < FAN_FOLDS; k ++ ) {
+
+			const a0 = k / FAN_FOLDS * Math.PI, a1 = ( k + 1 ) / FAN_FOLDS * Math.PI;
+			ctx.quadraticCurveTo( ...at( ( a0 + a1 ) / 2, f * sag ), ...at( a1, f ) );
+
+		}
+
+		ctx.closePath();
+
+	};
+	for ( const [ f, c, sag ] of [ [ 1.0, '#b5132d', 0.93 ], [ 0.68, '#f2efe8', 0.97 ], [ 0.43, '#1c2f6e', 0.98 ] ] ) {
+
+		outline( f, sag );
 		ctx.fillStyle = c;
+		ctx.fill();
+
+	}
+
+	for ( let k = 0; k < 5; k ++ ) star( ctx, ...at( ( k + 0.5 ) / 5 * Math.PI, 0.27 ), 10, '#f6f4ee' );
+
+	// the folds: each wedge shaded from one fold to the next (light on the outer fold, darker into the
+	// inner one), clipped to the cloth
+	outline( 1.0, 0.93 );
+	ctx.save();
+	ctx.clip();
+	for ( let k = 0; k < FAN_FOLDS; k ++ ) {
+
+		const [ x0, y0 ] = at( k / FAN_FOLDS * Math.PI, 1.05 ), [ x1, y1 ] = at( ( k + 1 ) / FAN_FOLDS * Math.PI, 1.05 );
+		const g = ctx.createLinearGradient( x0, y0, x1, y1 );
+		// even folds stand out (fan()), odd ones are the creases
+		const out = k % 2 === 0;
+		g.addColorStop( 0, out ? 'rgba( 255, 255, 255, 0.10 )' : 'rgba( 0, 0, 0, 0.22 )' );
+		g.addColorStop( 0.5, 'rgba( 0, 0, 0, 0.04 )' );
+		g.addColorStop( 1, out ? 'rgba( 0, 0, 0, 0.22 )' : 'rgba( 255, 255, 255, 0.10 )' );
+		ctx.fillStyle = g;
 		ctx.beginPath();
 		ctx.moveTo( cx, 0 );
-		// the outer band's edge scalloped between the pleats
-		if ( f === 1 ) {
-
-			const n = 14;
-			for ( let k = 0; k <= n; k ++ ) {
-
-				const a0 = k / n * Math.PI, a1 = ( k + 1 ) / n * Math.PI;
-				ctx.lineTo( cx + Math.cos( a0 ) * R, Math.sin( a0 ) * R );
-				if ( k < n ) ctx.quadraticCurveTo( cx + Math.cos( ( a0 + a1 ) / 2 ) * R * 0.94, Math.sin( ( a0 + a1 ) / 2 ) * R * 0.94, cx + Math.cos( a1 ) * R, Math.sin( a1 ) * R );
-
-			}
-
-		} else ctx.arc( cx, 0, R * f, 0, Math.PI );
+		ctx.lineTo( x0, y0 );
+		ctx.lineTo( x1, y1 );
 		ctx.closePath();
 		ctx.fill();
 
 	}
 
-	// the pleats: alternate wedges shaded
-	for ( let k = 0; k < 14; k ++ ) {
+	ctx.lineWidth = 2;
+	for ( let k = 1; k < FAN_FOLDS; k ++ ) {
 
-		if ( k % 2 ) continue;
-		const a0 = k / 14 * Math.PI, a1 = ( k + 1 ) / 14 * Math.PI;
-		ctx.fillStyle = 'rgba( 0, 0, 0, 0.14 )';
+		ctx.strokeStyle = k % 2 ? 'rgba( 0, 0, 0, 0.3 )' : 'rgba( 255, 255, 255, 0.16 )';
 		ctx.beginPath();
 		ctx.moveTo( cx, 0 );
-		ctx.arc( cx, 0, R, a0, a1 );
-		ctx.closePath();
-		ctx.fill();
+		ctx.lineTo( ...at( k / FAN_FOLDS * Math.PI, 1.05 ) );
+		ctx.stroke();
 
 	}
 
-	for ( let k = 0; k < 5; k ++ ) {
-
-		const a = ( k + 0.5 ) / 5 * Math.PI;
-		star( ctx, cx + Math.cos( a ) * R * 0.19, Math.sin( a ) * R * 0.19, 9, '#ffffff' );
-
-	}
-
-	// the top band it hangs from
-	ctx.fillStyle = '#1b2f6b';
-	ctx.fillRect( 0, 0, w, 8 );
+	ctx.restore();
+	// the gathered knot at the top centre, and the header it's tied on by
+	ctx.fillStyle = '#f2efe8';
+	ctx.beginPath();
+	ctx.ellipse( cx, 0, rx * 0.07, ry * 0.07, 0, 0, Math.PI );
+	ctx.fill();
+	ctx.fillStyle = '#b5132d';
+	ctx.fillRect( cx - rx, 0, rx * 2, 6 );
 
 }
 

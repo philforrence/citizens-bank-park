@@ -477,7 +477,8 @@ export function seatGeometry( down = false ) {
 	// back (top 0.8 m up), the pan folded up in front of it, and a dark cast standard with an armrest
 	// on one side (the next seat's makes the other). Colours are per vertex: plastic blue, metal grey.
 	const q = new Quads(), col = [];
-	const BLUE = [ 0.036, 0.1, 0.32 ], GREY = [ 0.04, 0.045, 0.052 ];
+	// (CB-12: a shade deeper and less saturated: the navy of the photos, Getty 84081873)
+	const BLUE = [ 0.032, 0.075, 0.25 ], GREY = [ 0.04, 0.045, 0.052 ];
 	const add = ( c, ...args ) => {
 
 		q.add( ...args );
@@ -573,7 +574,10 @@ ${ SOFFIT_WGSL }
 	let ao = mix( 0.38, 1.0, smoothstep( 0.2, 0.72, y ) );
 	let rim = smoothstep( 0.74, 0.8, y ) * 0.35;
 	s.albedo = s.albedo * ao + vec3f( rim * 0.12 );
-	s.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.12;
+	// CB-12 (gauntlet r1): after dark the empty seats went a near-black navy in the photos of the emptied
+	// park on the 27th (Getty 84081873: ~(25, 26, 32)), a slate gleam only on the backs that catch the
+	// banks; a 0.12 lift made whole blocks glow royal blue. The banks light them; the lift is a trace
+	s.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.03;
 ` } );
 	// galvanized steel for the rails
 	const rail = standard( { name: 'rails', color: new Color( 0.55, 0.56, 0.57 ), roughness: 0.35, metalness: 0.8 } );
