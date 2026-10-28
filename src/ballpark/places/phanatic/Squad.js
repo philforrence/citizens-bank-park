@@ -1,5 +1,6 @@
-import { InstancedMesh, PlaneGeometry, CylinderGeometry, Matrix4, Vector3, Quaternion, Color } from '../../../engine/index.js';
+import { InstancedMesh, PlaneGeometry, Matrix4, Vector3, Quaternion, Color } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
+import { canvasTexture } from '../../geo.js';
 import { look as lookFor } from '../../game/Looks.js';
 import { ROLE } from '../../game/Players.js';
 import { BONES, FACE, bindMatrices } from '../../game/Rig.js';
@@ -49,10 +50,33 @@ export class Squad {
 			...lookFor( i % 2 ? 'ballgirl2' : 'ballgirl' ), skin: SKIN[ skin ], hair: HAIR[ hair ],
 			height: ( 5 * 12 + 3 + ( i * 5 ) % 6 ) / 74, socks: 'high', jaw: - 0.6, age: 0.1, name,
 		} ) );
-		// their towels: white terry, whirled by the corner (instanced, one each)
-		const geo = new PlaneGeometry( 0.34, 0.46, 2, 3 );
+		// ---- FY2: their towels: white terry rally towels with the red print, held by a corner and whirled;
+		// the cloth sags from the fist and flaps behind it as it goes round (the vertex stage: the further
+		// from the held corner, the more it waves), soaked and heavy
+		const geo = new PlaneGeometry( 0.34, 0.46, 6, 8 );
 		geo.translate( 0.17, - 0.23, 0 );
-		const mat = standard( { name: 'squad-towels', color: new Color( 0.8, 0.79, 0.76 ), roughness: 0.95, side: 'double' } );
+		const print = canvasTexture( 128, 160, ( ctx, w, h ) => {
+
+			ctx.fillStyle = '#efece4'; ctx.fillRect( 0, 0, w, h );
+			ctx.fillStyle = '#c8202e'; ctx.fillRect( 0, 6, w, 5 ); ctx.fillRect( 0, h - 11, w, 5 );
+			ctx.save(); ctx.translate( w / 2, h * 0.45 ); ctx.rotate( - 0.12 );
+			ctx.font = 'italic 700 34px Georgia, "Times New Roman", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.fillText( 'Phillies', 0, 0, w - 10 );
+			ctx.restore();
+			ctx.font = '800 13px "Helvetica Neue", Arial, sans-serif'; ctx.textAlign = 'center';
+			ctx.fillText( 'WORLD SERIES', w / 2, h * 0.72 );
+
+		}, 'squad-towel' );
+		const mat = standard( {
+			name: 'squad-towels', roughness: 0.95, side: 'double', textures: { sqTowel: print },
+			vertex: /* wgsl */`
+	let d = length( ( v.uv - vec2f( 0.0, 1.0 ) ) * vec2f( 0.34, 0.46 ) );
+	let ph = f32( v.instance ) * 1.7;
+	let w = sin( frame.time * 11.0 - d * 14.0 + ph ) * 0.08 + sin( frame.time * 17.0 - d * 23.0 + v.uv.x * 4.0 + ph ) * 0.025;
+	v.position = v.position + vec3f( - 0.1 * d * d, - 0.22 * d * d, w * smoothstep( 0.0, 0.25, d ) + 0.15 * d * d );
+`,
+			surface: 'let t = textureSample( sqTowel, smpAnisoClamp, vec2f( in.uv.x, 1.0 - in.uv.y ) ).rgb; s.albedo = t * ( 0.9 + 0.1 * fract( sin( dot( floor( in.uv * 90.0 ), vec2f( 12.9, 78.2 ) ) ) * 43758.5 ) ); s.roughness = 0.95;',
+		} );
 		mat.setDefine( 'DRY', 1 );
 		this.towels = new InstancedMesh( geo, mat, GIRLS.length );
 		this.towels.name = 'ball-girls-towels';
@@ -60,27 +84,51 @@ export class Squad {
 		this.towels.userData.dynamic = true;
 		this.towels.count = 0;
 		parent.add( this.towels );
-		// their ponytails out the back of the caps, each her own colour, swinging as they dance
-		const pg = new CylinderGeometry( 0.035, 0.012, 0.3, 8, 3 );
-		pg.translate( 0, - 0.15, 0 );
-		const pm = standard( { name: 'squad-ponytails', color: new Color( 1, 1, 1 ), roughness: 0.7 } );
+		// their hair, long and loose and soaked (Getty 83477166, 83458093): from under the caps round the
+		// sides and back of the head, down past the shoulders to the shoulder blades behind, each her own
+		// colour; a sheet curved round the head (on the head's bone), longest down the back, in wet strands
+		const pg = new PlaneGeometry( 1, 1, 12, 6 );
+		{
+
+			const pa = pg.getAttribute( 'position' );
+			for ( let i = 0; i < pa.count; i ++ ) {
+
+				const u = pa.getX( i ) + 0.5, v = 0.5 - pa.getY( i );
+				const th = ( u - 0.5 ) * Math.PI * 1.22; // 0 down the middle of her back
+				// longest down her back, to the shoulders at the sides, the ends in wet strands
+				const len = ( 0.15 + 0.24 * Math.cos( th / 1.22 ) ** 2 ) * ( 1 - 0.12 * v * ( Math.sin( u * 61 ) * 0.5 + 0.5 ) );
+				const r = 1 + 0.3 * v;
+				pa.setXYZ( i, Math.sin( th ) * 0.086 * r, - v * len, Math.cos( th ) * 0.108 * r + 0.03 * v * v );
+
+			}
+
+			pg.computeVertexNormals();
+
+		}
+
+		const pm = standard( {
+			name: 'squad-hair', color: new Color( 1, 1, 1 ), roughness: 0.38, side: 'double',
+			surface: 's.albedo = s.albedo * ( 0.7 + 0.5 * fract( sin( floor( in.uv.x * 70.0 ) * 12.9898 ) * 43758.5 ) ); s.roughness = 0.38;',
+		} );
 		pm.setDefine( 'DRY', 1 );
 		this.tails = new InstancedMesh( pg, pm, GIRLS.length );
-		this.tails.name = 'ball-girls-ponytails';
+		this.tails.name = 'ball-girls-hair';
 		this.tails.frustumCulled = false;
 		this.tails.userData.dynamic = true;
 		this.tails.count = 0;
-		GIRLS.forEach( ( [ , , hair ], i ) => this.tails.setColorAt( i, new Color( ...HAIR[ hair ].map( ( v ) => v * 1.4 ) ) ) );
+		GIRLS.forEach( ( [ , , hair ], i ) => this.tails.setColorAt( i, new Color( ...HAIR[ hair ].map( ( v ) => v * 0.9 ) ) ) );
 		parent.add( this.tails );
-		// where a ponytail comes out: the back of the head under the cap (the head bone's frame)
+		// where it hangs from: round the skull just under the cap's edge (the head bone's frame)
 		const { bind } = bindMatrices();
 		const hb = new Vector3().fromArray( bind, BONES.head * 16 + 12 );
-		this.tailAt = new Vector3( 0, FACE.top[ 1 ] - hb.y - 0.09, FACE.skull.z1 - hb.z - 0.005 );
+		this.tailAt = new Vector3( 0, FACE.top[ 1 ] - hb.y - 0.085, ( FACE.skull.z0 + FACE.skull.z1 ) / 2 - hb.z + 0.006 );
+		// ---- end FY2
 		this._m = new Matrix4();
 		this._r = new Matrix4();
 		this._q = new Quaternion();
 		this._p = new Vector3();
 		this._s = new Vector3();
+		this._k = new Matrix4();
 
 	}
 
@@ -166,15 +214,15 @@ export class Squad {
 			p.visible = !! s;
 			if ( ! s ) return;
 			p.x = s.x; p.z = s.z; p.y = 0; p.yaw = s.yaw; p.pose = s.pose;
-			p.role = ROLE.shorts;
+			// (most in navy caps in the rain, a few in the red: Getty 83477166, 83458678, 84081831)
+			p.role = ROLE.shorts | ( i % 3 === 1 ? 0 : ROLE.navyCap );
 			p.dirt = 0;
 			const lk = this.looks[ i ];
 			const B = solve( { x: s.x, y: 0, z: s.z, yaw: s.yaw, pose: s.pose, height: lk.height, girth: lk.girth || 0.84 } );
-			// the ponytail: out the back of the cap, hanging, swung by the dancing
+			// her hair: round her head under the cap, swinging a little as she dances
 			this._m.fromArray( B, BONES.head * 16 );
-			this._p.copy( this.tailAt ).applyMatrix4( this._m );
-			this._q.setFromAxisAngle( Y, s.yaw ).multiply( new Quaternion().setFromAxisAngle( X, 0.35 + 0.25 * Math.sin( t * 7 + i ) ) );
-			this.tails.setMatrixAt( nt ++, this._r.compose( this._p, this._q, this._s.set( 1, 1, 1 ) ) );
+			this._r.makeTranslation( this.tailAt.x, this.tailAt.y, this.tailAt.z ).multiply( this._k.makeRotationZ( 0.06 * Math.sin( t * 7 + i ) ) );
+			this.tails.setMatrixAt( nt ++, this._r.premultiply( this._m ) );
 			// the towel: held by a corner, hanging from her fist and whirled round (a world-space swing: it
 			// hangs, whatever the wrist does)
 			if ( s.towel ) {

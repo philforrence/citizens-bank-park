@@ -1,8 +1,8 @@
-import { InstancedMesh, Matrix4, Vector3, Quaternion, PlaneGeometry, Color } from '../../engine/index.js';
+import { InstancedMesh, InstancedBufferAttribute, BufferGeometry, Matrix4, Vector3, Quaternion, PlaneGeometry, Color } from '../../engine/index.js';
 import { StorageBuffer } from '../../engine/gpu/Texture.js';
 import { standard } from '../../materials/Materials.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
-import { buildPlayerGeometry, solvePose, skinMatrices, neutralPose, NB, PART, UNIFORM, FACE, DIM, JOINTS as BODY_JOINTS } from './Rig.js';
+import { buildPlayerGeometry, solvePose, skinMatrices, neutralPose, NB, PART, UNIFORM, FACE, DIM, JOINTS as BODY_JOINTS, PHAN, PHANATIC_PARTS } from './Rig.js';
 import { look as lookFor } from './Looks.js';
 import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 
@@ -21,9 +21,15 @@ import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 //   players.update() before rendering; players.remove( p ).
 
 const MAX = 96;
+const COSTUMES = 4; // the Phanatic's costume's draw: at most this many of him at once
 const K = 4; // vec4s per slot
 const Z16 = new Float32Array( 16 );
 const CELL = 128, COLS = 8, ROWS = 16, ATLAS_W = CELL * COLS, ATLAS_H = CELL * ROWS;
+// where the chest's cell goes on the jersey (m: its width, its height, its bottom in the bind pose): the
+// script from armpit to armpit (FY2, CY-6: FOX's close-up of Burrell; Balfour's RAYS); drawChest() draws
+// it squeezed by the cell's aspect so the letters come out true
+const CHEST = [ 0.38, 0.22, 1.245 ];
+const CHEST_ASPECT = CHEST[ 0 ] / CHEST[ 1 ];
 // atlas cells: 0..MAX-1 the slots' backs, then the shared ones
 const C = { chestHome: 127, chestAway: 126, capHome: 125, capAway: 124, patch: 123, mlb: 122, jacketHome: 121, jacketAway: 120 };
 
@@ -43,8 +49,14 @@ ROLE.shorts = 262144;
 ROLE.tee = 524288;
 ROLE.champCap = 1048576;
 // ---- end R
+// ---- FY2: a navy cap with the home uniform (the ball girls who danced with the Phanatic in the rain on
+// the 27th: Getty 83477166)
+ROLE.navyCap = 2097152;
+// ---- end FY2
 // what he is (the first of the slot's numbers)
 export const KIND = { away: 0, home: 1, ump: 2, crew: 3, phanatic: 4 };
+// the light of the ring of banks round the bowl at night on the players, against the key's (playerMaterial)
+const NIGHT_FILL = 0.2;
 // where the dirt is (p.dirt's whole part; the fraction is how much): the knees, the seat and the backs
 // of the legs (a slide), the front (a dive), a pitcher's drag knee
 export const DIRT = { knees: 1, seat: 2, front: 4, dragR: 8, dragL: 16 };
@@ -58,7 +70,9 @@ export class Players {
 		this.info = new Float32Array( MAX * K * 4 );
 		this.bones = new StorageBuffer( { label: 'playerBones', count: MAX * NB * 2, type: 'mat4x4f' } );
 		this.infoBuffer = new StorageBuffer( { label: 'playerInfo', count: MAX * K, type: 'vec4f' } );
-		const geo = buildPlayerGeometry();
+		// the rig's triangles in two draws (FY2): everyone's, and the Phanatic's costume, drawn only for his
+		// slots (the slot each of its instances is in aSlot), so the ninety-odd others don't carry it
+		const [ geo, costumeGeo ] = splitByPart( buildPlayerGeometry(), PHANATIC_PARTS );
 		this.atlas = canvasTexture( ATLAS_W, ATLAS_H, ( ctx ) => {
 
 			drawChest( ctx, C.chestHome, true );
@@ -80,6 +94,18 @@ export class Players {
 		this.mesh.castShadow = true;
 		this.mesh.receiveShadow = true;
 		parent.add( this.mesh );
+		this.costumeSlots = new InstancedBufferAttribute( new Float32Array( COSTUMES ), 1 );
+		costumeGeo.setAttribute( 'aSlot', this.costumeSlots );
+		this.costumeMaterial = playerMaterial( this.bones, this.infoBuffer, this.atlas, true );
+		this.costume = new InstancedMesh( costumeGeo, this.costumeMaterial, COSTUMES );
+		this.costume.name = 'players-phanatic-costume';
+		this.costume.frustumCulled = false;
+		this.costume.castShadow = true;
+		this.costume.receiveShadow = true;
+		this.costume.count = 0;
+		this.costume.visible = false;
+		// (a child of the players' draw, so whatever takes the players out takes it too)
+		this.mesh.add( this.costume );
 		// a soft contact shadow on the ground under each player (grounds them under any light)
 		const blobGeo = new PlaneGeometry( 1, 1 );
 		blobGeo.rotateX( - Math.PI / 2 );
@@ -180,6 +206,28 @@ export class Players {
 		let used = 0;
 		for ( let i = 0; i < MAX; i ++ ) if ( this.slots[ i ] && this.slots[ i ].visible ) used = i + 1;
 		this.mesh.count = Math.max( 1, used );
+		// the Phanatic's costume on his slots (him, and the little one)
+		let nc = 0;
+		for ( let i = 0; i < used && nc < COSTUMES; i ++ ) {
+
+			const p = this.slots[ i ];
+			if ( p && p.visible && p.kind === KIND.phanatic ) {
+
+				if ( this.costumeSlots.array[ nc ] !== i ) {
+
+					this.costumeSlots.array[ nc ] = i;
+					this.costumeSlots.needsUpdate = true;
+
+				}
+
+				nc ++;
+
+			}
+
+		}
+
+		this.costume.count = Math.max( 1, nc );
+		this.costume.visible = nc > 0;
 		// the contact shadows: under the pelvis, stretched along the stance, fading as he leaves the ground
 		const bm = new Matrix4(), bq = new Quaternion(), bs = new Vector3(), bp = new Vector3();
 		for ( let i = 0; i < used; i ++ ) {
@@ -232,20 +280,39 @@ function packLook( L ) {
 
 }
 
-function playerMaterial( bones, info, atlas ) {
+// the rig's geometry split by its triangles' parts: [ the rest, those in `parts` ], sharing the vertices
+function splitByPart( g, parts ) {
+
+	const pt = g.getAttribute( 'aPart' ).array, idx = g.index.array;
+	const keep = [], put = [];
+	for ( let i = 0; i < idx.length; i += 3 ) ( parts.includes( Math.round( pt[ idx[ i ] ] ) ) ? put : keep ).push( idx[ i ], idx[ i + 1 ], idx[ i + 2 ] );
+	return [ keep, put ].map( ( list ) => {
+
+		const h = new BufferGeometry();
+		for ( const [ k, a ] of Object.entries( g.attributes ) ) h.setAttribute( k, a );
+		h.setIndex( list );
+		h.computeBoundingSphere();
+		return h;
+
+	} );
+
+}
+
+// costume: the material of the Phanatic's costume draw (its instances' slots from aSlot)
+function playerMaterial( bones, info, atlas, costume = false ) {
 
 	const P = PART, U = UNIFORM, F = FACE, J = BODY_JOINTS;
 	const f = ( x ) => x.toFixed( 4 );
 	const v3 = ( a ) => `vec3f( ${ f( a[ 0 ] ) }, ${ f( a[ 1 ] ) }, ${ f( a[ 2 ] ) } )`;
 	const R = ROLE;
 	const mat = standard( {
-		name: 'players', roughness: 0.75, modules: [ commonModule ],
+		name: costume ? 'players-costume' : 'players', roughness: 0.75, modules: [ commonModule ],
 		storage: { plBones: bones, plInfo: info },
 		textures: { plAtlas: atlas },
-		attributes: { aBones: 'vec4f', aWeights: 'vec4f', aPart: 'f32', aField: 'vec2f' },
-		varyings: { vPart: 'f32', vInfo: 'vec4f', vLocal: 'vec3f', vNrm: 'vec3f', vField: 'vec2f', vSlot: 'f32' },
+		attributes: { aBones: 'vec4f', aWeights: 'vec4f', aPart: 'f32', aField: 'vec2f', ...( costume ? { aSlot: 'f32' } : {} ) },
+		varyings: { vPart: 'f32', vInfo: 'vec4f', vLocal: 'vec3f', vNrm: 'vec3f', vField: 'vec2f', vSlot: 'f32', vFN: 'vec3f' },
 		vertex: /* wgsl */`
-	let slot = v.instance;
+	let slot = ${ costume ? 'u32( v.aSlot + 0.5 )' : 'v.instance' };
 	let i0 = plInfo[ slot * ${ K }u ];
 	let i2 = plInfo[ slot * ${ K }u + 2u ];
 	let i3 = plInfo[ slot * ${ K }u + 3u ];
@@ -271,32 +338,76 @@ function playerMaterial( bones, info, atlas ) {
 	if ( pt == ${ P.mittC } && ( role & ${ R.mittC }u ) == 0u ) { keep = false; }
 	if ( pt == ${ P.mitt1B } && ( role & ${ R.mitt1B }u ) == 0u ) { keep = false; }
 	if ( pt == ${ P.glove } && ( role & ${ R.mittC | R.mitt1B }u ) != 0u ) { keep = false; }
-	if ( ( pt == ${ P.phHead } || pt == ${ P.snout } || pt == ${ P.phEye } ) && ! phan ) { keep = false; }
+	if ( ( ${ PHANATIC_PARTS.map( ( k ) => `pt == ${ k }` ).join( ' || ' ) } ) && ! phan ) { keep = false; }
 	if ( phan && ( pt == ${ P.eye } || pt == ${ P.helmet } ) ) { keep = false; }
+	// in the rain his cap is under the sou'wester (phanatic/Props.js)
+	if ( pt == ${ P.phCap } && ( role & ${ R.slicker }u ) != 0u ) { keep = false; }
 	if ( pt == ${ P.glasses } && ( u32( i2.w + 0.5 ) & 16u ) == 0u ) { keep = false; }
 	var lp3 = v.position;
 	let arm = v.aField.x;
 	let leg = v.aField.y;
 	if ( pt == ${ P.body } ) {
 		// the build the bones can't give: a belly between the belt and the chest, pushed out in front and
-		// a little at the sides (the Phanatic's all round)
+		// a little at the sides (the Phanatic's is his costume's: Rig.js' phanatic())
 		let belly = i3.y;
-		if ( belly > 0.0 && arm < -0.5 && leg < -0.5 ) {
+		if ( belly > 0.0 && arm < -0.5 && leg < -0.5 && ! phan ) {
 			let prof = smoothstep( 0.86, 1.1, lp3.y ) * ( 1.0 - smoothstep( 1.16, 1.42, lp3.y ) );
 			let front = smoothstep( 0.03, -0.09, lp3.z );
 			let side = 1.0 - smoothstep( 0.08, 0.2, abs( lp3.x ) );
-			lp3 += vec3f( lp3.x * 0.3 * prof * belly, 0.0, - 0.07 * prof * belly * mix( front * side, 0.6 + 0.4 * front, select( 0.0, 1.0, phan ) ) );
+			lp3 += vec3f( lp3.x * 0.3 * prof * belly, 0.0, - 0.07 * prof * belly * front * side );
 		}
+		// (FY2, CY-6: the lean ones' stomachs flat; the base mesh carries a little belly of its own)
+		if ( belly < 0.01 && arm < -0.5 && leg < -0.5 && ! phan ) {
+			lp3.z += 0.012 * smoothstep( 0.96, 1.1, lp3.y ) * ( 1.0 - smoothstep( 1.18, 1.3, lp3.y ) ) * smoothstep( -0.07, -0.13, lp3.z );
+		}
+		// ---- FY2 (the Phanatic): the performer inside the costume. His trunk kept inside its body; his arms
+		// in thick shag under the jersey's loose short sleeves, the hands big furry mitts; the padded red
+		// leggings below the skirt
+		if ( phan ) {
+			if ( arm > -0.5 ) {
+				if ( arm > ${ f( U.wrist - 0.01 ) } ) {
+					let wr = select( ${ v3( J.wristL ) }, ${ v3( J.wristR ) }, lp3.x > 0.0 );
+					lp3 = wr + ( lp3 - wr ) * 1.5;
+				} else {
+					lp3 += v.normal * select( 0.034, 0.044, arm < 0.25 );
+				}
+			} else if ( leg < -0.5 ) {
+				lp3 = vec3f( lp3.x * 0.9, lp3.y, lp3.z * 0.9 );
+			} else if ( leg > 0.44 && leg < 0.8 ) {
+				lp3 += v.normal * 0.02;
+			}
+		}
+		// ---- end FY2
 		// a jacket stands off the body; long pants hang loose over the shoe tops
 		if ( ( role & ${ R.jacket }u ) != 0u && ( ( arm > -0.5 && arm < ${ f( U.wrist ) } ) || ( arm < -0.5 && leg < -0.5 && lp3.y > ${ f( U.belt[ 0 ] - 0.08 ) } && lp3.y < ${ f( U.collar ) } ) ) ) {
 			lp3 += v.normal * 0.013;
 		}
 		if ( ( style & 1u ) == 0u && leg > 0.5 ) { lp3 += v.normal * 0.016 * smoothstep( 0.55, 0.84, leg ); }
-		// ---- A (Phanatic): the rain slicker stands off the fur, its skirt flaring out to the knees
+		// ---- FY2 (CY-6): the 2008 cut hangs off him, not a bodysuit: the jersey falls from the shoulder
+		// blades and blouses over the belt, its short sleeves stand off the arm, the pants are full
+		// through the seat and the thighs (Getty 83485455, 83912834; FOX's close-up of Burrell)
+		if ( ! phan && ( role & ${ R.jacket }u ) == 0u ) {
+			let back = smoothstep( -0.02, 0.1, lp3.z );
+			if ( arm < -0.5 && leg < -0.5 && lp3.y < ${ f( U.collar ) } ) {
+				if ( lp3.y > ${ f( U.belt[ 1 ] ) } ) {
+					let blouse = smoothstep( 1.4, 1.16, lp3.y ) * smoothstep( ${ f( U.belt[ 1 ] ) }, ${ f( U.belt[ 1 ] + 0.03 ) }, lp3.y );
+					let top = smoothstep( ${ f( U.collar - 0.01 ) }, ${ f( U.collar - 0.1 ) }, lp3.y );
+					// (less in front, where the belly is already the body's)
+					let front = smoothstep( 0.0, -0.08, lp3.z );
+					lp3 += v.normal * top * ( 0.006 + 0.022 * blouse * ( 1.0 - 0.65 * front ) + 0.016 * back * smoothstep( 1.48, 1.25, lp3.y ) );
+				} else if ( lp3.y < ${ f( U.belt[ 0 ] ) } ) {
+					lp3 += v.normal * ( 0.008 + 0.01 * back );
+				} else {
+					lp3 += v.normal * 0.008;
+				}
+			}
+			if ( arm > -0.5 && arm < ${ f( U.sleeve ) } ) { lp3 += v.normal * 0.012 * smoothstep( 0.0, 0.08, arm ); }
+			if ( leg > -0.5 && leg < 0.62 ) { lp3 += v.normal * ( 0.008 * ( 1.0 - smoothstep( 0.5, 0.62, leg ) ) + 0.009 * ( 1.0 - smoothstep( 0.3, 0.6, leg ) ) ); }
+		}
+		// ---- end FY2
+		// ---- A (Phanatic): the rain slicker's sleeves stand off the fur (its body: the costume's, below)
 		if ( phan && ( role & ${ R.slicker }u ) != 0u ) {
 			if ( arm > -0.5 && arm < ${ f( U.wrist - 0.03 ) } ) { lp3 += v.normal * 0.028; }
-			if ( arm < -0.5 && leg < -0.5 && lp3.y < ${ f( U.collar ) } ) { lp3 += v.normal * 0.035; }
-			if ( leg > -0.5 && leg < 0.44 ) { lp3 += v.normal * ( 0.035 + 0.09 * smoothstep( 0.0, 0.44, leg ) ); }
 		}
 		// ---- end A
 		// the face: the jaw broader or narrower, a full beard's thickness
@@ -316,20 +427,48 @@ function playerMaterial( bones, info, atlas ) {
 		let ank = select( ${ v3( J.ankleL ) }, ${ v3( J.ankleR ) }, lp3.x > 0.0 );
 		lp3 = ank + ( lp3 - ank ) * vec3f( 1.55, 1.0, 1.5 );
 	}
+	// ---- FY2 (the Phanatic): the costume's shag stands out in clumps, longer and looser down the skirt
+	// (the jersey smooth over the top of it, hanging in soft folds); the belly swings with the shake
+	// (Moves.js' jiggle, packed with his look's belly); in the rain the slicker tents out over it all
+	if ( keep && ( pt == ${ P.phBody } || pt == ${ P.phNeck } || pt == ${ P.phHead } ) ) {
+		let shirt = pt == ${ P.phBody } && lp3.y > ${ f( PHAN.hem - 0.016 ) };
+		let n = mx_noise_float3( lp3 * vec3f( 15.0, 5.5, 15.0 ) + f32( slot ) * 3.1 ) * 0.5 + 0.5;
+		let fine = mx_noise_float3( lp3 * vec3f( 40.0, 12.0, 40.0 ) ) * 0.5 + 0.5;
+		let low = smoothstep( 0.9, ${ f( PHAN.skirt ) }, lp3.y );
+		let pile = select( 1.0, 0.55, pt == ${ P.phHead } );
+		if ( ! shirt ) { lp3 += v.normal * ( ( 0.006 + 0.022 * n + 0.008 * fine ) * ( 1.0 + 0.6 * low ) * pile ); }
+		if ( pt == ${ P.phBody } ) {
+			let jig = i3.y - 1.0;
+			lp3 += vec3f( jig * 0.07, 0.0, - abs( jig ) * 0.03 ) * smoothstep( 1.05, 0.7, lp3.y );
+			let around = atan2( lp3.x, - lp3.z );
+			if ( shirt ) { lp3 += v.normal * 0.007 * sin( around * 9.0 + lp3.y * 5.0 ) * smoothstep( 1.4, ${ f( PHAN.hem ) }, lp3.y ); }
+			// the slicker: hanging off his shoulders in loose folds to above the shag's hem
+			let open = abs( around ) < 0.12 + 0.4 * smoothstep( 1.25, 0.75, lp3.y ) && lp3.y < 1.3;
+			if ( ( role & ${ R.slicker }u ) != 0u && lp3.y > ${ f( PHAN.skirt + 0.05 ) } && ! open ) {
+				let drape = smoothstep( 1.45, 0.7, lp3.y );
+				lp3 += v.normal * ( 0.018 + drape * ( 0.012 + 0.03 * ( 0.5 + 0.5 * sin( around * 7.0 + 1.3 * sin( around * 3.0 ) ) ) ) );
+			}
+		}
+	}
+	// ---- end FY2
 	let lp = select( vec4f( 0.0, 0.0, 0.0, 1.0 ), vec4f( lp3, 1.0 ), keep );
-	// skinned: up to four bones, each taking the bind pose to this frame's (and last frame's) pose
+	// skinned: up to four bones, each taking the bind pose to this frame's (and last frame's) pose (the
+	// pieces he isn't wearing skip it: they all collapse to one point)
 	var wp = vec3f( 0.0 );
-	var wn = vec3f( 0.0 );
+	var wn = vec3f( 0.0, 1.0, 0.0 );
 	var pp = vec3f( 0.0 );
-	for ( var k = 0; k < 4; k ++ ) {
-		let w = v.aWeights[ k ];
-		if ( w > 0.0 ) {
-			let b = u32( v.aBones[ k ] + 0.5 );
-			let M = plBones[ slot * ${ NB }u + b ];
-			let Mp = plBones[ ( ${ MAX }u + slot ) * ${ NB }u + b ];
-			wp += ( M * lp ).xyz * w;
-			wn += ( M * vec4f( v.normal, 0.0 ) ).xyz * w;
-			pp += ( Mp * lp ).xyz * w;
+	if ( keep ) {
+		wn = vec3f( 0.0 );
+		for ( var k = 0; k < 4; k ++ ) {
+			let w = v.aWeights[ k ];
+			if ( w > 0.0 ) {
+				let b = u32( v.aBones[ k ] + 0.5 );
+				let M = plBones[ slot * ${ NB }u + b ];
+				let Mp = plBones[ ( ${ MAX }u + slot ) * ${ NB }u + b ];
+				wp += ( M * lp ).xyz * w;
+				wn += ( M * vec4f( v.normal, 0.0 ) ).xyz * w;
+				pp += ( Mp * lp ).xyz * w;
+			}
 		}
 	}
 	v.useWorld = true;
@@ -342,9 +481,12 @@ function playerMaterial( bones, info, atlas ) {
 	o.vNrm = v.normal;
 	o.vField = v.aField;
 	o.vSlot = f32( slot );
+	// the normal in the field's frame (the bones are in it), for the light banks round the bowl
+	o.vFN = wn;
 `,
 		surface: /* wgsl */`
 	var part = i32( in.vs.vPart + 0.5 );
+	let part0 = part;
 	let slotU = u32( in.vs.vSlot + 0.5 );
 	let i1 = plInfo[ slotU * ${ K }u + 1u ];
 	let i2 = plInfo[ slotU * ${ K }u + 2u ];
@@ -374,21 +516,25 @@ function playerMaterial( bones, info, atlas ) {
 	let soak = smoothstep( 0.3, 0.85, frame.wet ) * ( 0.55 + 0.45 * smoothstep( -0.2, 0.8, in.N.y ) );
 
 	// what he wears: the jersey's cloth, the trim (undershirt, socks, cap), the pants, the belt
-	// home: white, red pinstripes, red trim and caps, a black belt; away: road grey and navy; the
+	// home: white, red pinstripes, red trim and caps, a red belt; away: road grey and navy; the
 	// umpires: a black jacket, grey slacks, a black cap; the grounds crew: red jackets and khakis; the
 	// Phanatic: a white jersey over green fur
-	var cloth = vec3f( 0.28, 0.28, 0.29 );
+	// (FY2, CY-4: the road greys of 2008 are a light, cool heather, about sRGB 185, 188, 196 in FOX's
+	// close-up of Balfour; the home whites a warm off-white)
+	var cloth = vec3f( 0.47, 0.48, 0.53 );
 	var trim = vec3f( 0.012, 0.018, 0.06 );
 	var pantsC = cloth;
 	var beltC = trim;
 	var capC = trim;
-	if ( home || phan ) { cloth = vec3f( 0.83, 0.82, 0.79 ); trim = vec3f( 0.42, 0.018, 0.025 ); pantsC = cloth; beltC = vec3f( 0.02 ); capC = trim; }
+	// (FY2, CY-21: the Phillies' belts were red, a shade darker than the sleeves: Getty 83485455, 83912834)
+	if ( home || phan ) { cloth = vec3f( 0.83, 0.82, 0.79 ); trim = vec3f( 0.42, 0.018, 0.025 ); pantsC = cloth; beltC = trim * 0.72; capC = trim; }
 	if ( ump ) { cloth = vec3f( 0.014, 0.015, 0.02 ); trim = cloth; pantsC = vec3f( 0.2, 0.2, 0.21 ); beltC = vec3f( 0.01 ); capC = vec3f( 0.012 ); }
 	if ( crew ) { cloth = vec3f( 0.3, 0.016, 0.02 ); trim = cloth; pantsC = vec3f( 0.25, 0.2, 0.13 ); beltC = vec3f( 0.03, 0.02, 0.01 ); capC = cloth; }
 	// ---- R (rituals): the champions' gear
 	let tee = ( role & ${ R.tee }u ) != 0u;
 	if ( ( role & ${ R.champCap }u ) != 0u ) { capC = vec3f( 0.014 ); }
 	// ---- end R
+	if ( ( role & ${ R.navyCap }u ) != 0u ) { capC = vec3f( 0.014, 0.024, 0.075 ); }
 	// the team's dugout jacket: the Phillies' red, the Rays' navy
 	let jacketC = select( vec3f( 0.012, 0.02, 0.065 ), vec3f( 0.36, 0.016, 0.024 ), home );
 	var hairC = mix( hairBase, vec3f( 0.3, 0.29, 0.28 ), smoothstep( 0.5, 1.0, age ) * 0.5 );
@@ -443,7 +589,7 @@ function playerMaterial( bones, info, atlas ) {
 			let nk = ${ v3( J.neck ) };
 			let r = length( vec2f( L.x, L.z - nk.z ) );
 			let cy = nk.y - 0.03 + 0.3 * clamp( L.z - nk.z, -0.08, 0.07 );
-			let vee = L.z < nk.z - 0.03 && L.y > cy - 0.07 && abs( L.x ) < 0.03 * clamp( ( L.y - cy + 0.07 ) / 0.06, 0.0, 1.0 );
+			let vee = L.z < nk.z - 0.03 && L.y > cy - 0.05 && abs( L.x ) < 0.022 * clamp( ( L.y - cy + 0.05 ) / 0.045, 0.0, 1.0 );
 			if ( L.y > nk.y + 0.03 || ( L.y > cy && r < 0.1 ) ) { part = ${ P.skin }; skinArea = 1; }
 			else if ( ( L.y > cy - 0.011 && r < 0.11 ) || vee ) { part = select( ${ P.sleeve }, ${ P.jersey }, jacket ); }
 			else if ( L.y > ${ f( U.belt[ 1 ] ) } ) { part = ${ P.jersey }; }
@@ -472,6 +618,25 @@ function playerMaterial( bones, info, atlas ) {
 		let k = mix( cover, 0.06, smoothstep( 0.25, 0.8, fw ) );
 		c = mix( cloth, vec3f( 0.43, 0.02, 0.04 ), k * 0.8 );
 	}
+	// ---- FY2 (CY-6): both 2008 jerseys button down the front: the placket's edge from the collar's V to
+	// the belt, the buttons down it, and on the Rays' greys navy piping down it and round the sleeves'
+	// ends (FOX's close-up of Balfour); the cloth's folds (a shade in the hollows of its drape)
+	if ( part == ${ P.jersey } && ! jacket && ! tee && ! phan && ! ump && ! crew ) {
+		if ( arm < -0.5 && L.z < -0.04 && L.y < 1.53 && L.y > ${ f( U.belt[ 1 ] ) } ) {
+			if ( abs( L.x - 0.013 ) < 0.0022 ) { c = c * 0.7; }
+			if ( ! home && abs( abs( L.x ) - 0.017 ) < 0.0028 ) { c = trim; }
+			let by = fract( ( L.y - ${ f( U.belt[ 1 ] ) } - 0.04 ) / 0.072 );
+			if ( length( vec2f( L.x, ( by - 0.5 ) * 0.072 ) ) < 0.0048 ) { c = select( vec3f( 0.55, 0.56, 0.6 ), vec3f( 0.86, 0.85, 0.82 ), home ); rough = 0.3; }
+		}
+		if ( ! home && arm > ${ f( U.sleeve - 0.014 ) } ) { c = trim; }
+	}
+	if ( ( part == ${ P.jersey } || part == ${ P.pants } ) && ! jacket && ! phan ) {
+		let fold = mx_noise_float3( vec3f( L.x * 26.0, L.y * 5.0, L.z * 26.0 ) + seed * 3.0 );
+		var zone = select( 0.25 + 0.75 * smoothstep( 1.4, 1.12, L.y ), 0.75, part == ${ P.pants } );
+		if ( arm > -0.5 ) { zone = 0.5; }
+		c = c * ( 1.0 - 0.14 * zone * smoothstep( 0.15, 0.75, fold ) );
+	}
+	// ---- end FY2
 	// ---- R (rituals): the grey champions tee: heather cotton, its short sleeves over the red undershirt's,
 	// the print on the chest (the P in its red roundel over WORLD SERIES CHAMPIONS 2008); nothing on the back
 	if ( tee && part == ${ P.jersey } && ! jacket ) {
@@ -501,6 +666,25 @@ function playerMaterial( bones, info, atlas ) {
 	// the Phanatic: fur everywhere but his jersey (riding up over the belly) and his socks
 	if ( phan && part == ${ P.jersey } && ( L.y < 1.24 && arm < -0.5 ) ) { part = ${ P.hair }; }
 	if ( phan && ( part == ${ P.pants } || part == ${ P.belt } || part == ${ P.sleeve } || part == ${ P.skin } ) ) { part = ${ P.hair }; }
+	// ---- FY2 (the Phanatic): the costume's body is his jersey down to its hem (the home pinstripes, the
+	// red trim round the collar) and the shag below it; the jersey's loose sleeves reach to above his
+	// elbows, then it's fur to the mitts
+	// (in the rain, the slicker instead of the jersey: below)
+	let phShirt = part == ${ P.phBody } && L.y > ${ f( PHAN.hem - 0.016 ) } && ( role & ${ R.slicker }u ) == 0u;
+	if ( phan && arm > -0.5 ) { part = select( ${ P.hair }, ${ P.jersey }, arm < 0.25 ); }
+	if ( part == ${ P.phBody } ) { part = select( ${ P.hair }, ${ P.jersey }, phShirt ); }
+	if ( phan && part == ${ P.jersey } ) {
+		let ar = select( atan2( L.x, - L.z ) * 0.33, around, arm > -0.5 );
+		let u = ar / 0.025;
+		let fw = max( fwidth( u ), 1e-4 );
+		let d = abs( fract( u ) - 0.5 );
+		let cover = clamp( ( 0.03 - d ) / fw + 0.5, 0.0, 1.0 );
+		c = mix( cloth, vec3f( 0.43, 0.02, 0.04 ), mix( cover, 0.06, smoothstep( 0.25, 0.8, fw ) ) * 0.8 );
+		if ( ( phShirt && L.y > 1.545 ) || ( arm > 0.226 && arm < 0.25 ) ) { c = trim; }
+		rough = 0.8;
+		clothy = true;
+	}
+	// ---- end FY2
 
 	// the lettering and logos from the atlas: the back (number, name) and the chest (the club's name)
 	// on the trunk's back and front, the cap's (or helmet's) front and the MLB logo at the back, the World
@@ -512,13 +696,14 @@ function playerMaterial( bones, info, atlas ) {
 		if ( Nb.z > 0.05 && ! jacket ) { cell = in.vs.vSlot; lu = 0.5 + L.x / 0.34; lv = 1.0 - ( L.y - 1.17 ) / 0.34; }
 		if ( Nb.z < -0.05 ) {
 			cell = select( select( ${ C.chestAway }.0, ${ C.chestHome }.0, home || phan ), select( ${ C.jacketAway }.0, ${ C.jacketHome }.0, home ), jacket );
-			lu = 0.5 - L.x / 0.3; lv = 1.0 - ( L.y - 1.27 ) / 0.18;
+			lu = 0.5 - L.x / ${ f( CHEST[ 0 ] ) }; lv = 1.0 - ( L.y - ${ f( CHEST[ 2 ] ) } ) / ${ f( CHEST[ 1 ] ) };
 		}
 	}
 	if ( part == ${ P.jersey } && arm > -0.5 && L.x > 0.0 && Nb.x > 0.3 && ! jacket ) {
 		cell = ${ C.patch }.0; lu = 0.5 - ( L.z - ${ f( J.shoulderR[ 2 ] ) } ) / 0.085; lv = ( arm - 0.05 ) / 0.085;
 	}
-	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z < -0.35 ) {
+	let billPart = abs( in.vs.vField.x + 3.0 ) < 0.5;
+	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z < -0.35 && ! billPart ) {
 		cell = select( ${ C.capAway }.0, ${ C.capHome }.0, home || crew ); lu = 0.5 - L.x / 0.09; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.062 ) } ) / 0.09;
 	}
 	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z > 0.5 && Nb.y < 0.75 ) {
@@ -530,6 +715,14 @@ function playerMaterial( bones, info, atlas ) {
 	if ( tee && part == ${ P.jersey } && ! jacket ) { cell = -1.0; }
 	// ---- end R
 	if ( ump && part == ${ P.cap } ) { cell = -1.0; }
+	// ---- FY2 (the Phanatic): on the costume's jersey, the script across his chest above the belly, and
+	// PHANATIC over the star (or the little one's name and number) across his back
+	if ( phShirt ) {
+		cell = -1.0;
+		if ( Nb.z < -0.25 && L.y > 1.12 && L.y < 1.46 ) { cell = ${ C.chestHome }.0; lu = 0.5 - L.x / 0.54; lv = 1.0 - ( L.y - 1.13 ) / 0.32; }
+		if ( Nb.z > 0.25 && L.y > 0.98 ) { cell = in.vs.vSlot; lu = 0.5 + L.x / 0.5; lv = 1.0 - ( L.y - 0.99 ) / 0.5; }
+	}
+	// ---- end FY2
 	let cxy = vec2f( cell % ${ COLS }.0, floor( cell / ${ COLS }.0 ) );
 	let inCell = cell >= 0.0 && lu > 0.02 && lu < 0.98 && lv > 0.02 && lv < 0.98;
 	let auv = ( cxy + clamp( vec2f( lu, lv ), vec2f( 0.02 ), vec2f( 0.98 ) ) ) / vec2f( ${ COLS }.0, ${ ROWS }.0 );
@@ -611,12 +804,23 @@ function playerMaterial( bones, info, atlas ) {
 				let cheek = smoothstep( 0.02, 0.0, abs( ax - 0.045 ) ) * smoothstep( 0.03, 0.0, abs( L.y - ( m.y + 0.03 ) ) );
 				c = mix( c, c * vec3f( 1.08, 0.86, 0.84 ), cheek * 0.4 );
 				// eye black: a greasy smudge on each cheekbone
-				if ( ( face & 8u ) != 0u && ax > 0.014 && ax < 0.05 && L.y < eye.y - 0.012 && L.y > eye.y - 0.03 ) { c = vec3f( 0.01 ); rough = 0.35; }
+				// (FY2: a smudge, not a bar)
+				let ebk = length( vec2f( ( ax - 0.032 ) / 0.017, ( L.y - eye.y + 0.022 ) / 0.0085 ) );
+				if ( ( face & 8u ) != 0u && ebk < 1.0 ) { c = mix( c, vec3f( 0.012 ), smoothstep( 1.0, 0.55, ebk ) ); rough = 0.35; }
 				// age: the lines round the eyes and down from the nose
 				if ( age > 0.5 ) {
 					let crow = ax > 0.05 && ax < 0.065 && abs( L.y - eye.y ) < 0.012 && fract( L.y * 260.0 ) < 0.35;
 					if ( crow ) { c = c * 0.85; }
 				}
+				// ---- FY2 (CY-18): not a mannequin. The sockets deeper under the brow, the sides of the nose and
+				// the line between the lips in shade, the skin mottled (pores, colour, a day's sun and wind); and
+				// under the cap's bill (or the helmet's) its shadow across the brow and the eyes, the strongest
+				// thing on a ballplayer's face under the banks (FOX's close-up of Burrell, Getty 83485455)
+				c = c * mix( 0.84, 1.0, smoothstep( 0.012, 0.028, es ) );
+				c = c * ( 1.0 - 0.3 * smoothstep( 0.0024, 0.0008, abs( L.y - m.y + 0.001 ) ) * smoothstep( 0.024, 0.016, ax ) );
+				c = c * ( 0.94 + 0.08 * ( mx_noise_float3( L * 140.0 + seed ) * 0.5 + 0.5 ) ) * mix( vec3f( 1.0 ), vec3f( 1.04, 0.97, 0.96 ), smoothstep( 0.3, 0.8, mx_noise_float3( L * 30.0 ) ) );
+				if ( ( role & ${ R.nocap }u ) == 0u ) { c = c * mix( 1.0, 0.64, smoothstep( eye.y - 0.07, eye.y + 0.02, L.y ) ); }
+				// ---- end FY2
 			}
 			if ( L.y < ${ f( F.jaw[ 1 ] ) } + 0.006 && Nb.y < -0.25 ) { c = c * 0.72; }
 		}
@@ -662,6 +866,8 @@ function playerMaterial( bones, info, atlas ) {
 		if ( lo < 0.13 && lo > 0.02 && abs( Nb.x ) > 0.55 ) { c = vec3f( 0.8, 0.79, 0.76 ); }
 	}
 	if ( part == ${ P.cap } ) { c = capC * 1.05; rough = 0.65; clothy = true; }
+	// (FY2, CY-18) under the bill, the undervisor's dark grey-green
+	if ( part == ${ P.cap } && billPart && Nb.y < -0.3 ) { c = vec3f( 0.03, 0.045, 0.035 ); rough = 0.85; }
 	if ( part == ${ P.belt } ) { c = beltC; rough = 0.4; }
 	if ( part == ${ P.shoes } ) {
 		c = vec3f( 0.016 ); rough = 0.3;
@@ -678,9 +884,10 @@ function playerMaterial( bones, info, atlas ) {
 		c = mix( c, mix( vec3f( 0.33, 0.17, 0.08 ), vec3f( 0.14, 0.07, 0.035 ), soak ), mudK );
 	}
 	if ( part == ${ P.glove } || part == ${ P.mittC } || part == ${ P.mitt1B } ) {
-		// the leather: tan, brown or black by the player; the lacing darker
+		// the leather: mostly black or a dark brown in 2008 (Ruiz's black mitt: Getty 84081866), now and then
+		// a tan one; the lacing darker
 		let g = fract( seed * 5.3 );
-		c = select( select( vec3f( 0.015 ), vec3f( 0.12, 0.05, 0.02 ), g < 0.7 ), vec3f( 0.3, 0.14, 0.05 ), g < 0.4 ); rough = 0.45;
+		c = select( select( vec3f( 0.015, 0.013, 0.012 ), vec3f( 0.075, 0.03, 0.012 ), g < 0.55 ), vec3f( 0.26, 0.12, 0.045 ), g < 0.18 ); rough = 0.45;
 		if ( fract( ( L.y + L.x * 0.3 ) * 90.0 ) < 0.12 && abs( in.vs.vField.x + 2.0 ) < 0.5 ) { c = c * 0.35; }
 		if ( soak > 0.1 ) { c = c * 0.75; rough = 0.3; }
 	}
@@ -695,28 +902,50 @@ function playerMaterial( bones, info, atlas ) {
 		if ( L.y > 0.12 && L.y < 0.45 ) { c = mix( c, vec3f( 0.09, 0.04, 0.012 ), 0.7 * smoothstep( 0.3, 0.7, mx_noise_float3( L * 35.0 + seed ) + 0.3 ) ); rough = 0.5; }
 	}
 	if ( part == ${ P.hair } ) { c = hairC; }
-	if ( phan && part == ${ P.hair } ) {
-		// shaggy green fur: long strands, clumped
-		let strand = hash31( floor( vec3f( L.x * 160.0, L.y * 45.0, L.z * 160.0 ) ) );
-		c = fur * ( 0.65 + 0.6 * strand ) * ( 0.85 + 0.3 * mx_noise_float3( L * 20.0 ) ); rough = 0.95;
+	// ---- FY2 (the Phanatic): the costume as the October photos show it (pelfas' close-up of October 25;
+	// Getty 83891040, 84082561). The shag: long strands hanging down him in clumps, a vivid yellow-leaning
+	// kelly green, dark down at the roots between the clumps and light at the tips, with a sheen off the
+	// outer strands so he holds his shape in the dim of the concourse; darker round his mouth. The snout's
+	// lime velour, short and smooth; the open mouth dark, his tongue in it. The big white eyes with round
+	// black pupils (looking in and down: he's a little cross-eyed) under heavy hot pink lids; the shock of
+	// blue hair, a few tufts pink; the red cap on backwards.
+	if ( phan && ( part == ${ P.hair } || part == ${ P.phNeck } || part == ${ P.phHead } || part == ${ P.phRing } ) ) {
+		let clump = mx_noise_float3( L * vec3f( 24.0, 8.0, 24.0 ) + seed * 5.0 ) * 0.5 + 0.5;
+		let strand = mx_noise_float3( L * vec3f( 190.0, 21.0, 190.0 ) ) * 0.5 + 0.5;
+		let k = clamp( clump * 0.75 + strand * 0.65 - 0.2, 0.0, 1.0 );
+		c = mix( vec3f( 0.02, 0.085, 0.007 ), vec3f( 0.2, 0.52, 0.035 ), k );
+		if ( part == ${ P.phRing } ) { c = c * 0.72; }
+		rough = 0.9;
+		s.sheenColor = vec3f( 0.16, 0.36, 0.05 ) * ( 0.35 + 0.65 * k );
+		s.sheenRoughness = 0.45;
 		clothy = true;
 	}
-	if ( part == ${ P.phHead } || part == ${ P.snout } ) {
-		let strand = hash31( floor( L * vec3f( 150.0, 60.0, 150.0 ) ) );
-		c = fur * ( 0.65 + 0.6 * strand ); rough = 0.95;
-		// his red cap riding on the back of his head, the blue brows over the eyes, the dark mouth at the
-		// end of the snout
-		if ( part == ${ P.phHead } && Nb.y > 0.62 && Nb.z > -0.25 ) { c = vec3f( 0.42, 0.02, 0.03 ); rough = 0.6; }
-		if ( part == ${ P.phHead } && Nb.y > 0.3 && Nb.y < 0.52 && abs( Nb.x ) > 0.12 && abs( Nb.x ) < 0.62 && Nb.z < -0.55 ) { c = vec3f( 0.02, 0.1, 0.5 ); }
-		if ( part == ${ P.snout } && dot( Nb, vec3f( 0.0, -0.342, -0.94 ) ) > 0.9 ) { c = vec3f( 0.08, 0.005, 0.01 ); rough = 0.4; }
+	if ( part == ${ P.snout } ) {
+		let sd = ${ v3( [ 0, - Math.sin( PHAN.snout.tilt ), - Math.cos( PHAN.snout.tilt ) ] ) };
+		let sq = L - ${ v3( PHAN.snout.base ) };
+		let along = dot( sq, sd );
+		c = vec3f( 0.3, 0.45, 0.045 ) * ( 0.92 + 0.14 * ( mx_noise_float3( L * 110.0 ) * 0.5 + 0.5 ) );
+		rough = 0.75;
+		s.sheenColor = vec3f( 0.3, 0.42, 0.08 ) * 0.7;
+		s.sheenRoughness = 0.3;
+		if ( along > ${ f( PHAN.snout.len - 0.03 ) } && length( sq - sd * along ) < 0.07 ) { c = vec3f( 0.045, 0.006, 0.008 ); rough = 0.6; s.sheenColor = vec3f( 0.0 ); }
 		clothy = true;
 	}
+	if ( part == ${ P.phMouth } ) { c = vec3f( 0.42, 0.04, 0.07 ); rough = 0.45; }
 	if ( part == ${ P.phEye } ) {
-		// white eyeballs, black pupils, the upper lids blue
-		c = vec3f( 0.8, 0.79, 0.76 ); rough = 0.2;
-		if ( Nb.y > 0.25 ) { c = vec3f( 0.02, 0.1, 0.5 ); rough = 0.6; }
-		else if ( Nb.z < -0.9 && abs( Nb.x - sign( L.x ) * 0.1 ) < 0.25 && Nb.y > -0.2 ) { c = vec3f( 0.005 ); }
+		let ec = vec3f( sign( L.x ) * ${ f( PHAN.eye[ 0 ] ) }, ${ f( PHAN.eye[ 1 ] ) }, ${ f( PHAN.eye[ 2 ] ) } );
+		let d = normalize( ( L - ec ) / ${ v3( PHAN.eyeR ) } );
+		c = vec3f( 0.8, 0.79, 0.75 ); rough = 0.22;
+		if ( dot( d, normalize( vec3f( - sign( L.x ) * 0.2, -0.16, -1.0 ) ) ) > 0.935 ) { c = vec3f( 0.006 ); rough = 0.1; }
 	}
+	if ( part == ${ P.phLid } ) { c = vec3f( 0.56, 0.04, 0.22 ); rough = 0.8; s.sheenColor = vec3f( 0.3, 0.06, 0.15 ); s.sheenRoughness = 0.4; }
+	if ( part == ${ P.phHair } ) {
+		let strand = mx_noise_float3( L * vec3f( 160.0, 160.0, 160.0 ) ) * 0.5 + 0.5;
+		c = select( vec3f( 0.025, 0.08, 0.5 ), vec3f( 0.55, 0.05, 0.28 ), hash31( floor( L * 30.0 ) ) > 0.86 ) * ( 0.55 + 0.7 * strand );
+		rough = 0.85; s.sheenColor = c * 0.6; s.sheenRoughness = 0.4; clothy = true;
+	}
+	if ( part == ${ P.phCap } ) { c = trim * 1.05; rough = 0.7; clothy = true; }
+	// ---- end FY2
 	if ( pocketGloves ) { c = pal[ palm ]; rough = 0.55; }
 	// the lettering and logos over the cloth
 	if ( inCell ) { c = mix( c, ink.rgb, ink.a ); }
@@ -740,12 +969,16 @@ function playerMaterial( bones, info, atlas ) {
 		else if ( abs( Nb.x ) > 0.7 && length( vec2f( fz - 0.01, L.y - 0.12 ) ) < 0.035 ) { c = select( vec3f( 0.42, 0.02, 0.03 ), vec3f( 0.8 ), length( vec2f( fz - 0.01, L.y - 0.12 ) ) < 0.018 ); }
 	}
 	if ( phan && ( role & ${ R.slicker }u ) != 0u ) {
-		let coat = ( part == ${ P.jersey } || part == ${ P.hair } || part == ${ P.skin } ) && ( ( arm > -0.5 && arm < ${ f( U.wrist - 0.03 ) } ) || ( arm < -0.5 && leg < -0.5 && L.y < ${ f( U.collar + 0.03 ) } ) || ( leg > -0.5 && leg < 0.44 ) );
+		// ---- FY2: over the costume's body down to just above the shag's hem (it shows below), not the neck;
+		// buttoned at the collar and hanging open below the chest, the fur showing between its fronts
+		// (Getty 84081831, 83458678)
+		let opening = abs( atan2( L.x, - L.z ) ) < 0.12 + 0.4 * smoothstep( 1.25, 0.75, L.y );
+		let coat = ( part == ${ P.jersey } || part == ${ P.hair } || part == ${ P.skin } ) && ( ( arm > -0.5 && arm < ${ f( U.wrist - 0.03 ) } ) || ( part0 == ${ P.phBody } && L.y > ${ f( PHAN.skirt + 0.05 ) } && ! ( opening && L.y < 1.3 ) ) );
 		if ( coat ) {
-			// shiny wet vinyl, the seams down it, the wide collar a shade darker
-			c = vec3f( 0.46, 0.02, 0.025 ); rough = 0.14; clothy = false;
-			if ( arm < -0.5 && leg < -0.5 && L.y > ${ f( U.collar - 0.09 ) } ) { c = c * 0.8; }
-			if ( abs( fract( L.x * 7.0 ) - 0.5 ) < 0.02 ) { c = c * 0.75; }
+			// wet rubberised nylon (the rain beads on it), the wide collar a shade darker
+			c = vec3f( 0.44, 0.02, 0.025 ); rough = 0.42; clothy = false; s.sheenColor = vec3f( 0.0 );
+			if ( part0 == ${ P.phBody } && L.y > 1.45 ) { c = c * 0.8; }
+			if ( hash31( floor( L * 500.0 ) ) > 0.93 ) { rough = 0.08; }
 		}
 	}
 	if ( ( role & ${ R.shorts }u ) != 0u && leg > 0.2 && part != ${ P.shoes } ) {
@@ -792,6 +1025,19 @@ function playerMaterial( bones, info, atlas ) {
 		rough = mix( rough, 0.6, soak * 0.5 );
 	}
 	if ( crew && ( part == ${ P.jersey } || part == ${ P.hood } ) ) { rough = mix( rough, 0.12, soak ); }
+	// ---- FY2 (CY-4): the rest of the ring of light banks at night. After dark the key light (and its
+	// shadows) is the banks on the roof behind home, so a player's back, which the center field camera
+	// sees on every pitch, had nothing on it but the far towers. Citizens Bank Park's banks ring the bowl:
+	// down both lines and over the outfield, all of them high, so they light every side of a man on the
+	// field (Getty 83486198, 83485455: the whites bright from every side). A few fixed banks in the field's
+	// frame (x toward first, -z toward center), unshadowed, as light on the cloth and skin
+	let FN = normalize( in.vs.vFN + vec3f( 0.0, 1e-5, 0.0 ) );
+	var ring = max( dot( FN, vec3f( -0.53, 0.45, -0.72 ) ), 0.0 ) + max( dot( FN, vec3f( 0.53, 0.45, -0.72 ) ), 0.0 );
+	ring += 0.75 * ( max( dot( FN, vec3f( -0.83, 0.5, 0.25 ) ), 0.0 ) + max( dot( FN, vec3f( 0.83, 0.5, 0.25 ) ), 0.0 ) );
+	ring += 0.35 * max( FN.y, 0.0 );
+	let banks = smoothstep( 0.15, 0.7, frame.night ) * ${ f( NIGHT_FILL ) };
+	s.emissive += c * frame.sunColor * ring * banks * select( 1.0, 0.4, part == ${ P.eye } || part == ${ P.phEye } );
+	// ---- end FY2
 	s.albedo = c;
 	s.roughness = rough;
 `,
@@ -799,6 +1045,8 @@ function playerMaterial( bones, info, atlas ) {
 	mat.underwaterLighting = 'none';
 	// the players get their own rain (the cloth soaks, it doesn't turn glossy)
 	mat.setDefine( 'DRY', 1 );
+	// the sheen of cloth and fur (the Phanatic's shag; the lobe lights only what sets its colour)
+	mat.setDefine( 'SHEEN', 1 );
 	return mat;
 
 }
@@ -879,53 +1127,78 @@ function drawChest( ctx, i, home, jacket = false ) {
 	const [ x, y ] = cellXY( i );
 	ctx.save();
 	ctx.clearRect( x, y, CELL, CELL );
+	ctx.beginPath();
+	ctx.rect( x, y, CELL, CELL );
+	ctx.clip();
+	// (FY2, CY-6) the cell is laid across the chest CHEST_ASPECT times wider than it's tall: squeezed here
+	// by as much (the slant after the squeeze, so it comes out a true slant), the lettering filling about
+	// nine tenths of the chest from armpit to armpit
 	ctx.translate( x + CELL / 2, y + CELL / 2 );
-	ctx.textAlign = 'center';
-	ctx.textBaseline = 'middle';
+	ctx.scale( 1 / CHEST_ASPECT, 1 );
+	const W = CELL * CHEST_ASPECT * 0.9;
+	ctx.textAlign = 'left';
+	ctx.textBaseline = 'alphabetic';
 	ctx.lineJoin = 'round';
+	const star = ( sx, sy, r0, r1 ) => {
+
+		ctx.beginPath();
+		for ( let k = 0; k < 10; k ++ ) {
+
+			const a = - Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? r0 : r1;
+			ctx.lineTo( sx + Math.cos( a ) * r, sy + Math.sin( a ) * r );
+
+		}
+
+		ctx.fill();
+
+	};
 	if ( home ) {
 
-		ctx.rotate( - 0.12 );
-		ctx.font = 'italic 700 40px Georgia, "Times New Roman", serif';
-		ctx.lineWidth = 5;
-		ctx.strokeStyle = '#0b2a5b';
-		ctx.strokeText( 'Phillies', 0, 6, CELL - 8 );
+		// "Phillies" in red script rising to the right, its tall swash P, the blue stars dotting the i's
+		ctx.rotate( - 0.1 );
+		const big = 'italic 700 104px Georgia, "Times New Roman", serif', small = 'italic 700 64px Georgia, "Times New Roman", serif';
+		ctx.font = big;
+		const wP = ctx.measureText( 'P' ).width * 0.82;
+		ctx.font = small;
+		const wRest = ctx.measureText( 'hillies' ).width;
+		// a script's letters are narrower than Georgia's
+		const k = Math.min( 1, W / ( ( wP + wRest ) * 0.8 ) );
+		ctx.scale( k * 0.8, k );
+		const x0 = - ( wP + wRest ) / 2, base = 22;
 		ctx.fillStyle = jacket ? '#f4f2ec' : '#d01c2c';
-		ctx.fillText( 'Phillies', 0, 6, CELL - 8 );
-		for ( const sx of [ 4, 22 ] ) {
+		ctx.font = big;
+		ctx.fillText( 'P', x0, base + 4 );
+		ctx.font = small;
+		ctx.fillText( 'hillies', x0 + wP, base );
+		ctx.fillStyle = jacket ? '#f4f2ec' : '#0b2a5b';
+		for ( const pre of [ 'h', 'hill' ] ) {
 
-			ctx.fillStyle = jacket ? '#f4f2ec' : '#0b2a5b';
-			ctx.beginPath();
-			for ( let k = 0; k < 10; k ++ ) {
-
-				const a = - Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 2.2 : 5.2;
-				ctx.lineTo( sx + Math.cos( a ) * r, - 22 + Math.sin( a ) * r );
-
-			}
-
-			ctx.fill();
+			const sx = x0 + wP + ctx.measureText( pre ).width + ctx.measureText( 'i' ).width * 0.55;
+			star( sx, base - 50, 3.6, 8.5 );
 
 		}
 
 	} else {
 
-		// the burst off the R's shoulder
+		// RAYS in navy edged in Columbia blue, the gold burst off the R's shoulder
+		ctx.font = '900 80px "Helvetica Neue", Arial, sans-serif';
+		const w = Math.min( W, ctx.measureText( 'RAYS' ).width );
+		const x0 = - w / 2, base = 28;
 		ctx.fillStyle = '#f5d130';
 		ctx.beginPath();
 		for ( let k = 0; k < 16; k ++ ) {
 
-			const a = k * Math.PI / 8, r = k % 2 ? 4 : 10;
-			ctx.lineTo( - 36 + Math.cos( a ) * r, - 22 + Math.sin( a ) * r );
+			const a = k * Math.PI / 8, r = k % 2 ? 7 : 17;
+			ctx.lineTo( x0 + 6 + Math.cos( a ) * r, base - 58 + Math.sin( a ) * r );
 
 		}
 
 		ctx.fill();
-		ctx.font = '900 44px "Helvetica Neue", Arial, sans-serif';
-		ctx.lineWidth = 6;
+		ctx.lineWidth = 9;
 		ctx.strokeStyle = '#8fbce6';
-		ctx.strokeText( 'RAYS', 0, 4, CELL - 10 );
+		ctx.strokeText( 'RAYS', x0, base, W );
 		ctx.fillStyle = jacket ? '#f4f2ec' : '#0b2a5b';
-		ctx.fillText( 'RAYS', 0, 4, CELL - 10 );
+		ctx.fillText( 'RAYS', x0, base, W );
 
 	}
 

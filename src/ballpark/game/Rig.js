@@ -29,9 +29,14 @@ export const PART = { skin: 0, jersey: 1, pants: 2, socks: 3, shoes: 4, cap: 5, 
 	// ear flaps, the catcher's skull cap and the mask's pads, the catcher's and first baseman's mitts, the
 	// plate umpire's ball bag, the grounds crew's rake and rain hood, the Phanatic's head, snout and eyes,
 	// glasses
-	flapL: 16, flapR: 17, ccap: 18, maskPad: 19, mittC: 20, mitt1B: 21, bag: 22, rake: 23, hood: 24, phHead: 25, snout: 26, phEye: 27, glasses: 28 };
+	flapL: 16, flapR: 17, ccap: 18, maskPad: 19, mittC: 20, mitt1B: 21, bag: 22, rake: 23, hood: 24, phHead: 25, snout: 26, phEye: 27, glasses: 28,
+	// the rest of the Phanatic's costume: the fur body under the jersey, the neck, the lids, the hair, his
+	// cap on backwards, the shag round his mouth and the mouth itself
+	phBody: 29, phNeck: 30, phLid: 31, phHair: 32, phCap: 33, phRing: 34, phMouth: 35 };
 // the optional pieces (left out of statues)
-export const OPTIONAL = [ 10, 11, 12, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28 ];
+export const OPTIONAL = [ 10, 11, 12, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 ];
+// the Phanatic's own pieces (only he wears them)
+export const PHANATIC_PARTS = [ 25, 26, 27, 29, 30, 31, 32, 33, 34, 35 ];
 
 // body dimensions (a 6'2" player), measured off the mesh's skeleton
 export const DIM = { ...BODY.dim };
@@ -161,6 +166,36 @@ export function buildPlayerGeometry() {
 		else for ( let i = 0; i < P.count; i ++ ) index.push( base + i );
 
 	};
+	// a piece modelled in the bind pose's own frame and skinned to several bones by where each vertex is:
+	// `wf( x, y, z )` gives [ [ bone, weight ], ... ] (up to four; normalised here)
+	const addSkinned = ( geo, p, wf ) => {
+
+		const P = geo.getAttribute( 'position' ), N = geo.getAttribute( 'normal' );
+		const base = pos.length / 3;
+		for ( let i = 0; i < P.count; i ++ ) {
+
+			const x = P.getX( i ), y = P.getY( i ), z = P.getZ( i );
+			pos.push( x, y, z );
+			nrm.push( N.getX( i ), N.getY( i ), N.getZ( i ) );
+			const w = wf( x, y, z ).filter( ( [ , k ] ) => k > 1e-3 ).sort( ( a, b ) => b[ 1 ] - a[ 1 ] ).slice( 0, 4 );
+			const sum = w.reduce( ( a, [ , k ] ) => a + k, 0 ) || 1;
+			for ( let c = 0; c < 4; c ++ ) {
+
+				bones.push( w[ c ] ? w[ c ][ 0 ] : 0 );
+				weights.push( w[ c ] ? w[ c ][ 1 ] / sum : 0 );
+
+			}
+
+			part.push( p );
+			field.push( mark, - 1 );
+
+		}
+
+		const I = geo.index;
+		if ( I ) for ( let i = 0; i < I.count; i ++ ) index.push( base + I.array[ i ] );
+		else for ( let i = 0; i < P.count; i ++ ) index.push( base + i );
+
+	};
 
 	const B = BONES, P = PART, D = DIM, F = FACE;
 	const cyl = ( r0, r1, h, seg = 12 ) => new CylinderGeometry( r0, r1, h, seg, 1, false );
@@ -168,6 +203,17 @@ export function buildPlayerGeometry() {
 	const dome = ( r, w, h, thetaLen ) => new SphereGeometry( r, w, h, 0, Math.PI * 2, 0, thetaLen );
 	// a lathed shape: profile [ [ radius, y ], ... ] bottom to top, closed at both ends
 	const lathe = ( prof, seg = 16 ) => new LatheGeometry( [ new Vector2( 0, prof[ 0 ][ 1 ] ), ...prof.map( ( [ r, y ] ) => new Vector2( r, y ) ), new Vector2( 0, prof[ prof.length - 1 ][ 1 ] ) ], seg );
+	// a cap's bill: a thin disc of radius r (the back half inside the crown), its sides curved down by
+	// `bend` (y -= bend x^2)
+	const bill = ( r, bend, t = 0.003 ) => {
+
+		const g = lathe( [ [ 0.0, - t ], [ r * 0.5, - t ], [ r * 0.8, - t ], [ r, - t * 0.6 ], [ r, t * 0.6 ], [ r * 0.8, t ], [ r * 0.5, t ], [ 0.0, t ] ], 24 );
+		const pa = g.getAttribute( 'position' );
+		for ( let i = 0; i < pa.count; i ++ ) pa.setY( i, pa.getY( i ) - bend * pa.getX( i ) ** 2 );
+		g.computeVertexNormals();
+		return g;
+
+	};
 
 	// ---- the head's pieces, placed on the skull (the head bone's frame is the bind pose's axes, from its pivot)
 	const hb = new Vector3().fromArray( bind, B.head * 16 + 12 );
@@ -175,15 +221,21 @@ export function buildPlayerGeometry() {
 	const rx = F.skull.x + 0.013, rz = ( F.skull.z1 - F.skull.z0 ) / 2 + 0.011;
 	// the cap: a crown over the skull down to the brow in front and the hairline behind (the dome tipped
 	// back), the button, the bill
+	// (FY2, CY-18: the bill curved down at its sides as a worn bill is, marked -3 so its underside takes the
+	// undervisor's dark grey-green)
 	add( dome( 1, 24, 12, Math.PI * 0.56 ), B.head, P.cap, 0, skullY - 0.004, skullZ, 0.22, 0, 0, rx, 0.1, rz );
 	add( cyl( 0.009, 0.009, 0.01, 8 ), B.head, P.cap, 0, skullY + 0.093, skullZ - 0.02 );
-	add( lathe( [ [ 0.0, - 0.003 ], [ 0.086, - 0.003 ], [ 0.086, 0.003 ], [ 0.0, 0.003 ] ], 24 ), B.head, P.cap, 0, skullY + 0.004, skullZ - rz + 0.012, 0.22, 0, 0, 0.95, 1, 0.9 );
+	mark = - 3;
+	add( bill( 0.086, 2.4 ), B.head, P.cap, 0, skullY + 0.004, skullZ - rz + 0.012, 0.22, 0, 0, 0.95, 1, 0.9 );
+	mark = - 1;
 	// the batting helmet: a shell down over the ears, a short bill; the ear flaps (the one toward the
 	// pitcher: a right-handed hitter's on his left ear, a lefty's on his right, switch hitters both)
 	add( dome( 1, 24, 14, Math.PI * 0.62 ), B.head, P.helmet, 0, skullY - 0.004, skullZ + 0.004, 0.12, 0, 0, rx + 0.017, 0.128, rz + 0.016 );
 	add( sph( 0.05, 12, 8 ), B.head, P.flapL, - rx - 0.004, skullY - 0.075, skullZ + 0.02, 0, 0, 0, 0.36, 1.15, 1.05 );
 	add( sph( 0.05, 12, 8 ), B.head, P.flapR, rx + 0.004, skullY - 0.075, skullZ + 0.02, 0, 0, 0, 0.36, 1.15, 1.05 );
-	add( lathe( [ [ 0.0, - 0.004 ], [ 0.07, - 0.004 ], [ 0.07, 0.004 ], [ 0.0, 0.004 ] ], 20 ), B.head, P.helmet, 0, skullY - 0.01, skullZ - rz - 0.004, 0.12, 0, 0, 1.15, 1, 0.62 );
+	mark = - 3;
+	add( bill( 0.07, 1.6, 0.004 ), B.head, P.helmet, 0, skullY - 0.01, skullZ - rz - 0.004, 0.12, 0, 0, 1.15, 1, 0.62 );
+	mark = - 1;
 	// the catcher's skull cap: the shell without flaps, worn backwards (the short bill over his neck)
 	add( dome( 1, 20, 10, Math.PI * 0.55 ), B.head, P.ccap, 0, skullY - 0.004, skullZ + 0.004, - 0.1, 0, 0, rx + 0.014, 0.122, rz + 0.013 );
 	add( lathe( [ [ 0.0, - 0.004 ], [ 0.065, - 0.004 ], [ 0.065, 0.004 ], [ 0.0, 0.004 ] ], 16 ), B.head, P.ccap, 0, skullY - 0.004, skullZ + rz + 0.004, - 0.2, 0, 0, 1.1, 1, 0.5 );
@@ -250,18 +302,8 @@ export function buildPlayerGeometry() {
 
 	}
 
-	// the Phillie Phanatic's head: a great round shaggy head, the long tube of a snout reaching forward
-	// and down, two big eyes under their lids
-	{
-
-		const hy = skullY + 0.1, hz = skullZ - 0.01;
-		add( sph( 1, 22, 16 ), B.head, P.phHead, 0, hy, hz, 0, 0, 0, 0.25, 0.26, 0.25 );
-		const snout = cyl( 0.075, 0.1, 0.34, 16 );
-		add( snout, B.head, P.snout, 0, hy - 0.1, hz - 0.33, Math.PI / 2 + 0.35, 0, 0 );
-		add( new TorusGeometry( 0.075, 0.022, 6, 16 ), B.head, P.snout, 0, hy - 0.16, hz - 0.49, 0.35, 0, 0 );
-		for ( const sx of [ - 1, 1 ] ) add( sph( 0.078, 14, 10 ), B.head, P.phEye, sx * 0.1, hy + 0.08, hz - 0.19, 0, sx * 0.25, 0 );
-
-	}
+	// the Phillie Phanatic's costume (Players.js, KIND.phanatic): see phanatic() below
+	phanatic( addSkinned, lathe );
 
 	// the catcher's chest protector: a padded plate curving round his chest from the collar to the belt,
 	// the shoulders capped, a flap over the belly
@@ -303,21 +345,24 @@ export function buildPlayerGeometry() {
 	const ankleY = BODY.joints.ankleL[ 1 ];
 	for ( const ft of [ B.footL, B.footR ] ) add( cleat( ankleY ), ft, P.shoes );
 
-	// the glove: the pocket and heel, four finger stalls fanning out, the thumb, the laced web between
-	// the thumb and the first finger
+	// the glove: the pocket and heel, four finger stalls side by side (closed, as a broken-in glove is
+	// carried), the thumb, the laced web between the thumb and the first finger; about a hand and a third
+	// (FY2, CY-21: it was a cartoon mitt with its fingers spread, as big as the forearm)
+	const gk = 0.86;
 	const capsule = ( r, b, x0, y0, x1, y1, z = - 0.02 ) => {
 
+		[ r, x0, y0, x1, y1, z ] = [ r, x0, y0, x1, y1, z ].map( ( v ) => v * gk );
 		const dx = x1 - x0, dy = y1 - y0, L = Math.hypot( dx, dy ), a = Math.atan2( dx, - dy );
 		add( cyl( r, r * 0.92, L, 10 ), b, P.glove, ( x0 + x1 ) / 2, ( y0 + y1 ) / 2, z, 0, 0, a, 1, 1, 0.8 );
 		add( sph( r * 0.92, 10, 6 ), b, P.glove, x1, y1, z, 0, 0, 0, 1, 1, 0.8 );
 
 	};
 
-	add( sph( 0.1, 16, 12 ), B.glove, P.glove, 0, - 0.075, - 0.02, 0, 0, 0, 0.92, 1.12, 0.36 );
-	for ( const [ x, x1 ] of [ [ - 0.052, - 0.07 ], [ - 0.018, - 0.022 ], [ 0.016, 0.024 ], [ 0.048, 0.07 ] ] ) capsule( 0.022, B.glove, x, - 0.13, x1, - 0.265 + Math.abs( x ) * 0.5 );
-	capsule( 0.024, B.glove, 0.07, - 0.04, 0.115, - 0.2, - 0.03 );
+	add( sph( 0.1 * gk, 16, 12 ), B.glove, P.glove, 0, - 0.075 * gk, - 0.02 * gk, 0, 0, 0, 0.92, 1.12, 0.36 );
+	for ( const [ x, x1 ] of [ [ - 0.05, - 0.056 ], [ - 0.017, - 0.019 ], [ 0.016, 0.018 ], [ 0.048, 0.054 ] ] ) capsule( 0.021, B.glove, x, - 0.13, x1, - 0.262 + Math.abs( x ) * 0.45 );
+	capsule( 0.023, B.glove, 0.07, - 0.04, 0.105, - 0.19, - 0.03 );
 	mark = - 2;
-	add( new BoxGeometry( 0.05, 0.1, 0.012 ), B.glove, P.glove, 0.085, - 0.21, - 0.03, 0, 0, - 0.2 );
+	add( new BoxGeometry( 0.045 * gk, 0.1 * gk, 0.012 ), B.glove, P.glove, 0.08 * gk, - 0.2 * gk, - 0.03 * gk, 0, 0, - 0.2 );
 	// the catcher's mitt: a round, thick pillow with a laced rim and a stubby thumb; the first baseman's:
 	// a long scoop with a laced web
 	add( new TorusGeometry( 0.112, 0.014, 5, 20 ), B.glove, P.mittC, 0, - 0.105, - 0.022, 0, 0, 0, 1.08, 1.04, 1 );
@@ -403,6 +448,209 @@ function cleat( ankleY ) {
 	g.setIndex( index );
 	g.computeVertexNormals();
 	return g;
+
+}
+
+// ---------------------------------------------------------------- the Phanatic
+
+// The Phillie Phanatic as the costume was in October 2008 (Getty 577355744, June 22, front; 83434999,
+// 83891040, 83570904, 84082561 from the Series; pompomflipflop's profile at the NLCS, 2930759768; pelfas'
+// close-up of October 25, 2976309077). Not a man in a green suit but a pear: green shag from the collar
+// to a ragged skirt hanging just past the knees, widest at the hips (about 0.85 m across), the belly
+// carried out in front; the pinstriped jersey over its top half like a tent, its hem riding on the belly.
+// Out of the collar rises the long "gawking neck" (the performer, Tom Burgoyne, has his own head inside
+// it and looks out through a mesh: Main Line Today, July 2008), and on top of it the much smaller head:
+// the lime velour horn of a snout reaching straight out, its open end ringed in dark shag, two big white
+// eyes under heavy hot pink lids, a shock of blue (and pink) hair, and the red cap on backwards.
+//
+// Everything here is in the bind pose's frame (the rig's 6'2" athlete, before Looks.js scales him to the
+// performer's height). The body is skinned to the torso above the waist, the pelvis through the belly,
+// and partly to the thighs at the hem, so the skirt swings with his stride; the neck to the torso at the
+// collar and the head above (his head is in it: where he looks, it goes); the head's pieces to the head.
+export const PHAN = {
+	head: [ 0, 1.945, - 0.05 ], headR: [ 0.174, 0.158, 0.17 ],
+	// the snout: from its root inside the head, along `dir`, `len` to the mouth
+	snout: { base: [ 0, 1.915, - 0.12 ], tilt: 0.07, len: 0.285 },
+	// the eyes' centres (x either side), their radii
+	eye: [ 0.056, 2.005, - 0.208 ], eyeR: [ 0.056, 0.061, 0.05 ],
+	// the jersey's hem and the shag's (y)
+	hem: 0.965, skirt: 0.535,
+};
+
+function phanatic( addSkinned, lathe ) {
+
+	const B = BONES, P = PART;
+	const sm = ( a, b, x ) => {
+
+		const t = Math.min( 1, Math.max( 0, ( x - a ) / ( b - a ) ) );
+		return t * t * ( 3 - 2 * t );
+
+	};
+	const hash = ( k ) => {
+
+		const s = Math.sin( k * 127.1 + 311.7 ) * 43758.5453;
+		return s - Math.floor( s );
+
+	};
+	const onHead = () => [ [ B.head, 1 ] ];
+
+	// ---- the body: rings [ y, half-width, front, back ] from the collar to the hem, then in under the skirt
+	{
+
+		const R = [
+			[ 1.6, 0.13, 0.115, 0.1 ], [ 1.565, 0.18, 0.14, 0.125 ], [ 1.52, 0.228, 0.165, 0.142 ], [ 1.46, 0.256, 0.19, 0.157 ],
+			[ 1.38, 0.272, 0.218, 0.168 ], [ 1.26, 0.294, 0.255, 0.188 ], [ 1.14, 0.326, 0.293, 0.212 ], [ 1.03, 0.362, 0.33, 0.24 ],
+			[ PHAN.hem, 0.382, 0.35, 0.258 ], [ PHAN.hem - 0.012, 0.366, 0.334, 0.25 ], [ 0.91, 0.405, 0.385, 0.295 ], [ 0.83, 0.438, 0.418, 0.335 ],
+			[ 0.735, 0.452, 0.428, 0.355 ], [ 0.65, 0.43, 0.395, 0.34 ], [ 0.585, 0.385, 0.345, 0.305 ], [ PHAN.skirt, 0.325, 0.29, 0.26 ],
+			[ 0.56, 0.24, 0.21, 0.19 ], [ 0.6, 0.12, 0.11, 0.1 ],
+		];
+		const S = 48, hemRing = 15;
+		const p = [];
+		R.forEach( ( [ y, hw, fr, bk ], j ) => {
+
+			for ( let k = 0; k < S; k ++ ) {
+
+				const a = k / S * Math.PI * 2, c = Math.cos( a ), s = Math.sin( a );
+				// the shag's hem hangs in clumps of different lengths
+				const rag = j === hemRing ? hash( k ) : j === hemRing - 1 ? 0.3 * hash( k ) : 0;
+				const g = 1 + 0.04 * rag;
+				p.push( hw * s * g, y - 0.075 * rag, - c * ( c > 0 ? fr : bk ) * g );
+
+			}
+
+		} );
+
+		const idx = [];
+		for ( let j = 0; j < R.length - 1; j ++ ) for ( let k = 0; k < S; k ++ ) {
+
+			const a = j * S + k, b = j * S + ( k + 1 ) % S, c = a + S, d = b + S;
+			idx.push( a, b, c, b, d, c );
+
+		}
+
+		const geo = new BufferGeometry();
+		geo.setAttribute( 'position', new Float32BufferAttribute( p, 3 ) );
+		geo.setIndex( idx );
+		geo.computeVertexNormals();
+		addSkinned( geo, P.phBody, ( x, y ) => {
+
+			const up = sm( 0.98, 1.24, y ); // the torso's share above the waist
+			const k = 0.5 * sm( 0.8, 0.5, y ); // the thighs' share at the skirt
+			const l = Math.min( 1, Math.max( 0, 0.5 - x / 0.3 ) );
+			return [ [ B.torso, up ], [ B.pelvis, 1 - up - k ], [ B.thighL, k * l ], [ B.thighR, k * ( 1 - l ) ] ];
+
+		} );
+
+	}
+
+	// ---- the neck: a thick fur column out of the jersey's collar, up into the head
+	{
+
+		const geo = new CylinderGeometry( 0.126, 0.144, 0.42, 24, 6, true );
+		geo.translate( 0, 1.53 + 0.21, - 0.035 );
+		addSkinned( geo, P.phNeck, ( x, y ) => {
+
+			const h = sm( 1.6, 1.77, y );
+			return [ [ B.head, h ], [ B.torso, 1 - h ] ];
+
+		} );
+
+	}
+
+	// ---- the head
+	const [ hx, hy, hz ] = PHAN.head, [ rx, ry, rz ] = PHAN.headR;
+	{
+
+		const geo = new SphereGeometry( 1, 26, 18 );
+		geo.scale( rx, ry, rz );
+		geo.translate( hx, hy, hz );
+		addSkinned( geo, P.phHead, onHead );
+
+	}
+
+	// the eyes, side by side over the snout's root, bulging out of the fur; the lids over their tops,
+	// half shut
+	for ( const sx of [ - 1, 1 ] ) {
+
+		const [ ex, ey, ez ] = [ sx * PHAN.eye[ 0 ], PHAN.eye[ 1 ], PHAN.eye[ 2 ] ], [ erx, ery, erz ] = PHAN.eyeR;
+		const eye = new SphereGeometry( 1, 18, 14 );
+		eye.scale( erx, ery, erz );
+		eye.translate( ex, ey, ez );
+		addSkinned( eye, P.phEye, onHead );
+		const lid = new SphereGeometry( 1, 18, 7, 0, Math.PI * 2, 0, Math.PI * 0.32 );
+		lid.scale( erx * 1.1, ery * 1.08, erz * 1.12 );
+		lid.rotateX( - 0.25 );
+		lid.rotateZ( - sx * 0.1 );
+		lid.translate( ex, ey + 0.002, ez + 0.001 );
+		addSkinned( lid, P.phLid, onHead );
+
+	}
+
+	// the snout: a horn of lime velour straight out of the face (a touch down from level in the bind pose:
+	// he carries his head tipped back behind the belly), flaring to the open mouth, the dark shag ring
+	// round it, the mouth's dark inside and the curl of his tongue in it
+	{
+
+		const { base, tilt, len } = PHAN.snout;
+		const q = new Quaternion().setFromEuler( new Euler( - Math.PI / 2 - tilt, 0, 0 ) );
+		const at = ( d ) => new Vector3( 0, 1, 0 ).applyQuaternion( q ).multiplyScalar( d ).add( new Vector3( ...base ) );
+		const horn = lathe( [ [ 0.056, 0.0 ], [ 0.058, 0.1 ], [ 0.062, len - 0.1 ], [ 0.07, len - 0.05 ], [ 0.08, len - 0.016 ], [ 0.085, len ], [ 0.062, len - 0.004 ], [ 0.035, len - 0.022 ] ], 22 );
+		horn.applyQuaternion( q );
+		horn.translate( ...base );
+		addSkinned( horn, P.snout, onHead );
+		const ring = new TorusGeometry( 0.077, 0.032, 8, 24 );
+		const end = at( len - 0.006 );
+		ring.rotateX( - tilt );
+		ring.translate( end.x, end.y, end.z );
+		addSkinned( ring, P.phRing, onHead );
+		const tongue = new SphereGeometry( 1, 10, 6 );
+		tongue.scale( 0.036, 0.016, 0.05 );
+		const tp = at( len - 0.03 );
+		tongue.translate( tp.x, tp.y - 0.03, tp.z );
+		addSkinned( tongue, P.phMouth, onHead );
+
+	}
+
+	// the shock of hair: a mop of shaggy locks out of the top of the head in front of the cap, flopping
+	// every way, blue with a few pink (Players.js picks which)
+	{
+
+		const up = new Vector3( 0, 1, 0 ), n = new Vector3(), q = new Quaternion();
+		for ( let i = 0; i < 30; i ++ ) {
+
+			const phi = 0.05 + 0.8 * hash( i + 1.3 ), psi = ( hash( i + 7.7 ) - 0.5 ) * 2.0;
+			n.set( Math.sin( phi ) * Math.sin( psi ), Math.cos( phi ), - Math.sin( phi ) * Math.cos( psi ) );
+			const root = new Vector3( hx + n.x * rx * 0.92, hy + n.y * ry * 0.92, hz + n.z * rz * 0.92 );
+			const dir = n.clone().add( new Vector3( ( hash( i + 2.2 ) - 0.5 ) * 1.4, 0.3, ( hash( i + 4.4 ) - 0.5 ) * 1.0 ) ).normalize();
+			const L = 0.05 + 0.05 * hash( i + 3.1 ), r = 0.012 + 0.01 * hash( i + 5.9 );
+			const geo = new SphereGeometry( 1, 6, 4 );
+			geo.scale( r, L, r * 0.8 );
+			geo.translate( 0, L * 0.7, 0 );
+			geo.applyQuaternion( q.setFromUnitVectors( up, dir ) );
+			geo.translate( root.x, root.y, root.z );
+			addSkinned( geo, P.phHair, onHead );
+
+		}
+
+	}
+
+	// the red cap on backwards: its crown over the top and back of the head (riding on the fur), the bill
+	// out over his nape
+	{
+
+		const k = 1.13;
+		const crown = new SphereGeometry( 1, 22, 8, 0, Math.PI * 2, 0, Math.PI * 0.3 );
+		crown.scale( rx * k, ry * k, rz * k );
+		crown.rotateX( 0.66 );
+		crown.translate( hx, hy, hz );
+		addSkinned( crown, P.phCap, onHead );
+		const bill = lathe( [ [ 0.0, - 0.004 ], [ 0.075, - 0.004 ], [ 0.075, 0.004 ], [ 0.0, 0.004 ] ], 20 );
+		bill.scale( 0.95, 1, 0.9 );
+		bill.rotateX( 0.3 );
+		bill.translate( hx, hy - 0.01, hz + rz * k + 0.03 );
+		addSkinned( bill, P.phCap, onHead );
+
+	}
 
 }
 
