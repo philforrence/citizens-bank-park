@@ -505,11 +505,11 @@ function night29( d, seg, l2real, st, axis, dur ) {
 		const who = { who: c.who, role: 0 };
 		// ---- FB4 (C4B-6): no tarp on the 29th (TarpPlan.TARP_ON_29): ten of them at their jobs on the skin
 		// as the 29th's part opens, the hoses on the clay behind the bags, the rakes, the tampers and the
-		// drags (Getty 83824977, 83824985: the crew watering the infield with the crowd in), still for the
-		// song where they are, then in; the rest are in already
+		// drags (Getty 83824977, 83824985: the crew watering the infield with the crowd in), done by 13-17 s
+		// and off the field by the song (any still out stand still for it where they are); the rest are in
 		if ( ! TARP_ON_29 ) {
 
-			if ( i < 10 ) work( d, c, i, null, l2, who, 21 + hash( i * 3.7 ) * 4 );
+			if ( i < 10 ) work( d, c, i, null, l2, who, 13 + hash( i * 3.7 ) * 4 );
 			continue;
 
 		}

@@ -1779,9 +1779,9 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 			// (---- FB4, C4B-8: and from high first it was still a white pool, the key light's lobe and the
 			// grazing Fresnel over the whole of it (C4B's S084, FB3's own final2 shot). Muddy water under rain:
 			// the specular held to a third but for the rain-broken specks, which keep their gloss)
-			let speck = smoothstep( 0.55, 0.85, mx_noise_float2( p * 9.0 + 4.7 ) * 0.5 + 0.5 );
-			rough = mix( rough, mix( 0.32, 0.15, speck ), pud );
-			s.specularIntensity = mix( s.specularIntensity, 0.3 + 0.7 * speck, pud );
+			let speck = smoothstep( 0.64, 0.9, mx_noise_float2( p * 17.0 + 4.7 ) * 0.5 + 0.5 );
+			rough = mix( rough, mix( 0.34, 0.18, speck ), pud );
+			s.specularIntensity = mix( s.specularIntensity, 0.22 + 0.4 * speck, pud );
 			// the rim of the puddle: wet sheen, a hint darker
 			col = col * ( 1.0 - 0.15 * smoothstep( 0.0, 0.5, pud ) * ( 1.0 - smoothstep( 0.5, 1.0, pud ) ) );
 			// its surface: flat, then ringed by the drops (the 27th: the rain's still falling)

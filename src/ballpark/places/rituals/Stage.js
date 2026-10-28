@@ -470,7 +470,10 @@ function camaro() {
 	const glass = standard( { name: 'camaro-glass', color: new Color( 0.045, 0.05, 0.06 ), roughness: 0.05, metalness: 0.0,
 		surface: 'let gf = pow( 1.0 - abs( dot( normalize( in.N ), in.V ) ), 2.2 ); s.emissive = mix( vec3f( 0.025, 0.03, 0.04 ), vec3f( 0.3, 0.32, 0.38 ), gf ) * ( 0.75 + 0.25 * sin( in.P.y * 9.0 + in.P.x * 3.0 ) ) * smoothstep( 0.2, 0.8, frame.night );' } );
 	const tyre = standard( { name: 'camaro-tyre', color: new Color( 0.02 ), roughness: 0.8 } );
-	const rim = standard( { name: 'camaro-rim', color: new Color( 0.7, 0.71, 0.73 ), roughness: 0.2, metalness: 1.0 } );
+	// (---- FB4, C4B-11: brushed silver that reads silver under the lights: full metal mirrored the night
+	// and went black)
+	const rim = standard( { name: 'camaro-rim', color: new Color( 0.72, 0.73, 0.75 ), roughness: 0.35, metalness: 0.55,
+		surface: 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.22;' } );
 	const lamp = standard( { name: 'camaro-lamp', color: new Color( 0.8 ), roughness: 0.1, emissive: new Color( 0.5, 0.48, 0.44 ) } );
 	for ( const m of [ paint, glass, tyre, rim, lamp ] ) m.underwaterLighting = 'none';
 	// the body lofted from sections along its length (x across, y up, z along: -z the nose)
