@@ -1422,7 +1422,7 @@ function castMaterial( pool ) {
 		if ( facial == 2u ) { c = mix( c, hairC, ( smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.28 ) + step( d.y, - 0.5 ) * step( ax, 0.24 ) ) * front ); }
 		// (FP1, CP-13: the beard soft at its edges and broken up, not a black mask)
 		if ( facial == 3u ) {
-			let grain = 0.88 + 0.12 * sin( d.x * 37.0 + sin( d.y * 23.0 ) * 1.5 );
+			let grain = 0.9 + 0.1 * smoothstep( - 0.6, - 0.2, d.y );
 			let cover = smoothstep( - 0.12, - 0.32, d.y ) * step( d.z, 0.4 ) * smoothstep( 0.5, 0.7, mo ) * smoothstep( 0.98, 0.72, ax + max( 0.0, d.y + 0.2 ) );
 			c = mix( c, hairC * grain, 0.72 * cover );
 		}
