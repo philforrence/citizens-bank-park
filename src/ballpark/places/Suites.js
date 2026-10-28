@@ -181,6 +181,13 @@ export default class Suites {
 	// a TV's picture: a quad on a face (corners a, b, c, d: bottom left, bottom right, top right, top left)
 	_screen( b, a, bb, c, d, n, lit ) {
 
+		// ---- FC4 (C4R-6): the picture's left on your left as you face it: corners given the other way
+		// round (a wall walked from the glass back, on the 3B side of a suite) showed the game mirrored,
+		// the score and the captions backwards. Seen from the front, ( b - a ) x ( d - a ) points at you
+		const e1 = [ bb[ 0 ] - a[ 0 ], bb[ 1 ] - a[ 1 ], bb[ 2 ] - a[ 2 ] ], e2 = [ d[ 0 ] - a[ 0 ], d[ 1 ] - a[ 1 ], d[ 2 ] - a[ 2 ] ];
+		const facing = ( e1[ 1 ] * e2[ 2 ] - e1[ 2 ] * e2[ 1 ] ) * n[ 0 ] + ( e1[ 2 ] * e2[ 0 ] - e1[ 0 ] * e2[ 2 ] ) * n[ 1 ] + ( e1[ 0 ] * e2[ 1 ] - e1[ 1 ] * e2[ 0 ] ) * n[ 2 ];
+		if ( facing < 0 ) [ a, bb, c, d ] = [ bb, a, d, c ];
+		// ---- end FC4
 		if ( this.tvMat && lit ) {
 
 			const T = this.tvQuads;
@@ -287,7 +294,11 @@ export default class Suites {
 				// a framed photo nearer the glass
 				const z1 = 0.75 - wl / 2;
 				b.use( 'gilt' ).box( W, z1, 1.65, 0.015, 0.62, 0.5, 0.03, [ 'back' ] );
-				b.use( 'print' ).print( W( z1 - 0.27, 1.44, 0.032 ), W( z1 + 0.27, 1.44, 0.032 ), W( z1 + 0.27, 1.86, 0.032 ), W( z1 - 0.27, 1.86, 0.032 ), n, cellUV( 'paintings', ( R.num * 3 ) % 8, 8, 1 ) );
+				// ---- FC4 (C4R-6): its left on the left as you face it (W runs from the glass back along the
+				// wall: on the 3B side of a suite that's to your right, and the print read mirrored)
+				const hs = wd[ 0 ] * n[ 2 ] - wd[ 2 ] * n[ 0 ] < 0 ? - 1 : 1;
+				b.use( 'print' ).print( W( z1 - 0.27 * hs, 1.44, 0.032 ), W( z1 + 0.27 * hs, 1.44, 0.032 ), W( z1 + 0.27 * hs, 1.86, 0.032 ), W( z1 - 0.27 * hs, 1.86, 0.032 ), n, cellUV( 'paintings', ( R.num * 3 ) % 8, 8, 1 ) );
+				// ---- end FC4
 
 			}
 
