@@ -358,6 +358,22 @@ function peopleMaterial( info, moved, throng = null ) {
 			p = hc + ( p - hc ) * ( 1.0 + 0.075 * smoothstep( 0.06 + 0.225 * front, 0.26 + 0.225 * front, d.y ) ) + vec3f( 0.0, 0.014 * smoothstep( 0.55, 1.0, d.y ), 0.0 );
 		}
 	}
+#if THRONG
+	// ---- FW1 (C2W-11): his build from his record (as the Cast's): slim, average, broad, a belly; a
+	// woman's narrower shoulders (one build for all of them)
+	{
+		let build = ( dress.y >> 12u ) & 3u;
+		let belly = select( select( select( 0.0, 0.3, build == 1u ), 0.55, build == 2u ), 1.0, build == 3u );
+		let tr = v.aPart < 0.5 || ( v.aPart > 7.5 && v.aPart < 8.5 );
+		if ( tr ) {
+			let bump = smoothstep( 0.86, 1.08, p.y ) * smoothstep( 1.36, 1.14, p.y );
+			p.z -= belly * 0.065 * bump * smoothstep( 0.02, - 0.08, p.z );
+			p.x *= 1.0 + belly * 0.12 * bump;
+		}
+		if ( build == 2u && ( tr || v.aPart > 5.5 && v.aPart < 6.5 || v.aPart > 1.5 && v.aPart < 2.5 ) ) { p.x *= 1.0 + 0.09 * smoothstep( 1.1, 1.35, p.y ); }
+		if ( ( ( dress.x >> 29u ) & 1u ) == 1u && p.y > 0.7 && ( v.aPart < 3.5 || v.aPart > 5.5 ) ) { p.x *= mix( 1.0, 0.9, smoothstep( 1.1, 1.38, p.y ) ) * mix( 1.06, 1.0, smoothstep( 0.9, 1.05, p.y ) ); }
+	}
+#endif
 	// a cap on backwards: its bill behind
 	if ( v.aPart > 3.5 && v.aPart < 4.5 && hat == ${ HAT.capBack }u ) { p = vec3f( 2.0 * hc.x - p.x, p.y, 2.0 * hc.z - p.z ); }
 	// what he hasn't got folds away: a bill without a cap, the poncho, the umbrella
@@ -1316,12 +1332,25 @@ export class People {
 
 		}
 
-		const pool = castPool();
-		if ( pool ) for ( const p of pool.people ) {
+		// (the places' people looked through every third frame: they move a few centimetres in between)
+		const cn = this._thrCastNear ||= [];
+		if ( ( this._thrObsK = ( this._thrObsK || 0 ) + 1 ) % 3 === 1 ) {
 
-			if ( ! p.visible || p.troupe === this.proxies || Math.abs( p.y - STREET ) > 0.6 ) continue;
+			cn.length = 0;
+			const pool = castPool();
+			if ( pool ) for ( const p of pool.people ) {
+
+				if ( ! p.visible || p.troupe === this.proxies || Math.abs( p.y - STREET ) > 0.6 ) continue;
+				if ( Math.abs( p.x - c.x ) + Math.abs( p.z - c.z ) < 30 ) cn.push( p );
+
+			}
+
+		}
+
+		for ( const p of cn ) {
+
 			const dd = Math.abs( p.x - c.x ) + Math.abs( p.z - c.z );
-			if ( dd < 28 ) near.push( [ dd, p.x, p.z, 0.42 ] );
+			if ( dd < 28 && p.visible ) near.push( [ dd, p.x, p.z, 0.42 ] );
 
 		}
 
