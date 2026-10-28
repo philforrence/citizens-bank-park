@@ -877,6 +877,9 @@ export class Director {
 		if ( ! cel ) for ( const [ id, b ] of start ) {
 
 			if ( end.has( id ) ) continue;
+			// (a reliever's own scene walks him in from the pen: from the dugout as well, he came up
+			// through the stands: C5F-1)
+			if ( seg.kind === 'change' && id === seg.snap?.pitcher ) continue;
 			const side = typeof id === 'number' ? ( id > 0 ? this.game.players[ id ]?.side : null ) : /^r:(coach|mgr):(home|away)/.exec( id )?.[ 2 ];
 			if ( ! side || Math.abs( b.x ) > 12 && b.z > - 6 ) continue;
 			const to = DUGOUT[ side ], dx = to[ 0 ] - b.x, dz = to[ 1 ] - b.z, D = Math.hypot( dx, dz );
