@@ -1,6 +1,6 @@
 import { Cast, TOP, COLOR, HAT, GEAR, PROP, restPose } from '../Cast.js';
 import { armIK } from '../Concourse3BKit.js';
-import { STAGE, CEL } from '../../game/Celebration.js';
+import { STAGE, CEL, MVP } from '../../game/Celebration.js';
 
 // The presentation's party on the stage (Getty 83570999, 83486314, 83486316, 83486403; puffygreenjacket
 // 2993614807; ronniebruce 2988347232): Commissioner Bud Selig, the Phillies' president David Montgomery,
@@ -13,16 +13,21 @@ import { STAGE, CEL } from '../../game/Celebration.js';
 // the champions cap, on the grass in front of the first base stands, singing "High Hopes" into a
 // microphone with the cameras round him. All real public figures, as they were; Cast figures.
 
-// [ key, look, stage spot (x along its front, z from its middle), holds a mic ]
+// [ key, look, stage spot (x along its front, z from its middle toward its front), holds a mic ]
+// (FR1: as you face the stage, left to right: Giles, Montgomery by the trophy's pedestal, Selig, Zelasko
+// and Gillick (in his tan coat) behind her, then Manuel when he's up, Myers at the right-hand end: Getty
+// 83570999, 83571356, ronniebruce 2988347232; the two of MLB's men at the back rail)
 const PARTY = [
-	[ 'selig', { skin: 0, hair: 7, hairStyle: 3, facial: 0, glasses: true, female: false, age: 1, build: 3, top: TOP.coat, color: COLOR.charcoal, sleeves: COLOR.charcoal, pants: 3, shoes: 1, hat: HAT.none, gloves: false, seed: 11 }, [ - 1.3, 0.9 ], true ],
-	[ 'montgomery', { skin: 0, hair: 6, hairStyle: 0, facial: 0, glasses: false, female: false, age: 1, build: 1, top: TOP.coat, color: COLOR.camel, sleeves: COLOR.camel, pants: 2, shoes: 3, hat: HAT.capBlack, gloves: false, seed: 23 }, [ - 2.1, 0.7 ], false ],
-	[ 'giles', { skin: 2, hair: 7, hairStyle: 3, facial: 0, glasses: false, female: false, age: 1, build: 2, top: TOP.coat, color: COLOR.brown, sleeves: COLOR.brown, pants: 2, shoes: 3, hat: HAT.capBlack, gloves: false, seed: 31 }, [ - 2.8, 0.2 ], false ],
-	[ 'gillick', { skin: 0, hair: 6, hairStyle: 3, facial: 0, glasses: true, female: false, age: 1, build: 1, top: TOP.coat, color: COLOR.navy, sleeves: COLOR.navy, pants: 3, shoes: 1, hat: HAT.capBlack, gloves: false, seed: 43 }, [ 1.6, 0.4 ], false ],
-	[ 'zelasko', { skin: 0, hair: 4, hairStyle: 1, facial: 0, glasses: false, female: true, age: 0, build: 0, top: TOP.coat, color: COLOR.lightGrey, sleeves: COLOR.lightGrey, pants: 1, shoes: 1, hat: HAT.none, gloves: true, seed: 57 }, [ 0.9, 1.0 ], true ],
+	[ 'selig', { skin: 0, hair: 7, hairStyle: 3, facial: 0, glasses: true, female: false, age: 1, build: 3, top: TOP.coat, color: COLOR.charcoal, sleeves: COLOR.charcoal, pants: 3, shoes: 1, hat: HAT.none, gloves: false, seed: 11 }, [ - 1.1, 0.5 ], true ],
+	[ 'montgomery', { skin: 0, hair: 6, hairStyle: 0, facial: 0, glasses: false, female: false, age: 1, build: 1, top: TOP.coat, color: COLOR.camel, sleeves: COLOR.camel, pants: 2, shoes: 3, hat: HAT.capBlack, gloves: false, seed: 23 }, [ - 2.0, 0.6 ], false ],
+	[ 'giles', { skin: 2, hair: 7, hairStyle: 3, facial: 0, glasses: false, female: false, age: 1, build: 2, top: TOP.coat, color: COLOR.brown, sleeves: COLOR.brown, pants: 2, shoes: 3, hat: HAT.capBlack, gloves: false, seed: 31 }, [ - 2.8, 0.05 ], false ],
+	[ 'gillick', { skin: 0, hair: 6, hairStyle: 3, facial: 0, glasses: true, female: false, age: 1, build: 1, top: TOP.coat, color: COLOR.tan, sleeves: COLOR.tan, pants: 3, shoes: 1, hat: HAT.capBlack, gloves: false, seed: 43 }, [ 0.4, 0.15 ], false ],
+	[ 'zelasko', { skin: 0, hair: 4, hairStyle: 1, facial: 0, glasses: false, female: true, age: 0, build: 0, top: TOP.coat, color: COLOR.lightGrey, sleeves: COLOR.lightGrey, pants: 1, shoes: 1, hat: HAT.none, gloves: true, seed: 57 }, [ - 0.1, 1.0 ], true ],
 	[ 'cmyers', { skin: 0, hair: 1, hairStyle: 0, facial: 0, glasses: false, female: false, age: 0, build: 1, top: TOP.coat, color: COLOR.navy, sleeves: COLOR.navy, pants: 3, shoes: 1, hat: HAT.none, gloves: false, seed: 61 }, [ 2.4, 0.9 ], true ],
 	[ 'mlb1', { skin: 1, hair: 1, hairStyle: 0, facial: 0, glasses: false, female: false, age: 0, build: 2, top: TOP.coat, color: COLOR.black, sleeves: COLOR.black, pants: 3, shoes: 1, hat: HAT.none, gloves: false, gear: GEAR.credential, seed: 71 }, [ - 3.0, - 0.9 ], false ],
 	[ 'mlb2', { skin: 3, hair: 0, hairStyle: 0, facial: 4, glasses: true, female: false, age: 0, build: 1, top: TOP.coat, color: COLOR.black, sleeves: COLOR.black, pants: 3, shoes: 1, hat: HAT.none, gloves: false, gear: GEAR.credential, seed: 83 }, [ 2.9, - 0.9 ], false ],
+	// ---- FR1: Chevrolet's man at the MVP's car (Getty 83486314: lean, short hair, a black jacket); unnamed
+	[ 'chevy', { skin: 0, hair: 1, hairStyle: 0, facial: 0, glasses: false, female: false, age: 0, build: 0, top: TOP.jacket, color: COLOR.black, sleeves: COLOR.black, pants: 3, shoes: 1, hat: HAT.none, gloves: false, seed: 89 }, null, false ],
 ];
 const KALAS = { skin: 0, hair: 7, hairStyle: 0, facial: 0, glasses: false, female: false, age: 1, build: 1, top: TOP.jacket, color: COLOR.lightGrey, sleeves: COLOR.lightGrey, pants: 3, shoes: 1, hat: HAT.capBlack, gloves: false, seed: 97 };
 // where Harry sang: on the grass in front of the Phillies' dugout's stands
@@ -80,6 +85,19 @@ export class Party {
 
 	}
 
+	// ---- FR1: where each stands once the players are up: the suits along the back rail, the two from FOX
+	// at the right-hand end
+	backOf( q ) {
+
+		const S = STAGE;
+		if ( q.key === 'zelasko' ) return S.point( 2.55, 0.55 );
+		if ( q.key === 'cmyers' ) return S.point( 2.75, - 0.25 );
+		const lx = { selig: - 0.9, montgomery: - 1.7, giles: - 2.4, gillick: - 0.1 }[ q.key ];
+		return lx == null ? this.spotOf( q ) : S.point( lx, - 1.1 + ( q.i % 2 ) * 0.12 );
+
+	}
+	// ---- end FR1
+
 	// cel: seconds since the last out (null otherwise). Returns where the trophy is if one of them has it
 	update( cel ) {
 
@@ -87,8 +105,9 @@ export class Party {
 		if ( ! on && ! this._was ) return null;
 		this._was = on;
 		let hold = null;
+		this.mvpHeld = null;
 		const S = STAGE, start = [ 15, 7 ];
-		const foot = S.point( S.W / 2 + 0.5, S.D / 2 + 0.6 ), step = S.point( S.W / 2 + 0.5, S.D / 2 - 1.3 );
+		const foot = S.point( ...S.stairs.foot ), step = S.point( ...S.stairs.step );
 		for ( const q of this.people ) {
 
 			const p = q.p;
@@ -99,6 +118,36 @@ export class Party {
 				continue;
 
 			}
+
+			// ---- FR1: Chevrolet's man, out once the car's parked to wait by it, applauding the MVP
+			if ( q.key === 'chevy' ) {
+
+				const t0c = CEL.carIn[ 1 ] + 2, w = ( cel - t0c ) * 1.4 / dist( start, MVP.chevy );
+				if ( w <= 0 ) {
+
+					p.visible = false;
+					continue;
+
+				}
+
+				if ( ! p.visible ) p.fresh = true;
+				p.visible = true;
+				const P = p.pose;
+				Object.assign( P, restPose() );
+				[ p.x, p.z ] = lerp2( start, MVP.chevy, Math.min( 1, w ) );
+				p.y = 0;
+				p.yaw = w < 1 ? yawTo( start, MVP.chevy ) : MVP.yaw;
+				P.walk = w < 1 ? 0.8 : 0;
+				P.phase = Math.min( 1, w ) * dist( start, MVP.chevy ) * 4.5;
+				const arms = cel > MVP.hand && cel < MVP.hand + 4 ? ARMS.clap : ARMS.rest;
+				P.armL = arms[ 0 ];
+				P.armR = arms[ 1 ];
+				P.headYaw = w >= 1 ? - 0.3 : 0;
+				P.breath = ( cel * 0.25 + q.i * 0.3 ) % 1;
+				continue;
+
+			}
+			// ---- end FR1
 
 			// out from the first base side's field gate, to the stairs, up, to his place
 			const top = this.spotOf( q );
@@ -126,11 +175,72 @@ export class Party {
 
 			}
 
+			// ---- FR1: Selig and Myers down the stairs to the car for the MVP (Getty 83486314), Selig by the
+			// hood for the MVP trophy on his way
+			let atMvp = false;
+			const tDown = CEL.mvp[ 0 ] - 12;
+			if ( ( q.key === 'selig' || q.key === 'cmyers' ) && cel > tDown ) {
+
+				const mv = MVP[ q.key ];
+				const h = MVP.hood, toward = Math.hypot( mv[ 0 ] - h[ 0 ], mv[ 1 ] - h[ 2 ] ) || 1;
+				const pick = [ h[ 0 ] + ( mv[ 0 ] - h[ 0 ] ) * 0.75 / toward, h[ 2 ] + ( mv[ 1 ] - h[ 2 ] ) * 0.75 / toward ];
+				// (along behind the others to the stairs, not across in front of Manuel)
+				const behind = q.key === 'selig' ? [ S.point( - 1.5, - 0.35 ) ] : [ S.point( 2.0, - 0.75 ), S.point( - 3.0, - 0.6 ) ];
+				const way = [ top, ...behind, step ];
+				const down = way.slice( 1 ).map( ( b, i ) => [ way[ i ], b, 1.3, S.H, S.H ] );
+				down.push( [ step, foot, 0.7, S.H, 0 ] );
+				const n0 = down.length;
+				if ( q.key === 'selig' ) down.push( [ foot, pick, 1.5, 0, 0 ], [ pick, mv, 1.2, 0, 0 ] );
+				else down.push( [ foot, mv, 1.5, 0, 0 ] );
+				let t2 = cel - tDown, leg = 0;
+				[ x, z ] = top;
+				y = S.H;
+				walking = false;
+				for ( const [ a, b, sp, y0, y1 ] of down ) {
+
+					const T = dist( a, b ) / sp;
+					if ( t2 <= 0 ) break;
+					const k = Math.min( 1, t2 / T );
+					[ x, z ] = lerp2( a, b, k );
+					y = y0 + ( y1 - y0 ) * k;
+					yaw = yawTo( a, b );
+					dd += dist( a, b ) * k;
+					walking = k < 1;
+					t2 -= T;
+					leg ++;
+
+				}
+
+				atMvp = true;
+				if ( ! walking ) yaw = MVP.yaw;
+				// (the MVP trophy: in Selig's hands from the hood until he gives it to Hamels)
+				q.carry = q.key === 'selig' && leg > n0 + 1 && cel < MVP.hand;
+
+			}
+			// ---- end FR1
+			// ---- FR1: facing out of the stage's front, to the plate and the stands (S.yaw had them looking
+			// out to right-center, their backs to everyone); and when the players come up, back to the rail
+			// out of their way (Zelasko and Myers to the right-hand end)
+			if ( ! walking && tt > 0 && ! atMvp ) {
+
+				yaw = S.face;
+				const kb = ease( ( cel - ( CEL.up - 3 ) ) / 1.6 );
+				if ( kb > 0 ) {
+
+					const b = this.backOf( q );
+					walking = kb < 1;
+					dd += dist( top, b ) * kb;
+					[ x, z ] = lerp2( top, b, kb );
+					if ( walking ) yaw = yawTo( top, b );
+
+				}
+
+			}
+			// ---- end FR1
 			const P = p.pose;
 			Object.assign( P, restPose() );
 			P.phase = dd * 4.5;
 			P.walk = walking ? 0.8 : 0;
-			if ( ! walking && tt > 0 ) yaw = S.yaw;
 			let arms = ARMS.rest;
 			if ( q.mic ) { arms = ARMS.mic; P.propR = PROP.mic; }
 			// Selig speaks, then gives the trophy to Montgomery; Montgomery holds it up; Gillick has it at
@@ -152,7 +262,19 @@ export class Party {
 			}
 
 			if ( q.key === 'zelasko' && talk( CEL.manuel[ 0 ], CEL.manuel[ 1 ] ) ) { P.mouth = 0.3 + 0.3 * Math.sin( cel * 7 ); P.headYaw = 0.5; }
-			if ( q.key === 'cmyers' && talk( CEL.mvp[ 0 ], CEL.mvp[ 1 ] ) ) { P.mouth = 0.3 + 0.3 * Math.sin( cel * 7 ); P.headYaw = 0.4; }
+			// ---- FR1: by the car, Selig with the MVP trophy at his chest, a word, then it's Hamels's; Myers
+			// with him after (Hamels on Myers's right as you face them, on his own left: Getty 83486314)
+			if ( q.carry ) {
+
+				arms = ARMS.chest;
+				P.propR = PROP.none;
+				this.mvpHeld = this.handsAt( p, [ 0, 1.16, - 0.3 ] );
+				if ( cel > MVP.hand - 3.5 ) P.mouth = 0.4 + 0.4 * Math.sin( cel * 9 );
+
+			}
+
+			if ( q.key === 'cmyers' && atMvp && ! walking && talk( MVP.hand + 1, CEL.mvp[ 1 ] ) ) { P.mouth = 0.3 + 0.3 * Math.sin( cel * 7 ); P.headYaw = - 0.45; }
+			// ---- end FR1
 			// the others applaud the moments
 			if ( ! q.mic && arms === ARMS.rest && ( talk( CEL.hand, CEL.hand + 5 ) || talk( CEL.up, CEL.up + 8 ) ) ) arms = ARMS.clap;
 			P.armL = arms[ 0 ];

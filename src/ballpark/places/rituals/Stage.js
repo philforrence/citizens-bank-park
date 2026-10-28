@@ -1,6 +1,6 @@
 import { Mesh, Group, BufferGeometry, Float32BufferAttribute, BoxGeometry, CylinderGeometry, SphereGeometry, Color, mergeGeometries } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
-import { STAGE, CEL } from '../../game/Celebration.js';
+import { STAGE, CEL, MVP } from '../../game/Celebration.js';
 
 // The trophy presentation's stage on the infield (Getty 83570999: a black-skirted platform about a metre
 // up, black pipe rails round its sides and back, the Commissioner's Trophy on a clear pedestal at one front
@@ -134,27 +134,42 @@ export class Stage {
 
 		};
 		bar( - W / 2, - D / 2, W / 2, - D / 2 );
-		bar( - W / 2, - D / 2, - W / 2, D / 2 - 0.4 );
-		bar( W / 2, - D / 2, W / 2, D / 2 - 1.3 );
+		bar( - W / 2, - D / 2, - W / 2, D / 2 - 1.3 );
+		bar( W / 2, - D / 2, W / 2, D / 2 - 0.4 );
 		this.parts.push( { obj: rail, t: CEL.stageBuild[ 0 ] + 26, from: [ 0, 1.2, 0 ] } );
-		// the stairs at the right-hand end (as seen from the front), with a handrail
+		// the stairs at the left-hand end as you face it, by the trophy's pedestal, with a handrail each side
+		// (FR1: ronniebruce 2988347232, Getty 83570999; STAGE.stairs: they were at the right-hand end, by
+		// the car)
 		const stairs = new Group();
+		const sx = - ( W / 2 + 0.5 );
 		for ( let k = 0; k < 4; k ++ ) {
 
 			const st = new Mesh( new BoxGeometry( 1.0, 0.04, 0.3 ), this.M.deck );
-			st.position.set( W / 2 + 0.5, ( k + 1 ) * H / 5, D / 2 - 0.35 - k * 0.3 );
+			st.position.set( sx, ( k + 1 ) * H / 5, D / 2 - 0.35 - k * 0.3 );
 			stairs.add( st );
 			const riser = new Mesh( new BoxGeometry( 1.0, ( k + 1 ) * H / 5, 0.3 ), this.M.skirt );
-			riser.position.set( W / 2 + 0.5, ( k + 1 ) * H / 10, D / 2 - 0.35 - k * 0.3 );
+			riser.position.set( sx, ( k + 1 ) * H / 10, D / 2 - 0.35 - k * 0.3 );
 			stairs.add( riser );
 
 		}
 
-		const hr = new Mesh( new CylinderGeometry( 0.022, 0.022, 1.6, 8 ), this.M.rail );
-		hr.rotation.x = 0.62;
-		hr.position.set( W / 2 + 1.0, H * 0.6 + 0.9, D / 2 - 0.8 );
-		stairs.add( hr );
-		this.parts.push( { obj: stairs, t: CEL.stageBuild[ 0 ] + 30, from: [ 3, 0, 0 ] } );
+		for ( const hx of [ sx - 0.5, sx + 0.42 ] ) {
+
+			const hr = new Mesh( new CylinderGeometry( 0.022, 0.022, 1.6, 8 ), this.M.rail );
+			hr.rotation.x = 0.62;
+			hr.position.set( hx, H * 0.6 + 0.9, D / 2 - 0.8 );
+			stairs.add( hr );
+			for ( const [ z, h ] of [ [ D / 2 - 0.2, 0.95 ], [ D / 2 - 1.3, 1.0 + H * 0.8 ] ] ) {
+
+				const post = new Mesh( new CylinderGeometry( 0.022, 0.022, h, 8 ), this.M.rail );
+				post.position.set( hx, h / 2, z );
+				stairs.add( post );
+
+			}
+
+		}
+
+		this.parts.push( { obj: stairs, t: CEL.stageBuild[ 0 ] + 30, from: [ - 3, 0, 0 ] } );
 		// the pedestal: a clear box at the front left corner, the trophy on it
 		const ped = new Mesh( new BoxGeometry( 0.55, 0.95, 0.55 ), this.M.acrylic );
 		ped.position.set( - W / 2 + 0.7, H + 0.475, D / 2 - 0.6 );
@@ -243,17 +258,32 @@ export class Stage {
 		this.car = camaro();
 		this.car.visible = false;
 		group.add( this.car );
+		// ---- FR1: the MVP trophy (on the car's hood until Selig takes it up)
+		this.mvp = mvpTrophy();
+		this.mvp.visible = false;
+		group.add( this.mvp );
+		// ---- end FR1
 
 	}
 
 	// cel: seconds since the last out; hold: where the trophy is ({ x, y, z, yaw } in the field frame) when
 	// someone has it, else it's on the pedestal
-	update( cel, hold ) {
+	update( cel, hold, mvp = null ) {
 
 		const on = cel != null && cel > CEL.stageBuild[ 0 ] - 1;
 		this.root.visible = on;
 		this.car.visible = on && cel > CEL.carIn[ 0 ];
 		this.trophy.visible = on && cel > CEL.trophyOut;
+		// ---- FR1: the MVP trophy: on the hood once the car's parked, then in Selig's hands, then Hamels's
+		this.mvp.visible = on && cel > CEL.carIn[ 1 ];
+		if ( this.mvp.visible ) {
+
+			const at = mvp || { x: MVP.hood[ 0 ], y: MVP.hood[ 1 ], z: MVP.hood[ 2 ], yaw: STAGE.carYaw };
+			this.mvp.position.set( at.x, at.y, at.z );
+			this.mvp.rotation.y = at.yaw;
+
+		}
+		// ---- end FR1
 		if ( ! on ) return;
 		// each piece carried in over its last few metres and set down; then all of it as one
 		const done = cel > this.built;
@@ -356,6 +386,46 @@ function trophy() {
 
 }
 
+// ---------------------------------------------------------------- FR1: the MVP trophy
+
+// the World Series MVP's trophy as Selig handed it to Hamels (Getty 83486314, 83486297; the FOX MVP frames):
+// a tall faceted silver spire, three slim tapering blades leaning together and twisting a little, on a
+// round silver base with a dark band; about half a metre
+function mvpTrophy() {
+
+	const g = new Group();
+	g.name = 'mvp-trophy';
+	const silver = standard( { name: 'mvp-silver', color: new Color( 0.86, 0.87, 0.9 ), roughness: 0.1, metalness: 1.0,
+		surface: 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.3;' } );
+	const band = standard( { name: 'mvp-band', color: new Color( 0.03, 0.03, 0.035 ), roughness: 0.3 } );
+	for ( const m of [ silver, band ] ) m.underwaterLighting = 'none';
+	const add = ( geo, m, x, y, z, rx = 0, ry = 0, rz = 0 ) => {
+
+		const o = new Mesh( geo, m );
+		o.position.set( x, y, z );
+		o.rotation.set( rx, ry, rz );
+		o.castShadow = true;
+		g.add( o );
+		return o;
+
+	};
+	add( new CylinderGeometry( 0.085, 0.095, 0.035, 24 ), silver, 0, 0.0175, 0 );
+	add( new CylinderGeometry( 0.083, 0.083, 0.03, 24 ), band, 0, 0.05, 0 );
+	add( new CylinderGeometry( 0.075, 0.083, 0.02, 24 ), silver, 0, 0.075, 0 );
+	for ( let k = 0; k < 3; k ++ ) {
+
+		const a = k / 3 * Math.PI * 2;
+		const blade = new CylinderGeometry( 0.004, 0.022, 0.42, 3 );
+		add( blade, silver, Math.cos( a ) * 0.025, 0.29, Math.sin( a ) * 0.025, Math.sin( a ) * 0.09, a + 0.5, - Math.cos( a ) * 0.09 );
+
+	}
+
+	g.userData.dynamic = true;
+	return bake( g );
+
+}
+// ---- end FR1
+
 // ---------------------------------------------------------------- the MVP's car
 
 // the red 2010 Camaro the MVP got (ronniebruce 2988348008): long hood, the high beltline and low roof,
@@ -402,15 +472,36 @@ function camaro() {
 	const bm = new Mesh( body, paint );
 	bm.castShadow = true;
 	g.add( bm );
-	const cab = new Mesh( new BoxGeometry( 1.5, 0.3, 1.45 ), glass );
-	cab.position.set( 0, 1.1, 0.5 );
-	g.add( cab );
-	const roof = new Mesh( new BoxGeometry( 1.4, 0.05, 0.95 ), paint );
-	roof.position.set( 0, 1.28, 0.55 );
-	g.add( roof );
-	const sun = new Mesh( new BoxGeometry( 0.7, 0.02, 0.5 ), glass );
-	sun.position.set( 0, 1.31, 0.45 );
-	g.add( sun );
+	// ---- FR1: the greenhouse lofted, not a box with a slab on it (the TV's MVP close-ups): the raked
+	// windshield, the low roof in body colour with its sunroof, the fast back glass, the sides tumbling in
+	{
+
+		// z, the sill's half width and height, the roof's half width and height
+		const gh = [ [ - 0.32, 0.86, 0.96, 0.84, 0.975 ], [ 0.18, 0.88, 0.985, 0.62, 1.255 ], [ 0.9, 0.9, 1.0, 0.63, 1.275 ], [ 1.62, 0.89, 1.02, 0.8, 1.035 ] ];
+		const gp = [], gi = [];
+		for ( const [ z, wb, yb, wt, yt ] of gh ) gp.push( - wb, yb, z, - wt, yt, z, wt, yt, z, wb, yb, z );
+		for ( let i = 0; i < gh.length - 1; i ++ ) for ( let k = 0; k < 3; k ++ ) {
+
+			const a = i * 4 + k, b = a + 1, c = a + 4, d = c + 1;
+			gi.push( a, c, b, b, c, d );
+
+		}
+
+		const geo = new BufferGeometry();
+		geo.setAttribute( 'position', new Float32BufferAttribute( gp, 3 ) );
+		geo.setIndex( gi );
+		geo.computeVertexNormals();
+		g.add( new Mesh( geo, glass ) );
+		// the roof panel over the glass between the pillars, and the sunroof in it
+		const roof = new Mesh( new BoxGeometry( 1.2, 0.03, 0.66 ), paint );
+		roof.position.set( 0, 1.27, 0.55 );
+		g.add( roof );
+		const sun = new Mesh( new BoxGeometry( 0.62, 0.012, 0.4 ), glass );
+		sun.position.set( 0, 1.288, 0.5 );
+		g.add( sun );
+
+	}
+	// ---- end FR1
 	for ( const [ x, z ] of [ [ - 0.86, - 1.45 ], [ 0.86, - 1.45 ], [ - 0.86, 1.5 ], [ 0.86, 1.5 ] ] ) {
 
 		const t = new Mesh( new CylinderGeometry( 0.36, 0.36, 0.26, 20 ), tyre );

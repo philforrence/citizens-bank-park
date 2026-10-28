@@ -32,7 +32,7 @@ const CELL = 128, COLS = 8, ROWS = 16, ATLAS_W = CELL * COLS, ATLAS_H = CELL * R
 const CHEST = [ 0.38, 0.22, 1.245 ];
 const CHEST_ASPECT = CHEST[ 0 ] / CHEST[ 1 ];
 // atlas cells: 0..MAX-1 the slots' backs, then the shared ones
-const C = { chestHome: 127, chestAway: 126, capHome: 125, capAway: 124, patch: 123, mlb: 122, jacketHome: 121, jacketAway: 120 };
+const C = { chestHome: 127, chestAway: 126, capHome: 125, capAway: 124, patch: 123, mlb: 122, jacketHome: 121, jacketAway: 120, capChamp: 119 }; // (FR1: capChamp)
 
 // what he's wearing (p.role)
 export const ROLE = {
@@ -82,6 +82,7 @@ export class Players {
 			drawChest( ctx, C.jacketAway, false, true );
 			drawCapLogo( ctx, C.capHome, true );
 			drawCapLogo( ctx, C.capAway, false );
+			drawChampCap( ctx, C.capChamp ); // ---- FR1
 			drawPatch( ctx, C.patch );
 			drawMLB( ctx, C.mlb );
 
@@ -457,10 +458,14 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			}
 		}
 		// ---- end FY2
-		// a jacket stands off the body; long pants hang loose over the shoe tops
-		if ( ( role & ${ R.jacket }u ) != 0u && ( ( arm > -0.5 && arm < ${ f( U.wrist ) } ) || ( arm < -0.5 && leg < -0.5 && lp3.y > ${ f( U.belt[ 0 ] - 0.08 ) } && lp3.y < ${ f( U.collar ) } ) ) ) {
-			lp3 += v.normal * 0.013;
+		// a jacket's sleeves stand off the arm (its body hangs from the shoulders: the hull below); long pants
+		// hang loose over the shoe tops
+		// ---- FR1: the jacket's body no longer pushed out along the normals here (+1.3 cm round a round
+		// trunk, on top of a big man's girth: Manuel's red jacket was a balloon, FB2's final3/E05)
+		if ( ( role & ${ R.jacket }u ) != 0u && arm > -0.5 && arm < ${ f( U.wrist ) } ) {
+			lp3 += v.normal * 0.007 * smoothstep( 0.02, 0.09, arm );
 		}
+		// ---- end FR1
 		if ( ( style & 1u ) == 0u && leg > 0.5 ) { lp3 += v.normal * 0.016 * smoothstep( 0.55, 0.84, leg ); }
 		// ---- FB2 (C2B-2): the 2008 cut hangs from the shoulders. (FY2's drape pushed the cloth out along
 		// the body's normals, which rounded a round trunk into a barrel and the seat and thighs into a
@@ -471,25 +476,37 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		// the pants straight from the hip to the knee, the outer thigh's bulge taken in and the
 		// hollow above the knee filled (Getty 83485455: Jenkins's broad back, the jersey loose from the
 		// shoulders and the pants straight; 83486198: Hinske's back; 83485884: the pants falling straight)
-		if ( ! phan && ( role & ${ R.jacket }u ) == 0u ) {
+		// ---- FR1: the dugout jacket through the same hull, a size up (it's over the jersey) and falling
+		// straight past the belt to its knit hem at the hip, gathered there (Getty 83570999: Manuel's, roomy
+		// and square from the shoulders; 83483743)
+		let jk = select( 0.0, 1.0, ( role & ${ R.jacket }u ) != 0u );
+		// ---- end FR1
+		if ( ! phan ) {
 			let back = smoothstep( -0.02, 0.1, lp3.z );
 			let ax = abs( lp3.x );
 			let sx = sign( lp3.x );
 			// the yoke: the shoulder line squared out to the deltoid (the trapezius' slope bridged)
 			let yoke = smoothstep( 0.08, 0.16, ax ) * smoothstep( 1.45, 1.54, lp3.y ) * ( 1.0 - smoothstep( 1.62, 1.66, lp3.y ) ) * select( 1.0, 0.0, arm > -0.5 );
 			if ( arm < -0.5 && leg < -0.5 && lp3.y < ${ f( U.collar ) } ) {
-				if ( lp3.y > ${ f( U.belt[ 1 ] ) } ) {
+				if ( lp3.y > ${ f( U.belt[ 1 ] ) } || ( jk > 0.5 && lp3.y > ${ f( U.belt[ 0 ] - 0.075 ) } ) ) {
 					let below = smoothstep( 1.45, 1.33, lp3.y );
 					let toBelt = smoothstep( 1.33, ${ f( U.belt[ 1 ] ) }, lp3.y );
 					let zc = -0.01;
-					let hx = 0.21 - 0.03 * toBelt;
-					let hz = select( 0.14, 0.136, lp3.z > zc ) - 0.01 * toBelt;
+					let hem = 1.0 - 0.03 * jk * smoothstep( ${ f( U.belt[ 0 ] - 0.03 ) }, ${ f( U.belt[ 0 ] - 0.075 ) }, lp3.y );
+					let hx = ( 0.21 + 0.014 * jk - 0.03 * toBelt * ( 1.0 - 0.5 * jk ) ) * hem;
+					let hz = ( select( 0.14, 0.136, lp3.z > zc ) + 0.012 * jk - 0.01 * toBelt * ( 1.0 - 0.5 * jk ) ) * hem;
 					let r = length( vec2f( lp3.x / hx, ( lp3.z - zc ) / hz ) );
 					if ( r < 1.0 && r > 0.05 ) {
 						let s = mix( 1.0, 1.0 / r, below );
 						lp3 = vec3f( lp3.x * s, lp3.y, zc + ( lp3.z - zc ) * s );
 					}
-					lp3 += v.normal * ( 0.006 + 0.012 * back * smoothstep( ${ f( U.belt[ 1 ] + 0.1 ) }, ${ f( U.belt[ 1 ] + 0.02 ) }, lp3.y ) );
+					// (FR1: a jacket's sides hang straight down from the chest, so a big man's belly fills its
+					// front, not its sides: it was a ball, wider at the belly than at the shoulders)
+					if ( jk > 0.5 ) {
+						lp3.x = clamp( lp3.x, - hx, hx );
+						lp3.z = clamp( lp3.z, zc - hz * 1.22, zc + hz * 1.06 );
+					}
+					lp3 += v.normal * ( 0.006 + 0.007 * jk + 0.012 * back * smoothstep( ${ f( U.belt[ 1 ] + 0.1 ) }, ${ f( U.belt[ 1 ] + 0.02 ) }, lp3.y ) * ( 1.0 - jk ) );
 				} else if ( lp3.y < ${ f( U.belt[ 0 ] ) } ) {
 					// the seat: the pants' cloth over it, not a bubble; the hips a little in
 					lp3 = vec3f( lp3.x * ( 1.0 - 0.05 * smoothstep( 0.11, 0.18, ax ) ), lp3.y, lp3.z );
@@ -502,7 +519,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			// the sleeves stand off the arm, hanging from the shoulder's point; the cap of the shoulder
 			// pressed a little flat under the cloth (the arm lowered from the mesh's A pose pops it up into a
 			// ball, like a shoulder pad)
-			if ( arm > -0.5 && arm < ${ f( U.sleeve ) } ) { lp3 += v.normal * ( 0.012 * smoothstep( 0.04, 0.1, arm ) - 0.01 * ( 1.0 - smoothstep( 0.0, 0.09, arm ) ) * smoothstep( 0.2, 0.75, v.normal.y ) ); }
+			if ( arm > -0.5 && arm < ${ f( U.sleeve ) } ) { lp3 += v.normal * ( 0.012 * smoothstep( 0.04, 0.1, arm ) * ( 1.0 - jk ) - 0.01 * ( 1.0 - smoothstep( 0.0, 0.09, arm ) ) * smoothstep( 0.2, 0.75, v.normal.y ) ); }
 			// the pants: from the hip to the knee about a straight cone round the thigh's bone
 			if ( leg > -0.5 && leg < 0.62 ) {
 				let hp = vec3f( sx * ${ f( J.hipR[ 0 ] ) }, ${ f( J.hipR[ 1 ] ) }, ${ f( J.hipR[ 2 ] ) } );
@@ -724,6 +741,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			else { part = ${ P.pants }; }
 			// a jacket's collar rides up the neck a little further
 			if ( jacket && part == ${ P.skin } && L.y < nk.y + 0.005 && L.z > nk.z - 0.06 ) { part = ${ P.jersey }; cuffKnit = true; }
+			// ---- FR1: a jacket comes down past the belt to its knit hem at the hip (it stopped at the belt)
+			if ( jacket && L.y > ${ f( U.belt[ 0 ] - 0.075 ) } && ( part == ${ P.belt } || part == ${ P.pants } ) ) { part = ${ P.jersey }; cuffKnit = L.y < ${ f( U.belt[ 0 ] - 0.047 ) }; }
+			// ---- end FR1
 			around = atan2( L.x, - L.z ) * 0.17;
 		}
 	}
@@ -787,8 +807,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			if ( r < 0.072 ) {
 				c = vec3f( 0.42, 0.02, 0.035 );
 				let pq = q / 0.06;
-				let stem = abs( pq.x + 0.2 ) < 0.14 && abs( pq.y ) < 0.7;
-				let bowl = abs( length( ( pq - vec2f( 0.05, 0.3 ) ) * vec2f( 1.0, 1.3 ) ) - 0.32 ) < 0.12 && pq.x > - 0.2;
+				// (FR1: the P the right way round as you face him: his own +x is your left; it read as a 9)
+				let stem = abs( pq.x - 0.2 ) < 0.14 && abs( pq.y ) < 0.7;
+				let bowl = abs( length( ( pq - vec2f( - 0.05, 0.3 ) ) * vec2f( 1.0, 1.3 ) ) - 0.32 ) < 0.12 && pq.x < 0.2;
 				if ( stem || bowl || r > 0.064 ) { c = vec3f( 0.8, 0.79, 0.76 ); }
 			}
 			if ( abs( L.x ) < 0.11 && abs( L.y - 1.195 ) < 0.02 ) { c = vec3f( 0.02, 0.04, 0.16 ); }
@@ -799,8 +820,27 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 	if ( part == ${ P.jersey } && jacket ) {
 		// the jacket: nylon with a sheen, a knit collar and cuffs, the zip down the front
 		c = jacketC; rough = 0.45;
+		// ---- FR1: the 2008 dugout jacket's piping (Getty 83483743, Manuel at the cage: the royal-blue band
+		// in the knit collar, the blue panel down the underside of the sleeve; 83570999: on down his side
+		// from the armpit to the hem): the Phillies' royal blue on the red, the Rays' Columbia blue on navy
+		let pipe = select( vec3f( 0.27, 0.5, 0.79 ), vec3f( 0.03, 0.06, 0.4 ), home );
+		if ( arm > -0.5 && arm < ${ f( U.wrist - 0.04 ) } ) {
+			let sd = sign( L.x );
+			let ax = normalize( vec3f( sd * ${ f( J.wristR[ 0 ] - J.shoulderR[ 0 ] ) }, ${ f( J.wristR[ 1 ] - J.shoulderR[ 1 ] ) }, ${ f( J.wristR[ 2 ] - J.shoulderR[ 2 ] ) } ) );
+			let under = normalize( vec3f( 0.0, -1.0, 0.0 ) + ax * ax.y );
+			let u = dot( Nb, under );
+			let fu = max( fwidth( u ), 1e-4 );
+			c = mix( c, pipe, clamp( ( u - 0.8 ) / fu + 0.5, 0.0, 1.0 ) * smoothstep( 0.05, 0.1, arm ) );
+		}
+		if ( arm < -0.5 && L.y < 1.37 && ! cuffKnit ) {
+			let sang = abs( abs( atan2( L.x, - L.z ) ) - 1.5708 );
+			let fs = max( fwidth( sang ), 1e-4 );
+			c = mix( c, pipe, clamp( ( 0.12 - sang ) / fs + 0.5, 0.0, 1.0 ) );
+		}
 		if ( cuffKnit ) { c = jacketC * 0.7; rough = 0.9; }
-		if ( arm < -0.5 && abs( L.x ) < 0.005 && L.z < 0.0 && L.y > ${ f( U.belt[ 1 ] ) } ) { c = vec3f( 0.25, 0.25, 0.26 ); rough = 0.3; }
+		if ( cuffKnit && arm < -0.5 && L.y > 1.4 ) { c = mix( pipe, jacketC * 0.7, smoothstep( ${ f( J.neck[ 1 ] - 0.012 ) }, ${ f( J.neck[ 1 ] + 0.002 ) }, L.y ) ); }
+		if ( arm < -0.5 && abs( L.x ) < 0.005 && L.z < 0.0 && L.y > ${ f( U.belt[ 0 ] - 0.047 ) } ) { c = vec3f( 0.25, 0.25, 0.26 ); rough = 0.3; }
+		// ---- end FR1
 	}
 	// the Phanatic: fur everywhere but his jersey (riding up over the belly) and his socks
 	if ( phan && part == ${ P.jersey } && ( L.y < 1.24 && arm < -0.5 ) ) { part = ${ P.hair }; }
@@ -844,6 +884,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 	let billPart = abs( in.vs.vField.x + 3.0 ) < 0.5;
 	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z < -0.35 && ! billPart ) {
 		cell = select( ${ C.capAway }.0, ${ C.capHome }.0, home || crew ); lu = 0.5 - L.x / 0.09; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.062 ) } ) / 0.09;
+		// ---- FR1: the black champions cap's round emblem, not the plain P
+		if ( ( role & ${ R.champCap }u ) != 0u && part == ${ P.cap } ) { cell = ${ C.capChamp }.0; }
+		// ---- end FR1
 	}
 	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z > 0.5 && Nb.y < 0.75 ) {
 		// the batterman at the back
@@ -1306,12 +1349,24 @@ function drawChest( ctx, i, home, jacket = false ) {
 		const k = Math.min( 1, W / ( ( wP + wRest ) * 0.8 ) );
 		ctx.scale( k * 0.8, k );
 		const x0 = - ( wP + wRest ) / 2, base = 22;
+		// ---- FR1: on the dugout jacket the white script is edged in royal blue (Getty 83570999)
+		if ( jacket ) {
+
+			ctx.strokeStyle = '#1f3d9a';
+			ctx.lineWidth = 9;
+			ctx.font = big;
+			ctx.strokeText( 'P', x0, base + 4 );
+			ctx.font = small;
+			ctx.strokeText( 'hillies', x0 + wP, base );
+
+		}
+		// ---- end FR1
 		ctx.fillStyle = jacket ? '#f4f2ec' : '#d01c2c';
 		ctx.font = big;
 		ctx.fillText( 'P', x0, base + 4 );
 		ctx.font = small;
 		ctx.fillText( 'hillies', x0 + wP, base );
-		ctx.fillStyle = jacket ? '#f4f2ec' : '#0b2a5b';
+		ctx.fillStyle = jacket ? '#1f3d9a' : '#0b2a5b'; // (FR1: the jacket's stars blue, as the jersey's)
 		for ( const pre of [ 'h', 'hill' ] ) {
 
 			const sx = x0 + wP + ctx.measureText( pre ).width + ctx.measureText( 'i' ).width * 0.55;
@@ -1349,6 +1404,62 @@ function drawChest( ctx, i, home, jacket = false ) {
 
 // the caps' fronts: the white script P on the Phillies' red; TB in white outlined in Columbia blue on the
 // Rays' navy
+// ---- FR1: the black 2008 champions cap's front (Getty 83570999, 83571356, 83486314; FOX's interview
+// frames): a round emblem, the Phillies' P in red on a navy disc in a white ring, a red ribbon across
+// its foot with 2008, CHAMPIONS arched over it; at a cap's size it reads as the round red, white and
+// blue mark it was, where the plain P read as the everyday cap
+function drawChampCap( ctx, i ) {
+
+	const [ x, y ] = cellXY( i );
+	ctx.save();
+	ctx.clearRect( x, y, CELL, CELL );
+	ctx.translate( x + CELL / 2, y + CELL / 2 + 4 );
+	ctx.fillStyle = '#e9e7e2';
+	ctx.beginPath();
+	ctx.arc( 0, 0, 40, 0, Math.PI * 2 );
+	ctx.fill();
+	ctx.fillStyle = '#13285e';
+	ctx.beginPath();
+	ctx.arc( 0, 0, 31, 0, Math.PI * 2 );
+	ctx.fill();
+	// the P
+	ctx.fillStyle = '#c8102e';
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.font = 'italic 700 46px Georgia, "Times New Roman", serif';
+	ctx.fillText( 'P', 1, - 3 );
+	// the ribbon and the year
+	ctx.fillStyle = '#c8102e';
+	ctx.beginPath();
+	ctx.moveTo( - 46, 16 );
+	ctx.lineTo( 46, 16 );
+	ctx.lineTo( 40, 34 );
+	ctx.lineTo( - 40, 34 );
+	ctx.closePath();
+	ctx.fill();
+	ctx.fillStyle = '#f4f2ec';
+	ctx.font = '900 17px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( '2008', 0, 26 );
+	// CHAMPIONS round the top of the ring
+	ctx.font = '900 11px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillStyle = '#13285e';
+	const word = 'CHAMPIONS';
+	for ( let k = 0; k < word.length; k ++ ) {
+
+		const a = - Math.PI / 2 + ( k - ( word.length - 1 ) / 2 ) * 0.2;
+		ctx.save();
+		ctx.translate( Math.cos( a ) * 35.5, Math.sin( a ) * 35.5 );
+		ctx.rotate( a + Math.PI / 2 );
+		ctx.fillText( word[ k ], 0, 0 );
+		ctx.restore();
+
+	}
+
+	ctx.restore();
+
+}
+// ---- end FR1
+
 function drawCapLogo( ctx, i, home ) {
 
 	const [ x, y ] = cellXY( i );

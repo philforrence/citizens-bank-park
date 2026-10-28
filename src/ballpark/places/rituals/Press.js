@@ -5,7 +5,7 @@ import { PILE } from '../../game/Celebration.js';
 // The press at the last out (Getty 83571364, John Iacono's: the photographers in among the hugs with
 // their long zooms, a flash on top; a FOX handheld on the shoulder; the boom mic in its fuzzy
 // windscreen over the heads; credentials on lanyards, bags at the hip): out of the camera wells at the
-// dugouts' ends a couple of seconds after the strikeout, round the pile in a ring, crouched in front and
+// dugouts' ends from ten seconds after the strikeout on (FR1), round the pile in a ring, crouched in front and
 // holding their cameras up over the heads behind; then each one after a man (Lidge, Ruiz, Howard,
 // Utley, Manuel, Hamels...), a few steps off him, working round him as he goes. Their flashes fire
 // all through it (Cast's PROP.slr). All Cast figures in P0's pool.
@@ -64,7 +64,11 @@ export class Press {
 				top: TOP[ pick( r, { jacket: 30, puffer: 22, leather: 10, work: 12, fleece: 14, coat: 4 } ) ],
 				color: Number( pick( r, { [ COLOR.black ]: 40, [ COLOR.navy ]: 22, [ COLOR.charcoal ]: 14, [ COLOR.red ]: 10, [ COLOR.olive ]: 6, [ COLOR.tan ]: 8 } ) ),
 				sleeves: COLOR.black, back: 0, chest: 0, pants: Number( pick( r, { 0: 24, 1: 24, 2: 20, 3: 24, 5: 8 } ) ), shoes: Number( pick( r, { 1: 40, 2: 30, 3: 20, 4: 10 } ) ),
-				hat: HAT[ pick( r, { none: 34, capBlack: 16, capNavy: 14, knitBlack: 14, capBack: 10, knitGrey: 6, capRed: 6 } ) ], poncho: 0,
+				// (---- FR1, C2B-21: no cap worn backwards. Cast's backwards cap drew a metre or two off its
+				// wearer's head on the near figure, the "thrown caps hanging in the air for minutes" round the
+				// stage and the pile: gauntlet r2 FR1, shots Q1 and Q3. The draw itself is Cast.js's; its share
+				// here goes to the black caps)
+				hat: HAT[ pick( r, { none: 34, capBlack: 26, capNavy: 14, knitBlack: 14, knitGrey: 6, capRed: 6 } ) ], poncho: 0,
 				scarf: r() < 0.12 ? 3 : 0, gloves: r() < 0.3, gear: GEAR.credential | ( r() < 0.5 ? GEAR.messenger : 0 ), seed: Math.floor( r() * 65536 ),
 			};
 			const p = this.cast.add( L );
@@ -104,8 +108,13 @@ export class Press {
 
 			}
 
-			// out of the well, a couple of seconds after it (the TV men first), running for the pile
-			const t0 = 2 + ( q.kind === 'photo' ? 0.6 + hash( q.i * 1.3 ) * 3.5 : 0.3 ), tt = cel - t0;
+			// ---- FR1 (C2B-21): out of the wells once security lets them, not at the strikeout: the players had
+			// the pile to themselves for the first seconds (puffygreenjacket 2993510687, ~20 s on: the first
+			// photographers just reaching the grass; FOX's high first frame of the pile, t16330s: four or five
+			// round it); FOX's handhelds and the boom first, at 9-13 s, then the photographers in a stream
+			// over the next forty seconds, the crush thickening as the pile comes apart
+			const t0 = q.kind === 'photo' ? 12 + 38 * Math.pow( hash( q.i * 1.3 ), 1.3 ) : 9 + hash( q.i * 2.7 ) * 4, tt = cel - t0;
+			// ---- end FR1
 			if ( tt < 0 ) {
 
 				p.visible = false;
@@ -132,7 +141,8 @@ export class Press {
 				yaw = Math.atan2( - ( PILE[ 0 ] - x ), - ( PILE[ 1 ] - z ) );
 				// (a third of them round Harry Kalas while he sings)
 				const a = kalas && q.i % 3 === 0 ? kalas : actors?.get( q.subject );
-				const k = ease( ( cel - 38 - hash( q.i ) * 8 ) / 4 );
+				// (FR1: the late ones shoot what's left of the pile a moment before going after their man)
+				const k = ease( ( cel - Math.max( 38 + hash( q.i ) * 8, t0 + run / speed + 2.5 ) ) / 4 );
 				if ( a && k > 0 ) {
 
 					const sa = a.yaw + q.side, fx = a.x - Math.sin( sa ) * q.dist, fz = a.z - Math.cos( sa ) * q.dist;

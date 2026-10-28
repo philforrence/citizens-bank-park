@@ -2,9 +2,9 @@ import { Mesh, Group, BufferGeometry, Float32BufferAttribute, CylinderGeometry, 
 import { standard } from '../../../materials/Materials.js';
 import { canvasTexture } from '../../geo.js';
 
-// The big red flag Brett Myers carried round the track on the lap (Getty 83570906; ronniebruce
-// 2987488477: the Phillies' red flag with its white and blue band along the pole, on a long pole held up
-// high, the cloth streaming back), and the pitching rubber Jamie Moyer dug out of the mound to keep (Getty
+// The big red flag Brett Myers carried round the track on the lap (Getty 83570906: red edged in navy, 2008
+// in big white numerals; ronniebruce 2987488477: on a long pole held up high, the cloth streaming back),
+// and the pitching rubber Jamie Moyer dug out of the mound to keep (Getty
 // 83571213: a slab of white rubber caked with clay, held in both hands; johnpaulendicott 3001401832: the
 // hole it left).
 
@@ -30,11 +30,13 @@ export class Flag {
 			surface: ( tex ? 's.albedo = textureSample( lfTex, smpAnisoClamp, in.uv ).rgb;' : '' ) + 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.3;' } );
 		this.cloth.underwaterLighting = 'none';
 		this.cloth.setDefine( 'WET_FABRIC', 1 );
-		// the cloth: 1.8 x 1.15 m off the pole's top, subdivided so it ripples
-		const pos = [], uv = [], nrm = [], idx = [], NX = 16, NY = 6, FW = 1.8, FH = 1.15;
+		// the cloth off the pole's top, subdivided so it ripples (---- FR1: the big one, about 2.6 x 1.6 m: in
+		// Getty 83570906 it takes two men, Myers on the pole and a teammate on its far corner; it was 1.8 x
+		// 1.15 and read as a pennant on TV)
+		const pos = [], uv = [], nrm = [], idx = [], NX = 20, NY = 7, FW = 2.6, FH = 1.6;
 		for ( let j = 0; j <= NY; j ++ ) for ( let i = 0; i <= NX; i ++ ) {
 
-			pos.push( i / NX * FW, 2.9 - j / NY * FH, 0 );
+			pos.push( i / NX * FW, 3.25 - j / NY * FH, 0 );
 			uv.push( i / NX, j / NY );
 			nrm.push( 0, 0, 1 );
 
@@ -55,8 +57,8 @@ export class Flag {
 		const cloth = new Mesh( g, this.cloth );
 		cloth.frustumCulled = false;
 		this.root.add( cloth );
-		const pole = new Mesh( new CylinderGeometry( 0.018, 0.022, 3.0, 8 ), standard( { name: 'lap-flag-pole', color: new Color( 0.25, 0.16, 0.08 ), roughness: 0.5 } ) );
-		pole.position.y = 1.5;
+		const pole = new Mesh( new CylinderGeometry( 0.019, 0.023, 3.35, 8 ), standard( { name: 'lap-flag-pole', color: new Color( 0.45, 0.32, 0.17 ), roughness: 0.5 } ) );
+		pole.position.y = 1.675;
 		this.root.add( pole );
 		this.root.visible = false;
 		this.root.userData.dynamic = true;
@@ -104,19 +106,37 @@ export class Flag {
 
 }
 
-// the flag: Phillies red, a white and blue band down the hoist, the script in white
+// ---- FR1: the flag as it was (Getty 83570906): Phillies red edged in navy all round, 2008 in big white
+// block numerals down its length, the little World Series mark low by the fly (it read "Phillies" in
+// script, with a white and blue band down the hoist)
 function drawFlag( ctx, w, h ) {
 
-	ctx.fillStyle = '#9b0a14';
+	ctx.fillStyle = '#a3121c';
 	ctx.fillRect( 0, 0, w, h );
-	ctx.fillStyle = '#ffffff';
-	ctx.fillRect( 0, 0, 44, h );
-	ctx.fillStyle = '#1b3a8c';
-	ctx.fillRect( 44, 0, 20, h );
-	ctx.fillStyle = '#ffffff';
-	ctx.font = 'italic 700 118px Georgia, "Times New Roman", serif';
+	ctx.strokeStyle = '#1b2f6e';
+	ctx.lineWidth = 12;
+	ctx.strokeRect( 6, 6, w - 12, h - 12 );
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
-	ctx.fillText( 'Phillies', w * 0.56, h * 0.52 );
+	ctx.font = '900 190px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+	ctx.lineJoin = 'round';
+	ctx.lineWidth = 6;
+	ctx.strokeStyle = '#1b2f6e';
+	ctx.strokeText( '2008', w * 0.5, h * 0.47, w * 0.82 );
+	ctx.fillStyle = '#f6f4ee';
+	ctx.fillText( '2008', w * 0.5, h * 0.47, w * 0.82 );
+	// the World Series mark, small, low toward the fly
+	const cx = w * 0.8, cy = h * 0.82;
+	ctx.fillStyle = '#f6f4ee';
+	ctx.beginPath();
+	ctx.arc( cx, cy, 24, 0, Math.PI * 2 );
+	ctx.fill();
+	ctx.fillStyle = '#1b2f6e';
+	ctx.beginPath();
+	ctx.arc( cx, cy, 17, 0, Math.PI * 2 );
+	ctx.fill();
+	ctx.fillStyle = '#c8102e';
+	ctx.fillRect( cx - 30, cy + 6, 60, 10 );
 
 }
+// ---- end FR1
