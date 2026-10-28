@@ -1145,7 +1145,8 @@ export class Bowl {
 		const faces = new Mesh( lq.geometry(), lampMat );
 		faces.name = 'roof-edge-lights';
 		this.group.add( faces );
-		const housing = this._lampHousing || ( this._lampHousing = standard( { name: 'roof-lamp-housings', color: new Color( 0.05, 0.05, 0.055 ), roughness: 0.45, metalness: 0.5 } ) );
+		// its own cache: the light towers' `lamp-housings` (built after this) glow from the street, these don't
+		const housing = this._roofLampHousing || ( this._roofLampHousing = standard( { name: 'roof-lamp-housings', color: new Color( 0.05, 0.05, 0.055 ), roughness: 0.45, metalness: 0.5 } ) );
 		housing.underwaterLighting = 'none';
 		const hm = new Mesh( hq.geometry(), housing );
 		hm.name = 'roof-lamp-housings';
