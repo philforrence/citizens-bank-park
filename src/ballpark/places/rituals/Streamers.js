@@ -52,8 +52,9 @@ function streamersGeometry() {
 
 		for ( let i = 0; i < n; i ++ ) {
 
+			// (wound to face up: the other way the double-sided material lit them from underneath, grey)
 			const p = base + i * 2;
-			idx.push( p, p + 2, p + 1, p + 1, p + 2, p + 3 );
+			idx.push( p, p + 1, p + 2, p + 1, p + 3, p + 2 );
 
 		}
 
