@@ -2,6 +2,7 @@ import { Group, Mesh, BufferGeometry, Float32BufferAttribute, Vector2, Color } f
 import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
+import { groundLightModule } from './GroundLight.js'; // ---- FC4 (C4R-4)
 
 // The ground round the ballpark: worn asphalt (the parking lots of the South Philadelphia Sports
 // Complex) out to the horizon, with a hole where the stadium's own ground is (Field.js).
@@ -43,7 +44,7 @@ export class Ground {
 			name: 'ground',
 			color: new Color( 0.1, 0.1, 0.095 ),
 			roughness: 0.92,
-			modules: [ commonModule ],
+			modules: [ commonModule, groundLightModule ], // ---- FC4 (C4R-4): groundLightModule
 			surface: /* wgsl */`
 	let xz = in.P.xz;
 	// broad patches, then finer grain: worn asphalt
@@ -92,6 +93,10 @@ ${ grid ? /* wgsl */`
 	}
 	// ---- end L
 ` : '' }
+	// ---- FC4 (C4R-4): the complex's street lamps and lot poles light the ground under them (GroundLight.js;
+	// it was black under every lamp), and on the 27th they and the banks lie in the water on it
+	s.emissive += s.albedo * groundLight( in.P ) * 3.4 + groundGlint( in.P );
+	// ---- end FC4
 `,
 		} );
 		this.material.underwaterLighting = 'none';

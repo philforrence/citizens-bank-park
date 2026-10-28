@@ -11,6 +11,7 @@ import { NEIGHBOURS } from './data/surroundings.js';
 import { plantTrees } from './places/gate3b/Trees.js'; // ---- FW2 (C2I-1): the near trees grown
 import { rng } from './places/gate3b/Mesher.js';
 import { W1_LOTS } from './places/gate3b/Cars.js'; // ---- FW2 (C2I-2): where W1 parks its real cars
+import { groundLightModule, bakeGroundLight } from './GroundLight.js'; // ---- FC4 (C4R-4): the lamps' light on the ground
 
 // The South Philadelphia Sports Complex and the blocks round it as they were in October 2008, from
 // OpenStreetMap (tools/build-complex.mjs): every building on its footprint (the rowhouses of South
@@ -302,7 +303,7 @@ export class Complex {
 		// lots read packed to the fences, as Getty's photos from the north-east on the 27th have them
 		const rot = this.field.group.rotation.y;
 		const mat = standard( {
-			name: 'parking-lots', color: new Color( 0.075, 0.075, 0.072 ), roughness: 0.9, modules: [ commonModule, lotCarsModule ],
+			name: 'parking-lots', color: new Color( 0.075, 0.075, 0.072 ), roughness: 0.9, modules: [ commonModule, lotCarsModule, groundLightModule ], // ---- FC4: groundLightModule
 			attributes: { aLot: 'vec2f' }, varyings: { vLot: 'vec2f' }, vertex: 'o.vLot = v.aLot;',
 			uniforms: {
 				fieldRot: [ 'vec4f', new Vector4( Math.cos( rot ), Math.sin( rot ), 0, 0 ) ],
@@ -380,14 +381,16 @@ export class Complex {
 	if ( carHit ) { s.roughness = mix( 0.35, 0.15, frame.wet ); }
 	// ---- end FW2
 	// pools under the poles
-	let g = ( fract( vec2f( q.x / ${ LOT_U.toFixed( 2 ) }, q.y / ${ LOT_V.toFixed( 2 ) } ) + 0.5 ) - 0.5 ) * vec2f( ${ LOT_U.toFixed( 2 ) }, ${ LOT_V.toFixed( 2 ) } );
-	let pool = exp( - dot( g, g ) / ( 2.0 * 10.0 * 10.0 ) );
 	// ---- L: white, and a pool on the asphalt, not a lit carpet (from the air on the night the lots are
 	// dark between the poles: FOX's blimp shots, Getty 83476821)
 	// (CB-14: the pool lights the asphalt; the stall lines only a little more than it, so they don't comb
 	// the lots with glowing stripes, and the light falls off sooner between the poles: roadieshow
 	// 3024603196, Getty 83476764, Oct 27)
-	s.emissive = select( mix( asphalt, c, 0.35 ), c * 0.45, carHit ) * vec3f( ${ HALIDE.join( ', ' ) } ) * ( pool * pool * 3.2 + pool * 0.22 ) * smoothstep( 0.2, 0.8, frame.night );
+	// ---- FC4 (C4R-4): under the poles drawn (GroundLight.js: the lots' and the streets' lamps baked; the
+	// pools came from a grid of their own, lit where no pole stood and dark under the ones that did), and on
+	// the 27th the lamps and the banks in the water lying on it
+	s.emissive = select( mix( asphalt, c, 0.35 ), c * 0.45, carHit ) * groundLight( in.P ) * 3.4 + select( groundGlint( in.P ), vec3f( 0.0 ), carHit );
+	// ---- end FC4
 ` } );
 		this.lotMaterial = mat;
 		this._add( b.geometry( 'aLot' ), mat, 'parking-lots' );
@@ -870,6 +873,8 @@ export class Complex {
 		}
 
 		this.poleCount = n;
+		// ---- FC4 (C4R-4): their light on the ground, for the lots, the roads and the ground (GroundLight.js)
+		bakeGroundLight( this.poles, lotPoles, this.field.group.rotation.y );
 
 	}
 
