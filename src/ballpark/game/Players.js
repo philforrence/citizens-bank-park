@@ -22,7 +22,7 @@ import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 
 const MAX = 96;
 const COSTUMES = 4; // the Phanatic's costume's draw: at most this many of him at once
-const LOD_PX = 64; // ---- SP2: a player shorter than this on screen (px of the view's height) is drawn far
+const LOD_PX = 128; // ---- SP2: a player shorter than this on screen (px of the view's height) is drawn far
 const K = 4; // vec4s per slot
 const Z16 = new Float32Array( 16 );
 const CELL = 128, COLS = 8, ROWS = 16, ATLAS_W = CELL * COLS, ATLAS_H = CELL * ROWS;
