@@ -224,9 +224,8 @@ export function nearestAlong( P, p ) {
 
 // ---- SP1 (speed): a non-indexed geometry (Quads: two triangles a quad, each with its own three
 // corners) indexed, its identical vertices (every attribute equal) shared: the vertex shader runs once
-// per corner, not once per triangle corner. The triangles and what they show are unchanged. (For the
-// seats, `return indexed( g )` at the end of Stands.js's seatGeometry(): 24 vertices a seat, not 36,
-// measured -0.25 to -0.55 ms in the walking views; left to FW1, who has seatGeometry now.)
+// per corner, not once per triangle corner. The triangles and what they show are unchanged. (The seats,
+// Stands.js seatGeometry(): 24 vertices a seat, not 36.)
 export function indexed( g ) {
 
 	if ( g.index ) return g;
