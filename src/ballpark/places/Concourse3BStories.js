@@ -223,7 +223,12 @@ export class Stories {
 			const wave = Math.max( 0, Math.sin( t * 0.35 + g.order * 9 ) - 0.3 ) / 0.7;
 			const a = g.p.pose;
 			a.armL = [ 0.25, 0.1, 0.45, 1.2 ];
-			a.armR = lerpArm( [ 0.25, 0.1, 0.45, 1.25 ], [ 1.2, 0.8, - 0.4, 0.6 + 0.4 * Math.sin( t * 5 ) ], wave );
+			// ---- FW4 (C3W-7): the wave a beckon, this way: the upper arm out a little and low, the forearm
+			// swinging open from the elbow and back (it was the whole arm held out straight at the shoulder's
+			// height, a T, between the beats)
+			const bk = Math.sin( t * 2.4 + g.order * 2 );
+			a.armR = lerpArm( [ 0.25, 0.1, 0.45, 1.25 ], [ 0.6 + 0.08 * bk, 0.32 + 0.3 * ( 0.5 + 0.5 * bk ), - 0.2, 1.35 - 0.45 * bk ], wave );
+			// ---- end FW4
 			a.headYaw = Math.sin( t * 0.3 + g.order * 5 ) * 0.5;
 			a.blink = ( t * 0.3 + g.order ) % 1 < 0.04 ? 1 : 0;
 			this._place( g, g.s, g.d, Walkway.yaw( ...this._dir( g, 0, 1 ) ), dt );

@@ -81,6 +81,56 @@ export function buildCelebration( { group, cast, statue, lift } ) {
 
 				}
 
+				// ---- FW4 (C3W-7): once there, each goes through it his own way and at his own pace: arms up
+				// and jumping for a beat, then clapping, a fist pumped, an arm round the next one, both hands on
+				// his head, a phone up to film it, turning to look up Pattison, and up again (it was one pose
+				// held by all: both arms straight up in a V, standing still, 25 of them along the sidewalk; the
+				// photos have them every which way: ronniebruce 2988349308, jhirsch628 3000680238)
+				if ( k >= 1 && ( act === 'jump' || act === 'wave' ) ) {
+
+					const T = c.t * 0.16 + i * 0.37, beat = Math.floor( T ), u = T - beat;
+					const pick = ( beat * 7 + i * 3 ) % 6;
+					const s1 = Math.sin( c.t * 7 ), s2 = Math.sin( c.t * 3.1 + i );
+					// (a beat's first and last moments ease from and into the next)
+					const ease = Math.min( 1, u * 6, ( 1 - u ) * 6 );
+					// (standing: the act's jump taken back off)
+					const y0 = c.f.y - ( act === 'jump' ? Math.max( 0, Math.sin( c.t * 6 ) ) * 0.28 : Math.max( 0, Math.sin( c.t * 5 ) ) * 0.12 );
+					if ( pick === 1 ) {
+
+						// clapping, the hands up in front
+						p.flexL = 1.2 * ease; p.abductL = - 0.35 + 0.25 * s1; p.elbowL = 1.3; p.flexR = 1.2 * ease; p.abductR = - 0.35 + 0.25 * s1; p.elbowR = 1.3;
+						p.pitch = 0.1; c.f.y = y0;
+
+					} else if ( pick === 2 ) {
+
+						// a fist pumped, the other arm down
+						p.flexR = 2.4 + 0.35 * s1 * ease; p.abductR = 0.15; p.elbowR = 0.9 - 0.6 * s1; p.flexL = 0.15; p.abductL = 0.1; p.elbowL = 0.4;
+						p.pitch = 0.25; c.f.y = y0;
+
+					} else if ( pick === 3 ) {
+
+						// hands on his head, can't believe it, looking round
+						p.flexL = 2.3 * ease; p.abductL = 0.55; p.elbowL = 2.4; p.flexR = 2.3 * ease; p.abductR = 0.55; p.elbowR = 2.4;
+						p.yaw = 0.7 * s2; p.pitch = - 0.2; c.f.y = y0;
+
+					} else if ( pick === 4 ) {
+
+						// arms down, walking it off: a turn to look up the street and back
+						p.flexL = 0.1; p.abductL = 0.08; p.elbowL = 0.3; p.flexR = 0.1; p.abductR = 0.08; p.elbowR = 0.3;
+						p.yaw = 1.1 * Math.sin( c.t * 0.5 + i ); p.pitch = 0.05; c.f.y = y0;
+
+					} else if ( pick === 5 ) {
+
+						// an arm round the shoulders of the one beside him, the other up
+						p.flexL = 0.9; p.abductL = 1.3; p.elbowL = 1.6; p.flexR = 2.6 * ease; p.abductR = - 0.2; p.elbowR = 0.35;
+						p.pitch = 0.2; c.f.y = y0 + Math.max( 0, Math.sin( c.t * 4 ) ) * 0.05;
+
+					}
+					// (pick 0: as the act has it: arms up and jumping, or the towel going round)
+
+				}
+				// ---- end FW4
+
 			} } } );
 		if ( c ) list.push( c );
 		if ( c && act === 'photo' ) flashers.push( c );
