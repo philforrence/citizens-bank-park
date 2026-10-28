@@ -1,7 +1,7 @@
 import { Group, Mesh, InstancedMesh, BufferGeometry, Float32BufferAttribute, Matrix4, Quaternion, Vector2, Vector3, Color } from '../engine/index.js';
 import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { standard } from '../materials/Materials.js';
-import { beam } from './geo.js';
+import { beam, indexed } from './geo.js';
 
 // Seating tiers, built the way real stands are: the front edge is a polyline of straight sections;
 // each section's rows are straight and parallel to its front, rising step by step away from the
@@ -538,7 +538,10 @@ export function seatGeometry( down = false ) {
 	add( GREY, [ sx - 0.005, 0.6, - 0.14 ], [ sx + 0.045, 0.6, - 0.14 ], [ sx + 0.045, 0.6, 0.22 ], [ sx - 0.005, 0.6, 0.22 ], [ 0, 1, 0 ] );
 	const g = q.geometry();
 	g.setAttribute( 'color', new Float32BufferAttribute( col, 3 ) );
-	return g;
+	// ---- SP1 (speed): indexed, a quad's two triangles sharing their corners (geo.js indexed()): 24
+	// vertices shaded a seat, not 36, for every one of the 45,000; the same triangles
+	return indexed( g );
+	// ---- end SP1
 
 }
 
