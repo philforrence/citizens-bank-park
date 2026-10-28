@@ -567,6 +567,44 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			lp3 = cc + ( lp3 - cc ) * ( 1.0 - 0.08 * smoothstep( ${ f( F.eyeR[ 1 ] + 0.05 ) }, ${ f( F.eyeR[ 1 ] + 0.085 ) }, lp3.y ) );
 		}
 		// ---- end FB2
+		// ---- FB3 (C3B-11): seen from above, in the high cameras' pitcher close-ups, FB2's cut read as
+		// shoulder pads, belled sleeves, a pillow at the belt and a modelled crotch (gauntlet r3 C3B, S101,
+		// S106; FOX t11530s, Balfour from above: the shoulders slope, the sleeves fall, the jersey goes
+		// straight into the belt; 2008's pants baggy, the seat deep). The shoulder line slopes down again
+		// from 7 cm in from its point (the squaring kept by the neck); the sleeve's top drawn in to the arm
+		// and its underside let down toward the hem; the hull eased into the belt over its last 6 cm rather
+		// than standing out over it; the tops of the inner thighs drawn in and down, a sag of cloth for a
+		// crotch, not a V. (The jacket keeps its own: FR1's.)
+		if ( ! phan && jk < 0.5 ) {
+			let ax = abs( lp3.x );
+			let sx = sign( lp3.x );
+			if ( arm < -0.5 && leg < -0.5 ) {
+				let slope = smoothstep( 0.12, 0.2, ax ) * smoothstep( 1.43, 1.5, lp3.y ) * ( 1.0 - smoothstep( 1.62, 1.68, lp3.y ) );
+				lp3 += vec3f( - sx * 0.01, - 0.028, 0.0 ) * slope;
+				let b1 = ${ f( U.belt[ 1 ] ) };
+				if ( lp3.y > b1 - 0.005 && lp3.y < b1 + 0.06 ) {
+					let e = 1.0 - 0.6 * ( 1.0 - smoothstep( b1, b1 + 0.06, lp3.y ) );
+					if ( ax > 0.15 ) { lp3.x = sx * ( 0.15 + ( ax - 0.15 ) * e ); }
+					if ( lp3.z < -0.12 ) { lp3.z = -0.12 + ( lp3.z + 0.12 ) * e; }
+					if ( lp3.z > 0.11 ) { lp3.z = 0.11 + ( lp3.z - 0.11 ) * mix( 0.7, 1.0, e ); }
+				}
+			}
+			if ( arm > -0.5 && arm < ${ f( U.sleeve + 0.01 ) } ) {
+				let up = smoothstep( 0.15, 0.8, v.normal.y ) * smoothstep( 0.04, 0.1, arm );
+				let dn = smoothstep( -0.15, -0.75, v.normal.y ) * smoothstep( 0.06, ${ f( U.sleeve ) }, arm );
+				lp3 += v.normal * ( -0.013 * up ) + vec3f( 0.0, -0.016 * dn, 0.0 );
+				// the cap of the shoulder taken in round the arm's bone (the A pose's deltoid, lowered, is a ball)
+				let sh = vec3f( sx * ${ f( J.shoulderR[ 0 ] ) }, ${ f( J.shoulderR[ 1 ] ) }, ${ f( J.shoulderR[ 2 ] ) } );
+				let ab = normalize( vec3f( sx * ${ f( J.elbowR[ 0 ] - J.shoulderR[ 0 ] ) }, ${ f( J.elbowR[ 1 ] - J.shoulderR[ 1 ] ) }, ${ f( J.elbowR[ 2 ] - J.shoulderR[ 2 ] ) } ) );
+				let dv = lp3 - sh;
+				lp3 -= ( dv - ab * dot( dv, ab ) ) * 0.14 * ( 1.0 - smoothstep( 0.05, 0.15, arm ) );
+			}
+			if ( leg > -0.5 && leg < 0.16 ) {
+				let w = smoothstep( -0.2, -0.7, v.normal.x * sx ) * ( 1.0 - smoothstep( 0.02, 0.16, leg ) );
+				lp3 = vec3f( lp3.x * ( 1.0 - 0.42 * w ), lp3.y - 0.05 * w, lp3.z );
+			}
+		}
+		// ---- end FB3
 		// ---- A (Phanatic): the rain slicker's sleeves stand off the fur (its body: the costume's, below)
 		if ( phan && ( role & ${ R.slicker }u ) != 0u ) {
 			if ( arm > -0.5 && arm < ${ f( U.wrist - 0.03 ) } ) { lp3 += v.normal * 0.028; }
