@@ -773,6 +773,19 @@ export function jump( t ) {
 
 }
 
+// ---- FR2: in the air leaping onto the pile: the knees drawn up under him, the trail leg kicked back,
+// the arms reaching forward and up for the men he's landing on (the root lifted and tilted by the caller)
+export function leap( seed = 0 ) {
+
+	const r = ( k ) => Math.sin( seed * 12.9898 + k * 78.233 ) * 0.5;
+	return P( {
+		pelvisY: DIM.hip - 0.02, pelvis: [ - 0.15, r( 1 ) * 0.2, 0 ], torso: [ - 0.3, r( 2 ) * 0.3, 0 ], head: [ 0.25, r( 3 ) * 0.4 ],
+		footL: [ - 0.14, 0.42 + r( 4 ) * 0.1, 0.12 ], footR: [ 0.15, 0.3 + r( 5 ) * 0.1, 0.42 ], footYawL: 0.1, footYawR: - 0.1,
+		handL: [ - 0.3, 1.55 + r( 6 ) * 0.2, - 0.5 ], handR: [ 0.3, 1.62 + r( 7 ) * 0.2, - 0.48 ], glove: false,
+	} );
+
+}
+
 // lying in the pile: arms and legs out (the root is tilted by the caller)
 export function sprawl( seed = 0 ) {
 

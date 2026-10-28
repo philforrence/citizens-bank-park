@@ -142,11 +142,15 @@ function slot( k ) {
 
 	const a = k * 2.39996 + 0.7;
 	const dir = [ Math.cos( a ), Math.sin( a ) ];
+	// ---- FR2: grounded, as Getty 84082573 has it: Lidge and Ruiz down on the grass, the rest leaping in
+	// and coming down on their feet, bent right over the backs of the men in the middle, arms round them,
+	// pressing in, the first ones furthest over (they were pitched 40-55 degrees about their feet with the
+	// feet raised up to 0.9 m: men floating flat in the air over Lidge, legs dangling)
 	if ( k < 9 ) {
 
 		const layer = Math.floor( k / 3 );
-		const r = 0.95 + 0.1 * ( k % 3 ) + 0.14 * layer;
-		return { kind: 'lie', dir, r, y: 0.22 + 0.3 * layer + 0.07 * ( k % 3 ), pitch: - ( 0.7 + 0.25 * hash( k + 3 ) ) + 0.06 * layer, roll: ( hash( k + 7 ) - 0.5 ) * 0.5 };
+		const r = 1.05 + 0.08 * ( k % 3 ) + 0.16 * layer;
+		return { kind: 'lie', dir, r, y: 0.01, pitch: - ( 0.62 + 0.18 * hash( k + 3 ) ) + 0.1 * layer, roll: ( hash( k + 7 ) - 0.5 ) * 0.3, arc: layer === 0 ? 0.42 : 0.2, press: true };
 
 	}
 
@@ -233,8 +237,9 @@ function plan( d, seg ) {
 	add( ruiz, { role: ROLE.gear | ROLE.ccap, field: true } ).steps.push(
 		{ t0: 0, t1: 2.4, kind: 'go', a: POSITIONS.C, b: rIn, gait: 'run' },
 		{ t0: 2.4, t1: tHit, kind: 'hold', p: rIn, yaw: yawTo( rIn, C ), y: cy, pose: ( tau ) => M.embrace( tau, 0.35 ) },
-		{ t0: tHit, t1: tHit + 0.5, kind: 'fall', a: rIn, p: rTo, yaw: yawTo( rIn, C ), y0: cy, y1: cy + 0.42, pitch: - 1.05, roll: - 0.15, pose0: () => M.embrace( 1, 0.35 ), pose: () => R.inPile( 5 ) },
-		{ t0: tHit + 0.5, t1: CEL.pileHold + 12, kind: 'lie', p: rTo, yaw: yawTo( rIn, C ), y: cy + 0.42, pitch: - 1.05, roll: - 0.15, pose: ( tau ) => R.inPile( 5, tau ) },
+		// (---- FR2: down on top of him, his knees on the grass: not 0.4 m up)
+		{ t0: tHit, t1: tHit + 0.5, kind: 'fall', a: rIn, p: rTo, yaw: yawTo( rIn, C ), y0: cy, y1: cy + 0.14, pitch: - 1.18, roll: - 0.15, pose0: () => M.embrace( 1, 0.35 ), pose: () => R.inPile( 5 ) },
+		{ t0: tHit + 0.5, t1: CEL.pileHold + 12, kind: 'lie', p: rTo, yaw: yawTo( rIn, C ), y: cy + 0.14, pitch: - 1.18, roll: - 0.15, pose: ( tau ) => R.inPile( 5, tau ) },
 	);
 	// ---- Howard: the dive from the first base side
 	if ( howard ) {
@@ -245,8 +250,10 @@ function plan( d, seg ) {
 		add( howard.id, { field: true } ).steps.push(
 			{ t0: 0, t1: howard.react, kind: 'hold', p: howard.from, yaw: yawTo( howard.from, C ), y: 0, pose: ( tau ) => M.jump( tau ) },
 			{ t0: howard.react, t1: tHit - 0.35, kind: 'go', a: howard.from, b: approach, gait: 'run' },
-			{ t0: tHit - 0.35, t1: tHit + 0.2, kind: 'dive', a: approach, p: root, yaw: yawTo( root, C ), y: cy + 0.8, pitch: - 1.25, roll: 0.2, pose: () => R.inPile( 9 ) },
-			{ t0: tHit + 0.2, t1: CEL.pileHold + 11, kind: 'lie', p: root, yaw: yawTo( root, C ), y: cy + 0.8, pitch: - 1.25, roll: 0.2, pose: ( tau ) => R.inPile( 9, tau ) },
+			// (---- FR2: a leap, coming down on his feet bent right over the two of them, arms round them: not
+			// lying 0.8 m up with his legs out behind)
+			{ t0: tHit - 0.35, t1: tHit + 0.2, kind: 'dive', a: approach, p: root, yaw: yawTo( root, C ), y: moundY( root[ 0 ], root[ 1 ] ), pitch: - 0.82, roll: 0.15, arc: 0.5, pose: () => pressIn( 0, 0.3 ) },
+			{ t0: tHit + 0.2, t1: CEL.pileHold + 11, kind: 'lie', p: root, yaw: yawTo( root, C ), y: moundY( root[ 0 ], root[ 1 ] ), pitch: - 0.82, roll: 0.15, pose: ( tau ) => pressIn( tau, 0.3 ) },
 		);
 
 	}
@@ -268,9 +275,12 @@ function plan( d, seg ) {
 		const tUp = CEL.pileHold + Math.max( 0, 9 - k ) * CEL.upStep * 0.6 + hash( k * 5 ) * 0.8;
 		if ( S.kind === 'lie' ) {
 
+			// (---- FR2: the ones lunging in bent over the backs, pressing; the ones on top sprawled)
+			const lie = S.press ? ( tau ) => pressIn( tau, hash( k * 2.3 ) ) : ( tau ) => R.inPile( k + 11, tau );
+			const ground = S.press ? moundY( root[ 0 ], root[ 1 ] ) : cy;
 			st.push(
-				{ t0: tAt, t1: tAt + 0.5, kind: 'dive', a: approach, p: root, yaw: yawIn, y: cy + S.y, pitch: S.pitch, roll: S.roll, pose: () => R.inPile( k + 11 ) },
-				{ t0: tAt + 0.5, t1: tUp, kind: 'lie', p: root, yaw: yawIn, y: cy + S.y, pitch: S.pitch, roll: S.roll, pose: ( tau ) => R.inPile( k + 11, tau ) },
+				{ t0: tAt, t1: tAt + 0.5, kind: 'dive', a: approach, p: root, yaw: yawIn, y: ground + S.y, pitch: S.pitch, roll: S.roll, arc: S.arc, pose: () => lie( 0 ) },
+				{ t0: tAt + 0.5, t1: tUp, kind: 'lie', p: root, yaw: yawIn, y: ground + S.y, pitch: S.pitch, roll: S.roll, pose: lie },
 			);
 			info.freeAt = tUp;
 			info.freeP = approach;
@@ -666,14 +676,32 @@ function evalSteps( steps, t, info ) {
 
 	}
 
-	if ( s.kind === 'dive' || s.kind === 'fall' ) {
+	if ( s.kind === 'dive' ) {
+
+		// ---- FR2: a leap onto the pile. Off his last stride, up in an arc (ballistic: s.arc over the line
+		// from his feet to where he lands), knees up and arms reaching; he goes over into the pile only as he
+		// comes down onto it. (It was pitched over from the take-off on an eased path with a sine hop: men
+		// gliding in flat, arms out, for half a second: FB3's A-lastout-s4.2, s6.0)
+		const a = s.a || s.p;
+		const p = lerp2( a, s.p, k );
+		const y0 = moundY( a[ 0 ], a[ 1 ] );
+		const y = y0 + ( s.y - y0 ) * k + ( s.arc ?? 0.4 ) * 4 * k * ( 1 - k );
+		const over = 0.15 * k + 0.85 * ease( ( k - 0.45 ) / 0.55 );
+		const air = M.leap( ph * 7 );
+		const pose = k < 0.45 ? M.blend( M.run( 0.3 + ph, 1 ), air, ease( k / 0.3 ) ) : M.blend( air, s.pose(), ease( ( k - 0.45 ) / 0.55 ) );
+		pose.glove = false;
+		return { x: p[ 0 ], z: p[ 1 ], yaw: s.yaw, y, pose, tilt: tiltOf( s.pitch * over, s.roll * over ) };
+
+	}
+
+	if ( s.kind === 'fall' ) {
 
 		const e = ease( k );
 		const a = s.a || s.p;
 		const p = lerp2( a, s.p, e );
 		const y0 = s.y0 ?? moundY( a[ 0 ], a[ 1 ] );
 		const y1 = s.y1 ?? s.y;
-		const y = y0 + ( y1 - y0 ) * e + ( s.kind === 'dive' ? Math.sin( Math.PI * k ) * 0.5 : 0 );
+		const y = y0 + ( y1 - y0 ) * e;
 		const pose = s.pose0 ? M.blend( s.pose0(), s.pose(), e ) : M.blend( M.run( 0.3, 1 ), s.pose(), e );
 		pose.glove = false;
 		return { x: p[ 0 ], z: p[ 1 ], yaw: s.yaw, y, pose, tilt: tiltOf( s.pitch * e, s.roll * e ) };
@@ -682,10 +710,9 @@ function evalSteps( steps, t, info ) {
 
 	if ( s.kind === 'lie' ) {
 
-		// getting up at the end of it: over the last 0.8 s back onto his feet beside it
-		const up = info.freeAt != null && s.t1 === info.freeAt ? 0 : 0;
-		void up;
-		return { x: s.p[ 0 ], z: s.p[ 1 ], yaw: s.yaw, y: s.y, pose: s.pose( tau ), tilt: tiltOf( s.pitch, s.roll ) };
+		// (---- FR2: a give as he lands on them, taken up again in a third of a second)
+		const give = tau < 0.35 ? - 0.06 * Math.sin( Math.PI * tau / 0.35 ) : 0;
+		return { x: s.p[ 0 ], z: s.p[ 1 ], yaw: s.yaw, y: s.y + give, pose: s.pose( tau ), tilt: tiltOf( s.pitch, s.roll ) };
 
 	}
 
