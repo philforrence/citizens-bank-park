@@ -960,23 +960,79 @@ export class Complex {
 
 		}
 
+		// ---- FW2 (C2I-6): its ends (the north one faces Pattison and the park) are the tall glass curtain
+		// walls of rdowens's photo from Pattison (Jul 2008): arched bays 9 m wide between rust-copper columns,
+		// mullions and transoms, the concourses lit behind them; the long sides stay silver panel and glass
+		const rot = this.field.group.rotation.y;
+		// the face toward Pattison and the park (-z): whichever of the axes points most that way (in the
+		// footprint the stadium lies across, so it's a long side)
+		const faces = [ [ ax, A, bx ], [ ax.map( ( v ) => - v ), A, bx ], [ bx, Bm, ax ], [ bx.map( ( v ) => - v ), Bm, ax ] ];
+		const [ ew, ext, tan ] = faces.reduce( ( a, f ) => ( f[ 0 ][ 1 ] < a[ 0 ][ 1 ] ? f : a ) );
+		const endW = [ ew[ 0 ] * Math.cos( rot ) + ew[ 1 ] * Math.sin( rot ), - ew[ 0 ] * Math.sin( rot ) + ew[ 1 ] * Math.cos( rot ) ];
 		this._add( shell.geometry(), standard( { name: 'linc-shell', color: new Color( 0.55, 0.57, 0.6 ), roughness: 0.35, metalness: 0.5, modules: [ commonModule ],
+			uniforms: { endN: [ 'vec4f', new Vector4( endW[ 0 ], endW[ 1 ], 0, 0 ) ] },
 			surface: /* wgsl */`
 	// silver panels with bands of glass. (CB-14, gauntlet r1: on the 27th and 29th the Linc hosted nothing
 	// and stood dark, a silver shell with a few lit windows, not a stack of glowing rings: Flickr rdowens
 	// 3626081771 for the shell. A window in ten or so lit, the rest dark glass)
 	let v = in.uv.y;
-	let glass = step( 0.5, fract( v / 6.0 ) ) * step( v, 29.0 ) * step( 2.0, v );
-	s.albedo = mix( mat.color, vec3f( 0.05, 0.07, 0.08 ), glass );
-	s.roughness = mix( 0.4, 0.1, glass );
+	var glass = step( 0.5, fract( v / 6.0 ) ) * step( v, 29.0 ) * step( 2.0, v );
+	var col = mat.color;
 	let wid = floor( vec3f( in.P.x / 4.5, v / 6.0, in.P.z / 4.5 ) );
 	let lit = step( 0.9, fract( sin( dot( wid, vec3f( 12.9898, 78.233, 37.719 ) ) ) * 43758.5453 ) );
-	s.emissive = vec3f( 0.9, 0.85, 0.75 ) * glass * ( 0.012 + 0.3 * lit ) * smoothstep( 0.2, 0.8, frame.night );
+	var e = vec3f( 0.9, 0.85, 0.75 ) * glass * ( 0.012 + 0.3 * lit ) * smoothstep( 0.2, 0.8, frame.night );
+	// ---- FW2 (C2I-6): the ends' curtain walls
+	let nd = abs( dot( normalize( in.N.xz ), mat.endN.xy ) );
+	if ( nd > 0.8 && v < 30.0 ) {
+		let along = dot( in.P.xz, vec2f( - mat.endN.y, mat.endN.x ) );
+		let bx = fract( along / 9.0 ) * 9.0;
+		let col9 = step( 8.2, bx );
+		let arch = 24.0 + 3.0 * sqrt( max( 0.0, 1.0 - pow( ( bx - 4.1 ) / 4.1, 2.0 ) ) );
+		let inBay = ( 1.0 - col9 ) * step( 1.0, v ) * step( v, arch );
+		let mul = max( step( abs( fract( bx / 1.37 ) - 0.5 ), 0.03 ), step( abs( fract( v / 3.0 ) - 0.5 ), 0.025 ) );
+		glass = inBay * ( 1.0 - mul );
+		col = mix( vec3f( 0.36, 0.17, 0.09 ), vec3f( 0.08, 0.08, 0.09 ), inBay );
+		// behind the glass the stair towers and concourses, a few floors lit
+		let fl = step( 0.55, fract( v / 6.5 ) ) * step( 0.35, fract( sin( floor( along / 9.0 ) * 7.13 + floor( v / 6.5 ) * 3.1 ) * 437.5 ) );
+		e = vec3f( 0.95, 0.9, 0.8 ) * glass * ( 0.03 + 0.25 * fl ) * smoothstep( 0.2, 0.8, frame.night );
+	}
+	s.albedo = mix( col, vec3f( 0.05, 0.07, 0.08 ), glass );
+	s.roughness = mix( 0.4, 0.1, glass );
+	s.emissive = e;
+	// ---- end FW2
 ` } ), 'linc-shell', { cast: true } );
+		// ---- FW2 (C2I-6): the red letters across the north end's top under the canopy, lit after dark
+		// (bps52769, Oct 29 2008: the red letters over Pattison), on a canvas, cut out
+		{
+
+			const letters = canvasTexture( 2048, 256, ( ctx, w, h ) => {
+
+				ctx.clearRect( 0, 0, w, h );
+				ctx.fillStyle = '#d4101c';
+				ctx.font = 'italic 700 170px Georgia, "Times New Roman", serif';
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				ctx.fillText( 'Lincoln Financial Field', w / 2, h / 2 + 10, w - 60 );
+
+			}, 'linc-letters' );
+			const lq = new Builder();
+			const cE = [ cx + ew[ 0 ] * ext * 0.97, 0, cz + ew[ 1 ] * ext * 0.97 ], half = 34, o = 0.6;
+			const tx = tan[ 0 ], tz = tan[ 1 ], nx = ew[ 0 ], nz = ew[ 1 ];
+			const P = ( s, y ) => [ cE[ 0 ] + tx * s + nx * o, y, cE[ 2 ] + tz * s + nz * o ];
+			// read from outside: left to right along the end's own right-hand
+			const right = ( tx * nz - tz * nx ) > 0 ? 1 : - 1;
+			lq.quad( P( - half * right, G + 23.5 ), P( half * right, G + 23.5 ), P( half * right, G + 28.5 ), P( - half * right, G + 28.5 ), [ nx, 0, nz ], [ 0, 1, 1, 0 ] );
+			this._add( lq.geometry(), standard( { name: 'linc-letters', color: new Color( 1, 1, 1 ), roughness: 0.5, alphaTest: 0.5, side: 'double', textures: { lincL: letters },
+				surface: 'let t = textureSample( lincL, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.8; s.emissive = t.rgb * smoothstep( 0.2, 0.8, frame.night ) * 2.4;' } ), 'linc-letters' );
+
+		}
+		// ---- end FW2
 		this._add( seats.geometry(), standard( { name: 'linc-seats', color: new Color( 0.12, 0.14, 0.15 ), roughness: 0.7, modules: [ commonModule ],
 			surface: 's.albedo = mat.color * ( 0.8 + 0.4 * step( 0.5, fract( in.P.y / 0.9 ) ) );' } ), 'linc-bowl' );
 		this._add( turf.geometry(), standard( { name: 'linc-turf', color: new Color( 0.12, 0.28, 0.07 ), roughness: 0.9 } ), 'linc-turf' );
-		this._add( roof.geometry(), standard( { name: 'linc-canopy', color: new Color( 0.7, 0.72, 0.72 ), roughness: 0.5, metalness: 0.3, side: 'double' } ), 'linc-canopies', { cast: true } );
+		// (FW2, C2I-6: the canopies' undersides lit white after dark, as over Pattison on the 29th)
+		this._add( roof.geometry(), standard( { name: 'linc-canopy', color: new Color( 0.7, 0.72, 0.72 ), roughness: 0.5, metalness: 0.3, side: 'double',
+			surface: 's.emissive = s.albedo * select( 0.0, 0.22, in.N.y < 0.0 ) * smoothstep( 0.2, 0.8, frame.night );' } ), 'linc-canopies', { cast: true } );
 
 	}
 
@@ -1028,8 +1084,13 @@ export class Complex {
 	let v = in.uv.y;
 	// brick base, a band of dark glass, precast above, the name in a band near the top (repeating round)
 	var c = mat.color * ( 0.85 + 0.2 * mx_noise_float2( in.P.xz * 0.6 + v ) );
-	let glass = step( 6.0, v ) * step( v, 14.0 );
-	c = mix( c, vec3f( 0.04, 0.05, 0.06 ), glass );
+	let glass0 = step( 6.0, v ) * step( v, 14.0 );
+	// (FW2, C2I-6: the glass in bays, its mullions and a transom; the concourse behind lit unevenly)
+	let mul = max( step( abs( fract( in.uv.x / 2.5 ) - 0.5 ), 0.04 ), step( abs( v - 10.0 ), 0.12 ) );
+	let glass = glass0 * ( 1.0 - mul );
+	c = mix( c, vec3f( 0.04, 0.05, 0.06 ), glass0 );
+	c = mix( c, vec3f( 0.12, 0.12, 0.13 ), glass0 * mul );
+	let bayL = 0.5 + 0.8 * fract( sin( floor( in.uv.x / 7.5 ) * 12.9898 ) * 43758.5 );
 	if ( v > 14.0 ) { c = vec3f( 0.5, 0.48, 0.44 ); }
 	var e = vec3f( 0.0 );
 	if ( v > 24.0 && v < 29.0 ) {
@@ -1038,7 +1099,7 @@ export class Complex {
 		e = t * step( 0.5, t.r ) * smoothstep( 0.2, 0.8, frame.night ) * 1.5;
 	}
 	s.albedo = c;
-	s.emissive = e + vec3f( 0.9, 0.8, 0.6 ) * glass * smoothstep( 0.2, 0.8, frame.night ) * 0.35;
+	s.emissive = e + vec3f( 0.9, 0.8, 0.6 ) * glass * smoothstep( 0.2, 0.8, frame.night ) * 0.3 * bayL;
 ` } ), 'wachovia-center', { cast: true } );
 		this._add( r.geometry(), standard( { name: 'wachovia-roof', color: new Color( 0.45, 0.45, 0.44 ), roughness: 0.8 } ), 'wachovia-roof' );
 
@@ -1080,7 +1141,15 @@ export class Complex {
 	let rib = 1.0 - smoothstep( 0.0, 0.1, abs( fract( in.uv.x / 3.0 ) - 0.5 ) - 0.38 );
 	var c = mat.color * ( 0.8 + 0.2 * rib ) * ( 0.9 + 0.12 * mx_noise_float2( in.P.xz * 0.5 + v ) );
 	var e = vec3f( 0.0 );
-	if ( v < 4.0 ) { c = vec3f( 0.06, 0.07, 0.08 ); e = vec3f( 0.9, 0.8, 0.6 ) * smoothstep( 0.2, 0.8, frame.night ) * 0.3; }
+	if ( v < 4.0 ) {
+		// (FW2, C2I-6: the glass round its foot in 2 m panes on dark mullions, a pair of doors every 15 m,
+		// the lobby behind lit unevenly; it was one flat glowing beige band)
+		let m2 = step( abs( fract( in.uv.x / 2.0 ) - 0.5 ), 0.05 ) + step( abs( v - 2.6 ), 0.06 );
+		let door = step( abs( fract( in.uv.x / 15.0 ) - 0.5 ), 0.08 ) * step( v, 2.4 );
+		let lob = 0.5 + 0.7 * fract( sin( floor( in.uv.x / 6.0 ) * 7.31 ) * 4375.5 );
+		c = mix( vec3f( 0.04, 0.05, 0.06 ), vec3f( 0.1, 0.1, 0.11 ), clamp( m2, 0.0, 1.0 ) );
+		e = vec3f( 0.9, 0.8, 0.6 ) * smoothstep( 0.2, 0.8, frame.night ) * 0.22 * lob * ( 1.0 - clamp( m2, 0.0, 1.0 ) ) * mix( 1.0, 1.6, door );
+	}
 	if ( v > 17.0 ) {
 		// (C2W-9, FW2: u runs anticlockwise round the drum, so from outside the name read backwards)
 		let t = textureSample( bpSpec, smpAnisoRepeat, vec2f( - in.uv.x / 90.0, 1.0 - ( v - 17.0 ) / 5.0 ) ).rgb;
