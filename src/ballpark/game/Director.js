@@ -767,6 +767,29 @@ export class Director {
 
 		const seg = this.segmentAt( t );
 		const lt = t - seg.t0;
+		// ---- FX2: the scene, then the joins between segments smoothed (_carry), then the places' people
+		this._scene( seg, lt, t );
+		this._carry( seg, lt );
+		// ---- FR2: the people the places put on the rig themselves, at this t (the bat boys: rail/OnDeck.js)
+		if ( this.extras ) for ( const f of this.extras ) f( this, seg, lt, t );
+		// ---- end FR2
+		this._sync();
+
+	}
+
+	// ---- FX2: continuity across the joins. Each segment's scene is posed from its own plan, so at a join
+	// a man could be somewhere else in the next frame: the fielders back at their places the instant a ball
+	// in play became its result (up to 70 m), the 2B umpire across the infield when a runner reached, the
+	// leadoff hitter from center field to the on-deck circle as the half inning turned, a stranded runner
+	// or a base coach gone from the field in a frame. FOX often cut there; the center, high and follow
+	// cameras never do (test/continuity.mjs walks the replay for these). Now whoever is in both frames
+	// carries the difference and makes it up on foot (a walk under 2 m, a trot under 6, a jog beyond), in
+	// the direction he has to go, posed walking or running while he does; and whoever's in the last frame
+	// but not the next (a runner left on base, the coaches at the third out, the Rays' coaches at the last
+	// out) jogs off to his dugout. Pure in t: the carries are worked out once per segment, from the end of
+	// the one before (its own carries included), so a seek or a replay poses the same.
+	_scene( seg, lt, t ) {
+
 		this.actors = new Map();
 		this.ballAt = null;
 		// where the cameras look for the ball: where it is, or (in a glove) where it was last
@@ -782,12 +805,123 @@ export class Director {
 		const L = this.lastOut;
 		if ( L && ! this.oldCelebration && ( seg === L.result || ( seg === L.pitch && t >= L.tStrike ) ) ) showLastOut( this, L.cel, t - L.tStrike );
 		// ---- end FB3
-		// ---- FR2: the people the places put on the rig themselves, at this t (the bat boys: rail/OnDeck.js)
-		if ( this.extras ) for ( const f of this.extras ) f( this, seg, lt, t );
-		// ---- end FR2
-		this._sync();
 
 	}
+
+	// the scene at ( seg, lt ) on its own, carries and all if asked, without touching this frame's state
+	_snapshot( seg, lt, carry ) {
+
+		const keep = [ this.actors, this.ballAt, this.ballFocus, this._stealCall, this._stealBall, this.now, this._ballHeld ];
+		this._scene( seg, lt, seg.t0 + lt );
+		if ( carry ) this._carry( seg, lt );
+		const out = this.actors;
+		[ this.actors, this.ballAt, this.ballFocus, this._stealCall, this._stealBall, this.now, this._ballHeld ] = keep;
+		return out;
+
+	}
+
+	// the carries into a segment: { moves: id -> [ dx, dz, D ] (the unit way back and how far, at lt 0),
+	// ghosts: id -> { x, z, a, to } (who goes, from where, his last frame, his dugout) }. Worked forward from
+	// the last segment already done, so a cold seek to the ninth is a few hundred snapshots once
+	_carryOf( seg ) {
+
+		if ( seg._fx2 !== undefined ) return seg._fx2;
+		const S = this.segments;
+		const ix = ( this._segIx ??= new Map( S.map( ( s, i ) => [ s, i ] ) ) );
+		const i = ix.get( seg );
+		let j = i;
+		while ( j > 0 && S[ j - 1 ]._fx2 === undefined ) j --;
+		// (null while it's worked out: show_switch asks for the ghosts, and at lt 0 doesn't need them)
+		for ( let k = j; k <= i; k ++ ) {
+
+			S[ k ]._fx2 = null;
+			S[ k ]._fx2 = k ? this._carryInto( S[ k - 1 ], S[ k ] ) : null;
+
+		}
+		return seg._fx2;
+
+	}
+
+	_carryInto( prev, seg ) {
+
+		// (the celebration's people are Celebration.js's, on the strike's clock: only the ones it drops go
+		// off on foot there)
+		const cel = seg.kind === 'celebrate';
+		const end = this._snapshot( prev, Math.max( 0, prev.dur - 1e-4 ), true );
+		const start = this._snapshot( seg, 0, false );
+		const moves = new Map(), ghosts = new Map();
+		for ( const [ id, a ] of end ) {
+
+			const b = start.get( id );
+			if ( b ) {
+
+				const dx = a.x - b.x, dz = a.z - b.z, D = Math.hypot( dx, dz );
+				if ( D > 0.05 && ! cel && Math.abs( ( a.y || 0 ) - ( b.y || 0 ) ) < 0.5 ) moves.set( id, [ dx / D, dz / D, D ] );
+				continue;
+
+			}
+
+			// off to his dugout: the players and the coaches and managers (the umpires, the crews and the
+			// bat boys have their own ways off); not from where he's already off the field
+			const side = typeof id === 'number' ? ( id > 0 ? this.game.players[ id ]?.side : null ) : /^r:(coach|mgr):(home|away)/.exec( id )?.[ 2 ];
+			if ( ! side ) continue;
+			const to = DUGOUT[ side ];
+			if ( Math.hypot( a.x - to[ 0 ], a.z - to[ 1 ] ) < 1.5 || Math.abs( a.x ) > 12 && a.z > - 4 ) continue;
+			ghosts.set( id, { x: a.x, z: a.z, a, to } );
+
+		}
+
+		// and whoever's in the next frame but not the last comes on from his dugout (a pinch runner, a
+		// defensive replacement, the base coaches as the game starts and resumes on the 29th): not out of
+		// nowhere where he stands
+		if ( ! cel ) for ( const [ id, b ] of start ) {
+
+			if ( end.has( id ) ) continue;
+			const side = typeof id === 'number' ? ( id > 0 ? this.game.players[ id ]?.side : null ) : /^r:(coach|mgr):(home|away)/.exec( id )?.[ 2 ];
+			if ( ! side || Math.abs( b.x ) > 12 && b.z > - 6 ) continue;
+			const to = DUGOUT[ side ], dx = to[ 0 ] - b.x, dz = to[ 1 ] - b.z, D = Math.hypot( dx, dz );
+			if ( D > 1.5 ) moves.set( id, [ dx / D, dz / D, D ] );
+
+		}
+
+		return moves.size || ghosts.size ? { moves, ghosts } : null;
+
+	}
+
+	_carry( seg, lt ) {
+
+		if ( this.noCarry ) return;
+		const C = this._carryOf( seg );
+		if ( ! C ) return;
+		for ( const [ id, [ ux, uz, D ] ] of C.moves ) {
+
+			const a = this.actors.get( id );
+			if ( ! a ) continue;
+			const v = D < 2 ? 1.6 : D < 6 ? 3 : JOG;
+			const r = D - v * lt;
+			if ( r <= 0 ) continue;
+			const x = a.x + ux * r, z = a.z + uz * r;
+			// walking or running back the way he has to go; a man on the rubber steps down off it
+			const pose = v < 2 ? M.walk( lt * 1.6 ) : M.run( lt * 1.3, v > 3.5 ? 0.25 : 0 );
+			this.actors.set( id, { ...a, x, z, y: ( a.y || 0 ) * Math.max( 0, 1 - r ), yaw: r > 0.3 ? yawTo( [ x, z ], [ a.x, a.z ] ) : a.yaw, pose: r > 0.15 ? pose : a.pose, tilt: null } );
+
+		}
+
+		for ( const [ id, g ] of C.ghosts ) {
+
+			if ( this.actors.has( id ) ) continue;
+			const v = typeof id === 'number' ? JOG : 3, D = dist( [ g.x, g.z ], g.to );
+			const k = Math.min( 1, v * lt / D );
+			if ( k >= 1 ) continue;
+			const p = lerp2( [ g.x, g.z ], g.to, k );
+			const pose = M.run( lt * 1.3, 0 );
+			pose.glove = false;
+			this.actors.set( id, { ...g.a, x: p[ 0 ], z: p[ 1 ], y: 0, yaw: yawTo( [ g.x, g.z ], g.to ), pose, tilt: null } );
+
+		}
+
+	}
+	// ---- end FX2
 
 	// the World Series crew of six: the plate umpire in the slot behind the catcher, the three base
 	// umpires, and one down each foul line in the outfield. Set for the pitch, standing between them; off
@@ -1081,17 +1215,22 @@ export class Director {
 		const s = seg.snap;
 		// last half's fielders come in, this half's go out
 		if ( s.oldDefense ) this._runIn( s.oldDefense, s.batting, lt );
-		this._runOut( s.defense, s.fielding, lt, 4 );
+		// ---- FX2: a man left on base at the third out jogs in to his dugout first (Director._carry's
+		// ghosts) and takes the field from there a moment after he gets in
+		const G = this._carryOf( seg )?.ghosts, wait = new Map();
+		if ( G ) for ( const [ id, g ] of G ) wait.set( id, dist( [ g.x, g.z ], g.to ) / JOG + 1.2 );
+		this._runOut( s.defense, s.fielding, lt, 4, wait );
+		// ---- end FX2
 		this._onDeck( { ...s, onDeck: s.batter }, lt );
 		// ---- R (rituals): once they're out, the warm-up throws (game/Breaks.js); the drying agent on the
 		// mound in the middle of the 5th on the 27th
-		showWarmups( this, seg, lt, 4 );
+		showWarmups( this, seg, lt, 4, wait );
 		showDrying( this, seg, lt );
 		// ---- end R
 
 	}
 
-	_runOut( defense, team, lt, delay ) {
+	_runOut( defense, team, lt, delay, wait = null ) {
 
 		const from = DUGOUT[ team ];
 		for ( const pos of POS_ORDER ) {
@@ -1099,7 +1238,7 @@ export class Director {
 			const id = defense[ pos ];
 			if ( ! id ) continue;
 			const to = pos === 'P' ? MOUND : POSITIONS[ pos ];
-			const d = dist( from, to ), start = delay + hash( id ) * 3;
+			const d = dist( from, to ), start = Math.max( delay + hash( id ) * 3, wait?.get( id ) ?? 0 );
 			const k = Math.min( 1, Math.max( 0, ( lt - start ) * JOG / d ) );
 			const p = lerp2( from, to, k );
 			if ( lt < start ) continue;
@@ -1344,6 +1483,9 @@ export class Director {
 
 				if ( lt < st.t0 ) break;
 				const k = Math.min( 1, ( lt - st.t0 ) / Math.max( 0.05, st.t1 - st.t0 ) );
+				// ---- FX2: where the last step left him (a run ends a stride or two off where he fields, throws
+				// or takes the throw: he stepped the last metre in one frame); the gap closed over 0.3 s below
+				const was = at;
 				if ( st.act === 'run' || st.act === 'shuffle' ) {
 
 					at = lerp2( st.from, st.to, k );
@@ -1401,6 +1543,8 @@ export class Director {
 
 				}
 
+				if ( st.act !== 'run' && st.act !== 'shuffle' && was !== at ) at = lerp2( was, at, Math.min( 1, ( lt - st.t0 ) / 0.3 ) );
+				// ---- end FX2
 				done = true;
 
 			}
@@ -1414,7 +1558,10 @@ export class Director {
 		}
 
 		// runners: from their leads round the bases, the batter out of the box
-		for ( const r of plan.runners ) {
+		// (---- FX2: a runner the play-by-play gives two moves on the one play, second to third and third
+		// home, runs it as one: both began at the pitch, so he was at third the frame the ball was hit, and
+		// back at third from the dugout once he'd scored (Utley on Victorino's single, 46 m))
+		for ( const r of ( plan._fx2 ??= chainRunners( plan.runners ) ) ) {
 
 			if ( lt < r.start && r.id === s.batter ) {
 
@@ -1455,7 +1602,10 @@ export class Director {
 	// dugout. Returns { x, z, yaw, pose, extra } or null once he's gone.
 	_runnerAt( r, lt, s ) {
 
-		const S = r.len - r.lead, T = Math.max( 0.1, r.tArrive - r.start );
+		// (---- FX2: a batter who pulls up on a quick fly out still runs at a man's pace: Zobrist covered 16 m
+		// at 19 m/s to stop as it was caught)
+		const tArrive = r.halt < 1 ? Math.max( r.tArrive, r.start + ( r.len - r.lead ) * r.halt / 7 ) : r.tArrive;
+		const S = r.len - r.lead, T = Math.max( 0.1, tArrive - r.start );
 		const u = Math.max( 0, lt - r.start );
 		// the run: d( u ) = v ( u - tau ( 1 - e^-u/tau ) ), up to speed in about 3 tau
 		const tau = r.from === 0 ? 0.45 : 0.3;
@@ -1497,6 +1647,16 @@ export class Director {
 		}
 
 		let [ x, z, yaw ] = alongBases( r.from, r.to, r.lead + d );
+		// ---- FX2: the batter sets off from where he stood in the box, not from the plate a metre over
+		// (he was in the box one frame and on the plate the next): the box's offset let go over his first
+		// steps
+		if ( r.from === 0 && r.id === s.batter ) {
+
+			const box = boxFor( s.bats ), k = Math.max( 0, 1 - u / 0.7 );
+			x += ( box[ 0 ] - BASES[ 0 ][ 0 ] ) * k * k; z += ( box[ 1 ] - BASES[ 0 ][ 1 ] ) * k * k;
+
+		}
+		// ---- end FX2
 		if ( over > 0 ) {
 
 			const dir = [ BASES[ 1 ][ 0 ] / 27.43, BASES[ 1 ][ 1 ] / 27.43 ];
@@ -1516,7 +1676,7 @@ export class Director {
 
 		if ( u < T ) return { x, z, yaw, pose, extra };
 		// there: a slide stays down a moment, then he gets up
-		const after = lt - r.tArrive;
+		const after = lt - tArrive;
 		let down = 0;
 		if ( sl ) {
 
@@ -1883,6 +2043,28 @@ export class Director {
 
 // ---- FB2 (C2B-3): p ([ x, z ]) brought in to `margin` metres inside the outfield fence (OUTFIELD's
 // distances by angle from the center line, interpolated)
+// ---- FX2: one runner's moves on one play, joined end to start, at the first one's pace
+function chainRunners( runners ) {
+
+	const out = [];
+	for ( const r of runners ) {
+
+		const a = out.find( ( q ) => q.id === r.id && q.to === r.from );
+		if ( ! a ) { out.push( r ); continue; }
+		const v = Math.max( 0.1, a.len - a.lead ) / Math.max( 0.1, a.tArrive - a.start );
+		const len = a.len + r.len;
+		Object.assign( out[ out.indexOf( a ) ] = { ...a }, {
+			to: r.to, len, out: r.out, scores: r.scores, slide: r.slide, through: false, tCall: r.tCall,
+			tArrive: Math.max( r.tArrive, a.start + ( len - a.lead ) / v ),
+		} );
+
+	}
+
+	return out;
+
+}
+// ---- end FX2
+
 function insideFence( p, margin ) {
 
 	const th = Math.atan2( p[ 0 ], - p[ 1 ] ) * 180 / Math.PI;

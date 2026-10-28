@@ -377,7 +377,8 @@ function night27( d, seg, lt, st, axis ) {
 		if ( lt < T.pull ) {
 
 			// (---- FB4: facing the edge, holding it up: tugEdge's hands are in front of him)
-			runTo( d, c, pushSpot( c, 'end', 1 ), edgeStart( c ), T.spread + c.seed * 0.5, T.pull - 0.5, lt, [ - PULL_DIR[ 0 ], - PULL_DIR[ 1 ] ], who, R.tugEdge( lt, c.seed ) );
+			// (---- FX2: still at the roll till he sets off: he was gone for the half second in between)
+			runTo( d, c, pushSpot( c, 'end', 1 ), edgeStart( c ), T.spread + c.seed * 0.5, T.pull - 0.5, lt, [ - PULL_DIR[ 0 ], - PULL_DIR[ 1 ] ], who, R.tugEdge( lt, c.seed ) ) || pusher( d, c, st, axis, role, lt );
 			continue;
 
 		}
