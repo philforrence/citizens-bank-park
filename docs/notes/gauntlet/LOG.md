@@ -56,3 +56,4 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 - **C3W, the walk end to end** (launched 12:49): fresh eyes on foot after rounds 1 and 2, regressions first (the raised 400s against everything round them).
 - **C3B, the broadcast** (returned 12:53): 18 findings. Round 2's fixes hold; the failures are where merges meet: the last out cuts to grass and a still Lidge, the lap ends through the center field camera's platform, the presentation opens on an empty stage, people stand in front of the low cameras, and the bug keeps "0-2 3 OUT" through the celebration. Bundled into FB3.
 - **FB3, the broadcast's round 3** (launched 12:54).
+- **SP2's crowd distant level** (b55f493): a fifth crowd level (55 triangles, not 72) for fans under ~8 px. SP2's breakdown of the 400s seat's 24 ms opaque: the seated crowd 12.9 (4.2 M triangles), the local lights 4.0, the seats 2.2, shadow sampling 2.2, the Cast 1.9, the players 0.6.
