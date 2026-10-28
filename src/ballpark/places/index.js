@@ -19,6 +19,10 @@ import BehindHome from './BehindHome.js';
 import LeftField from './LeftField.js'; // ---- H
 import Soundscape from './Soundscape.js'; // ---- S: the park's whole soundscape (draws nothing)
 import Rituals from './Rituals.js';
+import Suites from './Suites.js'; // ---- FI2: the insides (gauntlet CI-5, CI-6, CI-14)
+import Club from './Club.js'; // ---- FI2
+import Under from './Under.js'; // ---- FI2
+import Entrance from './Entrance.js'; // ---- FI2 (CI-17)
 
 export const PLACES = [
 	[ 'rail', FieldRail ],
@@ -31,4 +35,8 @@ export const PLACES = [
 	[ 'leftfield', LeftField ], // ---- H
 	[ 'sound', Soundscape ], // ---- S
 	[ 'rituals', Rituals ],
+	[ 'suites', Suites ], // ---- FI2
+	[ 'club', Club ], // ---- FI2
+	[ 'under', Under ], // ---- FI2
+	[ 'entrance', Entrance ], // ---- FI2
 ];
