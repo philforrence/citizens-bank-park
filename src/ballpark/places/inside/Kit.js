@@ -32,7 +32,7 @@ export const PAL = {
 	blocks: [ [ 0.075, 0.066, 0.054 ], 0.95, 0, 0, P_BLOCKS ], // the corridors' and the club's: red blocks on taupe (greenheaps, harpo42)
 	terrazzo: [ [ 0.4, 0.37, 0.31 ], 0.14, 0, 0, P_TERRAZZO ], // the Diamond Club's, its red stitches
 	concreteFloor: [ [ 0.26, 0.255, 0.24 ], 0.7, 0, 0, P_SPECKLE ],
-	turf: [ [ 0.035, 0.12, 0.035 ], 0.95, 0, 0, P_TURF ],
+	turf: [ [ 0.05, 0.17, 0.05 ], 0.95, 0, 0, P_TURF ],
 	turfMat: [ [ 0.05, 0.2, 0.05 ], 0.9, 0, 0, P_TURF ],
 	// walls and ceilings
 	wallpaper: [ [ 0.52, 0.42, 0.27 ], 0.8, 0, 0, P_STRIPES ],
@@ -504,7 +504,7 @@ export function insideMaterial( name, { glowNight = 1 } = {} ) {
 		// the cages' netting: the strands, the rest cut away (sparser with distance, as the eye sees it)
 		let g = abs( fract( uv / 0.05 ) - 0.5 );
 		let fwn = fw / 0.05;
-		let keep = max( g.x, g.y ) > 0.5 - 0.05 - fwn * 0.5;
+		let keep = max( g.x, g.y ) > 0.5 - 0.032 - fwn * 0.5;
 		let hs = fract( sin( dot( in.pixel, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
 		if ( ! keep || ( fwn > 0.4 && hs > 0.35 / fwn ) ) { discard; }
 	} else if ( pat == ${ P_SCREEN }u ) {
