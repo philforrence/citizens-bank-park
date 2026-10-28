@@ -73,3 +73,6 @@ The TV views are the best they've been all day (TV high 24.5). **The 400s seat b
 | 14:31 | FW5, the Terrace from below (rain TV high 24.9; a real 3B seat 23.8; the plaza 22.7; celebration 25.0 / 23.3; **the 400s seat 33.5**, GPU 27.8) | 22.6 | 24.5 | 19.1 | 21.8 | 18.3 | 20.9 | 29.3 |
 
 FW5 cost nothing measurable (left field 29.3 as before). The 400s seat's wall time (33.5) is over its GPU span by ~6 ms with the CPU at 9.3 on a busy machine; SP3 has it.
+| 14:36 | FI3, the insides' polish (rain TV high 24.8; a real 3B seat 23.4; the plaza 22.7; celebration 24.8 / 23.6; the 400s seat 32.4) | 22.5 | 24.7 | 17.8 | 20.4 | 17.3 | 20.9 | 29.7 |
+
+FI3 cost nothing measurable (under the stands is cheaper: no discard, no local lights). Every view under the floor; the 400s seat (32.4) and left field (29.7) are SP3's.
