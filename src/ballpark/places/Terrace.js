@@ -23,8 +23,14 @@ import { dress, sizeOf, rng } from './Concourse3BKit.js';
 //   terrace/People.js   the people (a Cast troupe on the place's Tempo)
 //   terrace/Sounds.js   the wind, the murmur, the grills, the registers
 //
-// Drawn only from up there (the camera above the club level): from the field level and the TV's low
-// cameras none of it shows but through the slot, and then as dark as the photos have it. Field frame.
+// Drawn whole from up there (the camera above the club level). ---- FW5 (C3W-1, gauntlet r3): from below and
+// outside (the seats, the field, the main concourse, Pattison) it isn't dark, as FW3 had it: the photos show
+// the glass at the 300s' back with fans standing at it (Commons 2008-03-29), the lit row under the deck
+// (blender13, Oct 29 2008), fans along the gate frame's upper rails (roadieshow, Oct 27 2008). So from down
+// there the fabric stays (the steel and its domes, the deck, the rail and its glass, the floor: ~27k
+// triangles in six draws), the stands go to their far fronts (one draw: Concourse._terraceFar), and the
+// people stay but for the counter staff (the Cast's own draws: no more draws, a few hundred small
+// figures). Field frame.
 const UP = 15.5;
 
 export default class Terrace {
@@ -44,8 +50,13 @@ export default class Terrace {
 		this.T.backRail( this.stands.open );
 		this.T.finish();
 		this.meshes = [ ...this.T.meshes, ...this.stands.meshes ];
-		// the people: in the troupe's bounds (the whole concourse: the pool culls them one by one)
-		this.cast = new Cast( { parent: this.group, max: 420 } );
+		// ---- FW5 (C3W-1): what's drawn only from up there (the stands proper), and only from below (their fronts)
+		this.near = this.stands.meshes;
+		this.far = this.stands.far || [];
+		for ( const m of this.far ) m.visible = false;
+		// the people: in the troupe's bounds (the whole concourse: the pool culls them one by one) (---- FW5,
+		// C3W-6: 700, was 420)
+		this.cast = new Cast( { parent: this.group, max: 700 } );
 		this.cast.bounds = new Sphere( new Vector3( 0, LEVELS.terraceConcourse, 0 ), 140 );
 		this.people = new TerracePeople( this, this.cast, this.T, this.stands );
 		this._tempo = new Tempo( [ this.cast ] );
@@ -166,16 +177,18 @@ export default class Terrace {
 		const { up, cf } = this._where( cam );
 		if ( up !== this.up ) {
 
+			// ---- FW5 (C3W-1): the stands and their far fronts change places; the fabric stays
 			this.up = up;
-			for ( const m of this.meshes ) m.visible = up;
-			this.people.show( up );
+			for ( const m of this.near ) m.visible = up;
+			for ( const m of this.far ) m.visible = ! up;
+			this.people.show( up ? 2 : 1 );
 
 		}
 
 		const N = nightState( director );
 		this.sounds.update( dt, N, cf, up, cf ? this._back( cf ) : 0.5 );
 		this._ride( dt );
-		if ( ! up ) return;
+		// (---- FW5: the people are moved from below too, on the place's Tempo: asleep while none is seen)
 		const sdt = this._tempo.step( dt, cam );
 		if ( sdt ) {
 

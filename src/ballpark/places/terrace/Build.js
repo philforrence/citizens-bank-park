@@ -152,15 +152,47 @@ export function buildTerrace( group, bowl ) {
 	{
 
 		const dq = new Quads(), secs = tierSections( t400 ), dB = t400.rows * t400.depth;
+		// ---- FW5 (C3W-1, gauntlet r3): the domes' light on the deck over them, worked out once at its corners
+		// (in uv.x): a prismatic dome throws some of its light up, and from the field at night the underside of
+		// the 400s is the lit row of the photos (blender13, Oct 29 2008), not a black slot. The domes' local
+		// lights point down and are only picked near them; this is the deck's own glow, from anywhere
+		const glow = ( p ) => {
+
+			let L = 0;
+			for ( const [ x, y, z ] of lamps ) {
+
+				const d2 = ( x - p[ 0 ] ) ** 2 + ( y - p[ 1 ] ) ** 2 + ( z - p[ 2 ] ) ** 2;
+				if ( d2 < 100 ) L += 1 / ( 1 + d2 / 5 );
+
+			}
+
+			return Math.min( 1.5, L );
+
+		};
 		for ( const S of secs ) {
 
 			const e = ( d ) => [ Math.min( S.len, S.m0 * d ), Math.max( Math.min( S.len, S.m0 * d ), S.len - S.m1 * d ) ];
 			const at = ( s, d ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, t400.y0 - t400.soffit - 0.04 + d * rake, S.a[ 1 ] + S.uz * s + S.nz * d ];
 			const dF = 0.02 - ( t400.frontWall?.ahead || 0 );
-			const [ f0, f1 ] = e( dF ), [ b0, b1 ] = e( dB - 0.02 );
-			dq.add( at( f0, dF ), at( f1, dF ), at( b1, dB - 0.02 ), at( b0, dB - 0.02 ), [ S.nx * rake, - 1, S.nz * rake ] );
+			const nA = Math.max( 1, Math.round( S.len / 1.6 ) ), nD = 8;
+			const P = ( i, j ) => {
+
+				const d = dF + ( dB - 0.02 - dF ) * j / nD, [ s0, s1 ] = e( d );
+				return at( s0 + ( s1 - s0 ) * i / nA, d );
+
+			};
+			const N = [ S.nx * rake, - 1, S.nz * rake ];
+			for ( let j = 0; j < nD; j ++ ) for ( let i = 0; i < nA; i ++ ) {
+
+				const a = P( i, j ), b = P( i + 1, j ), c = P( i + 1, j + 1 ), d = P( i, j + 1 );
+				const [ ga, gb, gc, gd ] = [ a, b, c, d ].map( glow );
+				dq.tri( a, b, c, N, [ ga, 0 ], [ gb, 0 ], [ gc, 0 ] );
+				dq.tri( a, c, d, N, [ ga, 0 ], [ gc, 0 ], [ gd, 0 ] );
+
+			}
 
 		}
+		// ---- end FW5
 
 		const m = standard( { name: 'terrace-deck', color: new Color( 0.2, 0.2, 0.2 ), roughness: 0.55, metalness: 0.3,
 			surface: /* wgsl */`
@@ -169,6 +201,8 @@ export function buildTerrace( group, bowl ) {
 	let sheet = fract( sin( dot( floor( in.P.xz / vec2f( 6.0, 0.9 ) ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
 	s.albedo = vec3f( 0.2, 0.202, 0.2 ) * ( 0.85 + 0.15 * sheet ) * mix( rib, 0.86, clamp( fw * 5.0, 0.0, 1.0 ) );
 	s.emissive = s.albedo * mix( 0.1, 0.04, smoothstep( 0.1, 0.7, frame.night ) );
+	// ---- FW5 (C3W-1): the domes' light on it (uv.x, worked out at the corners)
+	s.emissive += vec3f( 1.0, 0.86, 0.66 ) * in.uv.x * mix( 0.03, 0.16, smoothstep( 0.1, 0.7, frame.night ) );
 ` } );
 		m.underwaterLighting = 'none';
 		m.setDefine( 'DRY', 1 );
@@ -434,8 +468,65 @@ export function buildTerrace( group, bowl ) {
 		g.userData.dynamic = true;
 		group.add( g );
 		out.meshes.push( g );
+		glazing();
 
 	};
+
+	// ---- FW5 (C3W-1, gauntlet r3): behind the 400s' top row, over the rail there, up to the roof: glazed, on
+	// a grey aluminium frame (Commons 2008-03-29 from the left field corner: a band of windows behind the top
+	// rows, the sky through them, under the roof's trusses). It was open steel, so from the field behind home
+	// the sky showed in a band over the 400s, like a hole through the deck. Transparent: the sky still shows,
+	// through glass and its frames. Field frame.
+	function glazing() {
+
+		const t400Top = t400.y0 + ( t400.rows - 1 ) * t400.rise, y0 = t400Top - 1.2 + 2.3, y1 = ( bowl.roofY || t400Top + 6 ) - 0.05;
+		const P = line( dBack ), gq = new Quads();
+		let u = 0;
+		for ( let i = 0; i < P.length - 1; i ++ ) {
+
+			const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
+			const len = Math.hypot( bx - ax, bz - az );
+			let nx = - ( bz - az ) / len, nz = ( bx - ax ) / len;
+			if ( nx * ( - ( ax + bx ) / 2 ) + nz * ( - 40 - ( az + bz ) / 2 ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			gq.add( [ ax, y0, az ], [ bx, y0, bz ], [ bx, y1, bz ], [ ax, y1, az ], [ nx, 0, nz ], u, u + len );
+			u += len;
+
+		}
+
+		const H = y1 - y0;
+		const m = standard( { name: 'terrace-glazing', color: new Color( 0.035, 0.045, 0.05 ), roughness: 0.05, metalness: 0.1, transparent: true, depthWrite: false, side: 'double', modules: [ commonModule ],
+			surface: /* wgsl */`
+	let fw = fwidth( in.uv.x ) + 0.002;
+	let h = in.uv.y - ${ y0.toFixed( 3 ) };
+	// mullions every 1.6 m, transoms at a third and two thirds, the sill and the head
+	let mx = abs( fract( in.uv.x / 1.6 ) - 0.5 ) * 1.6;
+	let tr = min( min( abs( h - ${ ( H / 3 ).toFixed( 3 ) } ), abs( h - ${ ( 2 * H / 3 ).toFixed( 3 ) } ) ), min( h, ${ H.toFixed( 3 ) } - h ) );
+	let fh = fwidth( h ) + 0.002;
+	let k = max( 1.0 - smoothstep( 0.035, 0.035 + fw, mx ), 1.0 - smoothstep( 0.03, 0.03 + fh, tr ) );
+	let N = normalize( in.N );
+	let V = normalize( frame.cameraPos - in.P );
+	let fres = pow( 1.0 - clamp( abs( dot( N, V ) ), 0.0, 1.0 ), 4.0 );
+	s.albedo = mix( mat.color, vec3f( 0.16, 0.165, 0.17 ), k );
+	s.roughness = mix( 0.05, 0.45, k );
+	s.metalness = mix( 0.1, 0.6, k );
+	s.alpha = mix( 0.2 + 0.45 * fres, 1.0, k );
+` } );
+		m.underwaterLighting = 'none';
+		m.setDefine( 'DRY', 1 );
+		const mesh = new Mesh( gq.geometry(), m );
+		mesh.name = 'terrace-glazing';
+		mesh.layers.set( 2 );
+		mesh.userData.dynamic = true;
+		group.add( mesh );
+		out.meshes.push( mesh );
+
+	}
+	// ---- end FW5
 
 	out.line = line;
 	out.under = under;

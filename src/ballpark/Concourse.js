@@ -1234,6 +1234,7 @@ export class Concourse {
 
 		const L = this._signLayout();
 		const signs = this._signs( L );
+		this.signTexture = signs; // ---- FW5 (C3W-1): the Terrace's far fronts read their names from it
 		const body = new Quads(), face = new Quads(), glow = new Quads(), kick = new Quads(), lights = new Quads(), props = new Props(), bay = new Quads();
 		this.standSpots = [];
 		this.doors = [];
@@ -1446,6 +1447,7 @@ export class Concourse {
 
 		}
 
+		const far = this._terraceFar( units, stops, y, ( st ) => t400.y0 - t400.soffit + 8.6 * rake - y - 0.05 ); // ---- FW5 (C3W-1)
 		const meshes = [], TM = standMaterials( y - STREET );
 		halves.forEach( ( Q, h ) => {
 
@@ -1464,9 +1466,130 @@ export class Concourse {
 			}
 
 		} );
-		return { units, open: slots.filter( ( U ) => ! U.what && ! U.lift ), spots, doors, meshes, y };
+		far.name = 'terrace-stands-far';
+		far.userData.dynamic = true;
+		group.add( far );
+		return { units, open: slots.filter( ( U ) => ! U.what && ! U.lift ), spots, doors, meshes, far: [ far ], y };
 
 	}
+
+	// ---- FW5 (C3W-1, gauntlet r3): the Terrace's stands as they're seen from under it and outside (the field,
+	// the seats, the main concourse, Pattison), while the camera's below the club level and the stands proper
+	// aren't drawn: their fronts, painted, in one draw. From down there they're a few pixels each: the lit
+	// name over the counter and the menu board under it (the stands' own atlas), the lit bay, the block round
+	// it; the restrooms' doors and their signs; the elevators' brick and steel doors. Units' sides too, for
+	// the angle from down the lines. uv.x < 0 picks a paint (below), else it's the atlas.
+	_terraceFar( units, stops, y, coreTop ) {
+
+		const q = new Quads(), L = this.signLayout, W = UNIT / 2;
+		// a paint, its v the height (field frame, as Quads.add's: the shader takes the floor off)
+		const paint = ( k, y0, y1 ) => [ - k - 0.5, y + y1, - k - 0.5, y + y0 ];
+		const BLOCK = 0, BAY = 1, DOOR = 2, BRICK = 3, STEEL = 4, SHOP = 5;
+		for ( const U of units ) {
+
+			const P = frame( U.mid, U.a, U.n, y ), n = U.n;
+			const nb = U.n.map( ( v ) => - v );
+			for ( const s of [ - 1, 1 ] ) q.add( P( s * W, 0, 0 ), P( s * W, 0, - DEPTH ), P( s * W, H, - DEPTH ), P( s * W, H, 0 ), [ U.a[ 0 ] * s, 0, U.a[ 1 ] * s ], - BLOCK - 0.5, - BLOCK - 0.5 );
+			fwd( q, P, nb, W, - W, 0, H, - DEPTH, paint( BLOCK, 0, H ) );
+			if ( typeof U.what === 'string' ) {
+
+				const R = L.food[ BRANDS.indexOf( U.what ) ], OW = W - 0.35, OT = 2.35;
+				fwd( q, P, n, - W, - OW, 0, OT, 0, paint( BLOCK, 0, OT ) );
+				fwd( q, P, n, OW, W, 0, OT, 0, paint( BLOCK, 0, OT ) );
+				fwd( q, P, n, - OW, OW, 0, OT, 0, paint( BAY, 0, OT ) );
+				fwd( q, P, n, - W, W, OT, OT + 0.05, 0, paint( STEEL, OT, OT + 0.05 ) );
+				fwd( q, P, n, - W, W, OT + 0.05, 3.3, 0, [ 0, R.menu[ 0 ], 1, R.menu[ 1 ] ] );
+				fwd( q, P, n, - W, W, 3.3, H, 0, paint( BLOCK, 3.3, H ) );
+				fwd( q, P, n, - W - 0.03, W + 0.03, 3.32, 3.32 + SIGN_H, 0.08, [ 0, R.name[ 0 ], 1, R.name[ 1 ] ] );
+
+			} else {
+
+				// the halves: a restroom's door, a window, a shop front, each with its sign over it
+				const top = 2.55;
+				fwd( q, P, n, - W, W, top, H, 0, paint( BLOCK, top, H ) );
+				let x = - W;
+				U.what.forEach( ( k, h ) => {
+
+					const c = ( h - 0.5 ) * W, T = HALF[ k ].type;
+					const [ x0, x1, y0, y1, kind ] = T === 'door' ? [ c - 0.8, c + 0.8, 0, 2.3, DOOR ] : T === 'window' ? [ c - 1.1, c + 1.1, 0.95, 2.2, BAY ] : [ c - 1.5, c + 1.5, 0, 2.5, SHOP ];
+					fwd( q, P, n, x, x0, 0, top, 0, paint( BLOCK, 0, top ) );
+					if ( y0 > 0 ) fwd( q, P, n, x0, x1, 0, y0, 0, paint( BLOCK, 0, y0 ) );
+					fwd( q, P, n, x0, x1, y1, top, 0, paint( BLOCK, y1, top ) );
+					fwd( q, P, n, x0, x1, y0, y1, 0, paint( kind, y0, y1 ) );
+					const S = L.half[ HALVES.indexOf( k ) ];
+					if ( T === 'door' ) fwd( q, P, n, c - 1.1, c + 1.1, 2.68, 3.14, 0.03, [ S[ 0 ], S[ 1 ], S[ 2 ], S[ 3 ] ] );
+					else fwd( q, P, n, c - 1.7, c + 1.7, 2.62, 3.32, 0.04, [ S[ 0 ], S[ 1 ], S[ 2 ], S[ 3 ] ] );
+					x = x1;
+
+				} );
+				fwd( q, P, n, x, W, 0, top, 0, paint( BLOCK, 0, top ) );
+
+			}
+
+		}
+
+		// the elevators' cores: brick, two steel doors, ELEVATORS over them
+		const S = L.half[ HALVES.indexOf( 'elevators' ) ];
+		for ( const st of stops ) {
+
+			const nn = st.face, a = [ nn[ 1 ], - nn[ 0 ] ], CW = 3.2, DEP = 4.2;
+			const P = frame( [ st.x - nn[ 0 ] * 1.8, st.z - nn[ 1 ] * 1.8 ], a, nn, y );
+			const yT = coreTop( st );
+			fwd( q, P, nn, - CW, CW, 2.25, yT, 0, paint( BRICK, 2.25, yT ) );
+			fwd( q, P, nn, - CW, - 1.98, 0, 2.25, 0, paint( BRICK, 0, 2.25 ) );
+			fwd( q, P, nn, - 0.82, 0.82, 0, 2.25, 0, paint( BRICK, 0, 2.25 ) );
+			fwd( q, P, nn, 1.98, CW, 0, 2.25, 0, paint( BRICK, 0, 2.25 ) );
+			for ( const cx of [ - 1.4, 1.4 ] ) fwd( q, P, nn, cx - 0.58, cx + 0.58, 0, 2.25, 0, paint( STEEL, 0, 2.25 ) );
+			fwd( q, P, nn, - 1.7, 1.7, 2.8, 3.5, 0.03, [ S[ 0 ], S[ 1 ], S[ 2 ], S[ 3 ] ] );
+			for ( const s of [ - 1, 1 ] ) q.add( P( s * CW, 0, 0 ), P( s * CW, 0, - DEP ), P( s * CW, yT, - DEP ), P( s * CW, yT, 0 ), [ a[ 0 ] * s, 0, a[ 1 ] * s ], - BRICK - 0.5, - BRICK - 0.5 );
+
+		}
+
+		const m = standard( { name: 'terrace-stands-far', roughness: 0.7, textures: { bpStand: this.signTexture }, modules: [ commonModule ],
+			surface: /* wgsl */`
+	let night = smoothstep( 0.1, 0.7, frame.night );
+	let v = in.uv.y - ${ y.toFixed( 3 ) };
+	// the block's colour: red ground face over a dark base course (the stands' own, without its coursing)
+	let block = select( vec3f( 0.22, 0.07, 0.048 ), vec3f( 0.07, 0.065, 0.065 ), v < 0.6 ) * ( 0.9 + 0.1 * mx_noise_float2( in.P.xz * 2.0 ) );
+	if ( in.uv.x >= 0.0 ) {
+		// the atlas: a lit name or a painted plaque; its cut-away is the block behind it
+		let ta = textureSample( bpStand, smpAnisoClamp, in.uv );
+		let on = step( 0.5, ta.a );
+		let lit = select( 0.12, 1.0, ta.a > 0.97 );
+		s.albedo = mix( block, ta.rgb * mix( 0.8, 0.45, lit ), on );
+		s.emissive = ta.rgb * lit * on * mix( 0.3, 0.75, night );
+	} else {
+		let k = u32( - in.uv.x );
+		s.albedo = block;
+		if ( k == 1u || k == 5u ) {
+			// a lit bay: white tile under fluorescent tubes, the stainless counter, the stand's people a
+			// dark band at head height (a shop: its racks and their colours)
+			var c = vec3f( 0.75, 0.73, 0.68 );
+			if ( v < 1.05 && k == 1u ) { c = vec3f( 0.32, 0.33, 0.34 ); }
+			if ( k == 1u && v > 1.15 && v < 1.75 ) { c = c * ( 0.45 + 0.4 * step( 0.55, fract( ( in.P.x + in.P.z ) * 0.9 ) ) ); }
+			if ( k == 5u && v < 1.6 ) { c = mix( vec3f( 0.6, 0.06, 0.07 ), vec3f( 0.78 ), step( 0.5, fract( ( in.P.x + in.P.z ) * 3.0 ) ) ); }
+			s.albedo = c * 0.5;
+			s.emissive = c * vec3f( 1.0, 0.95, 0.85 ) * mix( 0.35, 0.8, night ) * select( 1.0, 0.6, v < 1.05 && k == 1u );
+		} else if ( k == 2u ) {
+			// a restroom's door: the vestibule's dark, the tile of its privacy wall lit beyond
+			s.albedo = vec3f( 0.04 );
+			s.emissive = vec3f( 0.5, 0.5, 0.47 ) * mix( 0.05, 0.15, night ) * step( 0.8, v ) * step( v, 2.1 );
+		} else if ( k == 3u ) {
+			s.albedo = vec3f( 0.28, 0.1, 0.07 ) * ( 0.88 + 0.12 * mx_noise_float2( in.P.xz * 3.0 + in.P.y ) );
+		} else if ( k == 4u ) {
+			s.albedo = vec3f( 0.5, 0.5, 0.52 );
+			s.metalness = 0.7;
+			s.roughness = 0.35;
+		}
+	}
+` } );
+		m.underwaterLighting = 'none';
+		const mesh = new Mesh( q.geometry(), m );
+		mesh.receiveShadow = true;
+		return mesh;
+
+	}
+	// ---- end FW5
 
 	// ---- FW3 (CI-18): the Pavilion's and the Arcade's walkways behind their top rows. Their back walls were
 	// a painted strip of stands for being seen across the field (bands of colour, stick figures), and up close
