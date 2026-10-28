@@ -565,9 +565,28 @@ export class Bowl {
 	// runs over; lit inside after dark. P: its front line (field frame), y0..y1, depth back to the walkway.
 	_pressBox( P, y0, y1, depth ) {
 
-		const maroon = standard( { name: 'press-maroon', color: new Color( 0.15, 0.03, 0.03 ), roughness: 0.6 } );
-		const trim = standard( { name: 'press-trim', color: new Color( 0.75, 0.74, 0.7 ), roughness: 0.5 } );
 		const yS = y0 + 1.4, yG = yS + 2.7, tilt = 0.45, yF = yS - 0.9;
+		// ---- FW5 (C3W-3): under the booths a white precast sill band, then brick (yeago81 5247898427, 2009: the
+		// black bunting hangs from the band, the brick under it); the roof it carries a grey membrane
+		const maroon = standard( { name: 'press-maroon', color: new Color( 0.15, 0.03, 0.03 ), roughness: 0.6,
+			surface: /* wgsl */`
+	if ( in.N.y > 0.5 ) {
+		s.albedo = vec3f( 0.16, 0.16, 0.165 );
+		s.roughness = 0.8;
+	} else if ( in.uv.y > ${ ( yS - 0.55 ).toFixed( 3 ) } ) {
+		s.albedo = vec3f( 0.6, 0.59, 0.55 );
+		s.roughness = 0.75;
+	} else {
+		let fw = fwidth( in.uv.y ) / 0.075;
+		let row = floor( in.uv.y / 0.075 );
+		let bu = in.uv.x / 0.2 + 0.5 * ( row % 2.0 );
+		let mortar = max( step( 0.86, fract( in.uv.y / 0.075 ) ), step( 0.94, fract( bu ) ) ) * ( 1.0 - clamp( fw * 2.0, 0.0, 1.0 ) );
+		s.albedo = mix( vec3f( 0.3, 0.1, 0.065 ) * ( 0.9 + 0.2 * fract( sin( row * 12.9898 + floor( bu ) * 78.233 ) * 43758.5453 ) ), vec3f( 0.42, 0.4, 0.37 ), mortar * 0.6 );
+		s.roughness = 0.8;
+	}
+` } );
+		// ---- end FW5
+		const trim = standard( { name: 'press-trim', color: new Color( 0.75, 0.74, 0.7 ), roughness: 0.5 } );
 		let total = 0;
 		for ( let i = 0; i < P.length - 1; i ++ ) total += Math.hypot( P[ i + 1 ][ 0 ] - P[ i ][ 0 ], P[ i + 1 ][ 1 ] - P[ i ][ 1 ] );
 		const nB = Math.round( total / 4.5 ), bw = total / nB, mid = Math.floor( nB / 2 );
@@ -584,7 +603,6 @@ export class Bowl {
 		const glass = standard( { name: 'press-glass', color: new Color( 0.03, 0.045, 0.055 ), roughness: 0.06, metalness: 0.6, modules: [ interiorModule ],
 			surface: /* wgsl */`
 	let bw = ${ bw.toFixed( 4 ) };
-	let RH = 2.7;
 	let Nh = normalize( vec3f( in.N.x, 0.0, in.N.z ) );
 	let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), Nh ) );
 	let Vd = normalize( in.P - frame.cameraPos );
@@ -603,58 +621,160 @@ export class Bowl {
 	if ( id0 == 4.0 ) { id = - 2.0; }
 	if ( id0 == - 1.0 ) { id = 7.0; }
 	// ---- end B
+	// ---- FW5 (C3W-3, gauntlet r3): from the field and the seats the booths read as one bright office
+	// ceiling, a grid of white strips the length of the press box, with no booths, partitions or people:
+	// the room's ceiling (2.7 m over its floor, under the glass's top) was what most of the window showed
+	// from below, its rows of strip lights in every booth. As the 2008-09 photos have them from below
+	// (yeago81 5247698087 and 5247898427, Apr 2009; 5248359160, Oct 2009, the writers' box): each booth its
+	// own opening in a navy frame, a mullion between, the header over it; the windows slid open for the
+	// Series (no glass) and the writers' hinged up overhead; inside, the people at the desk at the window
+	// (heads and shoulders over the sill from below), monitors' backs, the back wall cream with racks and the
+	// station's banner (FOX's booth, CSN's in the season: the Phillies flag), FOX's two floods over its
+	// desk, two spots in a radio booth's ceiling; the writers' room one long room behind its bays, two rows
+	// of desks stepping up, laptops, TVs hung from the ceiling, round downlights in the tile, a red wall at
+	// the back; all lit warm.
+	let RH2 = 3.2;
+	let DEP = 3.6;
+	let night = smoothstep( 0.1, 0.7, frame.night );
+	let media = abs( id ) < 2.5 || id == 7.0; // ---- B (home): and the PA's
 	let lean = clamp( ( in.uv.y - ${ yS.toFixed( 3 ) } ) / ${ ( yG - yS ).toFixed( 3 ) }, 0.0, 1.0 ) * ${ tilt };
 	let ro = vec3f( fract( in.uv.x / bw ) * bw - bw * 0.5, in.uv.y - ${ yF.toFixed( 3 ) }, - lean );
-	let tx = ( select( - bw * 0.5, bw * 0.5, rd.x > 0.0 ) - ro.x ) / rd.x;
-	let ty = ( select( 0.0, RH, rd.y > 0.0 ) - ro.y ) / rd.y;
-	let tz = ( 3.6 - ro.z ) / rd.z;
+	let cx = ( floor( in.uv.x / bw ) + 0.5 ) * bw;
+	// the frame: a navy mullion between the bays, the header over the openings
+	let fwx = fwidth( in.uv.x ) + 0.002;
+	let fwy = fwidth( in.uv.y ) + 0.002;
+	let frameK = max( smoothstep( bw * 0.5 - 0.11 - fwx, bw * 0.5 - 0.11, abs( ro.x ) ), smoothstep( RH2 - fwy, RH2, ro.y ) );
+	// the room: a booth (its side walls the partitions) or the writers' long room (no walls across)
+	let wx = select( 1.0e4, bw * 0.5 - 0.11, media );
+	let tx = ( select( - wx, wx, rd.x > 0.0 ) - ro.x ) / rd.x;
+	let ty = ( select( 0.0, RH2, rd.y > 0.0 ) - ro.y ) / rd.y;
+	let tz = ( DEP - ro.z ) / rd.z;
 	var t = min( tx, min( ty, tz ) );
-	var hit = ro + rd * t;
-	let media = abs( id ) < 2.5 || id == 7.0; // ---- B (home): and the PA's
-	var room = vec3f( 0.45, 0.43, 0.4 );
+	let hit = ro + rd * t;
+	let ax = cx + hit.x;
+	var room = vec3f( 0.5 );
 	if ( t == ty && rd.y > 0.0 ) {
-		// (CB-15: the ceiling's lights a good deal dimmer: rows of them across every booth read as one
-		// bright white hall from the field)
-		let g = abs( fract( hit.xz / vec2f( 1.2, 1.5 ) ) - 0.5 );
-		room = mix( vec3f( 0.32, 0.32, 0.31 ), vec3f( 0.95, 0.97, 1.0 ) * 1.3, step( g.x, 0.25 ) * step( g.y, 0.1 ) );
+		// the ceiling: acoustic tile on a grid, darker toward the window; a booth's two spots over its
+		// desk, the writers' round downlights in two rows
+		let tg = abs( fract( vec2f( ax, hit.z ) / 0.6 ) - 0.5 );
+		room = vec3f( 0.3, 0.295, 0.285 ) * ( 1.0 - 0.12 * step( 0.46, max( tg.x, tg.y ) ) ) * mix( 0.5, 1.0, smoothstep( 0.0, DEP, hit.z ) );
+		// (a broadcast booth's ceiling dark: the TV booth's light grid, the radio's sound panels)
+		if ( media ) { room = room * select( 0.55, 0.3, id == 0.0 ); }
+		if ( media ) {
+			let q = vec2f( abs( hit.x ) - 0.85, hit.z - 1.1 );
+			if ( dot( q, q ) < 0.01 ) { room = vec3f( 2.2, 1.95, 1.5 ); }
+		} else {
+			let q = vec2f( fract( ax / 1.8 ) * 1.8 - 0.9, fract( hit.z / 1.6 ) * 1.6 - 0.8 );
+			if ( dot( q, q ) < 0.008 ) { room = vec3f( 2.0, 1.8, 1.45 ); }
+		}
 	} else if ( t == ty ) {
-		room = vec3f( 0.1, 0.1, 0.11 );
+		room = vec3f( 0.07, 0.065, 0.07 );
 	} else if ( t == tx ) {
-		room = vec3f( 0.36, 0.34, 0.31 );
-	} else {
-		// the back wall: equipment racks in the media booths (dark, pin lights), the station's banner
-		room = vec3f( 0.4, 0.38, 0.35 );
-		if ( media && abs( hit.x ) > 1.2 && hit.y < 2.0 ) {
+		room = vec3f( 0.46, 0.44, 0.4 );
+	} else if ( media ) {
+		// the back wall: cream; racks either side, dark with pin lights; the banner across the middle
+		room = vec3f( 0.55, 0.52, 0.47 );
+		if ( abs( hit.x ) > 1.35 && hit.y < 2.1 ) {
 			room = vec3f( 0.03 );
 			if ( fract( hit.y * 6.0 ) < 0.08 && fract( hit.x * 9.0 ) < 0.2 ) { room = vec3f( 2.0, 0.4, 0.2 ) * step( 0.5, ihash( floor( hit.y * 6.0 ) + floor( hit.x * 9.0 ) * 7.0 ) ); }
 		}
-		if ( abs( hit.x ) < 1.1 && abs( hit.y - 1.9 ) < 0.32 ) {
-			if ( id == - 1.0 ) { room = vec3f( 0.7, 0.03, 0.04 ); }
-			if ( id == 0.0 ) { room = vec3f( 0.03, 0.08, 0.3 ); }
-			if ( id == 1.0 ) { room = vec3f( 0.03, 0.1, 0.35 ); }
-			if ( id == - 2.0 ) { room = vec3f( 0.6, 0.05, 0.05 ); }
+		let bq = vec2f( hit.x, hit.y - 1.95 );
+		if ( abs( bq.x ) < 1.25 && abs( bq.y ) < 0.5 ) {
+			if ( id == 0.0 ) {
+				// the Phillies flag: the blue field, a red and a white sweep across it, the red P in its ring
+				room = vec3f( 0.04, 0.12, 0.42 );
+				let sw = bq.y + 0.18 * sin( bq.x * 2.2 );
+				if ( abs( sw - 0.12 ) < 0.08 ) { room = vec3f( 0.6, 0.04, 0.05 ); }
+				if ( abs( sw + 0.12 ) < 0.09 ) { room = vec3f( 0.75, 0.74, 0.7 ); }
+				let rr = length( bq );
+				if ( rr < 0.3 ) { room = select( vec3f( 0.75, 0.74, 0.7 ), vec3f( 0.6, 0.04, 0.05 ), rr < 0.24 ); }
+			}
+			if ( id == - 1.0 ) { room = vec3f( 0.6, 0.04, 0.05 ); if ( abs( bq.y ) < 0.06 ) { room = vec3f( 0.75 ); } }
+			if ( id == 1.0 ) { room = vec3f( 0.02, 0.08, 0.3 ); if ( abs( bq.y + 0.2 ) < 0.07 ) { room = vec3f( 0.7, 0.75, 0.2 ); } }
+			if ( id == - 2.0 ) { room = vec3f( 0.62, 0.05, 0.05 ); if ( abs( bq.x ) < 0.6 && abs( bq.y ) < 0.18 ) { room = vec3f( 0.75 ); } }
+			if ( id == 2.0 ) { room = vec3f( 0.05, 0.14, 0.45 ); if ( abs( bq.y ) < 0.12 && abs( bq.x ) < 0.9 ) { room = vec3f( 0.75 ); } }
+		}
+	} else {
+		// the writers' back wall: red in stretches, the glass of an office in others (its lights beyond),
+		// cream between; an EXIT sign now and then
+		room = vec3f( 0.55, 0.52, 0.47 );
+		let seg = fract( ax / 14.0 );
+		if ( seg < 0.3 ) { room = vec3f( 0.42, 0.05, 0.05 ); }
+		else if ( seg < 0.55 ) {
+			room = vec3f( 0.12, 0.13, 0.14 );
+			if ( hit.y > 2.55 && hit.y < 2.7 ) { room = vec3f( 1.2, 1.15, 1.0 ); }
+			if ( fract( ax / 1.4 ) < 0.04 ) { room = vec3f( 0.03 ); }
+		}
+		if ( hit.y > 2.4 && hit.y < 2.58 && abs( fract( ax / 21.0 ) - 0.5 ) < 0.012 ) { room = vec3f( 2.0, 0.1, 0.05 ); }
+	}
+	if ( media ) {
+		// the monitors on the desk, their backs to the window
+		let tm = ( 0.28 - ro.z ) / rd.z;
+		if ( tm > 0.0 && tm < t ) {
+			let mp = ro + rd * tm;
+			let mx = fract( mp.x / 1.5 + 0.5 ) * 1.5 - 0.75;
+			if ( abs( mx ) < 0.2 && mp.y > 0.9 && mp.y < 1.22 ) { room = vec3f( 0.025 ); t = tm; }
+		}
+		if ( id == 0.0 ) {
+			// FOX's floods hung over the desk, aimed at the two of them, and the camera behind
+			let tl = ( 1.7 - ro.z ) / rd.z;
+			if ( tl > 0.0 && tl < t ) {
+				let lp = ro + rd * tl;
+				let fx = abs( abs( lp.x ) - 0.6 );
+				if ( fx < 0.33 && lp.y > 2.42 && lp.y < 2.98 ) {
+					room = select( vec3f( 0.04 ), vec3f( 4.0, 3.8, 3.3 ), fx < 0.27 && lp.y > 2.48 && lp.y < 2.92 );
+					t = tl;
+				}
+			}
+			let tc = ( 2.3 - ro.z ) / rd.z;
+			if ( tc > 0.0 && tc < t ) {
+				let cp = ro + rd * tc;
+				if ( ( abs( cp.x - 1.3 ) < 0.24 && cp.y > 1.28 && cp.y < 1.62 ) || ( abs( cp.x - 1.3 ) < 0.03 && cp.y < 1.3 ) ) { room = vec3f( 0.04 ); t = tc; }
+			}
+		}
+	} else {
+		// the writers: the front row's laptops (lids to the window), the back row's desk a step up, the TVs
+		let tl = ( 0.25 - ro.z ) / rd.z;
+		if ( tl > 0.0 && tl < t ) {
+			let lp = ro + rd * tl;
+			let k = floor( ( cx + lp.x ) / 1.25 + 0.3 );
+			let lx = fract( ( cx + lp.x ) / 1.25 + 0.3 ) * 1.25 - 0.625;
+			if ( abs( lx ) < 0.17 && lp.y > 0.9 && lp.y < 1.12 && ihash( k ) > 0.25 ) { room = select( vec3f( 0.04 ), vec3f( 0.45, 0.45, 0.47 ), ihash( k * 3.1 ) > 0.6 ); t = tl; }
+		}
+		let tt = ( 1.3 - ro.z ) / rd.z;
+		if ( tt > 0.0 && tt < t ) {
+			let tp = ro + rd * tt;
+			let tvx = fract( ( cx + tp.x ) / 9.0 ) * 9.0 - 4.5;
+			if ( abs( tvx ) < 0.34 && tp.y > 2.5 && tp.y < 2.92 ) { room = vec3f( 0.03 ); t = tt; }
+			if ( abs( tvx ) < 0.02 && tp.y >= 2.92 ) { room = vec3f( 0.03 ); t = tt; }
+		}
+		let tb = ( 1.45 - ro.z ) / rd.z;
+		if ( tb > 0.0 && tb < t ) {
+			let bp = ro + rd * tb;
+			if ( bp.y < 1.36 ) { room = vec3f( 0.62, 0.6, 0.56 ); t = tb; }
+		}
+		// the two rows, some seats empty (downstairs for quotes): coats, hair, skin by the seat
+		for ( var r = 0; r < 2; r ++ ) {
+			let zr = select( 0.6, 1.95, r == 1 );
+			let lift = select( 0.0, 0.45, r == 1 );
+			let tr = ( zr - ro.z ) / rd.z;
+			if ( tr > 0.0 && tr < t ) {
+				let rp = ro + rd * tr;
+				let a2 = cx + rp.x + f32( r ) * 0.62;
+				let k = floor( a2 / 1.25 ) + f32( r ) * 101.0;
+				if ( ihash( k * 1.7 ) > 0.3 ) {
+					let c = ihash( k * 2.3 );
+					let wc = mix( vec3f( 0.035, 0.035, 0.045 ), vec3f( 0.3, 0.26, 0.2 ), c );
+					let wh = mix( vec3f( 0.05, 0.035, 0.03 ), vec3f( 0.5, 0.48, 0.45 ), step( 0.72, ihash( k * 5.1 ) ) );
+					let ws = mix( vec3f( 0.55, 0.38, 0.3 ), vec3f( 0.3, 0.19, 0.13 ), step( 0.82, ihash( k * 6.7 ) ) );
+					let f = figure( vec2f( fract( a2 / 1.25 ) * 1.25 - 0.625, rp.y - lift ), 1.36 + 0.07 * c, wc, wh, ws, 0.0 );
+					if ( f.w > 0.5 ) { room = f.xyz * 0.9; t = tr; }
+				}
+			}
 		}
 	}
-	// the desk along the window, 0.9 m up and 0.8 m deep: papers, the scorebook, monitors' backs, the
-	// writers' laptops lit
-	let td = ( 0.9 - ro.y ) / rd.y;
-	if ( rd.y < 0.0 && td > 0.0 && td < t ) {
-		let dp = ro + rd * td;
-		if ( dp.z < 0.8 ) {
-			t = td;
-			room = vec3f( 0.22, 0.2, 0.18 );
-			if ( fract( dp.x * 1.3 + 0.2 ) < 0.28 && dp.z > 0.25 && dp.z < 0.55 ) { room = vec3f( 0.75, 0.74, 0.7 ); }
-		}
-	}
-	// monitors on the desk, their backs to the glass, and the writers' laptop lids
-	let tm = ( 0.55 - ro.z ) / rd.z;
-	if ( tm < t && tm > 0.0 ) {
-		let mp = ro + rd * tm;
-		let mx = fract( mp.x / 1.5 + 0.5 ) * 1.5 - 0.75;
-		let tall = select( 0.22, 0.4, media );
-		if ( abs( mx ) < select( 0.16, 0.25, media ) && mp.y > 0.9 && mp.y < 0.9 + tall ) { room = vec3f( 0.025 ); t = tm; }
-	}
-	// the people, seated at the desk 1.05 m in, and one or two standing at the back
+	// the people in the booths, seated at the desk 0.6 m in (on tall chairs: their heads well over the sill
+	// from below), and one or two standing at the back
 	var px = array<f32, 3>( - 1.4, 0.0, 1.4 );
 	var coat = array<vec3f, 3>( vec3f( 0.08, 0.08, 0.09 ), vec3f( 0.25, 0.23, 0.2 ), vec3f( 0.03, 0.04, 0.08 ) );
 	var hair = array<vec3f, 3>( vec3f( 0.06, 0.04, 0.03 ), vec3f( 0.45, 0.45, 0.43 ), vec3f( 0.2, 0.12, 0.06 ) );
@@ -692,33 +812,39 @@ export class Bowl {
 		px = array<f32, 3>( 0.2, 99.0, 99.0 );
 		coat = array<vec3f, 3>( vec3f( 0.04, 0.05, 0.1 ), vec3f( 0.0 ), vec3f( 0.0 ) );
 		hair = array<vec3f, 3>( vec3f( 0.5, 0.49, 0.47 ), vec3f( 0.0 ), vec3f( 0.0 ) );
-	} else {
-		// writers: their own coats, some seats empty (downstairs for quotes)
-		for ( var k = 0; k < 3; k ++ ) {
-			let r = ihash( id * 5.0 + f32( k ) );
-			coat[ k ] = mix( vec3f( 0.04 ), vec3f( 0.3, 0.26, 0.2 ), r );
-			if ( r > 0.8 ) { px[ k ] = 99.0; }
+	}
+	if ( media ) {
+		let tS = ( 2.7 - ro.z ) / rd.z;
+		if ( tS < t && tS > 0.0 && ihash( id + 9.0 ) > 0.4 ) {
+			let sp = ro + rd * tS;
+			let f = figure( vec2f( sp.x - 1.2 + 2.0 * ihash( id + 3.0 ), sp.y ), 1.78, vec3f( 0.05, 0.05, 0.06 ), vec3f( 0.1, 0.07, 0.05 ), vec3f( 0.5, 0.35, 0.27 ), 0.0 );
+			if ( f.w > 0.5 ) { room = f.xyz * 0.6; t = tS; }
+		}
+		let tP = ( 0.6 - ro.z ) / rd.z;
+		if ( tP < t && tP > 0.0 ) {
+			let pp = ro + rd * tP;
+			for ( var k = 0; k < 3; k ++ ) {
+				let f = figure( vec2f( pp.x - px[ k ], pp.y ), 1.4 + 0.04 * ihash( id + f32( k ) ), coat[ k ], hair[ k ], skin[ k ], hs );
+				if ( f.w > 0.5 ) { room = f.xyz * 0.85; }
+			}
 		}
 	}
-	let tS = ( 2.7 - ro.z ) / rd.z;
-	if ( tS < t && tS > 0.0 && ihash( id + 9.0 ) > 0.4 ) {
-		let sp = ro + rd * tS;
-		let f = figure( vec2f( sp.x - 1.2 + 2.0 * ihash( id + 3.0 ), sp.y ), 1.78, vec3f( 0.05, 0.05, 0.06 ), vec3f( 0.1, 0.07, 0.05 ), vec3f( 0.5, 0.35, 0.27 ), 0.0 );
-		if ( f.w > 0.5 ) { room = f.xyz * 0.6; }
-	}
-	let tP = ( 1.05 - ro.z ) / rd.z;
-	if ( tP < t && tP > 0.0 ) {
-		let pp = ro + rd * tP;
-		for ( var k = 0; k < 3; k ++ ) {
-			let f = figure( vec2f( pp.x - px[ k ], pp.y ), 1.33 + 0.05 * ihash( id + f32( k ) ), coat[ k ], hair[ k ], skin[ k ], hs );
-			if ( f.w > 0.5 ) { room = f.xyz * 0.8; }
-		}
-		// the writers' screens light their faces from below
-		if ( ! media && fract( pp.x / 1.4 + 0.5 ) < 0.12 && pp.y > 0.9 && pp.y < 1.1 ) { room = vec3f( 0.6, 0.75, 1.0 ) * 1.5; }
-	}
-	let fox = select( 1.0, 1.7, id == 0.0 );
-	let fres = pow( 1.0 - max( dot( - Vd, Nh ), 0.0 ), 3.0 );
-	s.emissive = room * fox * mix( 0.12, 0.3, smoothstep( 0.1, 0.7, frame.night ) ) * ( 1.0 - fres * 0.8 );
+	// the light: warm (incandescent, the TV's floods), FOX's booth the brightest for its camera; the
+	// booths' windows open (no glass, nothing reflected), the writers' hinged up overhead: a band of glass
+	// at the top of their opening catching the bowl's lights; the frame navy paint
+	let warm = vec3f( 1.0, 0.9, 0.76 );
+	let fox = select( 1.0, 1.45, id == 0.0 );
+	let hinged = ! media && ro.y > RH2 - 0.4;
+	s.albedo = vec3f( 0.0 );
+	s.metalness = 0.0;
+	s.roughness = 0.9;
+	if ( hinged ) { s.albedo = mat.color; s.metalness = 0.6; s.roughness = 0.08; }
+	let e = room * warm * fox * mix( 0.12, 0.3, night ) * select( 1.0, 0.4, hinged );
+	s.albedo = mix( s.albedo, vec3f( 0.03, 0.045, 0.1 ), frameK );
+	s.metalness = mix( s.metalness, 0.0, frameK );
+	s.roughness = mix( s.roughness, 0.5, frameK );
+	s.emissive = e * ( 1.0 - frameK );
+	// ---- end FW5
 ` } );
 		// CB-15 (gauntlet r1): the band over the booths is the navy fascia with the stations' signs on it
 		// (yeago81 5247898427, 2009: Comcast SportsNet over the TV booth FOX had for the Series, 1210 AM The
