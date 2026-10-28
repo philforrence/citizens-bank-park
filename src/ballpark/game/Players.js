@@ -623,7 +623,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			let k = ( 1.0 - smoothstep( 0.06, 0.1, abs( lp3.x ) ) ) * smoothstep( 0.86, 0.9, lp3.y ) * ( 1.0 - smoothstep( 0.97, 1.02, lp3.y ) ) * smoothstep( 0.01, 0.04, lp3.z );
 			lp3.z = max( lp3.z, mix( lp3.z, 0.104 - 0.9 * lp3.x * lp3.x, k ) );
 		}
-		if ( ! phan && ( style & 1u ) == 0u && leg > 0.3 ) {
+		if ( ! phan && ( style & 1u ) == 0u && ( role & ${ R.shorts }u ) == 0u && leg > 0.3 ) {
 			let sx = sign( lp3.x );
 			let kn = vec3f( sx * ${ f( J.kneeR[ 0 ] ) }, ${ f( J.kneeR[ 1 ] ) }, ${ f( J.kneeR[ 2 ] ) } );
 			let an = vec3f( sx * ${ f( J.ankleR[ 0 ] ) }, ${ f( J.ankleR[ 1 ] ) }, ${ f( J.ankleR[ 2 ] ) } );
