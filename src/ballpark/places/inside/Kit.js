@@ -88,7 +88,7 @@ export const PAL = {
 	exitSign: [ [ 0.9, 0.06, 0.04 ], 0.5, 0, 2.0, P_PLAIN ],
 	screen: [ [ 0.06, 0.07, 0.07 ], 0.15, 0, 1.0, P_SCREEN ], // a TV (an old tube's picture: the game, green)
 	fridge: [ [ 0.8, 0.85, 0.9 ], 0.4, 0, 1.2, P_PLAIN ], // a glass-front fridge's light
-	frost: [ [ 0.42, 0.52, 0.68 ], 0.3, 0, 1.3, P_PLAIN ], // frosted glass lit from behind, blue-white
+	frost: [ [ 0.3, 0.4, 0.56 ], 0.3, 0, 0.7, P_PLAIN ], // frosted glass lit from behind, blue-white
 };
 export const PAL_KEYS = Object.keys( PAL );
 const IDX = Object.fromEntries( PAL_KEYS.map( ( k, i ) => [ k, i ] ) );
