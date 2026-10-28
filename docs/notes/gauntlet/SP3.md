@@ -4,7 +4,7 @@ Branch `worktree-agent-ae4da94dfe6b25f94`, off `ballpark` after FW5 (fe81999). T
 - a real 400s seat behind home, 33.5 ms on the coordinator's after-FW5 run;
 - left field (Harry the K's), 29.3 ms.
 
-The coordinator merged the first three commits as they landed (020625b, aecde12, df881e6).
+Each commit went to the coordinator as it landed: 020625b was merged at once; aecde12 and df881e6 were sent for merging.
 
 How I measured:
 - Exclusive desk jobs, 1280 × 800, the full park: `.claude/gauntlet/perf/sp3-a` to `sp3-f`.
