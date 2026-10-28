@@ -416,12 +416,11 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	// seats: instanced meshes in chunks so the frustum culling can drop the ones behind you; a fan in
 	// nearly every seat (Crowd.js), its seat folded down, the empty ones folded up
 	// ---- SP1 (speed): the chunks are compact pieces of the stands, not runs of 1,500 seats in the order
-	// they were laid (which straddled two or three sections, 50 to 160 m across). The seats go by whole
-	// sections (neighbours merged up to SEAT_CHUNK), the fans by bands of rows within them (FAN_CHUNK):
-	// the crowd picks its level of detail per chunk by the chunk's nearest point, so a chunk that
-	// reached from the camera to the far side of the park drew all its fans in full; and the frustum and
-	// the occlusion culling (engine render/Occlusion.js) can only drop a chunk that is wholly out of view
-	const SEAT_CHUNK = 900, FAN_CHUNK = 400;
+	// they were laid (which straddled two or three sections, 50 to 160 m across): whole sections,
+	// neighbours merged up to SEAT_CHUNK. The frustum and the occlusion culling (engine
+	// render/Occlusion.js) can only drop a chunk that is wholly out of view, and the crowd's pieces
+	// (bands of rows within a chunk, Crowd.addChunk) stay within a section or two
+	const SEAT_CHUNK = 900;
 	const crowd = materials.crowd;
 	const c = new Color();
 	const groups = [];
@@ -459,14 +458,8 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 
 		}
 
-		// the fans in bands of rows (the seats are in row order within a section)
-		const m = Math.ceil( taken.length / FAN_CHUNK );
-		for ( let b = 0; b < m; b ++ ) {
-
-			const part = taken.slice( Math.round( b * taken.length / m ), Math.round( ( b + 1 ) * taken.length / m ) );
-			if ( crowd ) crowd.addChunk( group, part.map( ( k ) => seatMats[ k ] ), tier.name, part.map( ( k ) => seatInfo[ k ] ) );
-
-		}
+		// the fans: the crowd cuts them into pieces of rows itself (Crowd.addChunk)
+		if ( crowd ) crowd.addChunk( group, taken.map( ( k ) => seatMats[ k ] ), tier.name, taken.map( ( k ) => seatInfo[ k ] ) );
 		// ---- end SP1
 
 	}

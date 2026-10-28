@@ -4,7 +4,7 @@ import { buildMeshShader } from './MeshShader.js';
 import { blendState } from './Material.js';
 import { SceneLighting } from './wgsl/lighting.js';
 import { FrameUniforms } from './Frame.js';
-import { Frustum, Matrix4, Sphere, Vector3 } from '../math/index.js';
+import { Box3, Frustum, Matrix4, Sphere, Vector3 } from '../math/index.js';
 import { Occlusion } from './Occlusion.js';
 
 // Draws scene meshes: geometry upload, pipeline cache, per-draw uniforms, culling and sorting.
@@ -460,7 +460,31 @@ export class MeshRenderer {
 
 		if ( ! s || s.radius < 0 || ! Number.isFinite( s.radius ) ) return true;
 		_sphere.copy( s ).applyMatrix4( o.matrixWorld );
-		return _frustum.intersectsSphere( _sphere );
+		if ( ! _frustum.intersectsSphere( _sphere ) ) return false;
+		// ---- SP1: and the box, for the instanced pieces (a section's seats, a band of fans, the players
+		// on the field): long and flat, their spheres reach far past them (into shadow cascades and views
+		// that can't see them)
+		const b = this.worldBox( o );
+		return ! b || _frustum.intersectsBox( b );
+
+	}
+
+	// the world box of an object with a box of its own (`occlusionBox`, or an instanced mesh's
+	// boundingBox), once a frame (shared by the passes); null for the rest
+	worldBox( o ) {
+
+		const local = o.occlusionBox || ( o.isInstancedMesh ? o.boundingBox : null );
+		if ( ! local || local.isEmpty() ) return null;
+		let w = o.__wbox;
+		if ( ! w ) w = o.__wbox = { box: new Box3(), frame: - 1 };
+		if ( w.frame !== GPU.frame ) {
+
+			w.box.copy( local ).applyMatrix4( o.matrixWorld );
+			w.frame = GPU.frame;
+
+		}
+
+		return w.box;
 
 	}
 
