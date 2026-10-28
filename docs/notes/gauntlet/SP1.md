@@ -85,11 +85,12 @@ After FP1 the 3B concourse went 28.59 → 22.31 and upper home 31.48 → 24.70.
 - Their spheres reach far past them. The players' was a slab 120 m across, so its sphere put a million triangles into every shadow cascade.
 - TV high's cascades: 1.27 → 0.80 ms. The players' shadows are as they were.
 
-### 4. The local lights (ace2dab, b6e04fe), both exact
+### 4. The local lights (ace2dab, b6e04fe, d0cdfe9), all exact
 
 - The Beer–Lambert water term (three `exp` per light per pixel) now runs only where the light's path is under water. On dry land it was `exp( 0 )`.
-- A surface turned away from a light no longer evaluates its BRDF (it was multiplied by zero).
-- Left field's local-light cost went 3.7 → 3.45 ms.
+- A surface turned away from a light, or outside its spill, no longer works out the rest of that light (it was multiplied by zero).
+- Left field's local-light cost went 3.7 → 3.45 ms. The last step measured within noise.
+- What remains is the six banks at every pixel: 2.25 ms in TV high and 3.47 ms in left field (same page, lights off).
 
 ### 5. The players' visible slots packed (b6e04fe)
 
@@ -121,14 +122,40 @@ The suites and the club use the same material and gain the same way. The images 
 | 3B field seat (in the lounge) | 32.09 / 19.71 | 18.84 / 8.11 |
 | Batting cages (new view) | n/a | 20.12 / 8.85 |
 
+### 7. The seats indexed (9576ba8, after FW1 merged)
+
+`Stands.js` `seatGeometry()` returns its Quads indexed (`geo.js` `indexed()`: identical corners shared), so the vertex shader runs 24 times a seat, not 36. The triangles are the same.
+
+| View | Opaque non-indexed (ms) | Opaque indexed (ms) |
+|---|---|---|
+| Left field | 20.09 | 19.63 |
+| Upper home | 14.70 | 14.10 |
+| 3B concourse | 12.31 | 12.07 |
+
 ### Tried and dropped
 
 - **A far seat (4 triangles for 12):** no measurable change (12.89 / 12.91 ms opaque in TV high), so it wasn't kept.
-- **Indexing the seats (`geo.js` `indexed()`: 24 vertices a seat, not 36):** −0.25 to −0.55 ms in the walking views. Not applied, because `seatGeometry` is FW1's now. It's a one-line change for them (see below).
+- **A lower occlusion threshold (800 triangles, not 2,500):** at most 0.1 ms, so it stays at 2,500.
 
 ## The numbers
 
 Wall ms per frame, exclusive, 1280 × 800.
+
+**Last: after FW1 and FB2.** `ballpark` already had SP1 up to a62a3a7. "SP1 final" (job m6) adds the lights' spill test and the indexed seats. FW1's heavier close-up Cast figure and FB2's wider high home lens (fov 37, +14% triangles) put the TV views back up.
+
+| View | Coordinator after FB2 | SP1 final | GPU | Opaque |
+|---|---|---|---|---|
+| TV center | 23.85 | **23.51** | 19.49 | 11.78 |
+| TV high | 30.37 | **29.64** | 25.13 | 18.42 |
+| TV follow | 20.43 | **19.85** | 16.90 | 10.21 |
+| 3B concourse walk | 24.04 | **22.76** | 18.63 | 12.05 |
+| 3B field seat (the lounge) | 20.18 | **19.93** | 16.29 | 9.10 |
+| Upper seat behind home | 25.36 | **25.25** | 20.65 | 14.05 |
+| Left field, Harry's | 32.12 | **31.08** | 26.08 | 19.49 |
+| Rain TV high | 31.17 | **30.79** | 25.84 | 18.37 |
+| A real 3B field seat | 26.65 | **26.22** | 21.91 | 15.12 |
+
+**Before that: after FI2.**
 
 - "Step 8" is my first job on this branch, the same tree as the coordinator's after-FY1.
 - "Coordinator" is the coordinator's run on `ballpark` after FI2 (`after-fi2.out`), without SP1.
@@ -152,7 +179,7 @@ The coordinator's after-FI2 column already includes most of what FP1 itself won.
 - FY2: 0.5 to 2.5 ms;
 - FI2: 14 ms under the stands.
 
-The worst view is now left field, at 30.2 ms.
+After FI2 the worst view was left field, at 30.2 ms. After FW1 and FB2 it's left field at 31.1, the rainy TV high at 30.8 and TV high at 29.6. All of them are under the floor, but with less than 3 ms to spare.
 
 ## What the merger must know
 
@@ -166,9 +193,10 @@ The worst view is now left field, at 30.2 ms.
 - `geo.js`: `indexed()`;
 - `places/inside/Kit.js` and `places/Under.js`.
 
-**Overlaps with the new owners.** These were committed before ownership moved:
-- FW1: `Crowd.js` `addChunk`, and `Stands.js`'s chunk loop (not `seatGeometry`).
+**Overlaps with the new owners.** These were committed before ownership moved, except the seats, which came after FW1 merged:
+- FW1 / FP2: `Crowd.js` `addChunk`, `Stands.js`'s chunk loop, and `seatGeometry()`'s last line (`return indexed( g )`).
 - FB2: `Players.js`, the `drawSlots` / `slotted` lines, and `_playerBounds` in `BallparkApp.js` (not the cameras).
+- FI3 takes the insides next. `insideMaterial` now takes `{ net: true }` for any mesh with netting; without it, `net` faces draw solid. Keep `discard` out of the shared material.
 
 **Occlusion and new objects.**
 - A new big object is culled automatically if its bounds are honest.
@@ -185,13 +213,18 @@ The worst view is now left field, at 30.2 ms.
 
 ## Next: wins in the other fixers' files (not done, numbers measured)
 
+0. **The TV views after FW1 and FB2 (FP2, Cast.js).**
+   - Cast's near figure is now 3.8k vertices, and its `NEAR_FRAC` (0.14 of the screen's height, ~112 px) puts ~123 figures at the near level in TV center through FOX's long lens.
+   - That threshold is honest by screen size. The cheaper fix is a middle level (~1.2k vertices) between near and far for 112–250 px, with the full figure only above ~250 px.
+   - The crowd's close and near levels also run `cwVertex` twice for the motion vectors. When a fan's pose rows didn't change since the last frame (most fans, most frames), the second call could be skipped: compare the cur and prev rows the compute pass writes, or have it set a "still" bit.
+
 1. **A players LOD (FB2, after its body changes).** Each player is 32,500 triangles (18.5k vertices), 0.7–1.1M a frame. They cost 1.8–2.4 ms of opaque plus ~0.4 ms of shadow in every view, and 2.0 ms in left field where they're ~20 px tall.
    - A decimated body (4–6k triangles) for players under ~60 px tall would work as a second slotted draw.
    - `aSlot` and the packing are in place: give the far draw its own `aSlot` list.
    - That would save ~1.5 ms in the TV views.
 2. **A distant crowd level (FW1).** In left field the far level is 1.1–2.0M triangles and 5.1 ms.
    - A fifth level for fans under ~8 px tall (`d` > ~60 in `Crowd.lod()`, about 30–40 triangles), plus the lean and head-turn trigonometry worked out once per fan in the compute pass rather than per vertex, should take 2–3 ms off left field. That is the view nearest the floor now.
-3. **Indexed seats (FW1):** `return indexed( g )` at the end of `seatGeometry()` (`geo.js` has it). −0.25 to −0.55 ms in the walking views.
+3. **Indexed seats:** done (section 7).
 4. **The Cast (FW1):** 1.2–1.9 ms in the walking views (upper home: 380k triangles, 1.95 ms). It draws with `frustumCulled = false`, so occlusion can't drop it. An `occlusionBox` per LOD draw, or per troupe, would let it.
 5. **The local lights at night** cost 2–3.5 ms (left field 3.45). Each lit pixel runs the full BRDF for the six banks and up to six lamps. Two options:
    - a per-tile light list, so a pixel only loops over the lamps that reach its tile;
