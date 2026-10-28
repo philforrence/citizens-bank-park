@@ -8,6 +8,7 @@ import { LOTS } from '../../data/complex.js';
 import { Mesher, rng } from './Mesher.js';
 import { pattisonZ, eleventhX } from './Street.js';
 import { signal } from './Signals.js';
+import { groundLightAt } from '../../GroundLight.js'; // ---- FC4 (C4R-4)
 
 // The cars of 2008: sedans, SUVs, pickups, minivans in the lots across Pattison and 11th, filled on a
 // sold-out night (they were empty in round 1), and on the streets: cars circling for a space and
@@ -68,16 +69,37 @@ export function body( type ) {
 
 	};
 
+	// ---- FC4 (C4R-9): the wheels out where they show, flush with the body's side (they were inside it,
+	// so from a few metres a parked car was a shoebox on the ground), a hub on each and the arch over it
+	// in shadow. bodyW: the body's half width there
+	let bodyW = 0;
 	const wheel = ( x, z, r, w ) => {
 
 		// 7 sides, capped on the outside only (a parked lot's worth of wheels adds up)
-		const out = x > 0;
+		const out = x > 0, sx = out ? 1 : - 1;
+		if ( bodyW ) x = sx * ( bodyW - w / 2 + 0.025 );
 		const n0 = m.count;
 		m.tube( [ [ x - w / 2, r, z ], [ x + w / 2, r, z ] ], [ r, r ], 7, { capA: ! out, capB: out, ex: {} } );
 		const n = m.count;
 		for ( let i = n0; i < n; i ++ ) { m.uv[ i * 2 ] = 2.5; m.uv[ i * 2 + 1 ] = 0.5; }
+		if ( ! bodyW ) return;
+		// the hub: a disc of six on the tyre's face (chrome); the arch: a half ring of trim on the body round it
+		const xo = x + sx * ( w / 2 + 0.004 ), xa = sx * ( bodyW + 0.004 ), hub = r * 0.58, ch = part( 6 ), tr = part( 5 );
+		const c = m.v( [ xo, r, z ], [ sx, 0, 0 ], ch );
+		const rim = [];
+		for ( let k = 0; k < 6; k ++ ) rim.push( m.v( [ xo, r + Math.sin( k / 6 * Math.PI * 2 ) * hub, z + Math.cos( k / 6 * Math.PI * 2 ) * hub ], [ sx, 0, 0 ], ch ) );
+		for ( let k = 0; k < 6; k ++ ) sx > 0 ? m.tri( c, rim[ ( k + 1 ) % 6 ], rim[ k ] ) : m.tri( c, rim[ k ], rim[ ( k + 1 ) % 6 ] );
+		const R0 = r + 0.02, R1 = r + 0.09;
+		for ( let k = 0; k < 4; k ++ ) {
+
+			const a0 = k / 4 * Math.PI, a1 = ( k + 1 ) / 4 * Math.PI;
+			const P = ( a, R ) => [ xa, r + Math.sin( a ) * R, z + Math.cos( a ) * R ];
+			m.face( P( a0, R0 ), P( a1, R0 ), P( a1, R1 ), P( a0, R1 ), [ sx, 0, 0 ], [ tr, tr, tr, tr ] );
+
+		}
 
 	};
+	// ---- end FC4
 
 	const lamps = ( w, y, zf, zr, hw = 0.2, hh = 0.1 ) => {
 
@@ -101,6 +123,7 @@ export function body( type ) {
 		slab( - 0.95, 0.95, 0.25, 0.45, - 2.66, - 2.5, 6 );
 		slab( - 0.95, 0.95, 0.25, 0.45, 2.5, 2.66, 6 );
 		lamps( 0.9, 0.75, - 2.6, 2.6 );
+		bodyW = 0.93; // ---- FC4
 		for ( const [ x, z ] of [ [ - 0.78, - 1.6 ], [ 0.78, - 1.6 ], [ - 0.78, 1.55 ], [ 0.78, 1.55 ] ] ) wheel( x, z, 0.34, 0.24 );
 		if ( type === 'police' ) {
 
@@ -114,6 +137,7 @@ export function body( type ) {
 		slab( - 0.98, 0.98, 0.42, 1.12, - 2.45, 2.45, 0, 0.1 );
 		cabin( 0.94, 1.12, 1.82, - 1.1, - 0.55, 2.35, 2.42 );
 		lamps( 0.95, 0.95, - 2.45, 2.45, 0.22, 0.12 );
+		bodyW = 0.98; // ---- FC4
 		for ( const [ x, z ] of [ [ - 0.82, - 1.5 ], [ 0.82, - 1.5 ], [ - 0.82, 1.5 ], [ 0.82, 1.5 ] ] ) wheel( x, z, 0.4, 0.28 );
 
 	} else if ( type === 'pickup' ) {
@@ -125,6 +149,7 @@ export function body( type ) {
 		for ( const s of [ - 1, 1 ] ) slab( s * 0.98 - ( s > 0 ? 0.08 : 0 ), s * 0.98 + ( s > 0 ? 0 : 0.08 ), 0.7, 1.15, - 0.35, 2.75, 0 );
 		slab( - 0.98, 0.98, 0.7, 1.15, 2.67, 2.75, 0 );
 		lamps( 0.95, 0.9, - 2.8, 2.75, 0.22, 0.14 );
+		bodyW = 0.98; // ---- FC4
 		for ( const [ x, z ] of [ [ - 0.83, - 1.9 ], [ 0.83, - 1.9 ], [ - 0.83, 1.7 ], [ 0.83, 1.7 ] ] ) wheel( x, z, 0.4, 0.28 );
 
 	} else if ( type === 'van' ) {
@@ -132,6 +157,7 @@ export function body( type ) {
 		slab( - 0.98, 0.98, 0.35, 1.05, - 2.55, 2.55, 0, 0.1 );
 		cabin( 0.95, 1.05, 1.75, - 1.55, - 0.7, 2.4, 2.5 );
 		lamps( 0.94, 0.85, - 2.55, 2.55 );
+		bodyW = 0.98; // ---- FC4
 		for ( const [ x, z ] of [ [ - 0.82, - 1.55 ], [ 0.82, - 1.55 ], [ - 0.82, 1.6 ], [ 0.82, 1.6 ] ] ) wheel( x, z, 0.36, 0.25 );
 
 	} else if ( type === 'coach' ) {
@@ -193,7 +219,7 @@ export function carMaterial( info ) {
 	var rough = 0.28; var metal = 0.3; var e = vec3f( 0.0 );
 	let night = smoothstep( 0.1, 0.7, frame.night );
 	switch part {
-		case 1: { c = vec3f( 0.02, 0.025, 0.03 ); rough = 0.04; metal = 0.1; }
+		case 1: { c = vec3f( 0.035, 0.045, 0.055 ); rough = 0.04; metal = 0.15; } // (FC4, C4R-9: a shade lighter: tinted glass, not a black slab)
 		case 2: { c = vec3f( 0.015 ); rough = 0.8; metal = 0.0; }
 		case 3: { c = vec3f( 0.7, 0.7, 0.65 ); rough = 0.1; e = vec3f( 1.0, 0.95, 0.85 ) * inf.x * mix( 0.8, 12.0, night ); }
 		case 4: { c = vec3f( 0.3, 0.01, 0.01 ); rough = 0.2; e = vec3f( 1.0, 0.02, 0.01 ) * ( inf.x * mix( 0.2, 1.5, night ) + inf.y * mix( 2.0, 8.0, night ) ); }
@@ -639,10 +665,10 @@ export class LotCars {
 					if ( r() > 0.9 ) continue;
 					const nx = - su * face, nz = cu * face;
 					const u2 = r();
-					// the light it stands in: the pole grid's pool, as the lots' shader lights the asphalt
-					const gu = ( ( u / 40 + 0.5 ) % 1 + 1 ) % 1 - 0.5, gv = ( ( vv / 36.6 + 0.5 ) % 1 + 1 ) % 1 - 0.5;
-					const pool = Math.exp( - ( ( gu * 40 ) ** 2 + ( gv * 36.6 ) ** 2 ) / 200 );
-					stalls.push( { x: x + ( r() - 0.5 ) * 0.2, z, yaw: Math.atan2( - nx, - nz ) + ( r() - 0.5 ) * 0.08, type: u2 < 0.4 ? 0 : u2 < 0.68 ? 1 : u2 < 0.86 ? 2 : 3, paint: paints[ Math.floor( r() * paints.length ) ], light: pool * pool * 3.2 + pool * 0.22 } );
+					// the light it stands in: its pole's pool, as the lots' shader lights the asphalt (---- FC4, C4R-4:
+					// the poles drawn, GroundLight.js's map; it was a grid of its own)
+					const light = groundLightAt( x, z ) * 3.4;
+					stalls.push( { x: x + ( r() - 0.5 ) * 0.2, z, yaw: Math.atan2( - nx, - nz ) + ( r() - 0.5 ) * 0.08, type: u2 < 0.4 ? 0 : u2 < 0.68 ? 1 : u2 < 0.86 ? 2 : 3, paint: paints[ Math.floor( r() * paints.length ) ], light } );
 
 				}
 

@@ -5,6 +5,7 @@ import { Quads } from './Stands.js';
 import { flatPolygon, canvasTexture } from './geo.js';
 import { LEVELS } from './layout.js';
 import { TOWERS, NEIGHBOURS, ROADS } from './data/surroundings.js';
+import { groundLightModule } from './GroundLight.js'; // ---- FC4 (C4R-4)
 
 // South Philadelphia round the ballpark and Center City on the horizon: the streets (from OpenStreetMap),
 // the other venues of the sports complex as plain masses, and Center City's towers on their real
@@ -63,7 +64,7 @@ export class Surroundings {
 	_buildRoads() {
 
 		const mat = standard( {
-			name: 'road', color: new Color( 0.075, 0.075, 0.075 ), roughness: 0.9, modules: [ commonModule ],
+			name: 'road', color: new Color( 0.075, 0.075, 0.075 ), roughness: 0.9, modules: [ commonModule, groundLightModule ], // ---- FC4: groundLightModule
 			surface: /* wgsl */`
 	// uv: x along the road (m), y across it (-1 .. 1). A double yellow line down the middle of two-way
 	// roads (uv.y carries the sign of the kind), white edge lines
@@ -74,6 +75,10 @@ export class Surroundings {
 	if ( in.vs.vRoad.y > 0.5 && abs( d - 0.15 ) < 0.06 ) { c = vec3f( 0.55, 0.4, 0.05 ); }
 	if ( abs( d - ( hw - 0.6 ) ) < 0.07 ) { c = vec3f( 0.6 ); }
 	s.albedo = c;
+	// ---- FC4 (C4R-4): lit under its lamps, and on the 27th the lamps and the banks in the water on it
+	// (GroundLight.js: Pattison and the streets round the complex were black past the plaza's posts)
+	s.emissive = c * groundLight( in.P ) * 3.4 + groundGlint( in.P );
+	// ---- end FC4
 `,
 			varyings: { vRoad: 'vec2f' },
 			attributes: { aRoad: 'vec2f' },

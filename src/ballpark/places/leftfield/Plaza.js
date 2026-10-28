@@ -83,6 +83,21 @@ export function buildPlaza( place, H, K, Pk ) {
 	cart( 22.4, - 12.4, 0.5, 'cartNachos', 'umbrella' );
 	cart( - 23.2, - 5.8, - 0.35, 'cartHatfield', 'umbrella' );
 	cart( - 1.5, ZB + 10.5, Math.PI, 'cartDraft', 'canopy' );
-	return { carts };
+	// ---- FC4 (C4R-7): the square inside the gate, between the ramp and Harry the K's tower, was bare and
+	// black after dark: its lantern posts (the 2009 photo inside the gate, mostlyphilliespics 3972152381:
+	// globe lamps on black posts across the paving), down the ramp's side and by the gate, lit
+	// (LeftField.js puts their light in the app's local lights once it has them). Field frame
+	const lanterns = [];
+	for ( const [ fx, fz ] of [ [ - 116.9, - 79 ], [ - 116.9, - 92 ], [ - 109, - 103 ] ] ) {
+
+		const [ x, z ] = place.F.local( fx, fz );
+		K.use( 'iron' ).cyl( Pk, x, z, STREET, STREET + 4.2, 0.07, 0.06, 8, { top: false } );
+		K.use( 'iron' ).cyl( Pk, x, z, STREET, STREET + 0.5, 0.16, 0.12, 8, { top: true } );
+		K.use( 'lamp' ).cyl( Pk, x, z, STREET + 4.2, STREET + 4.6, 0.32, 0.24, 12, { top: true, bottom: true } );
+		lanterns.push( [ fx, STREET + 4.4, fz ] );
+
+	}
+	// ---- end FC4
+	return { carts, lanterns };
 
 }

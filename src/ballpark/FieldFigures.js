@@ -390,8 +390,30 @@ function figureMaterial() {
 	if ( part == 3 ) {
 		let hd = in.vs.vHd;
 		c = skin; rough = 0.6;
+		// ---- FC4 (C4R-13): a face, as the seated crowd's (Crowd.js): the relievers on the pens' benches, the
+		// coaches, the ball kids had a smooth tan oval under the cap at two metres. The eyes in their sockets,
+		// the brows, the nose's shadow, the mouth, the cold in the cheeks; they fade out where they'd only
+		// flicker. (d: the point on the head's unit sphere, the face toward -z)
+		let d = hd / vec3f( 0.083, 0.105, 0.1 );
+		let ax = abs( d.x );
+		let front = smoothstep( 0.1, - 0.25, d.z );
+		let near = 1.0 - smoothstep( 0.15, 0.4, fwidth( d.x ) + fwidth( d.y ) );
+		if ( front > 0.0 && near > 0.0 ) {
+			c = mix( c, c * vec3f( 1.25, 0.8, 0.78 ), 0.35 * smoothstep( 0.3, 0.05, length( vec2f( ax - 0.46, d.y + 0.16 ) ) ) * front );
+			let ey = vec2f( ax - 0.34, d.y - 0.1 );
+			c *= mix( 1.0, 0.68, smoothstep( 0.2, 0.08, length( ey * vec2f( 1.0, 1.5 ) ) ) * front * near );
+			c = mix( c, vec3f( 0.55, 0.53, 0.5 ), smoothstep( 0.1, 0.075, length( ey * vec2f( 1.0, 1.9 ) ) ) * near * front );
+			c = mix( c, vec3f( 0.02, 0.015, 0.01 ), smoothstep( 0.05, 0.035, length( ey ) ) * near * front );
+			let brow = smoothstep( 0.05, 0.02, abs( d.y - 0.3 + 0.05 * ax ) ) * step( 0.1, ax ) * step( ax, 0.55 ) * front;
+			c = mix( c, hair * 0.8, brow * 0.85 * near );
+			c *= mix( 1.0, 0.72, smoothstep( 0.1, 0.03, length( vec2f( d.x * 0.8, d.y + 0.24 ) ) ) * front * near );
+			let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / 0.06 ) );
+			c = mix( c, c * vec3f( 0.7, 0.5, 0.48 ), smoothstep( 1.0, 0.7, mo ) * front * near );
+		}
 		// hair on the back and top, then the cap, the helmet or the hood over it
-		if ( hd.y > 0.02 ) { c = hair; rough = 0.7; }
+		// (FC4: from a hairline, not over the forehead and the brows: the crowd's)
+		if ( d.y > 0.42 - 0.55 * smoothstep( - 0.35, 0.5, d.z ) || ( ax > 0.8 && d.z > - 0.3 && d.y > 0.24 ) ) { c = hair; rough = 0.7; }
+		// ---- end FC4
 		// (FP1: the cap down to its band, just above the brows, the tops of the ears, low behind)
 		if ( capped && hd.y > 0.105 * ( 0.18 + 0.225 * ( - hd.z / max( length( hd.xz ), 0.001 ) ) ) ) { c = capC; }
 		if ( helmet && hd.y > -0.02 ) { c = red; rough = 0.2; }

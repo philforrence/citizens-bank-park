@@ -5,7 +5,7 @@ import { ShaderModule } from '../engine/gpu/Shader.js';
 import { standard } from '../materials/Materials.js';
 import { beam, box, alongPolyline, nearestAlong, canvasTexture } from './geo.js';
 import { GATES } from './Exterior.js';
-import { buildTier, tierTop, standsMaterials, Quads, SOFFIT_WGSL } from './Stands.js';
+import { buildTier, tierTop, standsMaterials, Quads, SOFFIT_WGSL, tierSections, rowHeights } from './Stands.js'; // (FC4: tierSections, rowHeights)
 import { Crowd } from './Crowd.js';
 import { FT, FOOTPRINT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, BULLPENS, LEVELS, fencePoint } from './layout.js';
 
@@ -161,6 +161,7 @@ export class Bowl {
 
 		this.tiers = this._lowerTiers();
 		for ( const t of this.tiers ) this.group.add( buildTier( t, this.ctx ) );
+		this._seams(); // ---- FC4 (C4R-5)
 		this.pit = this._pitOutline();
 		this._buildStreetLevel();
 		this._buildPitWalls();
@@ -297,6 +298,95 @@ export class Bowl {
 		return [ infield, leftField, rightField, cornerLF, cornerRF ];
 
 	}
+
+	// ---- FC4 (C4R-5): the seams round the foul poles. The corners' fans of rows (centred on the foul
+	// territory's corner, a couple of metres in from the pole) don't meet the outfield seats' end or the
+	// foul line's start: between them a wedge a metre or two wide at the front and three or four at the
+	// back had nothing in it, so from the corner seats you looked down past the rows into the hollow under
+	// the stands (its floor the pit's, open to the street, the deck's columns standing on nothing), and
+	// from above a seatless notch ran up from the pole. In 2008 the seats run right down to the pole on
+	// both sides (flickr 74085116N00 2981641556, the RF corner by the 330 sign on Oct 27). Each seam is
+	// stepped up as an aisle between the two blocks: a tread a row, at the lower block's height (its
+	// nosing the aisles' yellow), the higher block's end walled down to it, walkable
+	_seams() {
+
+		const [ inf, lf, rf, cLF, cRF ] = this.tiers;
+		const { colliders, toWorld, worldYaw } = this.ctx;
+		const q = new Quads();
+		// a tier's end: its first section's start edge or its last's end edge, at d back from its front
+		const edge = ( T, last ) => {
+
+			const secs = tierSections( T ), S = last ? secs[ secs.length - 1 ] : secs[ 0 ];
+			const ys = rowHeights( T ), S0 = T.start || 0, D = T.depth;
+			return {
+				d0: S0, d1: S0 + T.rows * D, rows: T.rows,
+				at: ( d ) => {
+
+					const s0 = Math.min( S.len, S.m0 * d ), s = last ? Math.max( s0, S.len - S.m1 * d ) : s0;
+					return [ S.a[ 0 ] + S.ux * s + S.nx * d, S.a[ 1 ] + S.uz * s + S.nz * d ];
+
+				},
+				y: ( d ) => {
+
+					const r = Math.min( T.rows - 1, Math.max( 0, Math.floor( ( d - S0 ) / D ) ) );
+					return T.rowY ? T.rowY( S, r, ys[ r ] ) : ys[ r ];
+
+				},
+			};
+
+		};
+		// (Stands.js's concrete reads a face's uv: a tread 2000 + its distance from the aisle's side, a riser 1000)
+		const TREAD = 2000, RISER = 1000;
+		for ( const [ A, B ] of [ [ edge( rf, true ), edge( cRF, false ) ], [ edge( cRF, true ), edge( inf, false ) ], [ edge( inf, true ), edge( cLF, false ) ], [ edge( cLF, true ), edge( lf, false ) ] ] ) {
+
+			const K = Math.max( A.rows, B.rows );
+			const dA = ( t ) => A.d0 + ( A.d1 - A.d0 ) * t, dB = ( t ) => B.d0 + ( B.d1 - B.d0 ) * t;
+			let yPrev = 0;
+			for ( let k = 0; k < K; k ++ ) {
+
+				const t0 = k / K, t1 = ( k + 1 ) / K, tm = ( k + 0.5 ) / K;
+				const yA = A.y( dA( tm ) ), yB = B.y( dB( tm ) ), y = Math.min( yA, yB );
+				const a0 = A.at( dA( t0 ) ), a1 = A.at( dA( t1 ) ), b0 = B.at( dB( t0 ) ), b1 = B.at( dB( t1 ) );
+				const P = ( p, h ) => [ p[ 0 ], h, p[ 1 ] ];
+				const depth = ( Math.hypot( a1[ 0 ] - a0[ 0 ], a1[ 1 ] - a0[ 1 ] ) + Math.hypot( b1[ 0 ] - b0[ 0 ], b1[ 1 ] - b0[ 1 ] ) ) / 2;
+				q.tri( P( a0, y ), P( b0, y ), P( b1, y ), [ 0, 1, 0 ], [ TREAD, 0 ], [ TREAD, 0 ], [ TREAD, depth ] );
+				q.tri( P( a0, y ), P( b1, y ), P( a1, y ), [ 0, 1, 0 ], [ TREAD, 0 ], [ TREAD, depth ], [ TREAD, depth ] );
+				// the riser in front of it, toward the field
+				const fx = ( a0[ 0 ] + b0[ 0 ] - a1[ 0 ] - b1[ 0 ] ) / 2, fz = ( a0[ 1 ] + b0[ 1 ] - a1[ 1 ] - b1[ 1 ] ) / 2, fl = Math.hypot( fx, fz ) || 1;
+				if ( Math.abs( y - yPrev ) > 0.005 ) q.add( P( a0, yPrev ), P( b0, yPrev ), P( b0, y ), P( a0, y ), [ fx / fl, 0, fz / fl ], RISER, RISER );
+				// the higher block's end, down to the aisle
+				for ( const [ p0, p1, yy, o0 ] of [ [ a0, a1, yA, b0 ], [ b0, b1, yB, a0 ] ] ) {
+
+					if ( yy < y + 0.01 ) continue;
+					const nx = o0[ 0 ] - p0[ 0 ], nz = o0[ 1 ] - p0[ 1 ], nl = Math.hypot( nx, nz ) || 1;
+					q.add( P( p0, y ), P( p1, y ), P( p1, yy ), P( p0, yy ), [ nx / nl, 0, nz / nl ], RISER, RISER );
+
+				}
+
+				// walkable: a box under the tread
+				if ( colliders ) {
+
+					const cx = ( a0[ 0 ] + a1[ 0 ] + b0[ 0 ] + b1[ 0 ] ) / 4, cz = ( a0[ 1 ] + a1[ 1 ] + b0[ 1 ] + b1[ 1 ] ) / 4;
+					const ux = ( b0[ 0 ] + b1[ 0 ] - a0[ 0 ] - a1[ 0 ] ) / 2, uz = ( b0[ 1 ] + b1[ 1 ] - a0[ 1 ] - a1[ 1 ] ) / 2;
+					const w = toWorld( cx, cz ), bottom = Math.max( 0, y - 3 );
+					colliders.addBox( new Vector3( w.x, ( y + bottom ) / 2, w.z ), new Vector3( Math.max( 0.05, Math.hypot( ux, uz ) / 2 ), Math.max( 0.05, ( y - bottom ) / 2 ), depth / 2 ), worldYaw - Math.atan2( uz, ux ), { walkable: true, tag: 'pole-seam' } );
+
+				}
+
+				yPrev = y;
+
+			}
+
+		}
+
+		const m = new Mesh( q.geometry(), this.materials.concrete );
+		m.name = 'pole-seams';
+		m.receiveShadow = true;
+		m.castShadow = true;
+		this.group.add( m );
+
+	}
+	// ---- end FC4
 
 	// OUTFIELD rows i0..i1 as a polyline (steps in height dropped)
 	_fenceLine( i0, i1 ) {

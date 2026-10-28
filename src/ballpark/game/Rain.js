@@ -20,7 +20,18 @@ import { localLightsModule } from '../../materials/LocalLights.js'; // ---- FW2 
 // is lit by the lamps actually near it (LocalLights' chosen dozen: the banks, the plaza's posts, the
 // gate's lights, the domes), mostly forward (a drop seen against a lamp blazes, side on it's faint),
 // and a drop nothing lights is all but invisible.
+// C4R-1 (gauntlet r4, FC4): from a seat on the 27th the whole night sky was still ruled with dashes, far
+// from any lamp: every drop round you is in some bank's beam, 40-60 m from it, and the side light it
+// scatters (a twelfth of what it sends on ahead) lit them all. A drop scatters little to the side, and the
+// eye takes a drop in over a twentieth of a second, its light smeared down its whole fall: against the
+// black sky over the board on Oct 27 (the LF seats at 21:57) no rain shows, only round the banks and in
+// their glare. A broadcast camera's fast shutter freezes them into the speckle of FOX's frames, which
+// keeps its side light (`broadcast`); the eye's is a sixth of it, and the banks' all-round leak a seventh
+// of what it was. The drops lean into the 27th's wind (BallparkApp's weather) and are soft across.
 const N = 20000;
+// ---- FC4 (C4R-1): the drops' light toward the eye, of a lamp's: to the side, and the forward lobe (its
+// size and its power: tighter for the eye, the glare round a lamp it looks into), the eye's and the TV's
+const EYE_SCATTER = [ 0.02, 1.6, 20 ], TV_SCATTER = [ 0.12, 2.4, 12 ];
 const BOX = [ 44, 26, 44 ]; // m
 // ---- W2 (concourse): the cover map's size (cells): the height of the top of whatever's overhead, per
 // cell, in the field frame (setCover)
@@ -67,6 +78,9 @@ export class Rain {
 				// ---- FW2 (C2W-5): the lamps' light on a drop (x), how much light makes a drop show (y), the
 				// city's glow off the low cloud (z), the banks' fixtures' light leaking all round (w)
 				lightK: [ 'vec4f', new Vector4( 2.5, 0.12, 0.02, 60 ) ],
+				// ---- FC4 (C4R-1): the light a drop scatters of a lamp's (the eye's, or a broadcast camera's: see
+				// broadcast): to the side (x), its forward lobe's size and power (z, w); of a bank's all round (y)
+				scatter: [ 'vec4f', new Vector4( EYE_SCATTER[ 0 ], 0.02, EYE_SCATTER[ 1 ], EYE_SCATTER[ 2 ] ) ],
 				// ---- W2 (concourse): the cover map: world to field (cos, sin, the field's y, on), its grid (x0, z0, cell, nx)
 				coverXf: [ 'vec4f', new Vector4() ], coverGrid: [ 'vec4f', new Vector4( 0, 0, 1, 1 ) ],
 				// ---- end W2
@@ -75,7 +89,7 @@ export class Rain {
 			modules: [ localLightsModule ], // ---- FW2 (C2W-5): the lamps near each drop
 			attributes: { aSeed: 'vec4f', aCorner: 'vec2f' },
 			defines: { VELOCITY_OPAQUE: 1 }, // CB-2
-			varyings: { vA: 'f32', vY: 'f32', vLit: 'f32', vK: 'f32' },
+			varyings: { vA: 'f32', vY: 'f32', vLit: 'f32', vK: 'f32', vX: 'f32' }, // (FC4: vX across the dash)
 			vertex: /* wgsl */`
 	let box = vec3f( ${ BOX[ 0 ] }.0, ${ BOX[ 1 ] }.0, ${ BOX[ 2 ] }.0 );
 	let cam = frame.cameraPos;
@@ -101,13 +115,16 @@ export class Rain {
 	let wide = smoothstep( 0.08, 0.3, tanHalf );
 	// (C2W-5: up close a dash of 5 px or less read as a flake; 8 px on the wide lens, still a pixel wide)
 	let len = min( mix( 0.05, 0.13, wide ), mix( 7.0, 8.0, wide ) * pxM );
-	let halfW = max( 0.0025, 0.5 * pxM );
+	// (FC4, C4R-1: three quarters of a pixel either side, its light peaked in the middle (vX): a hard edged
+	// dash a pixel wide flickered on and off the pixel grid, and the resolve drew it up close as a ring)
+	let hw0 = max( 0.0025, 0.5 * pxM );
+	let halfW = max( 0.0025, 0.75 * pxM );
 	let wp = p + side * v.aCorner.x * halfW + dir * v.aCorner.y * len;
 	v.useWorld = true;
 	v.worldPos = wp;
 	v.worldNormal = toCam;
 	v.prevWorldPos = wp - fall * frame.dt;
-	o.vA = step( v.aSeed.w, mat.amount ) * smoothstep( 1.2 + 0.45 * focus, 3.5 + 0.55 * focus, d ) * ( 1.0 - smoothstep( focus + 18.0, focus + 28.0, d ) ) * min( 1.0, 0.0025 / halfW + 0.35 );
+	o.vA = step( v.aSeed.w, mat.amount ) * smoothstep( 1.2 + 0.45 * focus, 3.5 + 0.55 * focus, d ) * ( 1.0 - smoothstep( focus + 18.0, focus + 28.0, d ) ) * min( 1.0, 0.0025 / hw0 + 0.35 ) * hw0 / halfW; // (FC4: the same light over the wider dash)
 	// ---- W2 (concourse): no rain under a roof: below the top of what's overhead at its spot
 	if ( mat.coverXf.w > 0.5 ) {
 		let fx = p.x * mat.coverXf.x - p.z * mat.coverXf.y;
@@ -123,6 +140,7 @@ export class Rain {
 	}
 	// ---- end W2
 	o.vY = v.aCorner.y;
+	o.vX = v.aCorner.x; // ---- FC4
 	// (CB-2: through a long lens the dashes are short and few; each a little denser, so the speckle
 	// shows the way it does in the center field frames)
 	o.vK = mix( 1.7, 1.0, wide );
@@ -143,7 +161,7 @@ export class Rain {
 			let win = sat( 1.0 - x * x );
 			let spot = localLightsSpotProfile( dot( - Ld, sd.xyz ), c.w, sd.w );
 			let E = dot( c.xyz, vec3f( 0.3, 0.55, 0.15 ) ) * win * win * spot / ( d2 + 0.15 );
-			lit += E * ( 0.12 + 2.4 * pow( max( dot( Ld, ray ), 0.0 ), 12.0 ) );
+			lit += E * ( mat.scatter.x + mat.scatter.z * pow( max( dot( Ld, ray ), 0.0 ), mat.scatter.w ) ); // (FC4: mat.scatter)
 		}
 	}
 	// the light banks: their fixtures leak light all round (from the street their backs glow), so the
@@ -155,7 +173,7 @@ export class Rain {
 		if ( L.w > 0.5 ) {
 			let dv = L.xyz - p;
 			let d2 = dot( dv, dv );
-			lit += mat.lightK.w * nk * ( 0.15 + 2.0 * pow( max( 0.0, dot( dv * inverseSqrt( d2 ), ray ) ), 10.0 ) ) / ( d2 + 9.0 );
+			lit += mat.lightK.w * nk * ( mat.scatter.y + 2.0 * pow( max( 0.0, dot( dv * inverseSqrt( d2 ), ray ) ), 10.0 ) ) / ( d2 + 9.0 ); // (FC4: 0.15 all round)
 		}
 	}
 	// ---- end FW2
@@ -169,6 +187,8 @@ export class Rain {
 	s.albedo = mat.color * ( sky + vec3f( E ) );
 	let seen = smoothstep( 0.0, mat.lightK.y, E + luminance( sky ) );
 	s.alpha = in.vs.vA * 0.3 * ( 1.0 - in.vs.vY * 0.5 ) * in.vs.vK * seen;
+	// ---- FC4 (C4R-1): soft across, the same light in all (the profile's mean is 1)
+	s.alpha *= 1.5 * ( 1.0 - in.vs.vX * in.vs.vX );
 	// ---- end FW2
 `,
 		} );
@@ -208,6 +228,16 @@ export class Rain {
 		list.slice( 0, 8 ).forEach( ( p, i ) => this.material.uniforms[ 'l' + i ].value.set( p.x, p.y, p.z, 1 ) );
 
 	}
+
+	// ---- FC4 (C4R-1): seen through a broadcast camera (its fast shutter: the drops' side light shows), or
+	// by the eye (the app sets it with the camera)
+	set broadcast( on ) {
+
+		const k = on ? TV_SCATTER : EYE_SCATTER, u = this.material.uniforms.scatter.value;
+		u.set( k[ 0 ], u.y, k[ 1 ], k[ 2 ] );
+
+	}
+	// ---- end FC4
 
 	set amount( a ) {
 

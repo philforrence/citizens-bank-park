@@ -1666,8 +1666,11 @@ export class Exterior {
 				ctx.fillText( 'Citizens Bank Park', 230, H / 2 + 8, W - 250 );
 
 			}, 'wordmark' );
+			// ---- FC4 (C4R-10): the letters' faces lit, their backs the channel letters' dark painted metal (from
+			// the Pavilion and the 400s the roof's sign is seen from behind, mirrored and dark: wallyg 143718342)
 			this.wordMat = standard( { name: 'wordmark', roughness: 0.4, alphaTest: 0.5, side: 'double', textures: { bpWord: this.wordTex },
-				surface: 'let t = textureSample( bpWord, smpAnisoClamp, in.uv ); s.albedo = t.rgb * 0.8; s.alpha = t.a; s.emissive = t.rgb * vec3f( 0.3, 1.0, 0.5 ) * smoothstep( 0.1, 0.7, frame.night ) * 2.2;' } );
+				surface: 'let t = textureSample( bpWord, smpAnisoClamp, in.uv ); s.alpha = t.a; if ( in.front ) { s.albedo = t.rgb * 0.8; s.emissive = t.rgb * vec3f( 0.3, 1.0, 0.5 ) * smoothstep( 0.1, 0.7, frame.night ) * 2.2; } else { s.albedo = vec3f( 0.035, 0.04, 0.038 ); s.roughness = 0.55; s.metalness = 0.4; }' } );
+			// ---- end FC4
 			this.wordMat.underwaterLighting = 'none';
 
 		}

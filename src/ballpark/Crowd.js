@@ -149,7 +149,10 @@ export function fanGeometry( lod ) {
 	// fewer the sides, the further out the corners go so the flats keep the silhouette. Each vertex keeps
 	// t (along the tube, + t0) and where round it it is (a across, b toward the back, metres). dome: a
 	// rounded end over the start (a shoulder's deltoid) or past the end (the fingertips), its height
-	const tube = ( ja, jb, s, rA, rB, part, side, n, cap = false, t0 = 0, domeA = 0, domeB = 0 ) => {
+	// (---- FC4, C4R-3: roundB: the end's dome on a ring half way up it, a knee's or an elbow's round, not
+	// a point; the domes keep their tube's side of the joint in t, so the forearm's turn leaves the upper
+	// arm's elbow where it is)
+	const tube = ( ja, jb, s, rA, rB, part, side, n, cap = false, t0 = 0, domeA = 0, domeB = 0, roundB = false ) => {
 
 		const f = ( 1 + 1 / Math.cos( Math.PI / n ) ) / 2;
 		const base = verts.length;
@@ -175,19 +178,37 @@ export function fanGeometry( lod ) {
 
 		if ( cap ) for ( let k = 1; k < n - 1; k ++ ) index.push( base + n, base + n + k + 1, base + n + k );
 		// the domes: a point out along the axis from the ring's centre, in every pose
-		const dome = ( t, h, ring0 ) => {
+		const dome = ( t, h, ring0, round = false ) => {
 
-			const p6 = POSES.map( ( _, k ) => {
+			const end = ( k ) => joint( k, t ? jb : ja, s );
+			const out = ( k ) => mul( norm( sub( joint( k, jb, s ), joint( k, ja, s ) ) ), t ? 1 : - 1 );
+			// (FC4: the shoulder's before its tube, the forearm's and the shin's at their joint, an end's
+			// dome just inside it but the fingertips')
+			const tt = t ? t0 + ( part === P.hand ? 1.2 : 0.98 ) : ( t0 || - 0.2 );
+			let rim = ring0;
+			// ---- FC4 (C4R-3): rounded: a ring of the end's points brought in and out along the axis, the
+			// normals between the side's and the axis's (an ellipsoid's), then the point
+			if ( round ) {
 
-				const a = joint( k, ja, s ), b = joint( k, jb, s ), ax = norm( sub( b, a ) );
-				return add( t ? b : a, mul( ax, t ? h : - h ) );
+				const rr = t ? rB : rA, r = ( rr[ 0 ] + rr[ 1 ] ) / 2, mid = verts.length;
+				for ( let k = 0; k < n; k ++ ) {
 
-			} );
-			const axS = norm( sub( joint( 0, jb, s ), joint( 0, ja, s ) ) ), axT = norm( sub( joint( 1, jb, s ), joint( 1, ja, s ) ) );
-			const c = vert( p6, mul( axS, t ? 1 : - 1 ), mul( axT, t ? 1 : - 1 ), part, side, t + t0 + ( t ? 0.2 : - 0.2 ), 0, 0 );
+					const e = verts[ ring0 + k ];
+					const p6 = POSES.map( ( _, q ) => add( add( end( q ), mul( sub( e.p6[ q ], end( q ) ), 0.72 ) ), mul( out( q ), h * 0.7 ) ) );
+					const nn = ( nr, q ) => norm( add( mul( nr, 0.72 / r ), mul( out( q ), 0.7 / h ) ) );
+					vert( p6, nn( e.n0, 0 ), nn( e.n1, 1 ), part, side, tt, e.a * 0.72, e.b * 0.72 );
+
+				}
+
+				for ( let k = 0; k < n; k ++ ) index.push( ring0 + k, ring0 + ( k + 1 ) % n, mid + k, ring0 + ( k + 1 ) % n, mid + ( k + 1 ) % n, mid + k );
+				rim = mid;
+
+			}
+			// ---- end FC4
+			const c = vert( POSES.map( ( _, q ) => add( end( q ), mul( out( q ), h ) ) ), out( 0 ), out( 1 ), part, side, tt, 0, 0 );
 			for ( let k = 0; k < n; k ++ ) {
 
-				const a = ring0 + k, b = ring0 + ( k + 1 ) % n;
+				const a = rim + k, b = rim + ( k + 1 ) % n;
 				if ( t ) index.push( c, b, a ); else index.push( c, a, b );
 
 			}
@@ -195,7 +216,7 @@ export function fanGeometry( lod ) {
 		};
 
 		if ( domeA ) dome( 0, domeA, base );
-		if ( domeB ) dome( 1, domeB, base + n );
+		if ( domeB ) dome( 1, domeB, base + n, roundB );
 
 	};
 
@@ -278,10 +299,16 @@ export function fanGeometry( lod ) {
 		// arm (the drum's corners were the arms' open ends), the hands; the legs
 		if ( L.joints ) {
 
-			tube( 'shoulder', 'elbow', s, [ 0.06, 0.06 ], [ 0.05, 0.05 ], P.sleeve, s, L.limb, false, 0, L.limb > 3 ? 0.028 : 0 );
-			tube( 'elbow', 'wrist', s, [ 0.05, 0.05 ], [ 0.042, 0.042 ], P.sleeve, s, L.limb, false, 1 );
-			tube( 'hip', 'knee', s, [ 0.09, 0.09 ], [ 0.066, 0.066 ], P.pants, 0, L.limb );
+			// ---- FC4 (C4R-3): close up the joints closed: the elbow and the knee rounded over the end of the
+			// upper arm and the thigh (the forearm's and the shin's tops end inside them), the cuff shut round
+			// the wrist (at arm's length the open ends read as logs and pipes: the thighs' flat octagons at the
+			// knee, the shins' tops as points, the sleeves hollow)
+			const close = L.limb > 6;
+			tube( 'shoulder', 'elbow', s, [ 0.06, 0.06 ], [ 0.05, 0.05 ], P.sleeve, s, L.limb, false, 0, L.limb > 3 ? 0.028 : 0, close ? 0.042 : 0, close );
+			tube( 'elbow', 'wrist', s, [ 0.05, 0.05 ], [ 0.042, 0.042 ], P.sleeve, s, L.limb, close, 1 );
+			tube( 'hip', 'knee', s, [ 0.09, 0.09 ], [ 0.066, 0.066 ], P.pants, 0, L.limb, false, 0, 0, close ? 0.062 : 0, close );
 			tube( 'knee', 'ankle', s, [ 0.06, 0.06 ], [ 0.048, 0.048 ], P.pants, 0, L.limb, false, 1 );
+			// ---- end FC4
 
 		} else {
 
@@ -293,7 +320,10 @@ export function fanGeometry( lod ) {
 		// the hand: a mitten, flat across the palm, the fingers' end rounded
 		// (FW1, C2W-6: blunt, wider across the knuckles than the wrist, the fingers' end a low round, not a
 		// pointed dome: from the front the mittens read as claws)
-		if ( L.hands ) tube( 'wrist', 'hand', s, [ 0.031, 0.021 ], [ 0.04, 0.019 ], P.hand, s, L.hands, false, 0, 0, L.hands > 4 ? 0.013 : 0 );
+		// (FC4, C4R-3: close up a hand's size, wider than the cuff and the fingers' end a mitten's round, not a
+		// tan nub out of the sleeve; near, its end domed too)
+		if ( L.hands > 4 ) tube( 'wrist', 'hand', s, [ 0.037, 0.022 ], [ 0.048, 0.022 ], P.hand, s, L.hands, false, 0, 0, 0.045 );
+		else if ( L.hands ) tube( 'wrist', 'hand', s, [ 0.031, 0.021 ], [ 0.04, 0.019 ], P.hand, s, L.hands, false, 0, 0, 0.022 );
 		// a shoe under each ankle (t 3: the shaders colour it): the toe out in front, the heel behind
 		if ( L.shoes ) {
 
@@ -508,14 +538,17 @@ export function fanGeometry( lod ) {
 			// ---- FP2: close up, a shell round the back and sides of the head from the crown to the
 			// shoulders, framing the face in front of the ears (the card read as a panel behind her head from
 			// the aisle). Rows [ height, half width, half depth, how far round from the back ]; v down it
-			const rows = [ [ 0.045, 0.077, 0.094, 2.15 ], [ - 0.025, 0.09, 0.108, 2.05 ], [ - 0.11, 0.093, 0.117, 1.8 ], [ - 0.2, 0.088, 0.126, 1.4 ] ];
+			// (---- FC4, C4R-3: falling in toward its ends and onto the back, the ends ragged in locks, a lock
+			// longer, the next shorter: it was a drum from the crown to the shoulders, a hay bale)
+			const rows = [ [ 0.045, 0.077, 0.094, 2.15 ], [ - 0.025, 0.09, 0.108, 2.05 ], [ - 0.11, 0.088, 0.115, 1.75 ], [ - 0.2, 0.072, 0.112, 1.3 ] ];
 			const cols = 7, q = [];
 			rows.forEach( ( [ y, rx, rz, span ], j ) => {
 
 				for ( let i = 0; i < cols; i ++ ) {
 
 					const u = i / ( cols - 1 ), ph = ( 1 - 2 * u ) * span, n = [ Math.sin( ph ), 0.15, Math.cos( ph ) ];
-					const o = [ Math.sin( ph ) * rx, y, Math.cos( ph ) * rz ];
+					const lock = j === rows.length - 1 ? [ 0, - 0.03, 0.012, - 0.022, 0.006, - 0.034, 0 ][ i ] : j === rows.length - 2 ? 0.004 * ( i % 2 ) : 0;
+					const o = [ Math.sin( ph ) * rx * ( 1 + 2.5 * lock ), y + lock, Math.cos( ph ) * rz ];
 					q.push( vert( fixed( add( SIT.head, o ), add( STAND.head, o ) ), n, n, P.hair, 0, 0, u, j / ( rows.length - 1 ) ) );
 
 				}
@@ -612,32 +645,38 @@ export function fanGeometry( lod ) {
 
 	// what he has in his left hand: a box the shader sizes for a beer, a hot dog, a camera, a glove...
 	// (every vertex at the hand, t a b = the corner)
+	// ---- FC4 (C4R-3): an eight-sided cup that widens to its rim, its top a disc (the lager's head, the
+	// hot chocolate's lid); the shaders square it off for a phone or a camera. It was a box, so every beer
+	// at arm's length was a solid amber cube (Getty 83893023: the clear plastic cups of the 27th)
 	if ( L.extras ) {
 
 		const hand = POSES.map( ( _, k ) => joint( k, 'hand', - 1 ) );
-		for ( const [ ax, sg ] of [ [ 0, 1 ], [ 0, - 1 ], [ 1, 1 ], [ 1, - 1 ], [ 2, 1 ], [ 2, - 1 ] ] ) {
+		const n = 8, ring = ( y, w, up ) => {
 
-			const n = [ 0, 0, 0 ];
-			n[ ax ] = sg;
-			const u = [ ( ax + 1 ) % 3, ( ax + 2 ) % 3 ];
-			const q = [];
-			for ( const [ a, b ] of [ [ - 1, - 1 ], [ 1, - 1 ], [ 1, 1 ], [ - 1, 1 ] ] ) {
+			const out = [];
+			for ( let i = 0; i < n; i ++ ) {
 
-				const c = [ 0, 0, 0 ];
-				c[ ax ] = sg * 0.5;
-				c[ u[ 0 ] ] = a * 0.5;
-				c[ u[ 1 ] ] = b * 0.5;
-				q.push( vert( hand, n, n, P.prop, - 1, c[ 1 ], c[ 0 ], c[ 2 ] ) );
+				const ang = ( i + 0.5 ) / n * Math.PI * 2, c = Math.cos( ang ), sn = Math.sin( ang );
+				const nn = up ? [ 0, 1, 0 ] : norm( [ c, 0.12, sn ] );
+				out.push( vert( hand, nn, nn, P.prop, - 1, y, 0.5 * w * c, 0.5 * w * sn ) );
 
 			}
 
-			// (wound out from the box: its points are all at the hand until the shaders size it)
-			if ( sg > 0 ) index.push( q[ 0 ], q[ 1 ], q[ 2 ], q[ 0 ], q[ 2 ], q[ 3 ] );
-			else index.push( q[ 0 ], q[ 2 ], q[ 1 ], q[ 0 ], q[ 3 ], q[ 2 ] );
+			return out;
+
+		};
+		const lo = ring( - 0.5, 0.74 ), hi = ring( 0.5, 1 ), top = ring( 0.5, 1, true );
+		for ( let i = 0; i < n; i ++ ) {
+
+			const j = ( i + 1 ) % n;
+			index.push( lo[ i ], hi[ j ], hi[ i ], lo[ i ], lo[ j ], hi[ j ] );
 
 		}
 
+		for ( let i = 1; i < n - 1; i ++ ) index.push( top[ 0 ], top[ i + 1 ], top[ i ], lo[ 0 ], lo[ i ], lo[ i + 1 ] );
+
 	}
+	// ---- end FC4
 
 	// every triangle wound to face the way its vertices' normals do (the engine's front face is
 	// counter-clockwise; the material is double sided and turns a back face's normal round, so a tube
@@ -957,9 +996,32 @@ fn main( @builtin( global_invocation_id ) gid: vec3u ) {
 
 // The vertex: where this vertex of fan `fan` is, from the pose the compute pass worked out for him (prev:
 // last frame's, for the motion vectors)
+// ---- FC4 (C4R-3): an arm's joint (the right's), as it is in the base pose (sitting or standing: st), or
+// morphed (raised: aU, at the face: aF), for the arm's normals (cwVertex)
+const armJoint = ( name, morph ) => {
+
+	const d = ( arm, base ) => f3( arm[ name ] ? arm[ name ].map( ( v, i ) => v - base[ name ][ i ] ) : [ 0, 0, 0 ] );
+	const sit = f3( SIT[ name ] ), stand = f3( STAND[ name ] );
+	return morph ? `mix( ${ sit } + ${ d( SIT_UP, SIT ) } * aU + ${ d( SIT_FACE, SIT ) } * aF, ${ stand } + ${ d( STAND_UP, STAND ) } * aU + ${ d( STAND_FACE, STAND ) } * aF, st )` : `mix( ${ sit }, ${ stand }, st )`;
+
+};
+const armSeg = ( a, b, morph ) => `( ${ armJoint( b, morph ) } - ${ armJoint( a, morph ) } ) * mx`;
+// ---- end FC4
+
 const crowdModule = new ShaderModule( {
 	name: 'crowd',
 	code: /* wgsl */`
+// ---- FC4 (C4R-3): a tube's ring frame on a segment, as fanGeometry's ring() lays it (across, along,
+// toward the back)
+fn cwRingFrame( d: vec3f ) -> mat3x3f {
+	let ax = normalize( d );
+	var c = cross( ax, vec3f( 0.0, 0.0, 1.0 ) );
+	if ( length( c ) < 0.2 ) { c = cross( ax, vec3f( 0.0, 1.0, 0.0 ) ); }
+	let across = normalize( c );
+	return mat3x3f( across, ax, normalize( cross( across, ax ) ) );
+}
+// ---- end FC4
+
 struct CwPose {
 	p: vec3f,
 	n: vec3f,
@@ -1009,6 +1071,23 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 	let aF = select( select( 0.0, r1.x, isR ), r0.w, isL );
 	var p = mix( pos + sitUp * aU + sitFace * aF, stp + standUp * aU + standFace * aF, st );
 	var n = normalize( mix( nrm, stn, st ) );
+	// ---- FC4 (C4R-3): an arm raised or brought to the face takes its normals with it, from the ring's frame
+	// on the arm down to its frame on the arm as it is. They stayed the arm's at rest: up, its across runs
+	// the other way, so half of each sleeve was lit inside out and the raised arms read as square bars
+	if ( ( part == 6u || part == 2u ) && aU + aF > 0.001 && lod <= 1u ) {
+		let mx = vec3f( side, 1.0, 1.0 );
+		var fa = cwRingFrame( ${ armSeg( 'shoulder', 'elbow', false ) } );
+		var fb = cwRingFrame( ${ armSeg( 'shoulder', 'elbow', true ) } );
+		if ( part == 2u ) {
+			fa = cwRingFrame( ${ armSeg( 'wrist', 'hand', false ) } );
+			fb = cwRingFrame( ${ armSeg( 'wrist', 'hand', true ) } );
+		} else if ( info.y > 0.99 ) {
+			fa = cwRingFrame( ${ armSeg( 'elbow', 'wrist', false ) } );
+			fb = cwRingFrame( ${ armSeg( 'elbow', 'wrist', true ) } );
+		}
+		n = normalize( fb[ 0 ] * dot( n, fa[ 0 ] ) + fb[ 1 ] * dot( n, fa[ 1 ] ) + fb[ 2 ] * dot( n, fa[ 2 ] ) );
+	}
+	// ---- end FC4
 
 	// ---- FW1 (C2W-6): the hands sitting at rest: the forearm turned about the elbow, to fold the arms (the
 	// right under, the left over), into the jacket's pockets (the hand in it), or clasped between the knees
@@ -1024,8 +1103,9 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 		let a = normalize( h0 - el );
 		let b = normalize( h1 - el );
 		var q = el + cwTurn( p - el, a, b );
-		// (the hand in the pocket: in it)
-		if ( lapP == 2u && part == 2u ) { let wr = el + cwTurn( vec3f( ${ SIT.wrist[ 0 ].toFixed( 3 ) } * side, ${ SIT.wrist[ 1 ].toFixed( 3 ) }, ${ SIT.wrist[ 2 ].toFixed( 3 ) } ) - el, a, b ); q = wr + ( q - wr ) * 0.15; }
+		// (the hand in the pocket: in it, the cuff at the pocket; FC4, C4R-3: all of it, not a nub out of the
+		// sleeve)
+		if ( lapP == 2u && part == 2u ) { let wr = el + cwTurn( vec3f( ${ SIT.wrist[ 0 ].toFixed( 3 ) } * side, ${ SIT.wrist[ 1 ].toFixed( 3 ) }, ${ SIT.wrist[ 2 ].toFixed( 3 ) } ) - el, a, b ); q = wr + ( q - wr ) * select( 0.15, 0.0, lod == 0u ); }
 		p = mix( p, q, rest );
 		n = normalize( mix( n, cwTurn( n, a, b ), rest ) );
 	}
@@ -1045,7 +1125,16 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 		var sz = vec3f( 0.08, 0.13, 0.08 );
 		if ( id == 3u ) { sz = vec3f( 0.065, 0.12, 0.014 ); }
 		if ( id == 4u ) { sz = vec3f( 0.11, 0.07, 0.06 ); }
-		p += vec3f( info.z * sz.x, ( info.y + 0.5 ) * sz.y - 0.03, info.w * sz.z );
+		// ---- FC4 (C4R-3): close up the cup's eight sides squared off for a phone or a camera (its points
+		// to its quarter's corner), and the cups a little over a hand high: a 16 oz clear plastic cup
+		// (the module's shared by the levels: the level's its argument)
+		var q = info.zw;
+		if ( lod == 0u ) {
+			if ( id == 3u || id == 4u ) { q = sign( q ) * 0.5; n = normalize( vec3f( q.x, n.y * 2.0, q.y ) ); }
+			else { sz = vec3f( 0.088, 0.14, 0.088 ); }
+		}
+		// ---- end FC4
+		p += vec3f( q.x * sz.x, ( info.y + 0.5 ) * sz.y - 0.03, q.y * sz.z );
 	}
 
 	// the towel: twirled round over the head, the loose end trailing the turn and fluttering, the cloth
@@ -1498,9 +1587,28 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		rough = 0.4;
 		if ( id == 1u ) { c = select( vec3f( 0.55, 0.33, 0.04 ), vec3f( 0.75, 0.72, 0.62 ), top ); rough = select( 0.1, 0.9, top ); }
 		if ( id == 2u ) { c = select( vec3f( 0.72, 0.7, 0.66 ), vec3f( 0.02 ), top ); }
+
 		if ( id == 3u ) { c = vec3f( 0.03 ); rough = 0.2; if ( in.N.z < - 0.5 || in.N.z > 0.5 ) { e = vec3f( 0.25, 0.4, 0.6 ) * 0.6; } }
 		if ( id == 4u ) { c = select( vec3f( 0.5, 0.51, 0.53 ), vec3f( 0.03 ), seed > 0.5 ); rough = 0.3; }
 		if ( id == 5u ) { c = select( vec3f( 0.45, 0.03, 0.03 ), vec3f( 0.7, 0.68, 0.64 ), top ); }
+#if CROWD_LOD == 0
+		// ---- FC4 (C4R-3): close up the lager seen through the clear cup (the amber a shade paler through
+		// the plastic and darker toward the bottom), its head, the empty plastic above it to the rolled rim
+		// catching the light; the hot chocolate's paper cup with its brown sleeve and black lid; the soda's
+		// band (L.y: -0.5 the bottom to 0.5 the rim)
+		let h = L.y + 0.5;
+		if ( id == 1u && ! top ) {
+			let fill = 0.78 + 0.06 * fract( seed * 5.3 );
+			c = mix( vec3f( 0.5, 0.3, 0.035 ) * ( 0.75 + 0.35 * h ), vec3f( 0.62, 0.6, 0.56 ), 0.16 );
+			if ( h > fill - 0.1 ) { c = vec3f( 0.72, 0.69, 0.6 ); }
+			if ( h > fill ) { c = vec3f( 0.3, 0.31, 0.32 ); }
+			if ( h > 0.96 ) { c = vec3f( 0.75, 0.75, 0.73 ); }
+			rough = 0.12;
+		}
+		if ( id == 2u && ! top && abs( h - 0.45 ) < 0.18 ) { c = vec3f( 0.3, 0.18, 0.09 ); rough = 0.8; }
+		if ( id == 5u && ! top && abs( h - 0.55 ) < 0.12 ) { c = vec3f( 0.7, 0.68, 0.64 ); }
+		// ---- end FC4
+#endif
 	}
 	if ( part == 5u ) {
 		// the 2008 rally towel: white terry, the red square with the script across it in white
@@ -1535,7 +1643,10 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 #if CROWD_LOD == 0
 		// ---- FW4 (C3W-12): close up the strands lit as strands (the Cast's: the normal turned across them)
 		let sa = atan2( L.x, L.z );
-		s.normal = normalize( s.normal + ( 0.22 * sin( sa * 23.0 + L.y * 9.0 ) + 0.1 * sin( sa * 61.0 - L.y * 14.0 ) ) * vec3f( cos( sa ), 0.0, - sin( sa ) ) );
+		// (FC4, C4R-3: finer and uneven, wandering down the hair: 23 even folds read as a pleated drum)
+		let wv = sa * 41.0 + 2.2 * sin( sa * 7.3 + L.y * 11.0 ) + L.y * 6.0;
+		s.normal = normalize( s.normal + ( 0.12 * sin( wv ) + 0.07 * sin( sa * 97.0 - L.y * 17.0 + 1.3 * sin( sa * 13.0 ) ) ) * vec3f( cos( sa ), 0.0, - sin( sa ) ) );
+		c *= 0.9 + 0.12 * sin( wv * 1.7 + 0.8 );
 		rough = 0.62;
 		// ---- end FW4
 #endif
