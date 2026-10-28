@@ -1,4 +1,4 @@
-import { Group, Mesh, PlaneGeometry, BoxGeometry, CylinderGeometry, SphereGeometry, LatheGeometry, TorusGeometry, Vector2 } from '../../../engine/index.js';
+import { Group, Mesh, PlaneGeometry, BoxGeometry, CylinderGeometry, SphereGeometry, LatheGeometry, TorusGeometry, Vector2, mergeGeometries } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
 import { canvasTexture } from '../../geo.js';
 import { Kit } from './Kit.js';
@@ -134,7 +134,9 @@ function wheel( k, { r, w } ) {
 
 export class Gator {
 
-	constructor( parent ) {
+	// ---- FR2: { launcher: false } for the grounds crew's own (the stage's pieces on the 29th: the bed
+	// empty, no hot dog), and { still: true } for one that's parked: its wheels merged into its body, one draw
+	constructor( parent, { launcher = true, still = false } = {} ) {
 
 		this.group = new Group();
 		this.group.name = 'phanatic-gator';
@@ -192,6 +194,7 @@ export class Gator {
 		for ( const sx of [ - 0.45, 0.45 ] ) k.add( box, PA.tail, [ sx, by - 0.05, bz1 + 0.025 ], [ 0, 0, 0 ], [ 0.1, 0.06, 0.01 ] );
 		// ---- the launcher's post at the front of the bed, braced back to the box, its yoke
 		const pz = GATOR.pivotZ, py = GATOR.pivotY;
+		if ( launcher ) { // ---- FR2
 		tube( [ 0, by, pz ], [ 0, py - 0.12, pz ], 0.045, PA.steel );
 		tube( [ 0, by + 0.3, pz + 0.55 ], [ 0, py - 0.35, pz ], 0.022, PA.steel );
 		k.add( box, PA.steel, [ 0, py - 0.1, pz ], [ 0, 0, 0 ], [ 0.12, 0.06, 0.12 ] );
@@ -202,6 +205,7 @@ export class Gator {
 		// cut-out both sides
 		const sign = new PlaneGeometry( 1.7, 0.64 );
 		k.add( sign, PA.bun, [ - bw / 2 - 0.03, by + 0.28, ( bz0 + bz1 ) / 2 - 0.05 ], [ 0, - Math.PI / 2, 0 ], [ 1, 1, 1 ], { uv2: true } );
+		} // ---- end FR2
 		this.body = new Mesh( k.geometry(), this.material );
 		this.body.name = 'phanatic-gator-body';
 		this.body.castShadow = true;
@@ -223,12 +227,32 @@ export class Gator {
 		this.barrel.castShadow = true;
 		this.pivot = new Group();
 		this.pivot.position.set( 0, py, pz );
-		this.pivot.add( this.barrel );
+		if ( launcher ) this.pivot.add( this.barrel ); // ---- FR2
 		this.group.add( this.pivot );
-		this.triangles += b.triangles;
+		if ( launcher ) this.triangles += b.triangles;
 		// ---- the wheels
 		this.wheels = [];
 		const wg = wheel( new Kit( PAL.length ), TYRE ).geometry();
+		// ---- FR2: parked, the wheels are part of the body
+		if ( still ) {
+
+			const parts = [ this.body.geometry ];
+			for ( const [ x, z ] of [ [ - TR / 2, AX_F ], [ TR / 2, AX_F ], [ - TR / 2, AX_R ], [ TR / 2, AX_R ] ] ) {
+
+				const w = wg.clone();
+				if ( x < 0 ) w.rotateY( Math.PI );
+				parts.push( w.translate( x, TYRE.r, z ) );
+
+			}
+
+			this.body.geometry = mergeGeometries( parts );
+			this.body.geometry.computeBoundingSphere();
+			this.group.visible = false;
+			return;
+
+		}
+
+		// ---- end FR2
 		for ( const [ x, z, front ] of [ [ - TR / 2, AX_F, true ], [ TR / 2, AX_F, true ], [ - TR / 2, AX_R, false ], [ TR / 2, AX_R, false ] ] ) {
 
 			const hub = new Group();

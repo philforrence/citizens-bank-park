@@ -89,6 +89,18 @@ export class Stage {
 			steel: mk( 'stage-barrier', [ 0.45, 0.46, 0.47 ], 0.35, 0.85 ),
 			acrylic: mk( 'stage-pedestal', [ 0.5, 0.52, 0.55 ], 0.05, 0.0 ),
 		};
+		// ---- FR2: the trophy's pedestal is clear acrylic (Getty 83570999: the rail and the men behind seen
+		// through it, its edges catching the lights), not a grey block
+		this.M.acrylic = standard( { name: 'stage-pedestal', color: new Color( 0.78, 0.82, 0.85 ), roughness: 0.04, transparent: true, depthWrite: false, side: 'double',
+			surface: /* wgsl */`
+	let e = max( abs( in.uv.x - 0.5 ), abs( in.uv.y - 0.5 ) ) * 2.0;
+	let rim = smoothstep( 0.88, 0.985, e );
+	let fres = pow( 1.0 - abs( dot( in.N, in.V ) ), 3.0 );
+	s.alpha = 0.06 + 0.5 * rim + 0.3 * fres;
+	s.emissive = s.albedo * ( rim * 0.5 + fres * 0.2 ) * smoothstep( 0.2, 0.8, frame.night ) * 0.4;
+` } );
+		this.M.acrylic.underwaterLighting = 'none';
+		// ---- end FR2
 		const S = STAGE;
 		this.parts = [];
 		// the deck: four modules (2 x 1.6 m) set down side by side on their legs, the skirt round them
@@ -104,7 +116,9 @@ export class Stage {
 			const skirt = new Mesh( new BoxGeometry( 1.6, H - 0.08, D - 0.02 ), this.M.skirt );
 			skirt.position.set( x, ( H - 0.08 ) / 2, 0 );
 			m.add( skirt );
-			this.parts.push( { obj: m, t: CEL.stageBuild[ 0 ] + k * 6, from: [ 0, 0, - 14 ] } );
+			// (---- FR2: carried in from the crew's Gators behind it by four men, lifted off the grass a
+			// hand's breadth, walking: c, its centre in the stage's frame, and where each man holds it)
+			this.parts.push( { obj: m, t: CEL.stageBuild[ 0 ] + k * 6, from: [ 0, 0, - 14 ], dur: 6, lift: 0.1, c: [ x, 0 ], carry: [ [ - 0.45, 1.85 ], [ 0.45, 1.85 ], [ - 0.45, - 1.85 ], [ 0.45, - 1.85 ] ] } );
 
 		}
 
@@ -169,7 +183,7 @@ export class Stage {
 
 		}
 
-		this.parts.push( { obj: stairs, t: CEL.stageBuild[ 0 ] + 30, from: [ - 3, 0, 0 ] } );
+		this.parts.push( { obj: stairs, t: CEL.stageBuild[ 0 ] + 30, from: [ - 3, 0, 0 ], dur: 4, lift: 0.06, c: [ sx, D / 2 - 0.8 ], carry: [ [ 0, 0.85 ], [ 0, - 0.85 ] ] } ); // ---- FR2: c, carry
 		// the pedestal: a clear box at the front left corner, the trophy on it
 		const ped = new Mesh( new BoxGeometry( 0.55, 0.95, 0.55 ), this.M.acrylic );
 		ped.position.set( - W / 2 + 0.7, H + 0.475, D / 2 - 0.6 );
@@ -242,7 +256,7 @@ export class Stage {
 			whole.visible = false;
 			this.root.add( whole );
 			this.whole = whole;
-			this.built = Math.max( ...this.parts.map( ( p ) => p.t ) ) + 4.5;
+			this.built = Math.max( ...this.parts.map( ( p ) => p.t + ( p.dur || 4 ) ) ) + 0.5; // ---- FR2: each its own time
 
 		}
 
@@ -290,9 +304,11 @@ export class Stage {
 		this.whole.visible = done;
 		for ( const p of this.parts ) {
 
-			const k = ease( ( cel - p.t ) / 4 );
+			// (---- FR2: the carried ones at a walk, held up off the grass, set down at the end: Throng.js
+			// has the men carrying them)
+			const k = pieceK( p, cel ), up = ( p.lift || 0 ) * Math.sin( Math.PI * Math.min( 1, k * 1.15 ) );
 			p.obj.visible = cel > p.t && ! done;
-			p.obj.position.set( p.home.x + p.from[ 0 ] * ( 1 - k ), p.home.y + p.from[ 1 ] * ( 1 - k ), p.home.z + p.from[ 2 ] * ( 1 - k ) );
+			p.obj.position.set( p.home.x + p.from[ 0 ] * ( 1 - k ), p.home.y + p.from[ 1 ] * ( 1 - k ) + up, p.home.z + p.from[ 2 ] * ( 1 - k ) );
 
 		}
 
@@ -321,6 +337,19 @@ export class Stage {
 		}
 
 	}
+
+}
+
+// ---- FR2: how far a piece has come (0..1) at cel: eased at the ends, walked steadily between for the
+// carried ones (Throng.js puts the men round it from the same)
+export function pieceK( p, cel ) {
+
+	const x = Math.min( 1, Math.max( 0, ( cel - p.t ) / ( p.dur || 4 ) ) );
+	if ( ! p.carry ) return x * x * ( 3 - 2 * x );
+	const a = 0.18;
+	if ( x < a ) return x * x / ( 2 * a * ( 1 - a ) );
+	if ( x > 1 - a ) return 1 - ( 1 - x ) * ( 1 - x ) / ( 2 * a * ( 1 - a ) );
+	return ( x - a / 2 ) / ( 1 - a );
 
 }
 
