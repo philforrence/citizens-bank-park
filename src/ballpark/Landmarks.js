@@ -616,7 +616,11 @@ export class Landmarks {
 		if ( b && director ) {
 
 			this._cel ??= director.segments?.find( ( s ) => s.kind === 'celebrate' ) || null;
-			const k = this._cel ? Math.min( 1, Math.max( 0, ( director.t - this._cel.t0 - BANNER.at ) / BANNER.unroll ) ) : 0;
+			// ---- FX1: its clock from strike three (Director.champsAt), as the bell's and the boards'
+			const champ = director.champsAt?.( director.t );
+			const lt = champ ? champ.lt : this._cel ? director.t - this._cel.t0 : - 1;
+			const k = lt >= 0 ? Math.min( 1, Math.max( 0, ( lt - BANNER.at ) / BANNER.unroll ) ) : 0;
+			// ---- end FX1
 			b.visible = k > 0;
 			b.material.uniforms.drop.value = k * k * ( 3 - 2 * k );
 

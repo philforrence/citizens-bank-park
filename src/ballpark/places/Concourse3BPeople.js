@@ -50,7 +50,11 @@ const turn = ( a, b, k ) => {
 export function nightState( d ) {
 
 	if ( ! d ) return { busy: 0.8, first: true, rain: 0.5, suspended: false, celebrate: false, top: true, between: false, t: 0, inning: 5, half: 'top', snap: {} };
-	const seg = d.segmentAt( d.t );
+	// ---- FX1: from strike three it's the celebration (Director.champsAt: the celebrate segment, its clock
+	// from the strike), not 3.6 s later when that segment starts
+	const champ = d.champsAt ? d.champsAt( d.t ) : null;
+	const seg = champ ? champ.seg : d.segmentAt( d.t );
+	// ---- end FX1
 	const s = seg.snap || {};
 	// ---- R (rituals): the suspension's break is the 27th's rain delay for its first part (Director.night());
 	// the rest is the 29th, the park filling for the resumption
@@ -81,7 +85,7 @@ export function nightState( d ) {
 
 	}
 
-	return { busy, first, rain: first ? 0.3 + 0.7 * k : 0, suspended, celebrate, top: s.half === 'top', between, seg, snap: s, t: d.t, inning: s.inning, half: s.half, result, ball: d.ballAt, celebrateT: celebrate ? d.t - seg.t0 : 0 };
+	return { busy, first, rain: first ? 0.3 + 0.7 * k : 0, suspended, celebrate, top: s.half === 'top', between, seg, snap: s, t: d.t, inning: s.inning, half: s.half, result, ball: d.ballAt, celebrateT: celebrate ? ( champ ? champ.lt : d.t - seg.t0 ) : 0 }; // ---- FX1: champ.lt
 
 }
 
