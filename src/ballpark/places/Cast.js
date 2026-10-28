@@ -9,8 +9,9 @@ import { canvasTexture } from '../geo.js';
 // The park's people seen up close: one figure system for every place (the concourse's fans, the gate's
 // arrivals and scalpers, the Alley's hecklers, whoever the next places bring). People.js has the far-off
 // figures (a tube body, three morphs); these are built to be looked at from a metre or two: a lofted trunk
-// with a build (slim, broad, a belly), shoulders, hands and shoes, a head with a nose and a painted face
-// (the eyes that blink, brows, lips, the cold in the cheeks and ears, beards, glasses), hair (short, long,
+// with a build (slim, broad, a belly), shoulders, hands and shoes, a modelled head (FW4: the brow, the eyes
+// in their sockets, cheekbones, a chin, a nose with a bridge, ears, each face its own) with the face painted
+// on it (the eyes that blink, brows, lips, the cold in the cheeks and ears, beards, glasses), hair (short, long,
 // a ponytail, a bald crown), a cap, a knit hat with its pom-pom, a hood up, a trooper's campaign hat, and
 // what they wear: a Phillies jacket, a hoodie, the home whites with a name and number on the back, a red
 // name-and-number tee over a thermal, a puffer, a work jacket, the 1980 powder blues, a long coat, a

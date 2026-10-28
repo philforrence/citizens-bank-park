@@ -42,3 +42,12 @@ The light is the replay's clock throughout.
 - **The guard's wave** (`places/Concourse3BStories.js`, one marked block, not my file): a beckon, this way: the upper arm out a little and low, the forearm swinging open from the elbow and back. It was the whole arm held straight out at the shoulder's height, a T.
 - **The rail** (People.js, the throng's stand-ins at the drink rail): the front row leans on it, nearly all of them (90%, was 60%), a beer on the shelf for half; the row behind them stands with a beer in hand, arms folded, hands in pockets, a phone. (The Cast's arms now hang at the sides too: C3W-2.)
 - **Left:** the people standing a metre back from the 3B rail at 129-130 in C3W's `j2-06` (see the probe in `final/`); the man beside the guard with his arm held out (another place's figure).
+
+### C3W-12: what's in arm's reach still primitive (partly: the hair, the held cotton candy)
+- **Long hair** (the Cast's shell, FP2's): its ends in locks, each its own length, turned out a little where they lie on the collar (the bottom was one straight edge: a plank), and lit as strands: the normal turned across them by locks of a few centimetres and finer, so the light breaks along them. The seated crowd's close level gets the same strands.
+- **The held cotton candy** (the Cast's prop, the near figure): a lumpy cloud of floss on a paper cone, not a faceted ball on a stick.
+- **Not mine, not done:** the cotton candy vendor's pole of bags (`places/Concourse3BProps.js`, FW5's).
+
+### SP2's Cast wins (done: the middle figure; the distant one trimmed instead of a fifth)
+- **The middle figure** (C3W-2 above): for 112-250 px (SP2's numbers), so the near figure's new detail is paid only within a few metres, and FOX's long lens, which saw ~123 Cast people as near in TV center, mostly draws them at 3,704 triangles, not 4,600 (and not the near figure's new 6,017).
+- **The distant figure** (under 32 px: SP2's 737 of them from the 400s seat) leaves out what's under a pixel at that size: the hands (two boxes, 48 vertices), the scarf, the pom-pom, long hair; its shoes a wedge, not a box. 383 vertices / 386 triangles → 261 / 306. Rather than a fifth level for under ~12 px: this one is what's left of a speck already, and every one of the 737 gets it.
