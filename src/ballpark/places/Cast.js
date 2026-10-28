@@ -1327,7 +1327,16 @@ function castMaterial( pool ) {
 		if ( part == ${ PART.brim }u && hat == ${ HAT.motor }u ) { q = vec3f( q.x * 1.12, q.y + 0.03, headC.z + ( q.z - headC.z ) * 0.62 ); }
 		// ---- end R
 	}
-	if ( ( part == ${ PART.brim }u || part == ${ PART.crown }u ) && hat == ${ HAT.capBack }u ) { q = vec3f( - ( q.x - headC.x ), q.y, - ( q.z - headC.z ) ) + headC; n = vec3f( - n.x, n.y, - n.z ); }
+	// ---- FP2: a cap on backwards is the cap turned half round about the head's own centre (a kid's
+	// head is the bigger one about the neck). It was mirrored with the centre's height added to it, so every
+	// backwards cap in the park hung in the air 1.6 m over its owner's bare head (C2I-7, the club; FW1's,
+	// the 3B concourse; C2B-21's, at the pile and the stage)
+	if ( ( part == ${ PART.brim }u || part == ${ PART.crown }u ) && hat == ${ HAT.capBack }u ) {
+		let hc = select( headC, ${ f3( J.neck ) } + ( headC - ${ f3( J.neck ) } ) * 1.22, age == 2u );
+		q = vec3f( 2.0 * hc.x - q.x, q.y, 2.0 * hc.z - q.z );
+		n = vec3f( - n.x, n.y, - n.z );
+	}
+	// ---- end FP2
 	// ---- FP1 (CP-8): a towel's loose end flutters (its own pace and phase)
 	if ( part == 32u + ${ PROP.towel }u ) {
 		let k = clamp( ( ${ J.hand[ 1 ].toFixed( 3 ) } - q.y ) / 0.4, 0.0, 1.0 );
