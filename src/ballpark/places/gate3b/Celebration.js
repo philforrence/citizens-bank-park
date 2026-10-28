@@ -16,18 +16,35 @@ export function buildCelebration( { group, cast, statue, lift } ) {
 	const spots = [];
 	// where they end up: thickest at the south end of the plaza and out over the sidewalk into the street
 	const ok = ( x, z ) => ! ( Math.hypot( x - statue[ 0 ], z - statue[ 1 ] ) < 2.6 ) && ! ( Math.hypot( x + 112, z - 78 ) < 2.0 );
-	while ( spots.length < 150 ) {
+	// ---- FW6 (C4W-12): crowds, not a dance floor: 240 of them (150 before, one to every 20 m²), most in
+	// knots shoulder to shoulder round Schmidt's plinth, by McFadden's door and the gate, a band along the
+	// curb and out into the street, the rest scattered between (bps52769's 23:15 and 23:18, the solid crowd
+	// on the crosswalk and round the statue); never two in one place (0.6 m apart at least)
+	const knots = [];
+	for ( let k = 0; k < 6; k ++ ) knots.push( { x: statue[ 0 ] + Math.cos( k * 1.047 ) * 3.6, z: statue[ 1 ] + Math.sin( k * 1.047 ) * 3.6, w: 3, sx: 1.0, sz: 1.0 } );
+	knots.push( { x: - 78, z: 79, w: 5, sx: 2.2, sz: 2.0 }, { x: - 92, z: 84, w: 4, sx: 2.5, sz: 2.2 }, { x: - 108, z: 90, w: 3, sx: 2.5, sz: 2.2 } );
+	for ( const x of [ - 130, - 118, - 106, - 94, - 82 ] ) knots.push( { x, z: 108.5, w: 4, sx: 2.2, sz: 1.1 } );
+	for ( const [ x, z ] of [ [ - 121, 116 ], [ - 101, 118 ], [ - 86, 114.5 ] ] ) knots.push( { x, z, w: 2.5, sx: 2.6, sz: 2.2, road: true } );
+	const kw = knots.reduce( ( a, k ) => a + k.w, 0 );
+	const gauss = () => ( r() + r() + r() - 1.5 ) * 1.4;
+	const free = ( x, z ) => spots.every( ( q ) => ( q.x - x ) ** 2 + ( q.z - z ) ** 2 > 0.36 );
+	for ( let tries = 0; spots.length < 240 && tries < 6000; tries ++ ) {
 
-		// knots of them: most round the statue and the marquee at the plaza's south end and out over the
-		// sidewalk, the rest in the street
 		const u = r();
 		let x, z, road = false;
-		if ( u < 0.5 ) { x = - 126 + r() * 44; z = 76 + r() * 21; }
-		else if ( u < 0.78 ) { x = - 136 + r() * 64; z = 99 + r() * 10.5; }
+		if ( u < 0.8 ) {
+
+			let pick = r() * kw, K = knots[ 0 ];
+			for ( const k of knots ) { pick -= k.w; if ( pick <= 0 ) { K = k; break; } }
+			x = K.x + gauss() * K.sx; z = K.z + gauss() * K.sz; road = !! K.road || z > 110.6;
+
+		} else if ( u < 0.9 ) { x = - 126 + r() * 44; z = 76 + r() * 21; }
+		else if ( u < 0.96 ) { x = - 136 + r() * 64; z = 99 + r() * 10.5; }
 		else { x = - 132 + r() * 56; z = 111.5 + r() * 15; road = true; }
-		if ( ok( x, z ) ) spots.push( { x, z, road } );
+		if ( ok( x, z ) && free( x, z ) ) spots.push( { x, z, road } );
 
 	}
+	// ---- end FW6
 
 	// where they come from: McFadden's door, the lots across Pattison, down 11th, the store
 	const sources = [ [ - 73.5, 75 ], [ - 80, 152 ], [ - 110, 152 ], [ - 150, 100 ], [ - 104, 30 ] ];
