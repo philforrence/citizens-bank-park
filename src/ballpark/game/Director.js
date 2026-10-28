@@ -498,19 +498,45 @@ export class Director {
 
 			}
 
-			// a hit: the ball comes back in to second base
+			// A hit: the ball comes back in. With a runner going home the outfielder throws home through
+			// the cut-off man, the first baseman (the third baseman from left field), set up between the
+			// mound and the plate, who holds it with the run in (Pena on the mound on Feliz's single, Getty
+			// 83486150); the catcher straddles the plate's front, off the runner's line; the pitcher backs
+			// up the plate. Otherwise to the base ahead of the lead runner (second, or third if he's going
+			// there), a middle infielder (or the third baseman) covering, the pitcher backing up third.
 			if ( ! outs.length && ! airOut ) {
 
-				const cut = BASES[ 2 ];
-				const cover = idAt( to[ 0 ] > 0 ? '2B' : 'SS' );
+				const lead = Math.max( 1, ...moves.filter( ( r ) => ! r.out ).map( ( r ) => runTo( r, r.start || 0 ) ) );
+				const pid = idAt( 'P' ), cid = idAt( 'C' );
+				let cut, cPos;
+				if ( lead >= 4 ) {
+
+					cPos = to[ 0 ] < - 12 ? '3B' : '1B';
+					cut = lerp2( [ 0, 0 ], to, Math.min( 0.6, 15 / Math.max( 1, dist( [ 0, 0 ], to ) ) ) );
+					if ( cid && cid !== holder.id ) run( cid, POSITIONS.C, [ { t0: 0.6, t1: 1.6, to: [ 0.7, - 0.6 ], act: 'run' }, { t0: 1.6, t1: tEndGuess( tBall ), to: [ 0.7, - 0.6 ], act: 'receive', thrower: to, base: 0 } ] );
+					if ( pid && pid !== holder.id ) run( pid, MOUND, [ { t0: 0.7, t1: 0.7 + dist( MOUND, [ - 2.5, 8.5 ] ) / JOG, to: [ - 2.5, 8.5 ], act: 'run' } ] );
+
+				} else {
+
+					const base = lead >= 3 ? 3 : 2;
+					cut = BASES[ base ];
+					cPos = base === 3 ? '3B' : to[ 0 ] > 0 ? '2B' : 'SS';
+					if ( base === 3 && pid && pid !== holder.id ) run( pid, MOUND, [ { t0: 0.7, t1: 0.7 + dist( MOUND, [ - 25.5, - 13 ] ) / JOG, to: [ - 25.5, - 13 ], act: 'run' } ] );
+
+				}
+
+				const cover = idAt( cPos );
 				if ( cover && cover !== holder.id ) {
 
-					const cHome = POSITIONS[ to[ 0 ] > 0 ? '2B' : 'SS' ];
+					const cHome = POSITIONS[ cPos ];
 					const th = throwPath( holder.at, cut, 26 );
-					run( cover, cHome, [ { t0: 0.5, t1: 0.5 + dist( cHome, cut ) / JOG, to: cut, act: 'run' }, { t0: tBall + 0.4, t1: tBall + 2, to: cut, act: 'receive', tCatch: tBall + 0.35 + th.time, thrower: holder.at, base: 2 } ] );
+					// (the cut-off man hustles out there; the others jog to the bag)
+					const tc = 0.5 + dist( cHome, cut ) / ( lead >= 4 ? RUN * 0.75 : JOG );
+					run( cover, cHome, [ { t0: 0.5, t1: tc, to: cut, act: 'run' }, { t0: Math.max( tc, tBall + 0.4 ), t1: tBall + 2.5, to: cut, act: 'receive', tCatch: tBall + 0.35 + th.time, thrower: holder.at, base: lead >= 4 ? - 1 : lead >= 3 ? 3 : 2 } ] );
 					run( holder.id, holder.at, [ { t0: tBall, t1: tBall + 0.5, to: holder.at, act: 'throw', aim: cut } ] );
 					plan.ball.push( { t0: tBall + 0.35, dur: th.time, at: th.at } );
 					tBall += 0.35 + th.time;
+					if ( lead >= 4 ) plan.cutT = tBall;
 
 				}
 
@@ -540,7 +566,10 @@ export class Director {
 			// forced out: just after the ball
 			if ( r.out && r.tOut != null && len > 0 ) tArrive = r.tag ? Math.max( r.tOut + 0.3, start + ( len - lead ) / 8.9 ) : Math.max( r.tOut + 0.25, tArrive );
 			if ( airOut && r.id === p.batter ) tArrive = Math.min( tArrive, bb.time );
-			const slide = r.tag ? ( toBase === 4 ? 'head' : 'feet' ) : null;
+			// a runner scoring as the throw comes in slides (Upton in the rain on Pena's single, Getty
+			// 84081866); well ahead of it he comes in standing (Bruntlett, Getty 83486150)
+			const close = ! r.out && toBase === 4 && from > 0 && plan.cutT != null && Math.abs( tArrive - plan.cutT ) < 1.6;
+			const slide = r.tag ? ( toBase === 4 ? 'head' : 'feet' ) : close ? 'feet' : null;
 			// the batter on a ground ball in the infield runs through first
 			const through = from === 0 && toBase === 1 && bb.ground && [ 'P', 'C', '1B', '2B', 'SS', '3B' ].includes( fielderPos );
 			plan.runners.push( { id: r.id, from, to: toBase, start, tArrive, out: r.out, scores: toBase >= 4, halt: airOut && r.id === p.batter ? 0.6 : 1, lead, len, slide, through, tCall: r.tag ? tArrive : r.tOut } );
@@ -1046,6 +1075,10 @@ export class Director {
 		} else this._batter( s, M.batterStance( lt ) );
 
 		this._onDeck( s, lt );
+		// the end of the throw round the horn after a strikeout with the bases empty (show_result):
+		// short to second, second to third, third to the pitcher
+		const prev = this.game.plays[ seg.pi - 1 ];
+		if ( prev && prev.result.type === 'strikeout' && prev.half === this.game.plays[ seg.pi ].half && ! ( s.bases || [] ).some( Boolean ) ) this._tosses( s, lt, [ [ 'SS', '2B', 0.1 ], [ '2B', '3B', 1.3 ], [ '3B', 'P', 2.7 ] ] );
 
 	}
 
@@ -1110,10 +1143,12 @@ export class Director {
 			else if ( tb < toC + 1.3 ) this.ballAt = catchAt;
 			else {
 
-				// back to the pitcher
+				// back to the pitcher; strike three he keeps (around the horn in the result, or it's the
+				// third out, or the last out of the Series: Ruiz kept it and ran out to Lidge)
 				const th = throwPath( POSITIONS.C, root, 14 );
 				const tt = tb - toC - 1.3;
-				this.ballAt = tt < th.time ? th.at( tt ) : null;
+				const k3 = e.count[ 1 ] >= 3;
+				this.ballAt = tt < th.time && ! k3 ? th.at( tt ) : null;
 
 			}
 
@@ -1268,6 +1303,8 @@ export class Director {
 
 			void done;
 			const pos = Object.keys( s.defense ).find( ( k ) => s.defense[ k ] === id );
+			// on the mound's slope (the pitcher, or anyone near the rubber)
+			if ( extra.y == null ) extra.y = moundY( at );
 			this.act( id, at[ 0 ], at[ 1 ], yaw, pos === 'P' || this.game.players[ id ]?.throws === 'L' ? this._hand( id, pose ) : pose, extra );
 
 		}
@@ -1462,6 +1499,36 @@ export class Director {
 
 		this._onDeck( s, lt );
 		void b;
+		// after a strikeout: around the horn with the bases empty (catcher to third, to short, and on in
+		// the next walk-up), or a flip back to the pitcher with men on; not after the third out
+		const P = this.game.plays[ seg.pi ];
+		if ( P?.result.type === 'strikeout' && s.outs < 3 && seg.pi < this.game.plays.length - 1 ) {
+
+			if ( ! ( b.bases || [] ).some( Boolean ) ) this._tosses( s, lt, [ [ 'C', '3B', 0.25 ], [ '3B', 'SS', 1.75 ] ] );
+			else this._tosses( s, lt, [ [ 'C', 'P', 1.2 ] ] );
+
+		}
+
+	}
+
+	// A ball thrown round the infield (after a strikeout): [ [ from, to, t ], ... ] by position, each
+	// thrown at t (lt); poses the man throwing and the man catching, and puts the ball in the air
+	_tosses( s, lt, chain ) {
+
+		const spot = ( pos ) => pos === 'P' ? MOUND : POSITIONS[ pos ];
+		for ( const [ a, b, t0 ] of chain ) {
+
+			const ida = s.defense[ a ], idb = s.defense[ b ];
+			if ( ! ida || ! idb ) continue;
+			const A = spot( a ), B = spot( b );
+			const th = throwPath( A, B, a === 'C' ? 24 : 20 );
+			const rel = t0 + 0.24, arr = rel + th.time;
+			const yA = a === 'P' ? 0.25 : 0, yB = b === 'P' ? 0.25 : 0;
+			if ( lt >= t0 - 0.1 && lt < t0 + 0.8 ) this.act( ida, A[ 0 ], A[ 1 ], yawTo( A, B ), this._hand( ida, M.throwBall( Math.max( 0, lt - t0 ) * 0.9 + 0.1 ) ), { y: yA } );
+			if ( lt >= rel - 0.6 && lt < arr + 0.5 ) this.act( idb, B[ 0 ], B[ 1 ], yawTo( B, A ), this._hand( idb, M.receive( lt, 1.3 / this._height( idb ) ) ), { y: yB } );
+			if ( lt >= rel && lt < arr ) this.ballAt = th.at( lt - rel );
+
+		}
 
 	}
 
@@ -1647,6 +1714,21 @@ function foulBall( seed ) {
 	const to = back ? [ side * 4 * hash( seed + 3 ), 16 ] : [ side * ( 25 + 20 * hash( seed + 5 ) ), 5 - 25 * hash( seed + 9 ) ];
 	const bb = battedBall( back ? 'line_drive' : 'fly_ball', 'medium', [ 0, - 0.4 ], to, seed );
 	return ( t ) => t < bb.time ? bb.at( t ) : null;
+
+}
+
+// the mound's height under a man standing at p (10 in at the rubber, down to the grass 9 ft out)
+function moundY( p ) {
+
+	const d = dist( p, MOUND );
+	return d < 2.7 ? 0.25 * ( 1 - d / 2.7 ) : 0;
+
+}
+
+// how long a play's fielders hold their last spots (a receive that lasts the play)
+function tEndGuess( tBall ) {
+
+	return tBall + 6;
 
 }
 
