@@ -2389,7 +2389,7 @@ function castMaterial( pool ) {
 			// ---- end FW6
 			let lit = 0.96 + 0.06 * cr.w;
 			if ( poncho == 2u ) { pc = vec3f( 0.36, 0.02, 0.03 ) * lit; }
-			if ( poncho == 3u ) { pc = mix( under, vec3f( 0.56, 0.57, 0.58 ), 0.58 + 0.04 * cr.w ); }
+			if ( poncho == 3u ) { pc = mix( under, vec3f( 0.56, 0.57, 0.58 ), 0.42 + 0.06 * cr.w + 0.2 * fres ); }
 			if ( poncho == 4u ) { pc = vec3f( 0.65, 0.5, 0.03 ) * lit; }
 			if ( poncho == 5u ) { pc = vec3f( 0.62, 0.2, 0.02 ) * lit; }
 			if ( poncho == 7u ) { pc = mix( topC * 0.8, haze, 0.12 + 0.04 * cr.w + 0.32 * fres ); }

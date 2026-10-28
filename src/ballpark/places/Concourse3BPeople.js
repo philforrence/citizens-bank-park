@@ -851,6 +851,20 @@ export class ConcoursePeople {
 	_walk( f, dt, ns ) {
 
 		const p = f.p;
+		// ---- FW6 (C4W-11): at strike three the ones who didn't get to the rail stop where they are, turn
+		// to the field and go through it with the rest (they strolled on as if nothing had happened), for the
+		// first two minutes; then on their way again, most of them out
+		if ( ns.celebrate && ! f.spot && ns.celebrateT < 120 ) {
+
+			this._move( f, 0, 0, dt, Walkway.yaw( - p.x, - p.z ) );
+			const a = p.pose;
+			a.walk = lerp( a.walk, 0, Math.min( 1, dt * 5 ) );
+			this._hands( f, a, ns );
+			this._react( f, a, dt, ns );
+			return;
+
+		}
+		// ---- end FW6
 		if ( f.hold > 0 && f.to?.usher ) {
 
 			// stopped for the usher: the ticket held out to him, then off down the steps
