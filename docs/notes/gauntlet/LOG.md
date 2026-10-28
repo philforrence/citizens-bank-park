@@ -21,4 +21,4 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 
 ## Round 2
 
-- **C2W, the walk** (launched 09:30): fresh eyes on everything seen on foot, after round 1's merges.
+- **C2W, the walk** (launched 09:23): fresh eyes on everything seen on foot, after round 1's merges.
