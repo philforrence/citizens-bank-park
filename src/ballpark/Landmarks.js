@@ -230,65 +230,166 @@ export class Landmarks {
 		// outside the Left Field Gate after the last out): a black field in a light frame, the cap shaded
 		// round its crown with the white P outlined and the button, the ball modelled with its seams; at
 		// night floodlit from below, so it shows over the fans in the street (it was a black slab)
+		// ---- FW5 (C3W-8, gauntlet r3): drawn again after the photos (Commons 2008-03-29, the board's back from
+		// the gate; the Game 5 arrival, Oct 27 2008): a photograph of a cap and a ball, not clip art. The field
+		// a deep navy in the board's royal blue frame; the cap three-quarters on, its crown's six panels shaded
+		// round from a light high on the left, the seams and their stitching, the eyelets, the button, the
+		// white P raised on the front panels with its shadow; the bill coming out toward the lower right, its
+		// edge lit, the grey-green under it; the ball beside it, big, its leather lit, the two seams' curves
+		// with their red stitches in pairs, the league's mark small on it
 		const rear = canvasTexture( 1024, 832, ( ctx, w, h ) => {
 
-			ctx.fillStyle = '#8a93a6';
+			let sd = 7;
+			const rnd = () => ( sd = ( sd * 16807 ) % 2147483647 ) / 2147483647;
+			ctx.fillStyle = '#2045a8';
 			ctx.fillRect( 0, 0, w, h );
-			const fx = w * 0.035, fy = h * 0.17;
-			let gr = ctx.createRadialGradient( w * 0.5, h * 0.55, w * 0.1, w * 0.5, h * 0.55, w * 0.7 );
-			gr.addColorStop( 0, '#10141d' ); gr.addColorStop( 1, '#05070b' );
+			// the frame's siding: vertical ribs
+			ctx.fillStyle = 'rgba( 0, 0, 0, 0.12 )';
+			for ( let x = 0; x < w; x += 9 ) ctx.fillRect( x, 0, 3, h );
+			const fx = w * 0.045, fy = h * 0.165, fw = w - 2 * fx, fh = h - fy - h * 0.04;
+			ctx.fillStyle = '#d8dbe2';
+			ctx.fillRect( fx - 5, fy - 5, fw + 10, fh + 10 );
+			let gr = ctx.createRadialGradient( w * 0.48, h * 0.55, w * 0.05, w * 0.5, h * 0.58, w * 0.62 );
+			gr.addColorStop( 0, '#1b2440' ); gr.addColorStop( 0.6, '#0c1226' ); gr.addColorStop( 1, '#05080f' );
 			ctx.fillStyle = gr;
-			ctx.fillRect( fx, fy, w - 2 * fx, h - fy - h * 0.035 );
-			// the cap: the crown a dome shaded from its top left, the panels' seams, the bill under it
-			const cx = w * 0.4, cy = h * 0.66, rx = w * 0.235, ry = h * 0.3;
-			gr = ctx.createRadialGradient( cx - rx * 0.35, cy - ry * 0.6, rx * 0.1, cx, cy - ry * 0.2, rx * 1.1 );
-			gr.addColorStop( 0, '#e8263c' ); gr.addColorStop( 0.6, '#b30d24' ); gr.addColorStop( 1, '#5e0612' );
+			ctx.fillRect( fx, fy, fw, fh );
+			// the cap: its crown, three-quarters on, the front panels toward us and a little left
+			const cx = w * 0.43, cy = h * 0.69, rx = w * 0.24, ry = h * 0.33;
+			ctx.save();
+			ctx.beginPath();
+			ctx.moveTo( cx - rx * 1.02, cy + ry * 0.02 );
+			ctx.bezierCurveTo( cx - rx * 1.08, cy - ry * 0.75, cx - rx * 0.45, cy - ry * 1.08, cx + rx * 0.08, cy - ry * 1.04 );
+			ctx.bezierCurveTo( cx + rx * 0.7, cy - ry * 1.0, cx + rx * 1.06, cy - ry * 0.55, cx + rx * 1.0, cy + ry * 0.08 );
+			ctx.quadraticCurveTo( cx, cy + ry * 0.2, cx - rx * 1.02, cy + ry * 0.02 );
+			ctx.closePath();
+			gr = ctx.createRadialGradient( cx - rx * 0.4, cy - ry * 0.7, rx * 0.05, cx - rx * 0.05, cy - ry * 0.25, rx * 1.25 );
+			gr.addColorStop( 0, '#f0485a' ); gr.addColorStop( 0.35, '#cf1830' ); gr.addColorStop( 0.75, '#8e0a1d' ); gr.addColorStop( 1, '#42040c' );
 			ctx.fillStyle = gr;
-			ctx.beginPath(); ctx.ellipse( cx, cy, rx, ry, 0, Math.PI, 0 ); ctx.closePath(); ctx.fill();
-			ctx.strokeStyle = 'rgba( 60, 0, 8, 0.6 )'; ctx.lineWidth = 4;
-			for ( const k of [ - 0.55, 0.55 ] ) {
+			ctx.fill();
+			ctx.clip();
+			// the wool's grain
+			ctx.globalAlpha = 0.07;
+			for ( let i = 0; i < 2600; i ++ ) {
 
-				ctx.beginPath(); ctx.moveTo( cx, cy - ry ); ctx.quadraticCurveTo( cx + rx * k * 0.9, cy - ry * 0.55, cx + rx * k * 1.05, cy ); ctx.stroke();
+				const x = cx - rx * 1.1 + rnd() * rx * 2.2, y = cy - ry * 1.1 + rnd() * ry * 1.3;
+				ctx.fillStyle = rnd() < 0.5 ? '#ffffff' : '#000000';
+				ctx.fillRect( x, y, 2, 1 );
 
 			}
-			ctx.fillStyle = '#c8102e';
-			ctx.beginPath(); ctx.arc( cx, cy - ry, 12, 0, Math.PI * 2 ); ctx.fill();
-			gr = ctx.createLinearGradient( 0, cy - 10, 0, cy + h * 0.09 );
-			gr.addColorStop( 0, '#9e0c20' ); gr.addColorStop( 1, '#4a050e' );
+
+			ctx.globalAlpha = 1;
+			// the panels' seams from the button, curving with the crown, the stitching beside them
+			const top = [ cx + rx * 0.02, cy - ry * 1.02 ];
+			for ( const k of [ - 0.92, - 0.42, 0.18, 0.72 ] ) {
+
+				const ex = cx + rx * k * 1.08, ey = cy + ry * 0.08 - Math.abs( k ) * ry * 0.06;
+				const mx = cx + rx * k * 0.85, my = cy - ry * 0.62;
+				ctx.strokeStyle = 'rgba( 40, 0, 6, 0.55 )'; ctx.lineWidth = 4;
+				ctx.beginPath(); ctx.moveTo( ...top ); ctx.quadraticCurveTo( mx, my, ex, ey ); ctx.stroke();
+				ctx.strokeStyle = 'rgba( 255, 170, 170, 0.18 )'; ctx.lineWidth = 1.5; ctx.setLineDash( [ 5, 5 ] );
+				ctx.beginPath(); ctx.moveTo( top[ 0 ] + 7, top[ 1 ] ); ctx.quadraticCurveTo( mx + 7, my, ex + 7, ey ); ctx.stroke();
+				ctx.setLineDash( [] );
+
+			}
+
+			// the eyelets
+			for ( const [ ex, ey ] of [ [ - 0.62, - 0.62 ], [ 0.08, - 0.8 ], [ 0.66, - 0.58 ] ] ) {
+
+				ctx.fillStyle = '#5a0612'; ctx.beginPath(); ctx.ellipse( cx + rx * ex, cy + ry * ey, 7, 5, 0, 0, Math.PI * 2 ); ctx.fill();
+				ctx.fillStyle = '#e03048'; ctx.beginPath(); ctx.ellipse( cx + rx * ex - 1, cy + ry * ey - 1, 3, 2, 0, 0, Math.PI * 2 ); ctx.fill();
+
+			}
+
+			// the sweatband's shadow at the crown's foot
+			gr = ctx.createLinearGradient( 0, cy - ry * 0.12, 0, cy + ry * 0.12 );
+			gr.addColorStop( 0, 'rgba( 0, 0, 0, 0 )' ); gr.addColorStop( 1, 'rgba( 0, 0, 0, 0.55 )' );
 			ctx.fillStyle = gr;
-			ctx.beginPath(); ctx.moveTo( cx - rx * 0.2, cy - 6 ); ctx.quadraticCurveTo( cx + rx * 0.9, cy - 14, cx + rx * 1.45, cy + h * 0.035 );
-			ctx.quadraticCurveTo( cx + rx * 0.8, cy + h * 0.1, cx - rx * 0.1, cy + h * 0.035 ); ctx.closePath(); ctx.fill();
-			ctx.fillStyle = '#7d0918';
-			ctx.fillRect( cx - rx, cy - 8, rx * 2, 16 );
-			// the P: white, outlined in navy
-			ctx.font = 'italic 700 260px Georgia, serif';
+			ctx.fillRect( cx - rx * 1.2, cy - ry * 0.12, rx * 2.4, ry * 0.3 );
+			ctx.restore();
+			// the button
+			gr = ctx.createRadialGradient( top[ 0 ] - 5, top[ 1 ] - 5, 2, top[ 0 ], top[ 1 ], 16 );
+			gr.addColorStop( 0, '#f5576a' ); gr.addColorStop( 1, '#7a0818' );
+			ctx.fillStyle = gr;
+			ctx.beginPath(); ctx.ellipse( top[ 0 ], top[ 1 ] + 3, 17, 10, 0, 0, Math.PI * 2 ); ctx.fill();
+			// the P: white embroidery raised off the front panels, a soft shadow to its lower right
 			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-			ctx.lineWidth = 14; ctx.strokeStyle = '#0d1c46'; ctx.strokeText( 'P', cx - rx * 0.05, cy - ry * 0.48 );
-			ctx.fillStyle = '#f6f2ea'; ctx.fillText( 'P', cx - rx * 0.05, cy - ry * 0.48 );
-			// the ball, lit from the upper left, its two seams in red stitches
-			const bx = w * 0.79, by = h * 0.62, br = h * 0.145;
-			gr = ctx.createRadialGradient( bx - br * 0.4, by - br * 0.4, br * 0.1, bx, by, br );
-			gr.addColorStop( 0, '#ffffff' ); gr.addColorStop( 0.7, '#e4e0d6' ); gr.addColorStop( 1, '#a8a49a' );
+			ctx.font = 'italic 700 250px Georgia, "Times New Roman", serif';
+			const px = cx - rx * 0.12, py = cy - ry * 0.5;
+			ctx.save();
+			ctx.translate( px, py ); ctx.rotate( - 0.05 ); ctx.transform( 1, 0, - 0.08, 1, 0, 0 );
+			ctx.fillStyle = 'rgba( 30, 0, 4, 0.55 )'; ctx.fillText( 'P', 7, 9 );
+			gr = ctx.createLinearGradient( - 60, - 110, 60, 110 );
+			gr.addColorStop( 0, '#ffffff' ); gr.addColorStop( 0.6, '#ece8e0' ); gr.addColorStop( 1, '#bdb6aa' );
+			ctx.fillStyle = gr; ctx.fillText( 'P', 0, 0 );
+			ctx.strokeStyle = 'rgba( 120, 110, 100, 0.6 )'; ctx.lineWidth = 2; ctx.strokeText( 'P', 0, 0 );
+			ctx.restore();
+			// the bill: out from under the front to the lower right, curved down at its sides; its top lit along
+			// the edge, the underside's grey-green showing at the far side
+			ctx.beginPath();
+			ctx.moveTo( cx - rx * 0.55, cy + ry * 0.06 );
+			ctx.bezierCurveTo( cx + rx * 0.2, cy + ry * 0.05, cx + rx * 1.15, cy - ry * 0.02, cx + rx * 1.62, cy + ry * 0.28 );
+			ctx.bezierCurveTo( cx + rx * 1.5, cy + ry * 0.45, cx + rx * 0.7, cy + ry * 0.52, cx - rx * 0.1, cy + ry * 0.38 );
+			ctx.quadraticCurveTo( cx - rx * 0.5, cy + ry * 0.28, cx - rx * 0.55, cy + ry * 0.06 );
+			ctx.closePath();
+			gr = ctx.createLinearGradient( cx, cy, cx + rx * 0.6, cy + ry * 0.55 );
+			gr.addColorStop( 0, '#b8142a' ); gr.addColorStop( 0.55, '#8c0b1e' ); gr.addColorStop( 1, '#4c0610' );
+			ctx.fillStyle = gr; ctx.fill();
+			ctx.strokeStyle = 'rgba( 255, 120, 130, 0.45 )'; ctx.lineWidth = 3;
+			ctx.beginPath(); ctx.moveTo( cx + rx * 1.62, cy + ry * 0.28 ); ctx.bezierCurveTo( cx + rx * 1.5, cy + ry * 0.45, cx + rx * 0.7, cy + ry * 0.52, cx - rx * 0.1, cy + ry * 0.38 ); ctx.stroke();
+			ctx.fillStyle = '#5d6b5a';
+			ctx.beginPath(); ctx.moveTo( cx + rx * 1.62, cy + ry * 0.28 ); ctx.quadraticCurveTo( cx + rx * 1.45, cy + ry * 0.2, cx + rx * 1.2, cy + ry * 0.16 ); ctx.quadraticCurveTo( cx + rx * 1.5, cy + ry * 0.32, cx + rx * 1.58, cy + ry * 0.34 ); ctx.closePath(); ctx.fill();
+			// the ball, to the right, resting by the bill: the leather lit from the upper left
+			const bx = w * 0.77, by = h * 0.63, br = h * 0.15;
+			gr = ctx.createRadialGradient( bx - br * 0.35, by - br * 0.4, br * 0.05, bx, by, br );
+			gr.addColorStop( 0, '#ffffff' ); gr.addColorStop( 0.55, '#ebe6da' ); gr.addColorStop( 0.85, '#bdb5a3' ); gr.addColorStop( 1, '#6d675c' );
 			ctx.fillStyle = gr;
 			ctx.beginPath(); ctx.arc( bx, by, br, 0, Math.PI * 2 ); ctx.fill();
-			ctx.strokeStyle = '#c8102e'; ctx.lineWidth = 3;
-			for ( const [ ox, a0, a1 ] of [ [ - 0.72, - 0.95, 0.95 ], [ 0.72, Math.PI - 0.95, Math.PI + 0.95 ] ] ) {
+			// its seams: two curves bending toward each other, the red stitches in a herringbone along each
+			ctx.save();
+			ctx.beginPath(); ctx.arc( bx, by, br - 1, 0, Math.PI * 2 ); ctx.clip();
+			for ( const sg of [ - 1, 1 ] ) {
 
-				ctx.beginPath(); ctx.arc( bx + br * ox, by, br * 0.78, a0, a1 ); ctx.stroke();
-				for ( let t = a0 + 0.08; t < a1; t += 0.14 ) {
+				const sx = bx + sg * br * 1.25, R = br * 0.95;
+				const a0 = sg < 0 ? - 0.85 : Math.PI - 0.85, a1 = sg < 0 ? 0.85 : Math.PI + 0.85;
+				ctx.strokeStyle = 'rgba( 150, 20, 30, 0.5 )'; ctx.lineWidth = 2;
+				ctx.beginPath(); ctx.arc( sx - sg * br * 0.02, by, R, a0, a1 ); ctx.stroke();
+				ctx.strokeStyle = '#c8102e'; ctx.lineWidth = 2.5;
+				for ( let t = a0 + 0.06; t < a1 - 0.03; t += 0.085 ) {
 
-					const px = bx + br * ox + Math.cos( t ) * br * 0.78, py = by + Math.sin( t ) * br * 0.78;
-					ctx.beginPath(); ctx.moveTo( px - Math.cos( t ) * 7 - Math.sin( t ) * 4, py - Math.sin( t ) * 7 + Math.cos( t ) * 4 ); ctx.lineTo( px + Math.cos( t ) * 7 - Math.sin( t ) * 4, py + Math.sin( t ) * 7 + Math.cos( t ) * 4 ); ctx.stroke();
+					const ux = Math.cos( t ), uy = Math.sin( t ), qx = sx + ux * R, qy = by + uy * R;
+					const len = 9 * ( 0.55 + 0.45 * Math.cos( ( t - ( a0 + a1 ) / 2 ) * 1.4 ) );
+					ctx.beginPath(); ctx.moveTo( qx - ux * len - uy * 4, qy - uy * len + ux * 4 ); ctx.lineTo( qx + ux * 2, qy + uy * 2 ); ctx.stroke();
+					ctx.beginPath(); ctx.moveTo( qx - ux * len + uy * 4, qy - uy * len - ux * 4 ); ctx.lineTo( qx + ux * 2, qy + uy * 2 ); ctx.stroke();
 
 				}
 
 			}
-			// the bank's name in green across the top
+
+			// the league's mark: a small navy and red oblong, the batter's silhouette in white
+			ctx.translate( bx - br * 0.15, by - br * 0.35 ); ctx.rotate( - 0.12 );
+			ctx.fillStyle = '#0d2a6e'; ctx.fillRect( - 18, - 9, 36, 18 );
+			ctx.fillStyle = '#c8102e'; ctx.fillRect( 4, - 9, 14, 18 );
+			ctx.fillStyle = '#f2f0ea'; ctx.beginPath(); ctx.ellipse( 0, 0, 3, 7, 0.4, 0, Math.PI * 2 ); ctx.fill();
+			ctx.restore();
+			// the rim's shadow on the field under the ball and the cap
+			gr = ctx.createRadialGradient( bx, by + br * 1.05, 2, bx, by + br * 1.05, br * 1.2 );
+			gr.addColorStop( 0, 'rgba( 0, 0, 0, 0.45 )' ); gr.addColorStop( 1, 'rgba( 0, 0, 0, 0 )' );
+			ctx.fillStyle = gr; ctx.fillRect( bx - br * 1.3, by + br * 0.8, br * 2.6, br * 0.6 );
+			// the bank's name in green across the top, the frame's own sign
 			ctx.fillStyle = '#1fd060';
-			ctx.font = '800 64px "Helvetica Neue", Arial, sans-serif';
-			ctx.fillText( 'Citizens Bank Park', w / 2, h * 0.085 );
+			ctx.font = '800 68px "Helvetica Neue", Arial, sans-serif';
+			ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+			ctx.fillText( 'Citizens Bank Park', w * 0.54, h * 0.085 );
+			ctx.strokeStyle = '#1fd060'; ctx.lineWidth = 7;
+			for ( let k = 0; k < 8; k ++ ) {
+
+				const a = k / 8 * Math.PI * 2, ox = w * 0.17, oy = h * 0.085;
+				ctx.beginPath(); ctx.moveTo( ox + Math.cos( a ) * 10, oy + Math.sin( a ) * 10 ); ctx.lineTo( ox + Math.cos( a ) * 30, oy + Math.sin( a ) * 30 ); ctx.stroke();
+
+			}
 
 		}, 'boardRear' );
+		// ---- end FW5
 		// (lit by floods along its foot: brightest low, the green name glowing on its own)
 		const rearMat = standard( { name: 'board-rear', roughness: 0.55, textures: { bpRear: rear }, surface: 'let t = textureSample( bpRear, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.8; let nk = smoothstep( 0.1, 0.7, frame.night ); s.emissive = t * step( 0.15, t.g - t.r - t.b ) * nk * 2.5 + t * nk * mix( 0.12, 0.5, in.uv.y * in.uv.y );' } );
 		// ---- end FW2

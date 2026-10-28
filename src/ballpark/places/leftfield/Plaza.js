@@ -24,8 +24,14 @@ export function buildPlaza( place, H, K, Pk ) {
 
 	}
 
-	K.use( 'navy' ).box( Pk, x0 - 6.6, STREET + 5.2, ZB + 0.15, 7.6, 5.9, 0.3 );
-	K.panel( Pk, x0 - 6.6, STREET + 5.2, ZB + 0.31, 7.2, 5.4, 'phanatic', true, true );
+	// ---- FW5 (C3W-8, gauntlet r3): the Phanatic's picture up on the house's back at the board's foot, on its
+	// own royal blue box, over the gate's canopy and seen from the street and the lots, as every 2008 photo
+	// of the gate has it (Commons 2008-03-29; the Game 5 arrival, Oct 27 2008: Carlton's statue in front of
+	// it); it was 7 m wide at the height of the canopy, behind the fence, so from outside it didn't show
+	const pw = 12.4, ph = 9.3, px = - 13.6, py = H.TOP + 0.9 - ph / 2 - 0.25;
+	K.use( 'royal' ).box( Pk, px, py, ZB + 0.3, pw + 0.7, ph + 0.6, 0.6 );
+	K.panel( Pk, px, py, ZB + 0.61, pw, ph, 'phanatic', true, true );
+	// ---- end FW5
 	// a lamp post in the plaza (the lantern globes of the 2008 photos)
 	for ( const [ x, z ] of [ [ - 4, ZB + 7 ], [ 9, ZB + 9 ] ] ) {
 
