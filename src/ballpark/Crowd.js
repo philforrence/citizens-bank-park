@@ -470,7 +470,32 @@ export function fanGeometry( lod ) {
 
 		// long hair (or a ponytail) down the back of the head: a card curved round it (close up and near:
 		// three columns; a flat one was a board behind the head)
-		if ( L.hair ) {
+		if ( L.hair && L.extras ) {
+
+			// ---- FP2: close up, a shell round the back and sides of the head from the crown to the
+			// shoulders, framing the face in front of the ears (the card read as a panel behind her head from
+			// the aisle). Rows [ height, half width, half depth, how far round from the back ]; v down it
+			const rows = [ [ 0.045, 0.077, 0.094, 2.15 ], [ - 0.025, 0.09, 0.108, 2.05 ], [ - 0.11, 0.097, 0.121, 1.85 ], [ - 0.2, 0.105, 0.138, 1.45 ] ];
+			const cols = 7, q = [];
+			rows.forEach( ( [ y, rx, rz, span ], j ) => {
+
+				for ( let i = 0; i < cols; i ++ ) {
+
+					const u = i / ( cols - 1 ), ph = ( 1 - 2 * u ) * span, n = [ Math.sin( ph ), 0.15, Math.cos( ph ) ];
+					const o = [ Math.sin( ph ) * rx, y, Math.cos( ph ) * rz ];
+					q.push( vert( fixed( add( SIT.head, o ), add( STAND.head, o ) ), n, n, P.hair, 0, 0, u, j / ( rows.length - 1 ) ) );
+
+				}
+
+			} );
+			for ( let j = 0; j < rows.length - 1; j ++ ) for ( let i = 0; i < cols - 1; i ++ ) {
+
+				const a = j * cols + i;
+				index.push( q[ a ], q[ a + cols + 1 ], q[ a + 1 ], q[ a ], q[ a + cols ], q[ a + cols + 1 ] );
+
+			}
+
+		} else if ( L.hair ) {
 
 			const cols = L.trunk >= 6 && L.head[ 0 ] >= 8 ? 3 : 2, q = [];
 			for ( const v of [ 0, 1 ] ) for ( let i = 0; i < cols; i ++ ) {
@@ -1045,7 +1070,7 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 			}
 		}
 		// a ponytail: the long hair narrowed
-		if ( part == 10u && ( flags & ( 1u << 14u ) ) != 0u ) { p.x = headC.x + ( p.x - headC.x ) * 0.32; p.y -= 0.03; }
+		if ( part == 10u && ( flags & ( 1u << 14u ) ) != 0u ) { p.x = headC.x + ( p.x - headC.x ) * 0.32; p.y -= 0.03; p.z = max( p.z, headC.z + 0.03 ); }
 		// ---- FW1 (C2W-6): long hair to her own length (the chin to below the shoulders); each face its own
 		// width at the jaw and its own length (neighbours had the same face)
 		let hv = ( u32( r4.w + 0.5 ) >> 10u ) & 7u;
@@ -1755,6 +1780,15 @@ export class Crowd {
 			m.cheer = 0.9;
 			m.jump = 1;
 			m.towel = 1;
+			// ---- FP2: the first minute everyone up, jumping, arms up, towels going; then they settle into
+			// a crowd again, each his own way (clapping, towels now and then, arms up, hugging, pictures),
+			// for the trophy and the laps (the whole stands in one pose, arms up, for minutes on end)
+			const k = Math.min( 1, Math.max( 0, lt - 45 ) / 90 );
+			m.cheer = 0.9 - 0.6 * k;
+			m.jump = 1 - 0.85 * k;
+			m.towel = 1 - 0.65 * k;
+			m.clap = 0.3 + 0.45 * k;
+			// ---- end FP2
 
 		}
 

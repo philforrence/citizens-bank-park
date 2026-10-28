@@ -596,11 +596,33 @@ export function figureGeometry( lod = 0 ) {
 		if ( ! tiny ) quad( B.spine, PART.scarf, [ 0.015, 1.41, - 0.098 ], [ 0.085, 1.41, - 0.09 ], [ 0.08, 1.14, - 0.13 ], [ 0.02, 1.14, - 0.132 ] );
 		// ---- end FP1
 		ellipsoid( B.head, PART.pompom, add( h, [ 0, HEAD_R[ 1 ] + 0.04, 0.005 ] ), [ 0.034, 0.03, 0.034 ], N6, fine ? 4 : 3 );
-		// long hair: a card down the back, curved round the head
-		const hc = [ - 0.08, - 0.04, 0, 0.04, 0.08 ];
-		const top = hc.map( ( x ) => vert( add( h, [ x, 0.05, 0.075 - x * x * 3 ] ), [ x, 0, 1 ], B.head, PART.hairCard ) );
-		const bot = hc.map( ( x ) => vert( add( h, [ x * 1.1, - 0.2, 0.09 - x * x * 3 ] ), [ x, 0, 1 ], B.head, PART.hairCard ) );
-		for ( let k = 0; k < hc.length - 1; k ++ ) index.push( top[ k ], bot[ k ], top[ k + 1 ], top[ k + 1 ], bot[ k ], bot[ k + 1 ] );
+		// long hair: (FP2) a shell round the back and sides of the head, from the crown down past the
+		// shoulders, framing the face in front of the ears, fuller and further out as it falls over the
+		// collar and down the back (it was a card hung behind the head: a panel from the side, nothing from
+		// the front)
+		{
+
+			// rows: [ height, half width, half depth, how far round from the back ]
+			const rows = fine ? [ [ 0.075, 0.062, 0.075, 2.2 ], [ - 0.02, 0.088, 0.106, 2.1 ], [ - 0.11, 0.096, 0.12, 1.95 ], [ - 0.19, 0.106, 0.14, 1.6 ], [ - 0.26, 0.116, 0.156, 1.25 ] ]
+				: [ [ 0.075, 0.062, 0.075, 2.2 ], [ - 0.11, 0.096, 0.12, 1.95 ], [ - 0.26, 0.116, 0.156, 1.25 ] ];
+			const cols = fine ? 9 : tiny ? 3 : 5, R0 = [];
+			for ( const [ y, rx, rz, span ] of rows ) {
+
+				const ring = [];
+				for ( let i = 0; i < cols; i ++ ) {
+
+					const ph = ( i / ( cols - 1 ) * 2 - 1 ) * span;
+					ring.push( vert( add( h, [ Math.sin( ph ) * rx, y, Math.cos( ph ) * rz ] ), [ Math.sin( ph ), 0.15, Math.cos( ph ) ], B.head, PART.hairCard ) );
+
+				}
+
+				R0.push( ring );
+
+			}
+
+			for ( let k = 0; k < R0.length - 1; k ++ ) for ( let i = 0; i < cols - 1; i ++ ) index.push( R0[ k ][ i ], R0[ k + 1 ][ i ], R0[ k ][ i + 1 ], R0[ k ][ i + 1 ], R0[ k + 1 ][ i ], R0[ k + 1 ][ i + 1 ] );
+
+		}
 		// ---- P0: a State Trooper's campaign hat: the wide flat brim, the crown with the four pinches of its
 		// peak (W1's, from the Inquirer's troopers at the park)
 		if ( ! tiny ) {
@@ -1316,6 +1338,11 @@ function castMaterial( pool ) {
 			q = q + ( q - headC ) * 0.06 * smoothstep( 0.1, 0.5, d.y );
 			q.y += 0.018 * smoothstep( 0.7, 1.0, d.y );
 		}
+		// ---- FP2: long hair under a hat comes out from under its band (its top tucked in under the hat)
+		if ( part == ${ PART.hairCard }u && hat != ${ HAT.none }u ) {
+			q = headC + ( q - headC ) * ( 1.0 - 0.14 * smoothstep( - 0.03, 0.05, q.y - headC.y ) );
+		}
+		// ---- end FP2
 		// a peaked police cap: the crown wider and flat on top; a flat cap sits low and short
 		if ( hat == ${ HAT.police }u && part == ${ PART.head }u && d.y > 0.45 ) {
 			let t = smoothstep( 0.45, 0.8, d.y );
@@ -1751,7 +1778,12 @@ function castMaterial( pool ) {
 			// ---- end FP1
 		}
 	}
-	if ( part == ${ PART.hairCard }u ) { c = hairC; rough = 0.7; }
+	if ( part == ${ PART.hairCard }u ) {
+		// (FP2: its strands, darker in among them and toward the ends)
+		let hl = L - ${ f3( J.head ) };
+		c = hairC * ( 0.82 + 0.18 * sin( atan2( hl.x, hl.z ) * 70.0 + hl.y * 30.0 ) ) * mix( 1.0, 0.8, smoothstep( - 0.05, - 0.25, hl.y ) );
+		rough = 0.7;
+	}
 	// ---- FP1 (CP-1, CP-5): a cap's crown: the cloth, the six panels' seams and the button, the P the
 	// right way round on the front panels (the back, on a cap turned round)
 	if ( part == ${ PART.crown }u ) {
