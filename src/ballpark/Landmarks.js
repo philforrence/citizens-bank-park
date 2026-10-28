@@ -217,7 +217,7 @@ export class Landmarks {
 	// the red kept under the tonemapper's shoulder (C4R-8: at 0.55 with a little blue it still read pink),
 	// the stars a bright blue, the outline's gold dimmer than the faces' glow
 	let star = step( t.r + 0.05, t.b );
-	let lit = mix( mix( t.rgb * vec3f( 1.15, 0.3, 0.3 ), t.rgb * 1.8, star ), vec3f( 1.0, 0.6, 0.22 ) * 0.5, rim );
+	let lit = mix( mix( t.rgb * vec3f( 0.7, 0.3, 0.3 ), t.rgb * 1.8, star ), vec3f( 1.0, 0.55, 0.15 ) * 0.45, rim );
 	s.emissive = mix( t.rgb * 0.2, lit, n );
 `,
 		} );
