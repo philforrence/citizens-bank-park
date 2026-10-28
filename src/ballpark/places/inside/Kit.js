@@ -30,7 +30,7 @@ export const PAL = {
 	// floors
 	carpet: [ [ 0.03, 0.035, 0.055 ], 0.95, 0, 0, P_CARPET ], // a suite's: dark blue-grey, a small figure in it (Ernst & Young's suite, 2009)
 	blocks: [ [ 0.075, 0.066, 0.054 ], 0.95, 0, 0, P_BLOCKS ], // the corridors' and the club's: red blocks on taupe (greenheaps, harpo42)
-	terrazzo: [ [ 0.5, 0.46, 0.38 ], 0.18, 0, 0, P_TERRAZZO ], // the Diamond Club's, its red stitches
+	terrazzo: [ [ 0.4, 0.37, 0.31 ], 0.14, 0, 0, P_TERRAZZO ], // the Diamond Club's, its red stitches
 	concreteFloor: [ [ 0.26, 0.255, 0.24 ], 0.7, 0, 0, P_SPECKLE ],
 	turf: [ [ 0.035, 0.12, 0.035 ], 0.95, 0, 0, P_TURF ],
 	turfMat: [ [ 0.05, 0.2, 0.05 ], 0.9, 0, 0, P_TURF ],
@@ -88,6 +88,7 @@ export const PAL = {
 	exitSign: [ [ 0.9, 0.06, 0.04 ], 0.5, 0, 2.0, P_PLAIN ],
 	screen: [ [ 0.06, 0.07, 0.07 ], 0.15, 0, 1.0, P_SCREEN ], // a TV (an old tube's picture: the game, green)
 	fridge: [ [ 0.8, 0.85, 0.9 ], 0.4, 0, 1.2, P_PLAIN ], // a glass-front fridge's light
+	frost: [ [ 0.42, 0.52, 0.68 ], 0.3, 0, 1.3, P_PLAIN ], // frosted glass lit from behind, blue-white
 };
 export const PAL_KEYS = Object.keys( PAL );
 const IDX = Object.fromEntries( PAL_KEYS.map( ( k, i ) => [ k, i ] ) );

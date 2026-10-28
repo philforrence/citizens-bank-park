@@ -21,6 +21,7 @@ import Soundscape from './Soundscape.js'; // ---- S: the park's whole soundscape
 import Rituals from './Rituals.js';
 import Suites from './Suites.js'; // ---- FI2: the insides (gauntlet CI-5, CI-6, CI-14)
 import Club from './Club.js'; // ---- FI2
+import Under from './Under.js'; // ---- FI2
 
 export const PLACES = [
 	[ 'rail', FieldRail ],
@@ -35,4 +36,5 @@ export const PLACES = [
 	[ 'rituals', Rituals ],
 	[ 'suites', Suites ], // ---- FI2
 	[ 'club', Club ], // ---- FI2
+	[ 'under', Under ], // ---- FI2
 ];
