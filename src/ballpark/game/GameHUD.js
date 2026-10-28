@@ -77,6 +77,26 @@ const CSS = `
 .gm-replay::before { content: ''; display: inline-block; width: 0; height: 0; margin-right: 7px; vertical-align: 1px;
 	border-left: 8px solid #b0101f; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
 .gm-hud.gm-tv.gm-replaying .gm-replay { display: block; }
+/* FB3 (C3B-7): FOX's graphics through the breaks, the delay and the end. The line score in its box (the
+   world feed's GAME SUSPENDED card at 3:03:00: a navy box under a WORLD SERIES header, the runs, hits and
+   errors in white cells, a line under), the champions' lower third (FOX US sheet 125, frame 8); the bug
+   itself gone after the last out (sheet 125, frames 3-9), back on hover for the transport */
+.gm-board, .gm-l3 { display: none; }
+.gm-hud.gm-tv.gm-board-on .gm-board { display: block; position: absolute; left: 0; bottom: 0; min-width: 300px; border: 1px solid #8f9bb0; border-radius: 3px;
+	background: linear-gradient( #22396d, #0c1a3b 60%, #0a1430 ); box-shadow: 0 2px 9px rgba( 0, 0, 0, 0.7 ); color: #fff;
+	font: 800 13px/1.25 "Arial Narrow", "Helvetica Neue", Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.04em; overflow: hidden; }
+.gm-board .gm-bh { padding: 3px 12px; font-size: 16px; letter-spacing: 0.08em; background: linear-gradient( #2f4f93, #16295a ); border-bottom: 1px solid #8f9bb0; }
+.gm-board .gm-bs { padding: 1px 12px; font-size: 12px; text-align: center; color: #0b1f4d; background: linear-gradient( #e9edf2, #a7b1bf ); letter-spacing: 0.1em; }
+.gm-board table { border-collapse: separate; border-spacing: 6px 4px; margin: 2px 6px; font-size: 18px; }
+.gm-board th { font-size: 11px; color: #c9d3e2; font-weight: 700; }
+.gm-board td { text-align: left; padding: 0 6px 0 2px; }
+.gm-board td.n { min-width: 34px; text-align: center; color: #0b1f4d; background: linear-gradient( #ffffff, #c9d0da ); border-radius: 2px; }
+.gm-board .gm-bf { padding: 3px 12px 5px; font-size: 13px; text-align: center; border-top: 1px solid rgba( 255, 255, 255, 0.25 ); }
+.gm-hud.gm-tv.gm-board-on:not( :hover ) .gm-card, .gm-hud.gm-tv.gm-nobug:not( :hover ) .gm-card { opacity: 0; }
+.gm-hud.gm-tv.gm-l3-on .gm-l3 { display: block; position: fixed; left: 50%; bottom: 56px; transform: translateX( -50% ); white-space: nowrap;
+	font: 800 22px/1.15 "Arial Narrow", "Helvetica Neue", Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.05em; color: #fff;
+	background: linear-gradient( #c8102e, #8c0a1f ); border-top: 2px solid #e6e9ee; border-bottom: 2px solid #0b1f4d; padding: 4px 22px 5px; box-shadow: 0 2px 8px rgba( 0, 0, 0, 0.6 ); }
+.gm-l3 small { display: block; font-size: 14px; letter-spacing: 0.12em; color: #f2f4f7; }
 `;
 
 export class GameHUD {
@@ -95,6 +115,8 @@ export class GameHUD {
 		el.className = 'gm-hud';
 		el.innerHTML = `
 			<div class="gm-replay">REPLAY</div>
+			<div class="gm-board" data-k="board"></div>
+			<div class="gm-l3" data-k="l3"></div>
 			<div class="gm-card">
 				<div class="gm-ws">World Series</div>
 				<div class="gm-top">
@@ -253,9 +275,13 @@ export class GameHUD {
 		this.$( 'count' ).textContent = `${ n.count[ 0 ] }-${ n.count[ 1 ] }`;
 		this.$( 'outs' ).querySelectorAll( 'span' ).forEach( ( o, i ) => o.classList.toggle( 'on', i < n.outs ) );
 		this.$( 'outs' ).dataset.tv = tv ? `${ n.outs } out` : '';
-		const pit = P[ s.pitcher ], bat = P[ s.batter ];
+		// (FB3, C3B-7: the man on the mound, not the play's pitcher: the walk-up before a pitching change had
+		// the new man "pitching" while the old one was still out there)
+		const pit = P[ s.defense?.P ?? s.pitcher ], bat = P[ s.batter ];
 		const pitch = n.pitch && n.pitch.speed ? `<small> · ${ Math.round( n.pitch.speed ) } mph ${ n.pitch.typeName || '' }</small>` : '';
 		this.$( 'match' ).innerHTML = bat && pit ? `${ pit.last } <small>pitching to</small> ${ bat.name } <small>#${ bat.num }</small>${ pitch }` : '';
+		if ( tv ) this._tvGraphics( n, s, pit, bat );
+		else this.el.classList.remove( 'gm-board-on', 'gm-l3-on', 'gm-nobug' );
 		this.$( 'desc' ).innerHTML = this._playLine( n, s );
 		// on TV the panel is a corner bug
 		this.el.classList.toggle( 'gm-tv', !! this.app?.camMode && this.app.camMode !== 'walk' );
@@ -272,6 +298,92 @@ export class GameHUD {
 		this.$( 'time' ).textContent = `${ inn } · ${ fmt( d.t ) }`;
 
 	}
+
+	// ---- FB3 (C3B-7): FOX's bug and cards where the game isn't on a pitch. A break (a change of sides, the
+	// start): the half, 0 OUT and no count (it carried the last at-bat's), the man on the mound to the half's
+	// first batter. The 27th's delay: RAIN DELAY under the bug (FOX US, 2:03:00), then the line score card,
+	// GAME SUSPENDED (the world feed, 3:03:00); the 29th's part: the card again with the game coming back.
+	// The last out: FINAL in the tab from the strike, the bug gone once the pile's on (FOX US sheet 125), the
+	// champions' lower third at a minute (frame 8), and the final line score card later (sheet 127)
+	_tvGraphics( n, s, pit, bat ) {
+
+		const d = this.d, g = this.g, seg = n.seg, L = d.lastOut;
+		let board = null, l3 = null, nobug = false;
+		const set = ( tab, count, outs, match ) => {
+
+			if ( tab != null ) this.$( 'inning' ).textContent = tab;
+			this.$( 'count' ).textContent = count;
+			this.$( 'outs' ).dataset.tv = outs;
+			this.$( 'match' ).innerHTML = match;
+
+		};
+		const fin = L && ( seg === L.cel || seg === L.result || ( seg === L.pitch && d.t > L.tStrike + 0.8 ) );
+		if ( fin ) {
+
+			const lt = seg === L.cel ? d.t - seg.t0 : - 1;
+			set( 'Final', '', '', 'Phillies win the World Series' );
+			nobug = lt > 5;
+			if ( lt > 58 && lt < 70 ) l3 = 'Philadelphia Phillies<small>2008 World Series Champions</small>';
+			if ( lt > 236 && lt < 250 ) board = this._board( 'Game 5 · Final', g.plays.length - 1, 'Phillies win the World Series' );
+
+		} else if ( seg === d.suspension && d.night ) {
+
+			const N = d.night( d.t );
+			if ( N.delay ) {
+
+				set( 'Bot 6th', '', '', 'Rain delay · Bottom 6th inning' );
+				if ( N.k > 0.7 ) board = this._board( 'Game 5 · Mid 6th', this._lastBefore( 6, 'bottom' ), 'Game suspended · to resume in the bottom of the 6th' );
+
+			} else {
+
+				set( 'Bot 6th', '', '0 out', bat && pit ? `${ pit.last } <small>pitching to</small> ${ bat.name } <small>#${ bat.num }</small>` : '' );
+				if ( N.k > 0.08 && N.k < 0.3 ) board = this._board( 'Game 5 · Bottom 6th', this._lastBefore( 6, 'bottom' ), 'Resuming tonight · tied 2-2' );
+
+			}
+
+		} else if ( seg.kind === 'switch' || seg.kind === 'intro' ) {
+
+			set( null, '', '0 out', bat && pit ? `${ pit.last } <small>pitching to</small> ${ bat.name } <small>#${ bat.num }</small>` : '' );
+
+		}
+
+		const bd = this.$( 'board' ), l = this.$( 'l3' );
+		if ( board && bd.innerHTML !== board ) bd.innerHTML = board;
+		if ( l3 && l.innerHTML !== l3 ) l.innerHTML = l3;
+		this.el.classList.toggle( 'gm-board-on', !! board );
+		this.el.classList.toggle( 'gm-l3-on', !! l3 );
+		this.el.classList.toggle( 'gm-nobug', nobug );
+
+	}
+
+	// the index of the last play before the given half inning starts
+	_lastBefore( inning, half ) {
+
+		const k = this.g.plays.findIndex( ( p ) => p.inning > inning || ( p.inning === inning && ( half === 'top' || p.half === 'bottom' ) ) );
+		return k < 0 ? this.g.plays.length - 1 : k - 1;
+
+	}
+
+	// the line score card: runs, hits and errors through play `upto` (an error is the fielding side's)
+	_board( sub, upto, foot ) {
+
+		const g = this.g, T = { away: [ 0, 0, 0 ], home: [ 0, 0, 0 ] };
+		const HITS = /^(single|double|triple|home_run)$/;
+		g.plays.forEach( ( p, i ) => {
+
+			if ( i > upto ) return;
+			const bat = p.half === 'top' ? 'away' : 'home', fld = bat === 'away' ? 'home' : 'away';
+			if ( HITS.test( p.result.type ) ) T[ bat ][ 1 ] ++;
+			if ( p.result.type === 'field_error' ) T[ fld ][ 2 ] ++;
+			T.away[ 0 ] = p.result.away;
+			T.home[ 0 ] = p.result.home;
+
+		} );
+		const row = ( side ) => `<tr><td>${ g.teams[ side ].abbr }</td>${ T[ side ].map( ( v ) => `<td class="n">${ v }</td>` ).join( '' ) }</tr>`;
+		return `<div class="gm-bh">World Series</div><div class="gm-bs">${ sub }</div><table><tr><th></th><th>R</th><th>H</th><th>E</th></tr>${ row( 'away' ) }${ row( 'home' ) }</table><div class="gm-bf">${ foot }</div>`;
+
+	}
+	// ---- end FB3
 
 	// The line under the score bug: the last play, labelled as such, while it's this half-inning's;
 	// from the change of sides, whose half it is and who leads off (it used to go on showing the other
