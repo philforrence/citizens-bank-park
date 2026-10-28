@@ -30,3 +30,6 @@ The cold load was 62 s (shaders compiling in a fresh browser), no console errors
 | 09:10 | FY1, the game and cameras (rain, TV high on the 27th: 31.0) | 25.0 | 29.4 | 25.9 | 29.9 | 27.0 | 29.8 | 29.5 |
 
 **From FY1 on, every view is lit at game time.** The light used to default to 4 pm, so the baseline's walking views were in daylight; now the replay's clock sets it (~8:30-10:40 pm), and the night's lamps cost the walking views ~2 ms. That's the honest condition: the game is at night. TV high got cheaper from FOX's tighter lens (fov 32).
+| 09:25 | FP1, the people (rain, TV high on the 27th: 31.4) | 23.0 | 30.3 | 22.8 | 30.8 | 29.0 | 31.8 | 31.8 |
+
+FP1's crowd culls and picks its LOD per 360-seat piece, so the TV views got cheaper (follow 25.9 -> 22.8); its close LOD and the concourse's throng cost the walking and seat views 1-2 ms. **The upper-deck seat and left field are 1.5 ms from the floor**: the speed track (SP1) has them.
