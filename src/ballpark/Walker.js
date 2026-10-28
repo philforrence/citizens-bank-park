@@ -193,14 +193,15 @@ export class Walker {
 		const p = this.position;
 		const old = p.clone();
 		p.addScaledVector( this.velocity, dt );
+		// ---- FW6 (C4W-5): the people standing and walking about (everyone in the Cast's pool, where they
+		// were last drawn): each pushes you out to arm's length softly, a part of the overlap a step, so
+		// you're held behind a line or the rail's crowd and ease past someone as they step aside (they make
+		// way in the pool). You walked through them: a crowd of holograms. (Before the colliders, which have
+		// the last word: a push never puts you in a wall)
+		this._pushFromPeople( p );
 		this.colliders.resolveCapsule( p, RADIUS, HEIGHT, STEP );
 		// the seated fans: pushed back out from among them (the aisles are clear)
 		if ( this.blocked ) this.blocked( p, RADIUS );
-		// ---- FW6 (C4W-5): and the people standing and walking about (the Cast's, within 2.5 m of the eye
-		// as they were last drawn): each pushes you out to arm's length softly, a part of the overlap a
-		// frame, so you're held behind a line or the rail's crowd and ease past someone as they step aside
-		// (they make way in the Cast's pool). You walked through them: a crowd of holograms
-		this._pushFromPeople( p );
 		const g = this.groundAt( p.x, p.z, p.y + STEP + 0.05 );
 		const y0 = p.y;
 		if ( p.y <= g ) {
