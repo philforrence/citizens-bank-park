@@ -39,3 +39,6 @@ FP1's crowd culls and picks its LOD per 360-seat piece, so the TV views got chea
 | 09:58 | SP1, occlusion culling (rain, TV high on the 27th: 26.9) | 21.0 | 26.3 | 19.9 | 23.5 | 21.8 | 25.2 | 31.0 |
 
 **The speed track's first win** gave back 2-7 ms everywhere but left field (an open view: little is hidden). Left field (31.0) is SP1's next target. From here the job also has a real field-level seat (`seat-3b-field-real`, the bowl critic's `__seat()`), since the old "3B field seat" eye sits under the stands.
+| 10:08 | FI2, the insides (rain TV high 27.3; a real 3B field seat 25.7) | 21.2 | 25.9 | 20.3 | 24.1 | **33.0** | 25.2 | 30.8 |
+
+**Under the stands is at the floor:** the old "3B field seat" eye is under the stands, where FI2's lounge, cages and tunnels now draw (21.8 -> 33.0 ms). Handed to SP1 ahead of left field. A real field-level seat is 25.7.
