@@ -3,6 +3,7 @@ import { standard } from '../materials/Materials.js';
 import { Quads } from './Stands.js';
 import { canvasTexture, refreshCanvasTexture } from './geo.js';
 import { generateMipmaps } from '../engine/gpu/Mipmaps.js';
+import { FT, FOUL_TERRITORY, FOUL_WALL_HEIGHT, DUGOUTS } from './layout.js';
 
 // The fronts of the decks as they were for the 2008 World Series (from photos of Games 3-5):
 //   - the LED ribbon board along the suite level round the infield: WORLD SERIES 2008 on FOX, the batter,
@@ -338,29 +339,72 @@ export class Fascia {
 
 	}
 
-	// red, white and blue half fans hung from the top of the fascias, one every ~13 m
+	// Red, white and blue pleated half fans, as the photos of Games 3-5 and the 2007 NLDS show them
+	// (yeago81 2007, Getty 163678267, 83571001, 84080911; luidude Oct 27): about one a section along the
+	// Hall of Fame Club's fascia, the Arcade's and the Pavilion's, each ~2.1 m across and ~1.5 m deep,
+	// tied along the rail on top and draped over the precast band, so the lower third hangs below its
+	// edge. Down at the field a few smaller ones hung on the low wall's rail: a pair just past each
+	// dugout's far end (the photographers' wells) and one in each corner where the stands meet the
+	// outfield wall. Each is 14 folds radiating from the top centre, every other one standing out, so
+	// they catch the light the way the cloth does; one batch of a few hundred triangles.
 	_bunting( tiers ) {
 
 		const tex = canvasTexture( 512, 256, drawBunting, 'bunting' );
-		const mat = standard( { name: 'bunting', roughness: 0.9, alphaTest: 0.5, side: 'double', textures: { bpFan: tex },
+		const mat = standard( { name: 'bunting', roughness: 0.88, alphaTest: 0.5, side: 'double', textures: { bpFan: tex },
 			surface: 'let t = textureSample( bpFan, smpAnisoClamp, in.uv ); s.albedo = t.rgb * 0.8; s.alpha = t.a;' } );
 		mat.underwaterLighting = 'none';
 		const q = new Quads();
-		const W = 2.0, H = 1.0;
+		const W = 2.2, H = 1.6;
 		for ( const t of tiers ) {
 
 			const segs = facing( t.front, t.outward );
 			const total = segs.reduce( ( a, S ) => a + S.len, 0 );
 			const n = Math.max( 1, Math.round( total / 13 ) );
-			const top = t.frontWall.top - 0.08;
+			// tied on at the pipe rail, 0.3 m over the fascia's top (Stands.js puts the rail there, 0.12 m
+			// out from the face)
+			const top = t.frontWall.top + 0.28;
 			for ( let k = 0; k < n; k ++ ) {
 
 				const c = ( k + 0.5 ) * total / n;
-				along( q, segs, c - W / 2, c + W / 2, top - H, top, 0.09, ( ss ) => ( ss - ( c - W / 2 ) ) / W, 0, 1 );
+				const S = segs.find( ( S ) => c >= S.s0 && c <= S.s0 + S.len ) || segs[ segs.length - 1 ];
+				const s = c - S.s0;
+				// (a fan that would fold round a corner of the fascia slides along to sit on one piece)
+				const sc = Math.min( Math.max( s, Math.min( W / 2, S.len / 2 ) ), Math.max( S.len - W / 2, S.len / 2 ) );
+				fan( q, [ S.a[ 0 ] + S.ux * sc, S.a[ 1 ] + S.uz * sc ], [ S.nz, - S.nx ], [ S.nx, S.nz ], top, W, H, 0.15, 0.06 );
 
 			}
 
 		}
+
+		// the field level: on the low wall's pipe rail (Field.js: 0.2 m back on the cap, its top rail
+		// 0.95 m up), smaller fans, from s metres along the wall from p toward p1
+		const wallTop = FOUL_WALL_HEIGHT * FT;
+		const onWall = ( p, p1, s ) => {
+
+			const len = Math.hypot( p1[ 0 ] - p[ 0 ], p1[ 1 ] - p[ 1 ] );
+			const ux = ( p1[ 0 ] - p[ 0 ] ) / len, uz = ( p1[ 1 ] - p[ 1 ] ) / len;
+			// n toward the field
+			let nx = - uz, nz = ux;
+			if ( nx * ( 0 - p[ 0 ] ) + nz * ( - 40 - p[ 1 ] ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			fan( q, [ p[ 0 ] + ux * s - nx * 0.2, p[ 1 ] + uz * s - nz * 0.2 ], [ nz, - nx ], [ nx, nz ], wallTop + 0.97, 1.8, 1.0, 0.07, 0.04 );
+
+		};
+		// a pair just past each dugout's far end (luidude 2981634108, Commons 2008-03-29)
+		for ( const [ end, next ] of [ [ DUGOUTS.first[ 1 ], FOUL_TERRITORY[ 3 ] ], [ DUGOUTS.third[ 1 ], FOUL_TERRITORY[ 10 ] ] ] ) {
+
+			onWall( end, next, 2.2 );
+			onWall( end, next, 4.6 );
+
+		}
+
+		// the corners: on the stands' last straight run before each pole, 6 m from its end (Getty 84080911)
+		onWall( FOUL_TERRITORY[ 0 ], FOUL_TERRITORY[ 1 ], 6 );
+		onWall( FOUL_TERRITORY[ 13 ], FOUL_TERRITORY[ 12 ], 6 );
 
 		this._mesh( q, mat, 'bunting', true );
 
@@ -482,6 +526,40 @@ function along( q, segs, a, b, y0, y1, off, u, v0, v1 ) {
 		const s0 = Math.max( a, S.s0 ), s1 = Math.min( b, S.s0 + S.len );
 		if ( s1 - s0 < 0.01 ) continue;
 		panel( q, S, s0 - S.s0, s1 - S.s0, y0, y1, off, u( s0 ), u( s1 ), v0, v1 );
+
+	}
+
+}
+
+// A pleated half fan of bunting hung by its top edge: c the top centre [ x, z ], r the unit vector to the
+// right as seen from in front, n the unit normal out toward the viewer, top its top edge's height, w and
+// h its width and depth (the cloth's; the texture's scallops trim it), off how far it stands out in front
+// of c, pleat how deep the folds are at the rim. FAN_FOLDS wedges from the top centre, the even folds
+// standing out and the odd ones in, so each wedge is one flat facet tilted the other way from its
+// neighbours; the lower edge bellies out a little. uv: the half disc of drawBunting
+const FAN_FOLDS = 14;
+function fan( q, c, r, n, top, w, h, off, pleat ) {
+
+	const P = ( rho, a, k ) => {
+
+		const ca = Math.cos( a ), sa = Math.sin( a );
+		const x = rho * ca * w / 2, y = top - rho * sa * h;
+		const o = off + rho * sa * 0.06 + ( k % 2 ? - 1 : 1 ) * pleat * rho;
+		return {
+			p: [ c[ 0 ] + r[ 0 ] * x + n[ 0 ] * o, y, c[ 1 ] + r[ 1 ] * x + n[ 1 ] * o ],
+			uv: [ 0.5 + 0.5 * rho * ca, rho * sa ],
+		};
+
+	};
+	const C = P( 0, 0, 0 );
+	for ( let k = 0; k < FAN_FOLDS; k ++ ) {
+
+		// from the right end round the bottom to the left end
+		const a = P( 1, k / FAN_FOLDS * Math.PI, k ), b = P( 1, ( k + 1 ) / FAN_FOLDS * Math.PI, k + 1 );
+		const e1 = [ a.p[ 0 ] - C.p[ 0 ], a.p[ 1 ] - C.p[ 1 ], a.p[ 2 ] - C.p[ 2 ] ], e2 = [ b.p[ 0 ] - C.p[ 0 ], b.p[ 1 ] - C.p[ 1 ], b.p[ 2 ] - C.p[ 2 ] ];
+		let nn = [ e1[ 1 ] * e2[ 2 ] - e1[ 2 ] * e2[ 1 ], e1[ 2 ] * e2[ 0 ] - e1[ 0 ] * e2[ 2 ], e1[ 0 ] * e2[ 1 ] - e1[ 1 ] * e2[ 0 ] ];
+		if ( nn[ 0 ] * n[ 0 ] + nn[ 2 ] * n[ 1 ] < 0 ) nn = nn.map( ( v ) => - v );
+		q.tri( C.p, a.p, b.p, nn, C.uv, a.uv, b.uv );
 
 	}
 
@@ -743,59 +821,86 @@ function drawSpeed( ctx, w, h, p ) {
 
 }
 
-// a red, white and blue half fan: the flat edge at the top, pleated, with stars in the blue
+// A red, white and blue pleated half fan (yeago81 2007, Getty 84080911): a wide red outer band, a white
+// band, a blue fan in the middle with white stars, gathered at the top centre. The flat edge is at the
+// top, the half disc fills the canvas as fan() maps it (u across, v down), and the cloth's edge sits a
+// little inside that, scalloped between the folds. Fold lines run out from the centre at the same
+// FAN_FOLDS angles as the geometry's: a crease in shadow on the inner folds, a sheen on the outer ones
 function drawBunting( ctx, w, h ) {
 
 	ctx.clearRect( 0, 0, w, h );
-	const cx = w / 2, R = w / 2 - 6;
-	const bands = [ [ 1.0, '#b3122c' ], [ 0.8, '#f4f1ea' ], [ 0.6, '#b3122c' ], [ 0.42, '#f4f1ea' ], [ 0.3, '#1b2f6b' ] ];
-	for ( const [ f, c ] of bands ) {
+	const cx = w / 2, rx = w / 2 * 0.95, ry = h * 0.95;
+	const at = ( a, f ) => [ cx + Math.cos( a ) * rx * f, Math.sin( a ) * ry * f ];
+	// a band's outline out to f of the radius, scalloped between the folds (each fold's tip on the
+	// radius, the cloth between them sagging back in)
+	const outline = ( f, sag ) => {
 
+		ctx.beginPath();
+		ctx.moveTo( cx, 0 );
+		ctx.lineTo( ...at( 0, f ) );
+		for ( let k = 0; k < FAN_FOLDS; k ++ ) {
+
+			const a0 = k / FAN_FOLDS * Math.PI, a1 = ( k + 1 ) / FAN_FOLDS * Math.PI;
+			ctx.quadraticCurveTo( ...at( ( a0 + a1 ) / 2, f * sag ), ...at( a1, f ) );
+
+		}
+
+		ctx.closePath();
+
+	};
+	for ( const [ f, c, sag ] of [ [ 1.0, '#b5132d', 0.93 ], [ 0.68, '#f2efe8', 0.97 ], [ 0.43, '#1c2f6e', 0.98 ] ] ) {
+
+		outline( f, sag );
 		ctx.fillStyle = c;
+		ctx.fill();
+
+	}
+
+	for ( let k = 0; k < 5; k ++ ) star( ctx, ...at( ( k + 0.5 ) / 5 * Math.PI, 0.27 ), 10, '#f6f4ee' );
+
+	// the folds: each wedge shaded from one fold to the next (light on the outer fold, darker into the
+	// inner one), clipped to the cloth
+	outline( 1.0, 0.93 );
+	ctx.save();
+	ctx.clip();
+	for ( let k = 0; k < FAN_FOLDS; k ++ ) {
+
+		const [ x0, y0 ] = at( k / FAN_FOLDS * Math.PI, 1.05 ), [ x1, y1 ] = at( ( k + 1 ) / FAN_FOLDS * Math.PI, 1.05 );
+		const g = ctx.createLinearGradient( x0, y0, x1, y1 );
+		// even folds stand out (fan()), odd ones are the creases
+		const out = k % 2 === 0;
+		g.addColorStop( 0, out ? 'rgba( 255, 255, 255, 0.10 )' : 'rgba( 0, 0, 0, 0.22 )' );
+		g.addColorStop( 0.5, 'rgba( 0, 0, 0, 0.04 )' );
+		g.addColorStop( 1, out ? 'rgba( 0, 0, 0, 0.22 )' : 'rgba( 255, 255, 255, 0.10 )' );
+		ctx.fillStyle = g;
 		ctx.beginPath();
 		ctx.moveTo( cx, 0 );
-		// the outer band's edge scalloped between the pleats
-		if ( f === 1 ) {
-
-			const n = 14;
-			for ( let k = 0; k <= n; k ++ ) {
-
-				const a0 = k / n * Math.PI, a1 = ( k + 1 ) / n * Math.PI;
-				ctx.lineTo( cx + Math.cos( a0 ) * R, Math.sin( a0 ) * R );
-				if ( k < n ) ctx.quadraticCurveTo( cx + Math.cos( ( a0 + a1 ) / 2 ) * R * 0.94, Math.sin( ( a0 + a1 ) / 2 ) * R * 0.94, cx + Math.cos( a1 ) * R, Math.sin( a1 ) * R );
-
-			}
-
-		} else ctx.arc( cx, 0, R * f, 0, Math.PI );
+		ctx.lineTo( x0, y0 );
+		ctx.lineTo( x1, y1 );
 		ctx.closePath();
 		ctx.fill();
 
 	}
 
-	// the pleats: alternate wedges shaded
-	for ( let k = 0; k < 14; k ++ ) {
+	ctx.lineWidth = 2;
+	for ( let k = 1; k < FAN_FOLDS; k ++ ) {
 
-		if ( k % 2 ) continue;
-		const a0 = k / 14 * Math.PI, a1 = ( k + 1 ) / 14 * Math.PI;
-		ctx.fillStyle = 'rgba( 0, 0, 0, 0.14 )';
+		ctx.strokeStyle = k % 2 ? 'rgba( 0, 0, 0, 0.3 )' : 'rgba( 255, 255, 255, 0.16 )';
 		ctx.beginPath();
 		ctx.moveTo( cx, 0 );
-		ctx.arc( cx, 0, R, a0, a1 );
-		ctx.closePath();
-		ctx.fill();
+		ctx.lineTo( ...at( k / FAN_FOLDS * Math.PI, 1.05 ) );
+		ctx.stroke();
 
 	}
 
-	for ( let k = 0; k < 5; k ++ ) {
-
-		const a = ( k + 0.5 ) / 5 * Math.PI;
-		star( ctx, cx + Math.cos( a ) * R * 0.19, Math.sin( a ) * R * 0.19, 9, '#ffffff' );
-
-	}
-
-	// the top band it hangs from
-	ctx.fillStyle = '#1b2f6b';
-	ctx.fillRect( 0, 0, w, 8 );
+	ctx.restore();
+	// the gathered knot at the top centre, and the header it's tied on by
+	ctx.fillStyle = '#f2efe8';
+	ctx.beginPath();
+	ctx.ellipse( cx, 0, rx * 0.07, ry * 0.07, 0, 0, Math.PI );
+	ctx.fill();
+	ctx.fillStyle = '#b5132d';
+	ctx.fillRect( cx - rx, 0, rx * 2, 6 );
 
 }
 
