@@ -96,7 +96,9 @@ export class Arrivals {
 		this.towels = G.towelSpots.map( ( T ) => {
 
 			const u = uniform( 'security', r, [ 'towel' ] );
-			const f = F.add( { x: T.at[ 0 ], z: T.at[ 1 ], yaw: out, look: u.look, props: u.props, scale: u.scale, seed: r() } );
+			// (FZ1, C5F-4: at is [ x, y, z ]; at[ 1 ], the floor's height, put them 14-24 m off in the concourse)
+			const f = F.add( { x: T.at[ 0 ], z: T.at[ 2 ], yaw: out, look: u.look, props: u.props, scale: u.scale, seed: r() } );
+			if ( T.stack ) this.obstacles.push( [ T.stack[ 0 ], T.stack[ 2 ], 0.7 ] );
 			const st = { f, kind: 'towels', t: r() * 10, s: T.s, give: 0, yaw0: out };
 			this.staff.push( st );
 			return st;

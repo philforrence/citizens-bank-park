@@ -220,13 +220,19 @@ export function buildOpenGate( { group, exterior, gate, colliders, field } ) {
 	}
 
 	// the rally towel boxes: two staffers, a stack of cardboard cartons each, a few metres past the
-	// turnstiles
+	// turnstiles. FZ1 (C5F-4): the stack stands at the staffer's outer side, out of the way in (everyone
+	// passes him and bears in toward the concourse's middle; the stack was in that line, and they walked
+	// through it), two cartons on the floor and the third on the inner one (it hung in the air between
+	// them); stack: its middle, for the arrivals to go round
 	const card = new Mesher();
 	const towelSpots = [ - 7.2, 7.2 ].map( ( s ) => {
 
-		for ( let k = 0; k < 3; k ++ ) card.box( P( s + ( k - 1 ) * 0.5, - 8.4 + ( k === 1 ? - 0.3 : 0 ), 0.2 + ( k === 1 ? 0.4 : 0 ) ), [ 0.45, 0.4, 0.35 ] );
-		box( s, - 8.4, 1.5, 0.5, 0.8, 'boxes' );
-		return { at: P( s, - 7.6 ), s };
+		const e = Math.sign( s ), c = s + e * 1.25;
+		card.box( P( c - e * 0.25, - 8.4, 0.2 ), [ 0.45, 0.4, 0.35 ] );
+		card.box( P( c + e * 0.25, - 8.42, 0.2 ), [ 0.45, 0.4, 0.35 ] );
+		card.box( P( c - e * 0.22, - 8.37, 0.6 ), [ 0.45, 0.4, 0.35 ] );
+		box( c, - 8.4, 1.0, 0.5, 0.8, 'boxes' );
+		return { at: P( s, - 7.6 ), s, stack: P( c, - 8.4 ) };
 
 	} );
 	const cardMat = standard( { name: 'w1-cartons', color: new Color( 0.36, 0.24, 0.13 ), roughness: 0.9, modules: [ commonModule ],
