@@ -247,14 +247,18 @@ export class Complex {
 	// worn paint that melts away with distance
 	paint = paint * ( 0.55 + 0.45 * mx_noise_float2( in.P.xz * 0.7 ) ) * ( 1.0 - clamp( fw * 3.0, 0.0, 0.8 ) );
 	let oil = select( 0.0, smoothstep( 0.8, 0.0, abs( fract( q.x / 2.7 ) - 0.5 ) * 2.0 ) * 0.25, inStall && ( ( m > 1.0 && m < 4.0 ) || ( m > 14.0 && m < 17.0 ) ) );
-	c = mix( c * ( 1.0 - oil ), vec3f( 0.52, 0.52, 0.5 ), paint );
+	let asphalt = c * ( 1.0 - oil );
+	c = mix( asphalt, vec3f( 0.52, 0.52, 0.5 ), paint );
 	s.albedo = c;
 	// pools under the poles
 	let g = ( fract( vec2f( q.x / ${ LOT_U.toFixed( 2 ) }, q.y / ${ LOT_V.toFixed( 2 ) } ) + 0.5 ) - 0.5 ) * vec2f( ${ LOT_U.toFixed( 2 ) }, ${ LOT_V.toFixed( 2 ) } );
 	let pool = exp( - dot( g, g ) / ( 2.0 * 10.0 * 10.0 ) );
 	// ---- L: white, and a pool on the asphalt, not a lit carpet (from the air on the night the lots are
 	// dark between the poles: FOX's blimp shots, Getty 83476821)
-	s.emissive = c * vec3f( ${ HALIDE.join( ', ' ) } ) * ( pool * pool * 3.2 + pool * 0.5 ) * smoothstep( 0.2, 0.8, frame.night );
+	// (CB-14: the pool lights the asphalt; the stall lines only a little more than it, so they don't comb
+	// the lots with glowing stripes, and the light falls off sooner between the poles: roadieshow
+	// 3024603196, Getty 83476764, Oct 27)
+	s.emissive = mix( asphalt, c, 0.35 ) * vec3f( ${ HALIDE.join( ', ' ) } ) * ( pool * pool * 3.2 + pool * 0.22 ) * smoothstep( 0.2, 0.8, frame.night );
 ` } ), 'parking-lots' );
 
 	}
@@ -679,12 +683,16 @@ export class Complex {
 
 		this._add( shell.geometry(), standard( { name: 'linc-shell', color: new Color( 0.55, 0.57, 0.6 ), roughness: 0.35, metalness: 0.5, modules: [ commonModule ],
 			surface: /* wgsl */`
-	// silver panels with bands of glass, lit inside after dark
+	// silver panels with bands of glass. (CB-14, gauntlet r1: on the 27th and 29th the Linc hosted nothing
+	// and stood dark, a silver shell with a few lit windows, not a stack of glowing rings: Flickr rdowens
+	// 3626081771 for the shell. A window in ten or so lit, the rest dark glass)
 	let v = in.uv.y;
 	let glass = step( 0.5, fract( v / 6.0 ) ) * step( v, 29.0 ) * step( 2.0, v );
 	s.albedo = mix( mat.color, vec3f( 0.05, 0.07, 0.08 ), glass );
 	s.roughness = mix( 0.4, 0.1, glass );
-	s.emissive = vec3f( 0.9, 0.85, 0.75 ) * glass * smoothstep( 0.2, 0.8, frame.night ) * 0.4;
+	let wid = floor( vec3f( in.P.x / 4.5, v / 6.0, in.P.z / 4.5 ) );
+	let lit = step( 0.9, fract( sin( dot( wid, vec3f( 12.9898, 78.233, 37.719 ) ) ) * 43758.5453 ) );
+	s.emissive = vec3f( 0.9, 0.85, 0.75 ) * glass * ( 0.012 + 0.3 * lit ) * smoothstep( 0.2, 0.8, frame.night );
 ` } ), 'linc-shell', { cast: true } );
 		this._add( seats.geometry(), standard( { name: 'linc-seats', color: new Color( 0.12, 0.14, 0.15 ), roughness: 0.7, modules: [ commonModule ],
 			surface: 's.albedo = mat.color * ( 0.8 + 0.4 * step( 0.5, fract( in.P.y / 0.9 ) ) );' } ), 'linc-bowl' );
