@@ -2,6 +2,7 @@ import { TOP, COLOR, HAT, CHEST, PROP, restPose } from '../Cast.js';
 import { dress, sizeOf, railArms, rng, GESTURE } from '../Concourse3BKit.js';
 import { cadence, due } from '../Tempo.js';
 import { LEVELS } from '../../layout.js';
+import { offsetPolyline } from '../../Bowl.js';
 
 // FW3 (C2W-7, gauntlet r2): the Terrace concourse's people on a sold-out World Series night (the scouting:
 // "one person in it now"). A troupe of the Cast (Cast.js), moved on the place's Tempo and each by cadence():
@@ -69,7 +70,9 @@ export class TerracePeople {
 		for ( let i = 1; i < R.length; i ++ ) rcum.push( rcum[ i - 1 ] + Math.hypot( R[ i ][ 0 ] - R[ i - 1 ][ 0 ], R[ i ][ 1 ] - R[ i - 1 ][ 1 ] ) );
 		const RL = rcum[ rcum.length - 1 ];
 		let placed = 0;
-		for ( let s = 2; s < RL - 2 && placed < 60; ) {
+		// ---- FW5 (C3W-6, gauntlet r3): two deep down the lines as well as behind home plate (Oct 29 2008, 19:43,
+		// the upper concourse's rail in left: jerseys and hats two deep), not one every 5 m: a sold-out Series
+		for ( let s = 2; s < RL - 2 && placed < 210; ) {
 
 			const [ x, z, ux, uz ] = along( R, rcum, s );
 			const nearHead = T.heads.some( ( h ) => Math.hypot( h.x - x, h.z - z ) < 1.3 );
@@ -87,8 +90,8 @@ export class TerracePeople {
 				const { L, k } = fan();
 				const a = add( 'rail', L, k, { x: x - nx * 0.02, z: z - nz * 0.02, yaw: yawOf( nx, nz ) + ( r() - 0.5 ) * 0.25, arms: railArms( k, 0.22 + 0.1 * r() ) } );
 				if ( a ) placed ++;
-				// a second rank behind him behind home plate (auds, the 27th: two deep)
-				if ( home && r() < 0.6 ) {
+				// a second rank behind him behind home plate (auds, the 27th: two deep), and down the lines
+				if ( r() < ( home ? 0.6 : 0.42 ) ) {
 
 					const f2 = fan();
 					add( 'stand', f2.L, f2.k, { x: x + nx * 0.75 + ux * 0.3, z: z + nz * 0.75 + uz * 0.3, yaw: yawOf( nx, nz ) + ( r() - 0.5 ) * 0.4, gesture: r() < 0.3 ? 'warm' : r() < 0.5 ? 'fold' : 'pockets', prop: r() < 0.3 ? PROP.cocoa : 0 } );
@@ -97,16 +100,43 @@ export class TerracePeople {
 
 			}
 
-			s += home ? 1.0 + r() * 1.2 : 2.4 + r() * 5.5;
+			s += home ? 1.0 + r() * 1.2 : 0.8 + r() * 1.4; // ---- FW5: was 2.4 + 5.5 r down the lines
 
 		}
 
-		// ---- walking the concourse, both ways
-		for ( let i = 0; i < 48; i ++ ) {
+		// ---- walking the concourse, both ways (---- FW5, C3W-6: 110, not 48; how many are out walking goes with
+		// the inning, as the main concourse's lines do: a third of them while the Phillies bat, all of them
+		// between innings and in the rain delay; `rank` decides who)
+		const NW = 110;
+		for ( let i = 0; i < NW; i ++ ) {
 
 			const { L, k } = fan();
 			const carry = r() < 0.35 ? [ PROP.beer, PROP.cocoa, PROP.beers, PROP.soda, PROP.hotdog ][ Math.floor( r() * 5 ) ] : 0;
-			add( 'walk', L, k, { s: r() * this.walk.L, dir: r() < 0.5 ? - 1 : 1, speed: 1.05 + 0.45 * r(), lane: ( r() - 0.5 ) * 4.2, carry, phase: r() * TAU } );
+			add( 'walk', L, k, { s: r() * this.walk.L, dir: r() < 0.5 ? - 1 : 1, speed: 1.05 + 0.45 * r(), lane: ( r() - 0.5 ) * 4.2, carry, phase: r() * TAU, rank: ( i + 0.5 ) / NW } );
+
+		}
+
+		// ---- FW5 (C3W-6): on the 27th, out of the rain under the 400s: knots of two to four standing just in
+		// from the deck's edge, watching the game over the rail's heads, hoods up, arms folded (the AP's delay:
+		// fans crowding the concourses out of the rain). Shown while it's raining hard and in the delay.
+		for ( let s = 6 + r() * 4; s < this.walk.L - 6; s += 4 + r() * 7 ) {
+
+			const [ x, z, ux, uz ] = along( W, cum, s );
+			let nx = - uz, nz = ux;
+			if ( nx * ( - x ) + nz * ( - 40 - z ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			const n = 2 + Math.floor( r() * 3 ), off = - 3.6 + r() * 1.4, need = 0.45 + r() * 0.5;
+			for ( let j = 0; j < n; j ++ ) {
+
+				const { L, k } = fan();
+				const t = ( j - ( n - 1 ) / 2 ) * 0.62 + ( r() - 0.5 ) * 0.2, o = off + ( j % 2 ) * 0.5 + ( r() - 0.5 ) * 0.2;
+				add( 'shelter', L, k, { x: x + ux * t + nx * o, z: z + uz * t + nz * o, yaw: yawOf( nx, nz ) + ( r() - 0.5 ) * 0.7, need, gesture: r() < 0.45 ? 'fold' : r() < 0.6 ? 'warm' : 'pockets', prop: r() < 0.25 ? PROP.cocoa : r() < 0.35 ? PROP.beer : 0 } );
+
+			}
 
 		}
 
@@ -138,6 +168,34 @@ export class TerracePeople {
 
 		}
 
+		// ---- FW5 (C3W-10, gauntlet r3): along the Pavilion's and the Arcade's walkways, at the parapet over their
+		// top rows, watching the game (FW3 gave their stands staff and short lines; the walkways were empty)
+		for ( const name of [ 'pavilion', 'arcade' ] ) {
+
+			const tg = place.bowl.upper?.find( ( u ) => u.name === name );
+			if ( ! tg ) continue;
+			const yG = tg.y0 + ( tg.rows - 1 ) * tg.rise + 0.25;
+			const G = offsetPolyline( tg.front, tg.rows * tg.depth + 0.45, [ 0, - 40 ] );
+			const gc = [ 0 ];
+			for ( let i = 1; i < G.length; i ++ ) gc.push( gc[ i - 1 ] + Math.hypot( G[ i ][ 0 ] - G[ i - 1 ][ 0 ], G[ i ][ 1 ] - G[ i - 1 ][ 1 ] ) );
+			for ( let s = 1.5; s < gc[ gc.length - 1 ] - 1.5; s += 1.3 + r() * 3.4 ) {
+
+				const [ x, z, ux, uz ] = along( G, gc, s );
+				let nx = - uz, nz = ux;
+				if ( nx * ( - x ) + nz * ( - 40 - z ) < 0 ) {
+
+					nx = - nx; nz = - nz;
+
+				}
+
+				const { L, k } = fan();
+				add( 'rail', L, k, { x, z, y: yG, yaw: yawOf( nx, nz ) + ( r() - 0.5 ) * 0.3, arms: railArms( k, 0.2 + 0.1 * r() ) } );
+
+			}
+
+		}
+		// ---- end FW5
+
 		// ---- an usher at the foot of each stair
 		for ( const S of T.stairs ) {
 
@@ -151,8 +209,9 @@ export class TerracePeople {
 		// ---- at the back rail in the open bays, looking out
 		for ( const U of C.open ) {
 
-			if ( r() > 0.35 ) continue;
-			const n = 1 + ( r() < 0.4 ? 1 : 0 );
+			// (---- FW5, C3W-1: every open bay, two to four: from Pattison and the lots they're the fans along the
+			// frame's upper rails, roadieshow, Oct 27 2008; it was one in three bays, one or two)
+			const n = 2 + Math.floor( r() * 3 );
 			for ( let j = 0; j < n; j ++ ) {
 
 				const o = ( r() - 0.5 ) * 6, d = 4.75 - 0.45;
@@ -173,31 +232,90 @@ export class TerracePeople {
 
 			}
 
+			// ---- FW5 (C3W-1): who's seen from below and outside too: the rail's two ranks (the band of fans the
+			// photos show at the glass), the back rails (from Pattison and the lots), a third of the walkers, and
+			// the galleries' people (their stands are always drawn). Not the counter staff, the lines, the
+			// ushers or the 27th's sheltering knots: from down there they're a few pixels deep in the dark
+			// under the deck, behind the rail's (and from left field they were 130 figures more to draw)
+			a.far = a.kind === 'rail' || a.kind === 'stand' || a.kind === 'back' || ( a.kind === 'walk' && a.rank < 0.35 ) || !! a.at?.tier;
+			a.off = a.kind === 'walk' || a.kind === 'shelter';
+
 		}
 
-		this.shown = true;
+		this.level = 2;
+		for ( const a of this.list ) a.p.visible = this._vis( a );
 
 	}
 
-	// shown or not (the place hides its insides when the camera's not up there)
-	show( on ) {
+	// ---- FW5 (C3W-1): how much of them is shown: 2 everyone (the camera's up there), 1 those seen from below
+	// and outside (it's under the club level), 0 nobody
+	get shown() { return this.level > 0; }
+	_vis( a ) {
 
-		if ( on === this.shown ) return;
-		this.shown = on;
-		for ( const a of this.list ) a.p.visible = on && ! a.off;
+		return ! a.off && ( this.level === 2 || ( this.level === 1 && a.far && ! a.beyond ) );
 
 	}
+
+	show( level ) {
+
+		if ( level === true ) level = 2;
+		if ( level === false ) level = 0;
+		if ( level === this.level ) return;
+		this.level = level;
+		this._reach = undefined; // (---- FW5: who's beyond reach is looked at again on the next update)
+		for ( const a of this.list ) a.p.visible = this._vis( a );
+
+	}
+	// ---- end FW5
 
 	// dt (on the place's Tempo), the night (nightState), the camera's field position [ x, z ]
-	update( dt, N, cf ) {
+	// reach: from below, how far off a figure is still worth drawing (Terrace.js: about 9 px tall)
+	update( dt, N, cf, reach = Infinity ) {
 
 		this.time += dt;
 		this.frame ++;
+		// ---- FW5 (C3W-1): from below, those beyond reach aren't drawn (from left field the 1B side's Terrace
+		// is 150-190 m off: its people would be 4 px figures of 386 triangles each), checked every 8th time
+		if ( this.level === 1 && cf && ( this.frame % 8 === 0 || reach !== this._reach ) ) {
+
+			this._reach = reach;
+			const r2 = reach * reach;
+			for ( const a of this.list ) {
+
+				if ( ! a.far ) continue;
+				const beyond = ( a.p.x - cf[ 0 ] ) ** 2 + ( a.p.z - cf[ 1 ] ) ** 2 > r2;
+				if ( beyond !== !! a.beyond ) {
+
+					a.beyond = beyond;
+					a.p.visible = this._vis( a );
+
+				}
+
+			}
+
+		}
+		// ---- end FW5
 		const t = this.time, busy = N?.busy ?? 0.8, rain = N?.first ? N.rain : 0, cheer = N?.result?.home > 0 && N.result.t < 6;
 		const W = this.walk;
+		// ---- FW5 (C3W-6): how many are out walking, and whether the 27th's rain has them under the deck
+		const walking = Math.min( 1, 0.25 + 0.5 * busy ), wet = N?.suspended ? 1 : rain;
 		for ( const a of this.list ) {
 
 			const p = a.p, A = p.pose;
+			if ( a.kind === 'walk' || a.kind === 'shelter' ) {
+
+				const off = a.kind === 'walk' ? a.rank > walking : wet < a.need;
+				if ( off !== a.off ) {
+
+					a.off = off;
+					p.visible = this._vis( a );
+
+				}
+
+				if ( off ) continue;
+
+			}
+			// ---- end FW5
 			const d2 = cf ? ( p.x - cf[ 0 ] ) ** 2 + ( p.z - cf[ 1 ] ) ** 2 : 0;
 			const n = cadence( p, d2 );
 			// the walkers, every frame they're due, with the time since
@@ -272,7 +390,7 @@ export class TerracePeople {
 
 				}
 
-			} else if ( a.kind === 'stand' ) {
+			} else if ( a.kind === 'stand' || a.kind === 'shelter' ) { // ---- FW5: and the 27th's sheltering
 
 				const g = GESTURE[ a.gesture ] || [ null, null ];
 				A.armL = g[ 0 ] ? g[ 0 ].slice() : [ 0.05, 0.06, 0, 0.12 ];
@@ -300,9 +418,9 @@ export class TerracePeople {
 			} else if ( a.kind === 'line' ) {
 
 				// the line as long as the inning makes it (the Rays batting, between innings: longer)
-				const want = Math.min( 4, Math.round( busy * 2.6 + ( a.at.mid[ 0 ] * 0.13 % 1 ) ) );
+				const want = Math.min( 4, Math.round( 0.6 + busy * 2.6 + ( a.at.mid[ 0 ] * 0.13 % 1 ) ) ); // ---- FW5 (C3W-6): a line at every stand
 				a.off = a.q >= want;
-				p.visible = this.shown && ! a.off;
+				p.visible = this._vis( a ); // ---- FW5
 				const g = a.q === 0 ? GESTURE.reach : rain > 0.4 ? GESTURE.fold : GESTURE.pockets;
 				A.armL = g[ 0 ] ? g[ 0 ].slice() : [ 0.05, 0.06, 0, 0.12 ];
 				A.armR = g[ 1 ] ? g[ 1 ].slice() : [ 0.05, 0.06, 0, 0.12 ];

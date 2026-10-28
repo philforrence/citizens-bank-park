@@ -127,8 +127,120 @@ export class ConcoursePeople {
 		this._restrooms( concourse );
 		this._standing();
 		this._fans( 320 );
+		this._atrium( carts ); // ---- FW5 (C3W-9)
 
 	}
+
+	// ---- FW5 (C3W-9, gauntlet r3): the atrium between the Third Base Gate and the concourse, under the bridge
+	// (Feliz on its face). The throng hands its figures over to this place's cast here and the fans walk the
+	// concourse, so in the rain delay, with the concourse packed, its floor had four or five people on it.
+	// In 2008 it was jammed (hcwoodward, Oct 27 2008, 19:01: the atrium wall to wall; the AP: fans crowding the
+	// concourses out of the rain). Knots of two to four standing about talking, a hot chocolate or a beer in
+	// hand, the hoods up: all of them in the delay, half on the 27th's wettest innings, a few the rest of the
+	// time. Each knot is shown or not as a whole (its rank against the night's share); they don't walk.
+	_atrium( carts ) {
+
+		const r = this.r, W = this.W;
+		this.atrium = [];
+		// (the third base side's only: the first base side (People1B, its own this.gate) has the gate's
+		// arrivals there, and its cast's room goes to them)
+		if ( this.gate ) return;
+		// (in the gate's gap in the stands, out to the gate; and in front of the stands either side of it, clear
+		// of their lines, the columns and the carts)
+		const clear = ( s, d ) => ! this.obstacles.some( ( [ os, od, orad ] ) => Math.hypot( s - os, d - od ) < orad + 0.75 )
+			&& ! carts.some( ( c ) => Math.hypot( s - c.s, d - c.d ) < 1.8 )
+			&& ! this.stands.some( ( S ) => Math.abs( s - S.s ) < 2.2 && d < FRONT_D + 0.5 )
+			&& ( ( s > 69.2 && s < 77.8 ) || d < FRONT_D - 0.7 );
+		const knots = [];
+		for ( let d = 41.6; d < 58.5; d += 2.25 ) for ( let s = 57.5; s < 80; s += 2.4 ) {
+
+			const cs = s + ( r() - 0.5 ) * 0.9, cd = d + ( r() - 0.5 ) * 0.8;
+			if ( clear( cs, cd ) ) knots.push( [ cs, cd, r() ] );
+
+		}
+
+		// (taken in a shuffled order, so the cap below leaves gaps all over, not a bare far end)
+		knots.sort( ( a, b ) => a[ 2 ] - b[ 2 ] );
+		for ( const [ cs, cd ] of knots ) {
+
+			const n = 2 + Math.floor( r() * 3 ), rank = r(), c = W.at( cs, cd );
+			for ( let j = 0; j < n; j ++ ) {
+
+				const a = j / n * TAU + r() * 0.6, rad = 0.4 + 0.12 * r();
+				const ps = cs + Math.cos( a ) * rad, pd = cd + Math.sin( a ) * rad;
+				// (at most 64: the cast's room is shared with the stories built after)
+				if ( this.atrium.length >= 64 ) return;
+				const p = this.person();
+				if ( ! p ) return;
+				const w = W.at( ps, pd );
+				p.x = w.x; p.z = w.z; p.y = STREET;
+				p.yaw = Walkway.yaw( c.x - w.x, c.z - w.z ) + ( r() - 0.5 ) * 0.5;
+				p.pose.walk = 0;
+				const A = { p, kind: 'atrium', s: ps, d: pd, order: r(), rank,
+					hold: pick( r, { pockets: 4, fold: 4, cocoa: 3, beer: 2, phone: 1, talk: 3 } ) };
+				this.atrium.push( A );
+				this.actors.push( A );
+
+			}
+
+		}
+
+	}
+
+	_atriumWant( ns ) {
+
+		if ( ns.suspended ) return 1;
+		if ( ns.celebrate ) return 0.35;
+		if ( ns.first && ns.inning === 1 && ns.between ) return 0.7; // filing in for the first pitch
+		return ns.first ? ( ns.rain > 0.6 ? 0.5 : 0.25 ) : 0.15;
+
+	}
+
+	_atriumPose( dt, ns ) {
+
+		const k = this._atriumWant( ns ), t = this.time, cam = this.cam;
+		for ( const A of this.atrium ) {
+
+			const p = A.p, on = A.rank < k;
+			if ( on !== p.visible ) {
+
+				p.visible = on;
+				p.fresh = true;
+
+			}
+
+			if ( ! on ) continue;
+			A._acc = ( A._acc || 0 ) + dt;
+			if ( cam && ! this.warming && ! this.catchUp && ! due( p, Math.max( 2, cadence( p, ( p.x - cam[ 0 ] ) ** 2 + ( p.z - cam[ 1 ] ) ** 2 ) ), this._frame ) ) continue;
+			A._acc = 0;
+			const a = p.pose, h = A.hold;
+			a.walk = 0; a.lean = 0; a.twist = 0; a.mouth = 0; a.propL = 0; a.propR = 0;
+			a.breath = ( t * 0.25 + A.order ) % 1;
+			a.blink = ( t * 0.33 + A.order * 7 ) % 1 < 0.04 ? 1 : 0;
+			a.kneeL = A.order < 0.5 ? 0.12 : 0; a.kneeR = A.order < 0.5 ? 0 : 0.12;
+			const g = h === 'cocoa' ? GESTURE.warm : h === 'beer' ? [ GESTURE.pockets[ 0 ], GESTURE.carry[ 1 ] ] : h === 'phone' ? [ GESTURE.pockets[ 0 ], GESTURE.phone[ 1 ] ] : GESTURE[ h ] || GESTURE.pockets;
+			a.armL = ( g[ 0 ] || GESTURE.pockets[ 0 ] ).slice();
+			a.armR = ( g[ 1 ] || GESTURE.pockets[ 1 ] ).slice();
+			if ( h === 'pockets' ) { a.propL = PROP.pocket; a.propR = PROP.pocket; }
+			if ( h === 'cocoa' ) a.propR = PROP.cocoa;
+			if ( h === 'beer' ) a.propR = PROP.beer;
+			if ( h === 'phone' ) a.propR = PROP.phone;
+			if ( h === 'talk' ) {
+
+				a.armR = [ 0.5 + 0.2 * Math.sin( t * 2.3 + A.order * 9 ), 0.25, 0.3, 1.2 + 0.3 * Math.sin( t * 3.1 + A.order ) ];
+				a.mouth = Math.max( 0, 0.35 * Math.sin( t * 7 + A.order * 9 ) );
+
+			}
+
+			// looking round the knot, now and then out at the rain or up at the TVs
+			a.headYaw = Math.sin( t * 0.21 + A.order * 17 ) * 0.6;
+			a.headPitch = ( t * 0.05 + A.order ) % 1 < 0.12 ? - 0.25 : 0.05;
+			this._react( A, a, dt, ns );
+
+		}
+
+	}
+	// ---- end FW5
 
 	// ---- where people come from and go to
 	_portals( concourse, bowl ) {
@@ -720,6 +832,7 @@ export class ConcoursePeople {
 
 		}
 		// ---- end H
+		this._atriumPose( dt, ns ); // ---- FW5 (C3W-9)
 		// the looks follow the night: ponchos on the 27th
 		if ( this._first !== ns.first ) {
 
