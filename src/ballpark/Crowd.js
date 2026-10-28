@@ -1170,7 +1170,7 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		textures: { cwAtlas: () => castPool()?.atlas || BLANK(), cwSigns: () => signAtlas() },
 		uniforms: { cwNight: [ 'f32', 29 ], cwHome: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] },
 		attributes: { aStand: 'vec3f', aStandN: 'vec3f', aSitUp: 'vec3f', aStandUp: 'vec3f', aSitFace: 'vec3f', aStandFace: 'vec3f', aInfo: 'vec4f' },
-		varyings: { vPart: 'u32', vFan: 'u32', vLocal: 'vec3f' },
+		varyings: { vFan: 'u32', vLocal: 'vec3f' }, // (---- SP3: the part in vFan's low 5 bits, one varying fewer)
 		vertex: /* wgsl */`
 	// which fan: the chunk's first (Crowd.addChunk) and his seat in it
 	let fan = u32( draw.params.y + 0.5 ) + v.instance;
@@ -1185,15 +1185,17 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 	v.worldPos = ( v.model * vec4f( cur.p, 1.0 ) ).xyz;
 	v.worldNormal = normalize( ( v.model * vec4f( cur.n, 0.0 ) ).xyz );
 	let pt = u32( v.aInfo.x + 0.5 ) & 15u;
-	o.vPart = pt | select( 0u, 16u, v.aInfo.y > select( 1.5, 2.5, pt == 1u ) );
-	o.vFan = fan;
+	// ---- SP3 (speed): which fan, and the part (and 16: its marked piece) in the low 5 bits: on a tile GPU
+	// every varying is written out per vertex and read back, and the fans are millions of vertices
+	o.vFan = ( fan << 5u ) | pt | select( 0u, 16u, v.aInfo.y > select( 1.5, 2.5, pt == 1u ) );
+	// ---- end SP3
 	o.vLocal = cur.local;
 `,
 		surface: /* wgsl */`
 	// the part (and 16: its marked piece, the shoes, the crown, the pom-pom)
-	let part = in.vs.vPart & 15u;
-	let piece = in.vs.vPart >= 16u;
-	let fan = in.vs.vFan;
+	let part = in.vs.vFan & 15u;
+	let piece = ( in.vs.vFan & 16u ) != 0u;
+	let fan = in.vs.vFan >> 5u; // (SP3: packed)
 	let L = in.vs.vLocal;
 	// his colours and his pose's flags (the compute pass)
 	let k = fan * 6u;
@@ -1478,6 +1480,14 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 `,
 	} );
 	mat.underwaterLighting = 'none';
+	// ---- SP3 (speed): from the middle level out his motion vectors are his piece's (the pose is this
+	// frame's under last frame's matrix), and the pieces never move: drawn without last frame's position
+	// as a varying (engine MeshRenderer: a still object's last position is where it is)
+	mat.stillMotion = lod >= 2;
+	// and their world position from the pixel's depth (a fan of these levels is a hundred vertices over a
+	// few dozen pixels: MeshShader WORLD_FROM_DEPTH)
+	mat.worldFromDepth = lod >= 2;
+	// ---- end SP3
 	return mat;
 
 }

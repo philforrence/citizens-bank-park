@@ -84,6 +84,13 @@ export class Material {
 		this.appliesHillShadow = !! o.appliesHillShadow;
 		this.localLightsCheap = !! o.localLightsCheap;
 		this.receiveShadows = o.receiveShadows ?? true;
+		// ---- SP3 (speed): its last frame's position is where it is now under last frame's matrix (no motion
+		// of its own in the motion vectors): true / false, or null to tell from the vertex hook (one that
+		// doesn't touch prevWorldPos, worldOffset or useWorld). An object of such a material that hasn't
+		// moved since the last frame is drawn without last frame's clip position as a varying (MeshRenderer)
+		this.stillMotion = o.stillMotion ?? null;
+		// (and its world position from the pixel and its depth, not a varying: MeshShader WORLD_FROM_DEPTH)
+		this.worldFromDepth = !! o.worldFromDepth;
 		this.userData = o.userData || {};
 
 		const fields = { ...BUILTIN_UNIFORMS };
@@ -161,7 +168,7 @@ export class Material {
 	// the state that selects a pipeline (besides geometry layout and pass)
 	pipelineKey() {
 
-		return `${ this.id }.${ this.version }.${ this.side }.${ this.transparent }.${ typeof this.blending === 'string' ? this.blending : JSON.stringify( this.blending ) }.${ this.depthWrite }.${ this.depthTest }.${ this.depthCompare }.${ this.colorWrite }.${ this.topology }.${ this.alphaTest > 0 }.${ this.underwaterLighting }.${ this.appliesHillShadow }.${ this.localLightsCheap }.${ this.receiveShadows }.${ this.depthBias }.${ this.depthBiasSlopeScale }.${ this.vertexColors }`;
+		return `${ this.id }.${ this.version }.${ this.side }.${ this.transparent }.${ typeof this.blending === 'string' ? this.blending : JSON.stringify( this.blending ) }.${ this.depthWrite }.${ this.depthTest }.${ this.depthCompare }.${ this.colorWrite }.${ this.topology }.${ this.alphaTest > 0 }.${ this.underwaterLighting }.${ this.appliesHillShadow }.${ this.localLightsCheap }.${ this.receiveShadows }.${ this.worldFromDepth }.${ this.depthBias }.${ this.depthBiasSlopeScale }.${ this.vertexColors }`;
 
 	}
 

@@ -82,16 +82,23 @@ export function buildMeshShader( material, layout, pass ) {
 	defs.VARY_COLOR = ! lean || has.has( 'color' ) || has.has( 'instanceColor' ) || /\bcolor\b/.test( hook ) ? 1 : 0;
 	defs.PIXEL_MOTION = lean && withMotion && pass.pixelMotion ? 1 : 0;
 	defs.LEAN_VARYINGS = lean ? 1 : 0;
+	// (and for an object that hasn't moved, of a material whose motion is its object's: last frame's clip
+	// position from the fragment's world position, pass.stillMotion: MeshRenderer.drawItems)
+	defs.STILL_MOTION = lean && withMotion && pass.stillMotion ? 1 : 0;
+	// (a material may ask for its world position from the pixel and its depth instead of a varying,
+	// material.worldFromDepth: through the frame's inverse (jittered) view-projection, in the scene's own
+	// passes; for millions of small vertices whose pixels are few: the far crowd)
+	defs.WORLD_FROM_DEPTH = lean && withMotion && pass.pixelMotion && material.worldFromDepth ? 1 : 0;
 	let loc = 0;
 	let vsout = 'struct VSOut {\n\t@builtin( position ) clip: vec4f,\n';
-	vsout += `\t@location( ${ loc ++ } ) worldPos: vec3f,\n`;
+	if ( ! defs.WORLD_FROM_DEPTH ) vsout += `\t@location( ${ loc ++ } ) worldPos: vec3f,\n`;
 	vsout += `\t@location( ${ loc ++ } ) normal: vec3f,\n`;
 	if ( defs.VARY_UV ) vsout += `\t@location( ${ loc ++ } ) uv: vec2f,\n`;
 	if ( defs.VARY_COLOR ) vsout += `\t@location( ${ loc ++ } ) color: vec4f,\n`;
 	if ( withMotion ) {
 
 		if ( ! defs.PIXEL_MOTION ) vsout += `\t@location( ${ loc ++ } ) curClip: vec4f,\n`;
-		vsout += `\t@location( ${ loc ++ } ) prevClip: ${ lean ? 'vec3f' : 'vec4f' },\n`; // (SP3: lean, its x y w)
+		if ( ! defs.STILL_MOTION ) vsout += `\t@location( ${ loc ++ } ) prevClip: ${ lean ? 'vec3f' : 'vec4f' },\n`; // (SP3: lean, its x y w)
 
 	}
 	// ---- end SP3
@@ -216,7 +223,9 @@ ${ fetch }#if !HAS_POSITION
 		wn = cofactor3( v.model ) * v.normal;
 		pwp = ( v.prevModel * lp ).xyz + select( v.prevWorldOffset, v.worldOffset, v.prevWorldOffset.x > 1e29 );
 	}
+#if !WORLD_FROM_DEPTH
 	o.worldPos = wp;
+#endif
 	o.normal = wn;
 #if VARY_UV
 	o.uv = v.uv;
@@ -229,7 +238,8 @@ ${ fetch }#if !HAS_POSITION
 #if !PIXEL_MOTION
 	o.curClip = frame.viewProjNoJitter * vec4f( wp, 1.0 );
 #endif
-#if LEAN_VARYINGS
+#if STILL_MOTION
+#elif LEAN_VARYINGS
 	let pc = frame.prevViewProjNoJitter * vec4f( pwp, 1.0 );
 	o.prevClip = pc.xyw;
 #else
@@ -263,6 +273,18 @@ fn submergedHidden( P: vec3f ) -> bool {
 }
 #endif
 
+// ---- SP3: the fragment's world position: the varying, or (WORLD_FROM_DEPTH) the pixel's centre and depth
+// back through the frame's (jittered) view-projection
+fn worldOf( vs: VSOut ) -> vec3f {
+#if WORLD_FROM_DEPTH
+	let ndc = vec2f( vs.clip.x * frame.invResolution.x * 2.0 - 1.0, 1.0 - vs.clip.y * frame.invResolution.y * 2.0 );
+	let h = frame.invViewProj * vec4f( ndc, vs.clip.z, 1.0 );
+	return h.xyz / h.w;
+#else
+	return vs.worldPos;
+#endif
+}
+
 #if PASS_MAIN
 // ---- SP3: this frame's unjittered screen position (NDC) of the fragment, for its motion vector
 fn motionCur( vs: VSOut ) -> vec2f {
@@ -277,7 +299,12 @@ fn motionCur( vs: VSOut ) -> vec2f {
 
 // last frame's (its clip x y w, lean)
 fn motionPrev( vs: VSOut ) -> vec2f {
-#if LEAN_VARYINGS
+#if STILL_MOTION
+	// (still: last frame's position is this one; clip x y w are linear in it, so this is the varying's
+	// value at the pixel)
+	let pc = frame.prevViewProjNoJitter * vec4f( worldOf( vs ), 1.0 );
+	return pc.xy / pc.w;
+#elif LEAN_VARYINGS
 	return vs.prevClip.xy / vs.prevClip.z;
 #else
 	return vs.prevClip.xy / vs.prevClip.w;
@@ -288,7 +315,7 @@ fn motionPrev( vs: VSOut ) -> vec2f {
 fn fragInput( vs: VSOut, front: bool ) -> FragInput {
 	var in: FragInput;
 	in.vs = vs;
-	in.P = vs.worldPos;
+	in.P = worldOf( vs ); // (SP3)
 	var N = normalize( vs.normal );
 #if DOUBLE_SIDED
 	N = select( -N, N, front );
@@ -297,7 +324,7 @@ fn fragInput( vs: VSOut, front: bool ) -> FragInput {
 	N = -N;
 #endif
 	in.N = N;
-	in.V = normalize( frame.cameraPos - vs.worldPos );
+	in.V = normalize( frame.cameraPos - in.P );
 #if VARY_UV
 	in.uv = vs.uv;
 #else
