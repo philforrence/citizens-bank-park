@@ -5,7 +5,7 @@ import { ROLE } from './Players.js';
 import { POSITIONS, BASES, MOUND, DUGOUT, BULLPEN, boxFor, polar, dist, lerp2, yawTo } from './Plays.js';
 import { moundY } from './TarpPlan.js';
 import { neutralPose, DIM } from './Rig.js';
-import { OUTFIELD, FT } from '../layout.js';
+import { OUTFIELD, FT, DUGOUTS } from '../layout.js';
 
 // The last out and the celebration, on the players' rig: the Director's celebrate segment (9:58 pm on
 // October 29 onward) as a script per man, a pure function of the time since the strikeout.
@@ -130,6 +130,14 @@ const MOYER = { id: 'r:moyer', who: { side: 'home', num: '50', last: '' } };
 export const RUBBER = [ 0, 0.255, - 18.44 - 0.076 ];
 // the relievers still in the pen at the end (Durbin and Romero had pitched and were in the dugout)
 const PEN = new Set( [ 425492, 113961, 424925, 457918 ] );
+// ---- FB4 (C4B-3): the Phillies' dugout (layout's DUGOUTS.first, as Field.js builds it): s along it from
+// its home plate end, t back from the field's edge. The rail stands on the upper step 0.55 m back, the
+// step 0.4 m down; its covered stretch is 2.2 m from the home end to 6 m from the far one (DUGOUT_ZONES)
+const [ DGA, DGB ] = DUGOUTS.first;
+const DG_LEN = Math.hypot( DGB[ 0 ] - DGA[ 0 ], DGB[ 1 ] - DGA[ 1 ] );
+const DG_U = [ ( DGB[ 0 ] - DGA[ 0 ] ) / DG_LEN, ( DGB[ 1 ] - DGA[ 1 ] ) / DG_LEN ], DG_N = [ - DG_U[ 1 ], DG_U[ 0 ] ];
+const dugAt = ( s, t ) => [ DGA[ 0 ] + DG_U[ 0 ] * s + DG_N[ 0 ] * t, DGA[ 1 ] + DG_U[ 1 ] * s + DG_N[ 1 ] * t ];
+// ---- end FB4
 
 // the pile's shape: slot k after the first three. (FY2, CY-16: it was a flat starburst of men lying like
 // spokes, ringed by men with their arms out. FOX's high first base and center field shots of the 29th
@@ -194,25 +202,48 @@ function plan( d, seg ) {
 	// who's where at the last out
 	const people = [];
 	for ( const pos of [ '1B', '3B', '2B', 'SS', 'LF', 'CF', 'RF' ] ) if ( def[ pos ] ) people.push( { id: def[ pos ], from: POSITIONS[ pos ], react: 0.55 + hash( def[ pos ] ) * 0.4, speed: 7.6, field: true } );
+	// ---- FB4 (C4B-3): the bench, the pen, Moyer and the coaches on the strike's clock, as the fielders are
+	// (`field`): over the dugout's rail within a second or two of strike three and across the grass at a
+	// sprint, most of them in the red pullover (Getty 83486175, 3-5 s after the out: Lidge and Ruiz just off
+	// the mound, a stream of fifteen in red jackets and pinstripes pouring out over the foul line, arms up).
+	// They'd come out on the celebrate segment's clock, 3.6 s late, 5-7 s after the strike, and since the
+	// dugout's figures go at the strike (FX1) it emptied into nothing. Now they're the rig's men at the
+	// rail from the strike, where FieldLevel's were, jumping, then over it. The pen's out of its gate as its
+	// figures go (alley/Night.js: at the strike too)
+	const inDugout = [];
 	for ( const id of seg.plan.bench ) {
 
-		if ( PEN.has( id ) ) people.push( { id, from: polar( 6 + ( hash( id ) - 0.5 ) * 4, 398 ), react: 2.2 + hash( id ) * 1.5, speed: 7.2 } );
-		else people.push( { id, from: [ DUGOUT.home[ 0 ] + ( hash( id ) - 0.5 ) * 12, DUGOUT.home[ 1 ] - ( hash( id ) - 0.5 ) * 12 ], react: 1.2 + hash( id * 3 ) * 2.5, speed: 6.8 } );
+		if ( PEN.has( id ) ) people.push( { id, from: polar( 6 + ( hash( id ) - 0.5 ) * 4, 398 ), react: 0.8 + hash( id ) * 1.6, speed: 7.2, field: true } );
+		else inDugout.push( people[ people.push( { id, react: 0.3 + hash( id * 3 ) * 1.3, speed: 6.8, field: true, jacket: hash( id * 5.1 ) < 0.75 } ) - 1 ] );
 
 	}
 
 	// Jamie Moyer (not in the box score's roster here: the Game 3 starter, 45, from Souderton, who'd
 	// skipped school for the 1980 parade)
-	people.push( { id: MOYER.id, who: MOYER.who, from: [ DUGOUT.home[ 0 ] - 3, DUGOUT.home[ 1 ] + 2 ], react: 2.4, speed: 6.2 } );
+	inDugout.push( people[ people.push( { id: MOYER.id, who: MOYER.who, react: 1.1, speed: 6.2, field: true } ) - 1 ] );
 	for ( const c of STAFF ) {
 
-		const f = c.from === 'pen' ? polar( 6 + ( hash( c.id.length ) - 0.5 ) * 3, 398 ) : [ DUGOUT.home[ 0 ] + ( hash( c.id.length * 7 ) - 0.5 ) * 8, DUGOUT.home[ 1 ] - ( hash( c.id.length * 5 ) - 0.5 ) * 8 ];
-		people.push( { id: c.id, who: c.who, from: f, react: c.slow ? 6 : 3 + hash( c.id.length * 9 ) * 3, speed: c.slow ? 2.4 : 4.6, coach: true } );
+		const f = c.from === 'pen' ? polar( 6 + ( hash( c.id.length ) - 0.5 ) * 3, 398 ) : null;
+		const q = { id: c.id, who: c.who, from: f, react: c.slow ? 4.5 : c.from === 'pen' ? 1.5 + hash( c.id.length * 9 ) * 2 : 1.6 + hash( c.id.length * 9 ) * 2.4, speed: c.slow ? 2.4 : 4.6, coach: true, field: true };
+		people.push( q );
+		if ( ! f ) inDugout.push( q );
 
 	}
 
+	// at the rail along the covered stretch, in no order, a metre apart; out onto the field over it (the
+	// coaches slower)
+	inDugout.forEach( ( q, j ) => {
+
+		const sAt = 3.0 + ( DG_LEN - 9.6 ) * ( ( ( j * 7 ) % inDugout.length ) + 0.5 + ( hash( j * 3.3 ) - 0.5 ) * 0.4 ) / inDugout.length;
+		q.rail = dugAt( sAt, 0.68 );
+		q.from = dugAt( sAt + ( hash( j * 1.9 ) - 0.5 ) * 0.6, - 0.45 );
+		q.out = q.coach ? 1.0 : 0.55;
+
+	} );
+	// ---- end FB4
+
 	// the order they get there (the first three are Lidge, Ruiz and Howard)
-	for ( const q of people ) q.arrive = q.react + Math.max( 0, dist( q.from, PILE ) - 2.2 ) / q.speed;
+	for ( const q of people ) q.arrive = q.react + ( q.out || 0 ) + Math.max( 0, dist( q.from, PILE ) - 2.2 ) / q.speed;
 	people.sort( ( a, b ) => a.arrive - b.arrive );
 	// Howard's there first of them (and dives); the rest take the slots in order
 	const hi = people.findIndex( ( q ) => q.id === def[ '1B' ] );
@@ -265,12 +296,21 @@ function plan( d, seg ) {
 		const root = at( S.dir, S.r ), approach = at( S.dir, S.r + ( S.kind === 'lie' ? 1.9 : 1.0 ) );
 		const yawIn = yawTo( root, C );
 		const tA = Math.max( q.arrive, tHit + 0.3 + k * 0.25 );
-		const info = add( q.id, { who: q.who, role: q.coach ? ROLE.jacket : PEN.has( q.id ) ? ROLE.jacket : 0, field: !! q.field } );
+		const info = add( q.id, { who: q.who, role: q.coach || q.jacket ? ROLE.jacket : PEN.has( q.id ) ? ROLE.jacket : 0, field: !! q.field, bench: !! q.jacket } );
 		const st = info.steps;
 		// the first beat where they are: fielders jump and throw their arms up, the rest are coming
-		if ( q.react > 0.1 ) st.push( { t0: 0, t1: q.react, kind: q.coach || ! POSITIONS_OF( def, q.id ) ? 'none' : 'hold', p: q.from, yaw: yawTo( q.from, C ), y: 0, pose: ( tau ) => M.jump( tau + k ) } );
-		const tGo = q.react, tAt = Math.max( tGo + 0.2, tA - ( S.kind === 'lie' ? 0.5 : 0 ) );
-		st.push( { t0: tGo, t1: tAt, kind: 'go', a: q.from, b: approach, gait: q.coach && q.speed < 3 ? 'walk' : 'run' } );
+		// (---- FB4: the dugout at its rail, the players jumping, the coaches applauding; then over it)
+		if ( q.rail ) {
+
+			const yawOut = yawTo( q.rail, q.from );
+			st.push( { t0: 0, t1: q.react, kind: 'hold', p: q.rail, yaw: yawOut, y: - 0.4, pose: q.coach ? ( tau ) => R.applaud( tau, hash( k ) ) : ( tau ) => M.jump( tau + hash( k ) * 2 ) } );
+			st.push( { t0: q.react, t1: q.react + q.out, kind: 'vault', a: q.rail, b: q.from, y0: - 0.4, y1: 0, arc: 0.85 } );
+
+		} else if ( q.react > 0.1 ) st.push( { t0: 0, t1: q.react, kind: q.coach || ! POSITIONS_OF( def, q.id ) ? 'none' : 'hold', p: q.from, yaw: yawTo( q.from, C ), y: 0, pose: ( tau ) => M.jump( tau + k ) } );
+		const tGo = q.react + ( q.out || 0 ), tAt = Math.max( tGo + 0.2, tA - ( S.kind === 'lie' ? 0.5 : 0 ) );
+		// (---- FB4: to his place in the ring or bent over the backs, not a metre outside it: they'd stopped
+		// at `approach` and stood at their place the next frame, a metre's jump; the divers leap from it)
+		st.push( { t0: tGo, t1: tAt, kind: 'go', a: q.from, b: S.kind === 'lie' ? approach : root, gait: q.coach && q.speed < 3 ? 'walk' : 'run' } );
 		// up in it until it comes apart from the top: the later on, the sooner off
 		const tUp = CEL.pileHold + Math.max( 0, 9 - k ) * CEL.upStep * 0.6 + hash( k * 5 ) * 0.8;
 		if ( S.kind === 'lie' ) {
@@ -631,6 +671,19 @@ function evalSteps( steps, t, info ) {
 	if ( s.kind === 'none' ) return null;
 	if ( s.kind === 'hold' ) return { x: s.p[ 0 ], z: s.p[ 1 ], yaw: s.yaw, y: s.y || 0, pose: s.pose( tau ) };
 	const ph = info?.phase ?? 0, sl = info?.stride ?? 1;
+	// ---- FB4 (C4B-3): over the dugout's rail: up off the step and over it, the knees drawn up and the
+	// hands reaching for the grass (FR2's leap), down onto the field. Up first, then out (the rail's only
+	// 13 cm in front of him): his feet clear its top as he goes over
+	if ( s.kind === 'vault' ) {
+
+		const p = lerp2( s.a, s.b, Math.pow( k, 2.2 ) );
+		const pose = M.blend( M.leap( ph * 7 ), M.run( 0.3 + ph, 1 ), ease( ( k - 0.6 ) / 0.4 ) );
+		pose.glove = false;
+		return { x: p[ 0 ], z: p[ 1 ], yaw: yawTo( s.a, s.b ), y: s.y0 + ( s.y1 - s.y0 ) * k + s.arc * 4 * k * ( 1 - k ), pose };
+
+	}
+
+	// ---- end FB4
 	if ( s.kind === 'stairs' ) {
 
 		const p = lerp2( s.a, s.b, k );
@@ -798,8 +851,8 @@ export function flagHold( d, lt ) {
 // ---- FB3 (C3B-1): the men on the field at the last out run on the strike's clock (lead: the seconds from
 // strike three to the celebrate segment's start, 3.6), which comes back to the segment's over the first
 // 40 s (9% slow, in the pile, where nobody can tell), so the presentation and everything after are where
-// they were. The bench, the pen and the coaches come out on the segment's (their figures in the dugout
-// and the pen are there till it starts).
+// they were. (FB4, C4B-3: the bench, the pen and the coaches too, now that their figures in the dugout
+// and the pen go at the strike: `field` on them all.)
 export const fieldClock = ( lt, lead ) => lt + lead * Math.max( 0, 1 - lt / 40 );
 
 // Strike three to the celebrate segment's start (the pitch's tail and the result): Lidge, Ruiz and the
@@ -818,6 +871,10 @@ export function showLastOut( d, seg, s ) {
 		const was = d.actors.get( id );
 		const extra = { y: a.y || 0, tilt: a.tilt || null };
 		if ( id === seg.snap.defense.C ) extra.role = info.role;
+		// (---- FB4, C4B-3: the bench, the pen and the staff are on this clock too: their looks and jackets
+		// from the first frame, or the rig's slot is made without them)
+		if ( info.who ) extra.who = info.who;
+		if ( info.role & ROLE.jacket ) extra.role = info.role;
 		if ( was && was.pose && k < 1 ) {
 
 			let dy = a.yaw - was.yaw;
@@ -844,7 +901,8 @@ export function showCelebration( d, seg, lt ) {
 		let a = gettingUp( info.steps, tt ) || evalSteps( info.steps, tt, info );
 		if ( ! a ) continue;
 		let role = info.role ?? 0;
-		if ( lt > info.tChamps ) role = role & ROLE.jacket ? role | ROLE.champCap : ( role & ~ ( ROLE.gear | ROLE.ccap ) ) | ROLE.tee | ROLE.champCap;
+		// (---- FB4: the bench's players out of their pullovers into the tee; the coaches and the pen keep theirs)
+		if ( lt > info.tChamps ) role = role & ROLE.jacket && ! info.bench ? role | ROLE.champCap : ( role & ~ ( ROLE.gear | ROLE.ccap | ROLE.jacket ) ) | ROLE.tee | ROLE.champCap;
 		const extra = { y: a.y || 0, tilt: a.tilt || null, role };
 		if ( info.who ) extra.who = info.who;
 		// the Phillies' mud: their night's dirt as it was

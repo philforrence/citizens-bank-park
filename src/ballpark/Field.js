@@ -1731,6 +1731,9 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		// soaked clay round the plate threw its glint back to high first as a blown-out white sheet beside the
 		// puddle; Getty 84081866 has it dark and speckled)
 		rough = mix( rough, max( 0.4, rough * select( 0.45, 0.28, dirt || track ) ), wet );
+		// (---- FB4, C4B-8: the soaked clay's grazing reflection held down too: from high first it went to a
+		// white sheet beside the puddle)
+		if ( dirt || track ) { s.specularIntensity = mix( 1.0, 0.55, wet ); }
 		// ---- FB2 (C2B-13): from the 4th on the 27th the skin is soup, and the crew works calcined clay
 		// (a drying agent) into it between innings and during play: pale grey-tan granules raked out in
 		// streaks round the plate, the bases, the cut of the base paths and the front of the mound (Getty
@@ -1759,7 +1762,9 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		if ( dirt ) {
 			let second = vec2f( 0.0, ${ f( - BASE * Math.SQRT2 ) } );
 			let low = 1.0 - smoothstep( 0.0, 7.0, min( length( p - plate ), length( p - second ) ) );
-			pud = smoothstep( 0.66, 0.74, 0.35 + 0.35 * mx_noise_float2( p * 0.22 + 3.1 ) + 0.1 * mx_noise_float2( p * 1.3 ) + low * 0.55 - ( 1.0 - wet ) * 0.9 );
+			// (---- FB4, C4B-8: its edge feathered out over a few tens of centimetres into the soaked clay, not a
+			// cut line: smoothstep 0.66-0.74 drew the white pool's hard outline)
+			pud = smoothstep( 0.6, 0.8, 0.35 + 0.35 * mx_noise_float2( p * 0.22 + 3.1 ) + 0.1 * mx_noise_float2( p * 1.3 ) + low * 0.55 - ( 1.0 - wet ) * 0.9 );
 		}
 		if ( track && ! dirt ) {
 			let foot = 1.0 - smoothstep( 0.15, 1.3, - sd );
@@ -1771,7 +1776,12 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 			col = mix( col, col * vec3f( 0.5, 0.5, 0.55 ), pud );
 			// (FB3, C3B-12: not a mirror for the one key light, which stands for six banks: from high first
 			// its glint filled the plate's whole puddle with white; rippled water, the glints its own)
-			rough = mix( rough, 0.17, pud );
+			// (---- FB4, C4B-8: and from high first it was still a white pool, the key light's lobe and the
+			// grazing Fresnel over the whole of it (C4B's S084, FB3's own final2 shot). Muddy water under rain:
+			// the specular held to a third but for the rain-broken specks, which keep their gloss)
+			let speck = smoothstep( 0.64, 0.9, mx_noise_float2( p * 17.0 + 4.7 ) * 0.5 + 0.5 );
+			rough = mix( rough, mix( 0.34, 0.18, speck ), pud );
+			s.specularIntensity = mix( s.specularIntensity, 0.22 + 0.4 * speck, pud );
 			// the rim of the puddle: wet sheen, a hint darker
 			col = col * ( 1.0 - 0.15 * smoothstep( 0.0, 0.5, pud ) * ( 1.0 - smoothstep( 0.5, 1.0, pud ) ) );
 			// its surface: flat, then ringed by the drops (the 27th: the rain's still falling)

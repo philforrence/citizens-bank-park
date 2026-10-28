@@ -949,6 +949,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		cell = ${ C.mlb }.0; lu = 0.5 + L.x / 0.036; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.07 ) } ) / 0.04;
 	}
 	if ( ( ump || crew ) && part != ${ P.cap } ) { cell = -1.0; }
+	// ---- FB4 (C4B-4): the grounds crew's red hoodies carry the club's script on the chest, as the players'
+	// pullovers do (Getty 84081825: the 27th's crew in red hoodies, the white Phillies script, blue piping)
+	if ( crew && part == ${ P.jersey } && arm < -0.5 && Nb.z < -0.05 ) { cell = ${ C.jacketHome }.0; }
+	// ---- end FB4
 	// ---- R (rituals): the champions tee has its own print (above), not the jersey's
 	if ( tee && part == ${ P.jersey } && ! jacket ) { cell = -1.0; }
 	// ---- end R
@@ -1091,7 +1095,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 	if ( part == ${ P.mask } ) { c = vec3f( 0.02 ); rough = 0.3; }
 	if ( part == ${ P.maskPad } ) { c = select( vec3f( 0.07, 0.035, 0.018 ), vec3f( 0.012 ), ump ); rough = 0.6; }
 	if ( part == ${ P.bag } ) { c = vec3f( 0.012 ); rough = 0.6; }
-	if ( part == ${ P.hood } ) { c = cloth * 1.1; rough = 0.25; }
+	if ( part == ${ P.hood } ) { c = cloth * 1.1; rough = select( 0.25, 0.8, crew ); } // (---- FB4, C4B-4: the crew's a soft cotton hood, not a helmet's gloss)
 	if ( part == ${ P.glasses } ) { c = vec3f( 0.01 ); rough = 0.2; }
 	if ( part == ${ P.rake } ) { c = select( vec3f( 0.5, 0.5, 0.52 ), vec3f( 0.04 ), L.y > 1.3 ); rough = 0.4; }
 	if ( part == ${ P.sleeve } ) { c = trim; rough = 0.7; }
@@ -1264,7 +1268,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		if ( home && part == ${ P.jersey } && ! jacket ) { c = mix( c, c * vec3f( 1.0, 0.8, 0.8 ), soak * 0.35 * smoothstep( 0.9, 1.4, in.vs.vLocal.y ) ); }
 		rough = mix( rough, 0.6, soak * 0.5 );
 	}
-	if ( crew && ( part == ${ P.jersey } || part == ${ P.hood } ) ) { rough = mix( rough, 0.12, soak ); }
+	// (---- FB4, C4B-4: the crew's hoodies soak through like cotton, darker with a dull sheen; they shone
+	// like slickers, a glossy red dome for a head: C4B's T27-u11.3-crew)
+	if ( crew && ( part == ${ P.jersey } || part == ${ P.hood } ) ) { rough = mix( rough, 0.5, soak ); c = c * mix( 1.0, 0.72, soak ); }
 	// ---- FY2 (CY-4): the rest of the ring of light banks at night. After dark the key light (and its
 	// shadows) is the banks on the roof behind home, so a player's back, which the center field camera
 	// sees on every pitch, had nothing on it but the far towers. Citizens Bank Park's banks ring the bowl:

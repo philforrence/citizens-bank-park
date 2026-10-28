@@ -183,8 +183,10 @@ export function look( id, seed = 0 ) {
 	o.skin = CREW_SKINS[ i ];
 	o.hair = CREW_HAIR[ i ];
 	o.beard = [ 0, 1, 1, 2, 3, 4, 6, 1 ][ Math.floor( r( 2 ) * 8 ) ];
-	o.height = 0.93 + r( 3 ) * 0.1;
-	o.girth = 0.95 + r( 4 ) * 0.2;
+	// (---- FB4, C4B-4: 5'7" to 6'4" and slight to stout: the crew pushing the roll were twenty of one
+	// height and build in the 27th's tight shots, where Getty 88457361 has them all sorts)
+	o.height = 0.9 + r( 3 ) * 0.15;
+	o.girth = 0.92 + r( 4 ) * 0.28;
 	o.belly = r( 5 ) < 0.4 ? r( 6 ) * 0.5 : 0;
 	o.jaw = r( 7 ) - 0.5;
 	o.age = r( 8 );

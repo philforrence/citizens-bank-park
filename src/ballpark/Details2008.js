@@ -357,6 +357,9 @@ export class Details2008 {
 		// the left field edge along the sheet; the strip's three layers stacked a few centimetres apart.
 		// The underside and the hem are black, the hem with white tabs (Getty 83458393, 83458149, 83458153)
 		const W = S / 3;
+		// ---- FB4 (C4B-5): the pulled part's height over the ground d metres behind the free edge (WGSL)
+		const tarpProfile = ( d ) => `( Hh * ( 1.0 - smoothstep( 0.0, rise, ${ d } ) ) + amp * ( ( ${ d } / 1.8 ) * exp( 1.0 - ${ d } / 1.8 ) + 0.35 * sin( 3.14159 * clamp( ${ d } / Lb, 0.0, 1.0 ) ) ) + mat.billow * 0.16 * sin( ${ d } * 1.25 - E * 1.6 + flz * 0.09 ) * smoothstep( 1.5, 3.0, ${ d } ) * ( 1.0 - smoothstep( 0.6 * Lb, Lb, ${ d } ) ) )`;
+		// ---- end FB4
 		this.tarpMat = standard( { name: 'tarp', color: new Color( 0.86, 0.87, 0.85 ), roughness: 0.3, side: 'double', modules: [ commonModule ],
 			uniforms: {
 				pull: [ 'f32', 1 ], rollY: [ 'f32', 0.55 ], // ---- R: rollY (no longer read: FR2's rollR)
@@ -371,8 +374,8 @@ export class Details2008 {
 	// the folds open from the top: the second layer (back the way it came) shortens from the outfield
 	// side as the edge goes out, and the rest runs over the stack and out flat to the edge
 	let q = clamp( ( E - W ) * 0.5, 0.0, W );
-	var P = x; var h = 0.0; var flip = 1.0;
-	if ( x >= W && x < 2.0 * W - q ) { P = 2.0 * W - x; h = 0.035; flip = - 1.0; }
+	var P = x; var h = 0.0; var flip = 1.0; var l2 = 0.0;
+	if ( x >= W && x < 2.0 * W - q ) { P = 2.0 * W - x; h = 0.035; flip = - 1.0; l2 = 1.0; }
 	else if ( x >= W ) { P = x - 2.0 * W + 2.0 * q; h = 0.07 * ( 1.0 - smoothstep( W - 0.4, W + 0.3, P ) ) * ( 1.0 - smoothstep( W * 0.9, W, q ) ); }
 	let folded = 1.0 - smoothstep( 0.0, W * 0.5, q );
 	// still on the roll: gathered at its axis, inside it
@@ -392,22 +395,44 @@ export class Details2008 {
 	let edge = min( min( v.uv.x, 1.0 - v.uv.x ), min( v.uv.y, 1.0 - v.uv.y ) ) * S;
 	var y = mound + 0.05 + max( 0.0, fold ) * mix( min( 1.0, edge / 2.0 ), 0.5, folded ) + h;
 	y = y + folded * 0.06 * max( 0.0, mx_noise_float2( vec2f( P * 0.7, flz * 0.35 ) ) );
-	// the moving part billows (air under it), most in the middle of the run
-	let run = clamp( ( P - W ) / max( 0.5, E - W ), 0.0, 1.0 );
-	y = y + mat.billow * step( W, P ) * sin( 3.14159 * run ) * ( 0.16 + 0.14 * mx_noise_float2( vec2f( flz * 0.21, run * 3.0 ) ) );
-	// the last metres up in the crew's hands
-	let held = pow( smoothstep( S - 2.6, S, x ), 1.4 ) * step( 0.5, 1.0 - onRoll );
-	y = y + max( 0.0, mat.edgeY - 0.05 ) * held;
+	// ---- FB4 (C4B-5): the pulled part as Getty 83458151 has it from the first base side: the edge at the
+	// crew's hips in their hands, sagging a little between them, and the sheet behind it ballooning on the
+	// air under it, a metre up a few metres back, in long waves that run back from the edge as they walk,
+	// down to the stack behind; under the lifted edge the black underside shows. (FR2's lift was the last
+	// 2.6 m of vinyl sloping up to the edge, so from above it read as a thin black line on the grass with the
+	// top of the sheet behind it, and its billow 0.16-0.3 m.) dE: metres behind the free edge
+	let dE = max( 0.0, E - P );
+	let runL = max( 0.5, E - W );
+	let Hh = max( 0.0, mat.edgeY - 0.05 );
+	let top = step( W, x ) * ( 1.0 - l2 ) * step( 0.5, 1.0 - onRoll );
+	let sag = 0.09 * ( 0.5 - 0.5 * cos( flz * 2.856 ) ) * ( 1.0 - smoothstep( 0.0, 1.6, dE ) );
+	let Lb = min( 11.0, runL );
+	let wave = 1.0 + 0.3 * sin( dE * 0.85 - E * 1.1 + flz * 0.13 );
+	let amp = mat.billow * ( 0.6 + 0.25 * mx_noise_float2( vec2f( flz * 0.13, E * 0.08 ) ) ) * wave;
+	let rise = clamp( runL, 2.0, 8.0 );
+	// (the hump: up steeply from their hands to its crest 1.8 m back, steeper than the high cameras look
+	// down, so its black underside faces them under the edge; then down in a long tail; a longer, lower
+	// billow over the whole run, and waves rolling back along it as they walk)
+	let prof = ${ tarpProfile( 'dE' ) } - Hh * sag;
+	// (its slope back from the edge, for the light: the same a quarter metre further back)
+	let profB = ${ tarpProfile( '( dE + 0.25 )' ) };
+	y = y + top * prof;
+	let held = top * ( 1.0 - smoothstep( 0.0, 2.6, dE ) );
+	// ---- end FB4
 	y = mix( y, mat.rollR * 0.7, onRoll );
 	let p = vec3f( px, y, pz );
 	v.useWorld = true;
 	v.worldPos = ( v.model * vec4f( p, 1.0 ) ).xyz;
 	// (the second layer lies upside down: its normal down, so its underside faces up)
-	let n = normalize( vec3f( v.normal.x, v.normal.y, v.normal.z ) + vec3f( - 0.6 * held * ${ r2.toFixed( 5 ) }, 0.0, - 0.6 * held * ${ r2.toFixed( 5 ) } ) * step( 0.1, mat.edgeY - 0.05 ) );
+	// (---- FB4: the pulled part's normal from its slope back from the edge, along -u)
+	let slope = top * ( profB - prof ) / 0.25;
+	let n = normalize( vec3f( v.normal.x, v.normal.y, v.normal.z ) + vec3f( slope * ${ r2.toFixed( 5 ) }, 0.0, slope * ${ r2.toFixed( 5 ) } ) );
 	v.worldNormal = normalize( ( v.model * vec4f( n * flip, 0.0 ) ).xyz );
 	v.prevWorldPos = v.worldPos;
-	// (to the surface: how folded up it is, in the colour's green)
-	v.color = vec4f( 1.0, folded * ( 1.0 - onRoll ), 1.0, 1.0 );
+	// (to the surface: how folded up it is, in the colour's green; ---- FB4: in its blue, the billows'
+	// lee sides, falling away behind each crest, a shade darker: white vinyl under six banks reads flat
+	// without it)
+	v.color = vec4f( 1.0, folded * ( 1.0 - onRoll ), clamp( 1.0 + 0.45 * min( slope, 0.0 ), 0.6, 1.0 ), 1.0 );
 `,
 			surface: /* wgsl */`
 	// white vinyl, seams every 4 m; long wrinkles; water standing in the low folds (the sheet's own folds,
@@ -422,6 +447,7 @@ export class Details2008 {
 	// ---- FR2: folded up in its strip it's a wet, crumpled silver-grey (Getty 83477151, 83458679; the
 	// world feed's 2:54:00 frames 1-3), the white showing as the folds open and it's pulled out flat
 	let fz = in.color.g;
+	alb = alb * in.color.b; // ---- FB4 (C4B-5): the billows' lee sides
 	let crumple = mx_noise_float2( in.P.xz * vec2f( 1.7, 2.3 ) ) * 0.5 + 0.5;
 	alb = alb * mix( 1.0, 0.62 + 0.22 * crumple, fz );
 	// ---- FR2: the underside black; the hem black all round, with its white tabs every 2 m (83458393)

@@ -465,9 +465,15 @@ function camaro() {
 	g.name = 'mvp-camaro';
 	const paint = standard( { name: 'camaro-paint', color: new Color( 0.5, 0.02, 0.02 ), roughness: 0.12, metalness: 0.4,
 		surface: 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.15;' } );
-	const glass = standard( { name: 'camaro-glass', color: new Color( 0.02, 0.022, 0.025 ), roughness: 0.03, metalness: 0.3 } );
+	// (---- FB4, C4B-11: glass that reads as glass under the lights, the stands' glow sliding across it at a
+	// slant, not a black slab: Getty 83486314, ronniebruce 2988348008)
+	const glass = standard( { name: 'camaro-glass', color: new Color( 0.045, 0.05, 0.06 ), roughness: 0.05, metalness: 0.0,
+		surface: 'let gf = pow( 1.0 - abs( dot( normalize( in.N ), in.V ) ), 2.2 ); s.emissive = mix( vec3f( 0.025, 0.03, 0.04 ), vec3f( 0.3, 0.32, 0.38 ), gf ) * ( 0.75 + 0.25 * sin( in.P.y * 9.0 + in.P.x * 3.0 ) ) * smoothstep( 0.2, 0.8, frame.night );' } );
 	const tyre = standard( { name: 'camaro-tyre', color: new Color( 0.02 ), roughness: 0.8 } );
-	const rim = standard( { name: 'camaro-rim', color: new Color( 0.7, 0.71, 0.73 ), roughness: 0.2, metalness: 1.0 } );
+	// (---- FB4, C4B-11: brushed silver that reads silver under the lights: full metal mirrored the night
+	// and went black)
+	const rim = standard( { name: 'camaro-rim', color: new Color( 0.72, 0.73, 0.75 ), roughness: 0.35, metalness: 0.55,
+		surface: 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.22;' } );
 	const lamp = standard( { name: 'camaro-lamp', color: new Color( 0.8 ), roughness: 0.1, emissive: new Color( 0.5, 0.48, 0.44 ) } );
 	for ( const m of [ paint, glass, tyre, rim, lamp ] ) m.underwaterLighting = 'none';
 	// the body lofted from sections along its length (x across, y up, z along: -z the nose)
@@ -531,26 +537,42 @@ function camaro() {
 
 	}
 	// ---- end FR1
-	for ( const [ x, z ] of [ [ - 0.86, - 1.45 ], [ 0.86, - 1.45 ], [ - 0.86, 1.5 ], [ 0.86, 1.5 ] ] ) {
+	// ---- FB4 (C4B-11): the wheels out flush with the body in their dark arches, the 2010's silver five-spoke
+	// rims standing out from the black tyres (they were black discs sunk under the sills); the B-pillar
+	// breaking the side glass; the front's quad lamps, the black grille slot and the intake under it
+	const put = ( geo, mat, x, y, z, rx = 0, rz = 0 ) => {
 
-		const t = new Mesh( new CylinderGeometry( 0.36, 0.36, 0.26, 20 ), tyre );
-		t.rotation.z = Math.PI / 2;
-		t.position.set( x, 0.36, z );
-		g.add( t );
-		const r = new Mesh( new CylinderGeometry( 0.26, 0.26, 0.27, 10 ), rim );
-		r.rotation.z = Math.PI / 2;
-		r.position.set( x * 1.005, 0.36, z );
-		g.add( r );
+		const m = new Mesh( geo, mat );
+		m.rotation.set( rx, 0, rz );
+		m.position.set( x, y, z );
+		g.add( m );
+
+	};
+	for ( const [ sx, z ] of [ [ - 1, - 1.45 ], [ 1, - 1.45 ], [ - 1, 1.5 ], [ 1, 1.5 ] ] ) {
+
+		// the arch's shadow on the body's side, the tyre, the rim's barrel, the dark between the spokes, the
+		// five spokes and the hub
+		put( new CylinderGeometry( 0.44, 0.44, 0.01, 24 ), tyre, sx * 0.975, 0.38, z, 0, Math.PI / 2 );
+		put( new CylinderGeometry( 0.36, 0.36, 0.25, 22 ), tyre, sx * 0.9, 0.36, z, 0, Math.PI / 2 );
+		put( new CylinderGeometry( 0.245, 0.245, 0.02, 20 ), rim, sx * 1.02, 0.36, z, 0, Math.PI / 2 );
+		put( new CylinderGeometry( 0.21, 0.21, 0.01, 20 ), tyre, sx * 1.031, 0.36, z, 0, Math.PI / 2 );
+		for ( let k = 0; k < 5; k ++ ) {
+
+			const a = k * Math.PI * 2 / 5 + 0.3;
+			put( new BoxGeometry( 0.02, 0.2, 0.05 ), rim, sx * 1.038, 0.36 + Math.cos( a ) * 0.11, z + Math.sin( a ) * 0.11, a );
+
+		}
+
+		put( new CylinderGeometry( 0.05, 0.05, 0.03, 10 ), rim, sx * 1.045, 0.36, z, 0, Math.PI / 2 );
 
 	}
 
-	for ( const x of [ - 0.62, 0.62 ] ) {
-
-		const l = new Mesh( new BoxGeometry( 0.32, 0.07, 0.05 ), lamp );
-		l.position.set( x, 0.72, - 2.38 );
-		g.add( l );
-
-	}
+	for ( const sx of [ - 1, 1 ] ) put( new BoxGeometry( 0.035, 0.38, 0.1 ), tyre, sx * 0.755, 1.12, 0.55, 0, - sx * 0.765 );
+	for ( const x of [ - 0.72, - 0.5, 0.5, 0.72 ] ) put( new BoxGeometry( 0.17, 0.075, 0.05 ), lamp, x, 0.715, - 2.385 );
+	put( new BoxGeometry( 1.05, 0.13, 0.05 ), tyre, 0, 0.57, - 2.405 );
+	put( new BoxGeometry( 1.3, 0.09, 0.05 ), tyre, 0, 0.38, - 2.4 );
+	put( new BoxGeometry( 0.12, 0.045, 0.02 ), rim, 0, 0.57, - 2.44 );
+	// ---- end FB4
 
 	g.userData.dynamic = true;
 	void hash;

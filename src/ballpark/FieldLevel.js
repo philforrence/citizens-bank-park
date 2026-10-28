@@ -244,6 +244,16 @@ export class FieldLevel {
 		add( 'pockets', r0 + 1.8, 0.64, - 0.4, coach, { turn: 0.1 } );
 		const railAt = home ? [ 4.3, 5.0, 8.9, 12.2 ] : [ 3.8, 7.6, 8.3, 11.6 ];
 		railAt.forEach( ( s, i ) => add( 'lean', r0 + s, 0.66, - 0.4, i === 2 ? uniform : jacket, { turn: ( rnd( s ) - 0.5 ) * 0.4 } ) );
+		// ---- FB4 (C4B-7): on the 29th the Phillies' rail was packed, a dozen in their red pullovers along it
+		// (FOX US's open, 1yP3u4ik2gs; Getty 83570970, the 7th): ten more there from the split on (update()),
+		// leaning on it, hands on it, a couple in the home whites
+		if ( home ) [ 2.6, 3.4, 5.8, 6.6, 7.4, 8.2, 9.8, 10.6, 11.4, 13.2 ].forEach( ( s, i ) => {
+
+			const [ x, , z ] = F.P( r0 + s, 0.66 + ( rnd( s * 7 ) - 0.5 ) * 0.08 );
+			this.figs.add( i % 3 === 1 ? 'rail' : 'lean', { x, y: - 0.4, z, yaw: F.face + ( rnd( s * 3 ) - 0.5 ) * 0.5, outfit: i === 3 || i === 8 ? uniform : jacket, group: 'phiRail29', scale: 0.96 + rnd( s * 11 ) * 0.09 } );
+
+		} );
+		// ---- end FB4
 		// on the bench
 		const poses = [ 'sit', 'sitFwd', 'sitFold', 'sitFwd', 'sit', 'sitFold', 'sitFwd', 'sit' ];
 		const n = 8;
@@ -274,6 +284,7 @@ export class FieldLevel {
 		const susp = seg?.kind === 'switch' && seg.snap?.inning === 6 && seg.snap?.half === 'bottom' && ( director.night ? director.night( director.t ).delay : true );
 		// ---- end R
 		this.figs.setGroup( 'phiBench', ! cel && ! susp );
+		this.figs.setGroup( 'phiRail29', ! cel && !! director?.night && director.night( director.t ).night === 29 ); // ---- FB4 (C4B-7)
 		this.figs.setGroup( 'rayBench', ! susp );
 		this.figs.update();
 

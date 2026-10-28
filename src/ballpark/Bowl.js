@@ -207,7 +207,13 @@ export class Bowl {
 			section: 16,
 			aisle: 1.2,
 			skipRows: ( k ) => dugoutSegs.includes( k ) ? 4 : 0,
-			portals: { every: 3, row: 16, rows: 5, width: 3 },
+			// ---- FB4 (C4B-9): no tunnel portals in the field level: in 2008 its seats ran unbroken from the
+			// wall up to the open main concourse, aisles only (Getty 84080911, Game 3: the third base field
+			// level, eight sections from the dugout to the corner, no portal in any). The concrete boxes stood
+			// pale in the middle of the 100s with their lit mouths in every crowd shot of the first base side.
+			// (The 400s' portals are FW3's stairs up from the Terrace concourse and stay)
+			// portals: { every: 3, row: 16, rows: 5, width: 3 },
+			// ---- end FB4
 		};
 		// ---- B (home): behind home plate, between the dugouts' home ends, the Diamond Club: seven
 		// sections, A by the visitors' dugout round to G by the Phillies' (the phillies.com seating chart,
