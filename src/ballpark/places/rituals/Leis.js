@@ -26,7 +26,7 @@ function leiGeometry( second ) {
 
 		const c = Math.cos( t ), sn = Math.sin( t ), front = Math.max( 0, c ), back = Math.max( 0, - c );
 		// (out over the chest as it hangs: the tee stands off the body there)
-		return [ 0.15 * sn * s * ( 1 - 0.35 * front ), 1.615 + dy - 0.27 * s * Math.pow( front, 1.4 ) - 0.07 * back, 0.01 - ( c > 0 ? 0.25 * s : 0.155 * s ) * c ];
+		return [ 0.15 * sn * s * ( 1 - 0.35 * front ), 1.615 + dy - 0.27 * s * Math.pow( front, 1.4 ) - 0.09 * back, 0.01 - ( c > 0 ? 0.25 * s : 0.2 * s ) * c ];
 
 	};
 	for ( let i = 0; i <= N; i ++ ) {
