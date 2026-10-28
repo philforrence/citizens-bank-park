@@ -945,22 +945,36 @@ export class Exterior {
 		this.group.add( m );
 
 		// the front fascia: maroon with the gate's name in the middle, lit after dark
+		// ---- FX2 (FX1's note): the Left Field Gate's name in red lit block capitals on the dark fascia, as the
+		// 2008 night photo has it (flickr, Oct 29 2008, postgame: LEFT FIELD GATE in red under the green
+		// Citizens Bank Park letters on the canopy); the other gates keep the white serif capitals
+		const red = lf;
 		const tex = canvasTexture( 4096, 128, ( ctx, w, h ) => {
 
-			ctx.fillStyle = '#5a2328';
+			ctx.fillStyle = red ? '#2c1416' : '#5a2328';
 			ctx.fillRect( 0, 0, w, h );
 			ctx.fillStyle = 'rgba( 255, 255, 255, 0.07 )';
 			ctx.fillRect( 0, 0, w, 8 ); ctx.fillRect( 0, h - 8, w, 8 );
-			// white serif capitals, widely spaced
-			ctx.font = '600 80px "Trajan Pro", Copperplate, "Copperplate Gothic Light", Georgia, serif';
+			// white serif capitals, widely spaced (the Left Field Gate's: red sans capitals, a lit tube's glow
+			// round each)
+			ctx.font = red ? '800 74px "Arial Black", "Helvetica Neue", Arial, sans-serif' : '600 80px "Trajan Pro", Copperplate, "Copperplate Gothic Light", Georgia, serif';
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
-			const t = g.name.split( '' ).join( String.fromCharCode( 8201 ) );
-			ctx.fillStyle = '#fff8ee';
+			const t = g.name.split( '' ).join( String.fromCharCode( red ? 8202 : 8201 ) );
+			if ( red ) {
+
+				ctx.shadowColor = 'rgba( 255, 40, 20, 0.55 )';
+				ctx.shadowBlur = 14;
+
+			}
+			ctx.fillStyle = red ? '#ff2c1c' : '#fff8ee';
 			ctx.fillText( t, w / 2, h / 2 + 4 );
 
-		}, 'gateSign' );
-		const signMat = standard( { name: 'gate-sign', roughness: 0.5, textures: { bpSign: tex }, surface: 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.75; s.emissive = t * step( 0.5, t.g ) * smoothstep( 0.1, 0.7, frame.night ) * 1.6;' } );
+		}, red ? 'gateSignRed' : 'gateSign' );
+		const signMat = standard( { name: red ? 'gate-sign-red' : 'gate-sign', roughness: 0.5, textures: { bpSign: tex }, surface: red
+			? 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.75; s.emissive = vec3f( 1.0, 0.16, 0.08 ) * smoothstep( 0.25, 0.7, t.r - t.g ) * mix( 0.25, 2.4, smoothstep( 0.1, 0.7, frame.night ) );'
+			: 'let t = textureSample( bpSign, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.75; s.emissive = t * step( 0.5, t.g ) * smoothstep( 0.1, 0.7, frame.night ) * 1.6;' } );
+		// ---- end FX2
 		signMat.underwaterLighting = 'none';
 		// seen from outside (facing -n), left to right runs along -u if u x n points down
 		const flip = ( ux * nz - uz * nx ) < 0;
