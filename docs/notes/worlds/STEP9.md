@@ -41,3 +41,7 @@ The full briefs are in [../gauntlet/BRIEF.md](../gauntlet/BRIEF.md). The working
 1. The last merges, the combined park loaded clean, `npm test`, and the final frame-rate check.
 2. [../gauntlet/LOG.md](../gauntlet/LOG.md): every fix, with its before and after and its reference.
 3. `docs/stages/step-9.jpg`, START-HERE.md updated, then `git tag -a step-9` and `git push origin ballpark step-9`.
+
+## How it went (2026-10-28, 7:40 am to 7 pm)
+
+Five rounds of critics (people, the bowl, the play, inside and under; then the walk, the broadcast, inside and outside; random shots everywhere; the game from your seat; a pre-publish check) and about thirty fixers, including three speed tracks, merged one by one into `ballpark`. Every merge, with its evidence and what was left, is in [../gauntlet/LOG.md](../gauntlet/LOG.md); the frame rate after each in [../gauntlet/PERF.md](../gauntlet/PERF.md). Published as stage 9, with `docs/stages/step-9.jpg`.

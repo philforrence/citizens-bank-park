@@ -1,9 +1,9 @@
 # Citizens Bank Park: notes for Claude
 
-## Where we are (2026-09-27)
+## Where we are (2026-10-28)
 
-Little-worlds wave 1 is merged and **waiting on the owner's review before the next wave**. [START-HERE.md](START-HERE.md) has the summary.
-The plan is [docs/PLAN.md](docs/PLAN.md), the GPU rules are in [docs/GPU.md](docs/GPU.md), and the worlds loop is in [docs/notes/worlds/WAVES.md](docs/notes/worlds/WAVES.md).
+Step 9, "the gauntlet" (critics and fixers round the whole park against 2008 photos), is merged and published. [START-HERE.md](START-HERE.md) has the summary; the gauntlet's log and every fixer's notes are in [docs/notes/gauntlet/](docs/notes/gauntlet/LOG.md).
+The GPU rules are in [docs/GPU.md](docs/GPU.md). After a change: `npm test`, `node test/continuity.mjs`, and the standard frame-rate views (`tools/gpu/standard-views.json`).
 
 ## Standing rules
 

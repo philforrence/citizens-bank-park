@@ -1,0 +1,160 @@
+{
+ "owner": "gauntlet coordinator: TAG",
+ "exclusive": true,
+ "size": [
+  1280,
+  800
+ ],
+ "out": "/Users/phillipforrence/citizens-bank-park/.claude/qa/perf/TAG",
+ "shots": [
+  {
+   "name": "tv-center-27th",
+   "play": 20,
+   "camera": "center",
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "tv-high-29th",
+   "play": 60,
+   "camera": "high",
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "tv-follow-29th",
+   "play": 61,
+   "camera": "follow",
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "walk-concourse3b",
+   "play": 60,
+   "look": [
+    [
+     -40,
+     8.6,
+     60
+    ],
+    [
+     -30,
+     8.6,
+     40
+    ],
+    60
+   ],
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "walk-seat-3b-field",
+   "play": 60,
+   "look": [
+    [
+     -25,
+     3,
+     25
+    ],
+    [
+     0,
+     1,
+     -40
+    ],
+    60
+   ],
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "walk-seat-upper-home",
+   "play": 60,
+   "look": [
+    [
+     0,
+     30,
+     75
+    ],
+    [
+     0,
+     0,
+     -60
+    ],
+    60
+   ],
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "walk-leftfield-harrys",
+   "play": 60,
+   "look": [
+    [
+     -95,
+     9,
+     -95
+    ],
+    [
+     -60,
+     4,
+     -60
+    ],
+    60
+   ],
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "rain-tv-high-27th",
+   "play": 20,
+   "camera": "high",
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "seat-3b-field-real",
+   "play": 60,
+   "js": "window.__seat = function( name, near, r, dy = 1.7 ) {\n  const b = __app.bowl; const t = [ ...b.upper, ...b.tiers ].find( ( t ) => t.name === name ); const P = t.front; let best = null;\n  for ( let i = 1; i < P.length; i ++ ) { const a = P[ i - 1 ], c = P[ i ]; const ex = c[ 0 ] - a[ 0 ], ez = c[ 1 ] - a[ 1 ]; const l2 = ex * ex + ez * ez; let u = ( ( near[ 0 ] - a[ 0 ] ) * ex + ( near[ 1 ] - a[ 1 ] ) * ez ) / l2; u = Math.max( 0, Math.min( 1, u ) ); const x = a[ 0 ] + ex * u, z = a[ 1 ] + ez * u; const dd = Math.hypot( near[ 0 ] - x, near[ 1 ] - z ); if ( ! best || dd < best.dd ) best = { dd, x, z, ex, ez }; }\n  let nx = - best.ez, nz = best.ex; const n = Math.hypot( nx, nz ); nx /= n; nz /= n; const o = t.outward;\n  if ( Math.hypot( best.x + nx - o[ 0 ], best.z + nz - o[ 1 ] ) < Math.hypot( best.x - o[ 0 ], best.z - o[ 1 ] ) ) { nx = - nx; nz = - nz; }\n  const d = ( t.start || 0 ) + ( r + 0.5 ) * t.depth; let y = t.y0; for ( let k = 1; k <= r; k ++ ) y += typeof t.rise === 'function' ? t.rise( k ) : t.rise;\n  return [ + ( best.x + nx * d ).toFixed( 2 ), + ( y + dy ).toFixed( 2 ), + ( best.z + nz * d ).toFixed( 2 ) ];\n}; const e = __seat( 'field-level', [ -40, 0 ], 15, 1.2 ); __qa.look( e, [ 0, 1, -40 ], 60 ); __qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "walk-plaza-3b-27th",
+   "seek": 40,
+   "look": [
+    [
+     -112,
+     8.6,
+     78
+    ],
+    [
+     -81,
+     28,
+     32
+    ],
+    62
+   ],
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "cel-tv-high-120s",
+   "seek": 3605,
+   "camera": "high",
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "cel-tv-center-245s",
+   "seek": 3730,
+   "camera": "center",
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  },
+  {
+   "name": "seat-400s-home-real",
+   "play": 60,
+   "look": [
+    [
+     0,
+     34.69,
+     58.92
+    ],
+    [
+     0,
+     0,
+     -30
+    ],
+    60
+   ],
+   "js": "__qa.profile({ frames: 90, warm: 30 })"
+  }
+ ]
+}
