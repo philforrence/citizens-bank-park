@@ -67,7 +67,9 @@ function bannerMaterial() {
 	let w = sin( frame.time * 7.0 - u * 5.0 ) * 0.16 * u + sin( frame.time * 11.0 - u * 9.0 + v.uv.y * 3.0 ) * 0.05 * u;
 	v.position = v.position + vec3f( 0.0, - 0.12 * u * u, w );
 `,
-		surface: 'let t = textureSample( phBanner, smpAnisoClamp, vec2f( in.uv.x, 1.0 - in.uv.y ) ).rgb; s.albedo = t; s.roughness = 0.85;',
+		// (---- FB4, C4B-13: printed through: from behind it reads 2008 too, not 800S mirrored, as FB3 did
+		// the lap's flag in Flag.js)
+		surface: 'let t = textureSample( phBanner, smpAnisoClamp, vec2f( select( 1.0 - in.uv.x, in.uv.x, in.front ), 1.0 - in.uv.y ) ).rgb; s.albedo = t; s.roughness = 0.85;',
 	} );
 	m.setDefine( 'DRY', 1 );
 	return m;
