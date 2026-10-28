@@ -1,25 +1,26 @@
 # FW3: the Terrace concourse and the walk's open tickets (gauntlet round 2)
 
-Fixer FW3, 2026-10-28, branch `worktree-agent-a33bce42dafdc6668` (off `ballpark` at 7cb9f55, FW2 merged). Tickets from round 2's walk critic C2W (`.claude/gauntlet/r2/C2W.md`), C2I (`r2/C2I.md`) and round 1's CI (`r1/CI.md`), in the coordinator's order. Seven desk jobs, all on the full park at 1280 × 800: job 5 (31 shots, every ticket's after) and job 6 (18 shots, the counts below) loaded in 13-14 s with no console errors; job 7 is the last (the tents' people, TV centre).
+Fixer FW3, 2026-10-28, branch `worktree-agent-a33bce42dafdc6668` (off `ballpark` at 7cb9f55, FW2 merged). Tickets from round 2's walk critic C2W (`.claude/gauntlet/r2/C2W.md`), C2I (`r2/C2I.md`) and round 1's CI (`r1/CI.md`), in the coordinator's order. Eight desk jobs, all on the full park at 1280 × 800, with no console errors but job 2 (a WGSL slip in the Terrace's floor): job 5 (31 shots, every ticket's after), job 6 (18 shots), job 7 (the tents' people, TV centre) and job 8 (the counts: each view read twice over), each loading in 12.5-14 s.
 
-**Shots.** In the worktree's ignored `.claude/gauntlet/r2/FW3/` (absolute: `/Users/phillipforrence/citizens-bank-park/.claude/worktrees/agent-a33bce42dafdc6668/.claude/gauntlet/r2/FW3/`): `mkjob.mjs` (the framings: the critics', plus mine for the Terrace, `__ter( f, t, h )` relative to the 3B bank's Terrace stop), `job1..7.json` / `.out`, `shots1/` (before, on 7cb9f55, `before-*`), `shots2..4/` (the work as it went; job 2 had a WGSL error in the Terrace's floor, fixed for job 3; job 3's `b-c06-hide*` hid one material each for C2W-17), `shots5/` (every ticket's after, `after-*`), `shots6/` (`final-*`), `shots7/`. `c06-before-stack.jpg` / `c06-after-stack.jpg`: the overhang's band, cropped (`stack.sh`). `node-bowl.mjs` + `stubs.mjs` build the bowl, the concourse and the Terrace place in Node (headless Dawn, a blank 2D canvas) and print the Terrace's numbers: run it before a desk job.
+**Shots.** In the worktree's ignored `.claude/gauntlet/r2/FW3/` (absolute: `/Users/phillipforrence/citizens-bank-park/.claude/worktrees/agent-a33bce42dafdc6668/.claude/gauntlet/r2/FW3/`): `mkjob.mjs` (the framings: the critics', plus mine for the Terrace, `__ter( f, t, h )` relative to the 3B bank's Terrace stop), `job1..8.json` / `.out`, `shots1/` (before, on 7cb9f55, `before-*`), `shots2..4/` (the work as it went; job 2 had a WGSL error in the Terrace's floor, fixed for job 3; job 3's `b-c06-hide*` hid one material each for C2W-17), `shots5/` (every ticket's after, `after-*`), `shots6/` (`final-*`), `shots7/` (`last-*`), `shots8/`. `c06-before-stack.jpg` / `c06-after-stack.jpg`: the overhang's band, cropped (`stack.sh`). `node-bowl.mjs` + `stubs.mjs` build the bowl, the concourse and the Terrace place in Node (headless Dawn, a blank 2D canvas) and print the Terrace's numbers: run it before a desk job.
 
 **References.** New in `/Users/phillipforrence/citizens-bank-park/.claude/ref/gauntlet/terrace/` (SOURCES.md): newballpark.org's June 2008 visit (four 320 px photos and the text: "the upper deck is split into two smaller decks ... views of the field from the upper concourse", "a staircase that leads from the upper concourse to the upper tier", "a lot of steps"). Reused: Anfony79 ≤ May 2008 (the Terrace concourse behind 332), Commons 2008-03-29 (the 3B decks from the left field corner: the 400s' white fascia, the white boxes of their stairs, the glass at the 300s' back), the October 2008 guides (the Terrace's stands by section, the escalators), mostlyphilliespics 2009 and a fan's Aug 2008 photo (the Left Field escalator and the Schmitter), wallyg 2005 and gf Oct 29 2008 (the Alley's walk).
 
 ## Counts
 
-`__app.engine.meshRenderer.stats` after a 32-frame still:
+`__app.engine.meshRenderer.stats` after a 32-frame still. **A shot's `js` runs before that shot renders**, so a stats read in a shot's `js` is the shot before's view: every reading below is attributed to the view it measured (my earlier draft and my first jobs' `.out` files have them one shot off; job 8 reads each view twice over to be sure).
 
 | View | Draws | Triangles | Pipelines | Occluded |
 |---|---|---|---|---|
-| The coordinator's "upper-deck seat behind home" (`[[0,30,75],[0,0,-60],60]`, play 60), before (job 1) | 872 | 4,008,106 | 727 | 156 |
-| Same, after (job 6; job 5 the same) | 354 | 2,069,053 | 749 | 7 |
-| Left field, Harry the K's (`[[-95,9,-95],[-60,4,-60],60]`, play 60), before | 778 | 5,470,202 | 727 | 173 |
-| Same, after | 768 | 4,595,823 | 749 | 218 |
-| A real 400s seat behind home (`__seat('terrace-400',[0,70],8)`, play 60), after (job 6; job 5: 925 / 7,106,423 / 22 occluded) | 549 | 2,983,801 | 749 | 24 |
-| On the Terrace at the 3B bank, along it (`t10`), after | 885 | 4,091,020 | 749 | 154 |
+| The coordinator's "upper-deck seat behind home" (`[[0,30,75],[0,0,-60],60]`, play 60), before (job 1) | 778 | 5,470,202 | 727 | 173 |
+| Same, after (jobs 5 and 6) | 768 | 4,599,139 | 749 | 218 |
+| Left field, Harry the K's (`[[-95,9,-95],[-60,4,-60],60]`, play 60), before (job 1) | 889 | 6,778,552 | 727 | 27 |
+| Same, after (job 5) | 895 | 6,866,012 | 749 | 26 |
+| A real 400s seat behind home (`__seat('terrace-400',[0,70],8)`: eye [ 0, 34.69, 58.92 ], target [ 0, 0, -30 ], play 60), after (job 8) | 947 | 8,010,121 | 749 | 10 |
+| On the Terrace at the 3B bank, along it (`t10`, seek 2900), after (job 8) | 649 | 4,326,048 | 749 | 73 |
+| TV centre (play 20), after (job 8) | 489 | 4,241,552 | 749 | 16 |
 
-**Note for the coordinator:** PERF.md's "upper-deck seat behind home" eye (0, 30, 75) isn't in a seat: it's 10 m behind the 400s' back, over the outer ring, 5 m above the Terrace's floor. With the 400s raised it now looks across the Terrace concourse at the backs of its stands and the home elevator core, under the 400s, through gaps to the bowl; its count swung between jobs (869 / 7.8 M in job 2, 808 / 5.5 M in job 4, 354 / 2.1 M in jobs 5 and 6) with what the occlusion pass hides through those gaps. It no longer measures an upper-deck seat: I'd profile the real 400s seat behind home instead (`__seat( 'terrace-400', [ 0, 70 ], 8 )` -> eye [ 0, 34.69, 58.92 ], target [ 0, 0, -30 ]; the row above, which also swung between jobs 5 and 6).
+**Note for the coordinator:** PERF.md's "upper-deck seat behind home" eye (0, 30, 75) isn't in a seat: it's 10 m behind the 400s' back, over the outer ring, 5 m above the Terrace's floor. With the 400s raised it now looks across the Terrace concourse at the backs of its stands and the home elevator core, under the 400s (its count went down a little: they hide more of the bowl). It no longer measures an upper-deck seat; the real 400s seat behind home above is the heaviest view I measured (it sees the whole bowl: 8.0 M triangles), and I'd profile it in its place.
 
 Pipelines went 727 → 749 (the Terrace's floor, deck, plates, wells, glass, steel; per-level stand block and tile; the escalator's palette, steps and sign; the plaza fittings).
 
@@ -63,7 +64,7 @@ Pipelines went 727 → 749 (the Terrace's floor, deck, plates, wells, glass, ste
 ## The frame-rate risk
 
 - **The Terrace** is drawn only from above 15.5 m, so the TV's low and centre cameras and the main concourse don't pay for it. From the upper seats and the TV high camera (on the press box roof, at the Terrace's level) it's in view: ~33k triangles of fabric in ~25 draws, 58 more local-light candidates (the picker still takes the nearest 12), up to ~240 Cast figures (the troupe sleeps on Tempo while none is seen; walkers by cadence()).
-- **The raised 400s** open the view under them: from the coordinator's "upper-deck seat" eye behind home the bowl now shows through the Terrace's open back (see Counts).
+- **The raised 400s:** a real 400s seat behind home sees the whole bowl (947 draws, 8.0 M triangles in job 8): the view I'd watch, and the one I'd profile in place of PERF.md's "upper-deck seat" eye, which is outside the 400s (see Counts).
 - **The aisle half-steps** add ~4 quads a row an aisle on the upper decks (tens of thousands of triangles in all, static, batched).
 - **The escalator** (always drawn, ~4k triangles, 3 draws, 7 riders) and the forecourt (a polygon, bollards, planters, 4 lamps as local-light candidates).
 - **Sounds:** a few loops more (the Terrace's wind and murmur, the 3B's and the Alley's grills and murmur), muted when you're elsewhere.
