@@ -219,6 +219,20 @@ export default class LeftField {
 	update( dt, director, camera ) {
 
 		if ( ! director ) return;
+		// ---- FC4 (C4R-7): the gate square's lanterns light it (Plaza.js), once the app has its local lights
+		if ( ! this._lanternsLit && this.plaza?.lanterns && this.app?.localLights ) {
+
+			this._lanternsLit = true;
+			for ( const [ x, y, z ] of this.plaza.lanterns ) {
+
+				const w = this.field.toWorld( x, z );
+				this.app.localLights.add( { position: new Vector3( w.x, this.field.y0 + y, w.z ), dir: new Vector3( 0, - 1, 0 ), color: new Color( 1.0, 0.82, 0.6 ), intensity: 90, range: 16,
+					cosInner: Math.cos( 50 * Math.PI / 180 ), cosOuter: Math.cos( 80 * Math.PI / 180 ), kind: 'lamp' } );
+
+			}
+
+		}
+		// ---- end FC4
 		const N = nightState( director );
 		if ( this.ownTV ) this.tv.update( dt, director, N );
 		// ---- the people, on the tempo (every frame while any are seen)
