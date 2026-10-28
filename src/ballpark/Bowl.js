@@ -1631,7 +1631,13 @@ ${ SOFFIT_WGSL }
 
 		// [ x, floor y, z, lens length, aims at the ball ]
 		const cams = [];
-		for ( const x of [ - 1.8, 1.8 ] ) cams.push( [ x, 7.95, - 128, 1.1, false ] );
+		// ---- FY1 (the play's fixer, gauntlet r1, CY-3): FOX's center field cameras were in left-center, not on
+		// the line: in every CF frame of Game 5 the pitcher stands a body's width left of the batter and
+		// catcher, righty or lefty (U_R8E614TB8 t13150s, t16310s). The platform and its two cameras moved
+		// there; BallparkApp's center camera looks from the first one (x -9).
+		const CFX = - 8.1;
+		for ( const x of [ - 9, - 7.2 ] ) cams.push( [ x, 7.95, - 128, 1.1, false ] );
+		// ---- end FY1
 		const hh = at( path, this.D.t300 + 0.5, 0, 60 );
 		cams.push( [ hh.p[ 0 ], pressRoof, hh.p[ 1 ], 0.8, true ] );
 		for ( const sx of [ - 30, 30 ] ) {
@@ -1669,7 +1675,7 @@ ${ SOFFIT_WGSL }
 		};
 
 		// center field: against the batter's eye wall, facing home
-		platform( 0, 7.95, - 128.1, 6.0, 2.2, 1, 0, [ 0, - 1 ] );
+		platform( CFX, 7.95, - 128.1, 6.0, 2.2, 1, 0, [ 0, - 1 ] ); // ---- FY1: in left-center (above)
 		for ( const sx of [ - 30, 30 ] ) {
 
 			const c = at( path, this.D.club - 1.2, sx, - 2 );
