@@ -296,7 +296,7 @@ export function buildTents( { group, colliders = null, field = null, cast = null
 				for ( const a of [ - hl * 0.55, 0.4, hl * 0.6 ] ) {
 
 					const b0 = open * ( hw * 0.45 + 0.75 ), b1 = open * hw * 0.45;
-					cast.add( { at: at( a, b0 ), face: at( a, b1 ), act: 'window', y: lift, noRainGear: true, when: ( w ) => ( w.k ?? 0.5 ) > 0.1 } );
+					cast.add( { at: at( a, b0 ), face: at( a, b1 ), act: 'window', y: lift, noRainGear: true } );
 
 				}
 
@@ -306,7 +306,7 @@ export function buildTents( { group, colliders = null, field = null, cast = null
 					if ( k ++ % 2 ) continue;
 					// between the two rows of racks, looking at one
 					const b = ( - hw * 0.45 + hw * 0.25 ) / 2;
-					cast.add( { at: at( a + 0.3, b ), face: at( a + 0.3, k % 4 ? - hw * 0.45 : hw * 0.25 ), act: 'window', y: lift, noRainGear: true, when: ( w ) => ( w.k ?? 0.5 ) > 0.15 } );
+					cast.add( { at: at( a + 0.3, b ), face: at( a + 0.3, k % 4 ? - hw * 0.45 : hw * 0.25 ), act: 'window', y: lift, noRainGear: true } );
 
 				}
 
@@ -316,7 +316,7 @@ export function buildTents( { group, colliders = null, field = null, cast = null
 				for ( let a = - hl + 2.2; a <= hl - 2; a += 3 ) {
 
 					const c = at( a, - hw * 0.4 );
-					cast.group( c, 3, 1.25, { y: lift, noRainGear: true, acts: [ 'drink', 'talk', 'listen' ], when: ( w ) => ( w.k ?? 0.5 ) > 0.1 } );
+					cast.group( c, 3, 1.25, { y: lift, noRainGear: true, acts: [ 'drink', 'talk', 'listen' ] } );
 
 				}
 
