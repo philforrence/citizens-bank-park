@@ -1524,24 +1524,29 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	// ---- colours
 	// grass: two mowing passes along the foul lines make a checkerboard; each pass looks light seen
 	// along the direction it was mown and dark against it
-	let cell = ${ f( 15 * FT ) };
-	// (the stripes' edges soft over a hand's width: the mower's wheels don't track a ruler)
-	let ma = clamp( sin( a * PI / cell ) * 9.0, -1.0, 1.0 );
-	let mb = clamp( sin( b * PI / cell ) * 9.0, -1.0, 1.0 );
+	// (FB2, C2B-7: 2008's was a fine plaid, passes a mower's width or two (7 ft), soft-edged and low in
+	// contrast, the last pass a little the stronger: FOX's high home t13290s, Getty 84082664; it was
+	// 15 ft squares, hard-edged, at twice the contrast)
+	let cell = ${ f( 7 * FT ) };
+	// (the stripes' edges soft: the mower's wheels don't track a ruler, and the blades lean gradually)
+	let ma = clamp( sin( a * PI / cell ) * 3.0, -1.0, 1.0 );
+	let mb = clamp( sin( b * PI / cell ) * 3.0, -1.0, 1.0 ) * 0.8;
 	let da = vec2f( ${ f( r2 ) }, ${ f( - r2 ) } );
 	let db = vec2f( ${ f( - r2 ) }, ${ f( - r2 ) } );
 	// the checkerboard shows from every side; looking along a pass makes it stronger; the blades lean
 	// the way they were mown, so the stripes show most from low down and soften seen from above
 	let graze = mix( 0.55, 1.25, 1.0 - abs( in.V.y ) );
-	var mow = 1.0 + ( 0.1 * ma * mb + 0.14 * ma * dot( Vf, da ) + 0.14 * mb * dot( Vf, db ) ) * graze;
-	// the infield grass: the same diagonal checkerboard, finer (6 ft squares)
+	var mow = 1.0 + ( 0.055 * ma * mb + 0.08 * ma * dot( Vf, da ) + 0.08 * mb * dot( Vf, db ) ) * graze;
+	// the infield grass: the same diagonal checkerboard, finer (5 ft squares)
 	if ( square ) {
-		let ia = clamp( sin( a * PI / ${ f( 6 * FT ) } ) * 5.0, -1.0, 1.0 );
-		let ib = clamp( sin( b * PI / ${ f( 6 * FT ) } ) * 5.0, -1.0, 1.0 );
-		mow = 1.0 + ( 0.1 * ia * ib + 0.1 * ia * dot( Vf, da ) + 0.1 * ib * dot( Vf, db ) ) * graze;
+		let ia = clamp( sin( a * PI / ${ f( 5 * FT ) } ) * 2.5, -1.0, 1.0 );
+		let ib = clamp( sin( b * PI / ${ f( 5 * FT ) } ) * 2.5, -1.0, 1.0 );
+		mow = 1.0 + ( 0.05 * ia * ib + 0.065 * ia * dot( Vf, da ) + 0.065 * ib * dot( Vf, db ) ) * graze;
 	}
-	// Kentucky bluegrass in October: a bright, yellowish green
-	var col = vec3f( 0.14, 0.31, 0.05 ) * mow * ( 0.9 + 0.14 * n1 ) * ( 0.93 + 0.09 * n2 ) * ( 0.95 + 0.07 * n3 ) * ( 0.95 + 0.08 * mx_noise_float2( p * 6.0 ) );
+	// Kentucky bluegrass in October (FB2, C2B-6: under the banks' metal halide, on FOX's white balance, a
+	// muted grey-green, not lime: FOX t13290s about sRGB 89, 118, 67, Getty 84082664 88, 115, 52; the
+	// albedo was 0.14, 0.31, 0.05, which the high home camera saw as 87, 148, 30)
+	var col = vec3f( 0.13, 0.21, 0.085 ) * mow * ( 0.9 + 0.14 * n1 ) * ( 0.93 + 0.09 * n2 ) * ( 0.95 + 0.07 * n3 ) * ( 0.95 + 0.08 * mx_noise_float2( p * 6.0 ) );
 	var rough = 0.95;
 	// worn where the outfielders stand, and a few divots
 	let wear = max( max( 1.0 - smoothstep( 2.0, 7.0, length( p - vec2f( -46.0, -80.0 ) ) ), 1.0 - smoothstep( 2.0, 7.0, length( p - vec2f( 0.0, -97.0 ) ) ) ), 1.0 - smoothstep( 2.0, 7.0, length( p - vec2f( 46.0, -80.0 ) ) ) );
@@ -1568,8 +1573,8 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		if ( bpDirt( pe + vec2f( o, 0.0 ) ) || bpDirt( pe - vec2f( o, 0.0 ) ) || bpDirt( pe + vec2f( 0.0, o ) ) || bpDirt( pe - vec2f( 0.0, o ) ) ) { col = col * 0.8; }
 	}
 	if ( dirt ) {
-		// the infield clay: a warm orange-tan
-		col = vec3f( 0.56, 0.27, 0.11 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );
+		// the infield clay: a warm tan (FB2, C2B-6: less orange; Getty 84082664 about sRGB 195, 149, 95)
+		col = vec3f( 0.53, 0.29, 0.155 ) * ( 0.9 + 0.12 * n1 ) * ( 0.93 + 0.1 * n2 ) * ( 0.9 + 0.14 * n3 );
 		// packed red clay, darker and scuffed: the mound's table round the rubber, the landing area a
 		// stride in front of it, and the batter's boxes and catcher's box round the plate
 		let tp = p - rubber;
@@ -1584,7 +1589,7 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		let scuff = 0.78 + 0.3 * mx_noise_float2( p * 5.0 ) + 0.12 * mx_noise_float2( p * 23.0 );
 		// the mound's paler buff clay
 		let moundK = 1.0 - smoothstep( ${ f( MOUND_RADIUS ) } - 0.08, ${ f( MOUND_RADIUS ) } + 0.02, length( p - moundC ) );
-		col = mix( col, vec3f( 0.57, 0.33, 0.19 ) * ( 0.9 + 0.12 * n2 ), moundK * 0.85 );
+		col = mix( col, vec3f( 0.55, 0.34, 0.21 ) * ( 0.9 + 0.12 * n2 ), moundK * 0.85 );
 		col = mix( col, vec3f( 0.36, 0.15, 0.07 ) * scuff, clay * 0.6 );
 		col = mix( col, vec3f( 0.3, 0.1, 0.05 ) * scuff, landK * 0.45 );
 		// drag arcs round the mound (the crew's mats), footwork scuffs where the infielders stand, the
@@ -1695,7 +1700,10 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		}
 		rub = max( rub, 1.0 - smoothstep( 0.1, 0.45 + 0.4 * cw, length( ( hq - vec2f( 0.0, 1.35 ) ) * vec2f( 0.7, 1.0 ) ) ) );
 		let brk = mx_noise_float2( p * 11.0 ) * 0.5 + 0.5;
-		let erase = clamp( rub * ( 0.4 + 1.5 * cw ) + cw * 0.75 * ( mx_noise_float2( p * 2.5 + 7.0 ) * 0.5 + 0.5 ) - brk * 0.4, 0.0, 1.0 );
+		// (FB2, C2B-18: by the 9th the boxes mostly gone but their front corners, the foul lines crisp:
+		// Flickr bub56 2995607460 at the last pitch; the wear was too light to read from center field)
+		let foulLine = ( 1.0 - smoothstep( 0.06, 0.14, min( abs( b - lw ), abs( a - lw ) ) ) ) * step( 1.6, max( a, b ) );
+		let erase = clamp( rub * ( 0.4 + 1.8 * cw ) + cw * 1.05 * ( mx_noise_float2( p * 2.5 + 7.0 ) * 0.5 + 0.5 ) * ( 1.0 - foulLine ) - brk * 0.4, 0.0, 1.0 );
 		chalk = chalk * ( 1.0 - erase );
 		chalkMud = clamp( cw * 0.6 + erase * 0.5, 0.0, 1.0 );
 	}
@@ -1708,10 +1716,32 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	// ---- rain: darker and shinier as it soaks in; when it's pouring, water stands in the low spots of the
 	// infield dirt (round home plate and second base went under on October 27, 2008)
 	let wet = mat.wet;
+	var sheen = vec3f( 0.0 );
 	if ( wet > 0.001 && ! outside ) {
 		let k = select( 0.2, 0.42, dirt || track );
 		col *= 1.0 - k * wet;
 		rough = mix( rough, rough * select( 0.45, 0.28, dirt || track ), wet );
+		// ---- FB2 (C2B-13): from the 4th on the 27th the skin is soup, and the crew works calcined clay
+		// (a drying agent) into it between innings and during play: pale grey-tan granules raked out in
+		// streaks round the plate, the bases, the cut of the base paths and the front of the mound (Getty
+		// 83458180, the crew raking; flickr pompomflipflop 2980927028). Dry on the 29th (the infield redone)
+		if ( dirt && wet > 0.55 ) {
+			let dk = smoothstep( 0.55, 0.8, wet );
+			let second = vec2f( 0.0, ${ f( - BASE * Math.SQRT2 ) } );
+			let spots = max( max( 0.85 - 0.85 * smoothstep( 0.6, 3.8, length( p - plate ) ), 1.0 - smoothstep( 0.8, 3.4, min( length( p - first ), length( p - third ) ) ) ),
+				max( 1.0 - smoothstep( 0.8, 3.8, length( p - second ) ), 1.0 - smoothstep( 1.4, 3.4, length( p - moundC - vec2f( 0.0, 2.2 ) ) ) ) );
+			let lanes = max( 1.0 - smoothstep( 0.3, 1.1, abs( b ) ), 1.0 - smoothstep( 0.3, 1.1, abs( a ) ) ) * 0.75;
+			let dpatch = smoothstep( 0.42, 0.62, max( spots, lanes ) * 0.75 + 0.32 * mx_noise_float2( p * 0.8 + 5.0 ) );
+			// the rake's tines: fine parallel streaks, each pull its own way
+			let pull = mx_noise_float2( p * 0.35 + 9.0 ) * 2.2;
+			let rd = vec2f( cos( pull ), sin( pull ) );
+			let tines = 0.5 + 0.5 * sin( dot( p, vec2f( - rd.y, rd.x ) ) * 95.0 + mx_noise_float2( p * 4.0 ) * 3.0 );
+			let grains = 0.75 + 0.25 * mx_noise_float2( p * 31.0 );
+			let dry = dpatch * dk * ( 0.45 + 0.55 * mix( 0.6, tines, 1.0 - smoothstep( 0.01, 0.05, fw ) ) ) * grains;
+			col = mix( col, vec3f( 0.46, 0.41, 0.35 ) * ( 0.92 + 0.12 * n3 ), clamp( dry, 0.0, 1.0 ) * 0.85 );
+			rough = mix( rough, 0.88, clamp( dry * 1.3, 0.0, 1.0 ) );
+		}
+		// ---- end FB2
 		// ---- W4 (rail): the water stands on the track too: along the foot of the wall, where the track
 		// runs down to its drains, and in its low spots; in the dirt round the plate and second. Where it
 		// stands it's a dark mirror, and while it's raining the drops ring it
@@ -1727,7 +1757,8 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 			pud = smoothstep( 0.62, 0.72, foot * 0.45 + lowSpot * 0.45 + 0.12 * mx_noise_float2( p * 2.1 ) - ( 1.0 - wet ) * 0.95 );
 		}
 		if ( pud > 0.0 ) {
-			col = mix( col, col * 0.3, pud );
+			// (FB2, C2B-13: muddy water, not ink: it was col * 0.3)
+			col = mix( col, col * vec3f( 0.5, 0.5, 0.55 ), pud );
 			rough = mix( rough, 0.03, pud );
 			// the rim of the puddle: wet sheen, a hint darker
 			col = col * ( 1.0 - 0.15 * smoothstep( 0.0, 0.5, pud ) * ( 1.0 - smoothstep( 0.5, 1.0, pud ) ) );
@@ -1755,6 +1786,18 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 			s.normal = normalize( mix( s.normal, vec3f( nrm.x * cy + nrm.z * sy, nrm.y, - nrm.x * sy + nrm.z * cy ), pud ) );
 		}
 		// ---- end W4
+		// ---- FB2 (C2B-13): the banks in the wet. The key light is one direction; the bowl's ring of banks
+		// isn't, so the sheen they put on wet clay, standing water and soaked grass is added here: what
+		// the surface mirrors toward the eye, if that's up where the banks are (the roof's ring and the
+		// towers, 15 to 35 degrees up), broken up round the ring. Glossy water most, the clay some, the
+		// grass a little
+		let Rv = reflect( - in.V, s.normal );
+		let band = exp( - ( Rv.y - 0.4 ) * ( Rv.y - 0.4 ) / 0.012 );
+		let rn = 0.5 + 0.5 * mx_noise_float2( vec2f( atan2( Rv.x, Rv.z ) * 3.0, 3.0 ) );
+		let ring = rn * rn * rn;
+		let gloss = pud * 0.4 + select( 0.012, 0.05, dirt || track ) * smoothstep( 0.3, 0.9, wet ) * ( 1.0 - pud );
+		sheen = vec3f( 0.82, 0.87, 0.95 ) * band * ring * gloss * wet;
+		// ---- end FB2
 	}
 
 	// ---- outside the fence: the concrete apron (the stands go here)
@@ -1766,7 +1809,7 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	s.albedo = col;
 	s.roughness = rough;
 	// under the lights the field is lit evenly from every side (six banks): a lift the spots alone miss
-	if ( ! outside ) { s.emissive = col * smoothstep( 0.2, 0.8, frame.night ) * 0.35; }
+	if ( ! outside ) { s.emissive = ( col * 0.35 + sheen ) * smoothstep( 0.2, 0.8, frame.night ); }
 `,
 	} );
 	mat.underwaterLighting = 'none';

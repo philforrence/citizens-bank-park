@@ -490,6 +490,10 @@ function hash( x ) {
 
 }
 
+// The seat's back (FW1, C2W-3: the seated crowd leans against it, Crowd.js): its front face z0 behind
+// the seat's middle at its foot (y0 up), leaning back by `lean` radians to its top at y1
+export const SEAT_BACK = { z0: 0.14, y0: 0.44, y1: 0.8, lean: 0.21, t: 0.035 };
+
 // A folding stadium seat, low poly: seat pan and back (the tread under it reads as the frame). Origin
 // at the floor under the seat's centre, facing -z.
 export function seatGeometry( down = false ) {
@@ -509,7 +513,7 @@ export function seatGeometry( down = false ) {
 
 	const w = 0.46 / 2;
 	// the back: one panel leaning back 12 degrees, 4 cm thick (front, back, top)
-	const lean = Math.tan( 0.21 ), b0 = 0.44, b1 = 0.8, bz = 0.14, t = 0.035;
+	const lean = Math.tan( SEAT_BACK.lean ), b0 = SEAT_BACK.y0, b1 = SEAT_BACK.y1, bz = SEAT_BACK.z0, t = SEAT_BACK.t;
 	const z = ( y ) => bz + ( y - b0 ) * lean;
 	add( BLUE, [ - w, b0, z( b0 ) ], [ w, b0, z( b0 ) ], [ w, b1, z( b1 ) ], [ - w, b1, z( b1 ) ], [ 0, lean, - 1 ] );
 	add( BLUE, [ w, b0, z( b0 ) + t ], [ - w, b0, z( b0 ) + t ], [ - w, b1, z( b1 ) + t ], [ w, b1, z( b1 ) + t ], [ 0, - lean, 1 ] );
