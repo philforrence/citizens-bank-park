@@ -66,7 +66,7 @@ fn naPhase( cosT: f32, g: f32 ) -> f32 {
 // the spot's profile (LocalLights: hot centre, soft edge, a faint spill all round)
 fn naSpot( cd: f32, cosOuter: f32 ) -> f32 {
 	let m = smoothstep( cosOuter, nightAir.cosInner, cd );
-	return max( m * m, 0.05 );
+	return max( m * m, 0.025 );
 }
 
 // the drops falling through a sheet of air dist metres out: streaks on a cylinder round the camera (metres
@@ -79,15 +79,17 @@ fn naStreaks( az: f32, slope: f32, side: f32, dist: f32, px: f32, seed: f32 ) ->
 	var p = vec2f( az * dist, slope * dist );
 	p = p + vec2f( - side * t, fall * t );
 	p.x += p.y * side / fall;
-	let cell = vec2f( 0.32, 2.2 );
+	// (CB-2: smaller cells, and each dash at most ~5 pixels long: the fine speckle of the photos of the
+	// 27th, Getty 83885893 and 84081811, not lines down the picture)
+	let cell = vec2f( 0.22, 1.2 );
 	let c = floor( p / cell );
 	let f = p / cell - c;
 	let h = hash21( c + vec2f( seed * 97.0, seed * 31.0 ) );
 	if ( h > 0.55 ) { return 0.0; }
 	let x0 = 0.1 + 0.8 * fract( h * 17.13 );
-	let len = mix( 0.1, 0.25, fract( h * 5.7 ) );
-	let y0 = fract( h * 29.3 ) * ( 1.0 - len );
 	let w = max( px, 0.003 );
+	let len = min( mix( 0.1, 0.25, fract( h * 5.7 ) ), 5.0 * w / cell.y + 0.04 );
+	let y0 = fract( h * 29.3 ) * ( 1.0 - len );
 	let across = sat( 1.0 - abs( f.x - x0 ) * cell.x / w );
 	let along = smoothstep( y0, y0 + 0.02, f.y ) * ( 1.0 - smoothstep( y0 + len - 0.02, y0 + len, f.y ) );
 	return across * along * ( 0.003 / w );
@@ -337,10 +339,16 @@ export class Night {
 		// the 27th: rain and mist, the drops' strong forward lobe; the 29th (and a dry night): a little
 		// haze in cold clear air
 		// (the downpour of the 5th and 6th greys the whole bowl on FOX's high-home shot, t2h03m20s)
-		NIGHT_AIR.sigma.value = 0.00015 + 0.0005 * rain + 0.0012 * rain * rain * rain;
-		NIGHT_AIR.sigmaN.value = 0.0004 + 0.0022 * rain;
+		// CB-3 (gauntlet r1): in the photos of the 27th, even in the heaviest rain, each bank stays a crisp
+		// grid of lamps with a tight bright halo, a cone of lit drizzle hangs below it toward the field,
+		// and the stands under it stay dark (Flickr 74085116N00 2981641556, Getty 84081811, 84081873). The
+		// drops' narrow lobe had blown each bank into a round ball of glare three or four times its size:
+		// it's a third as strong now and much tighter (g 0.97 in the rain), and the broad part's spill
+		// outside the beams is lower (naSpot), so the light hangs in the cones under the banks
+		NIGHT_AIR.sigma.value = 0.00015 + 0.0005 * rain + 0.0009 * rain * rain * rain;
+		NIGHT_AIR.sigmaN.value = 0.0003 + 0.0007 * rain;
 		NIGHT_AIR.g.value = 0.3 + 0.15 * rain;
-		NIGHT_AIR.gN.value = 0.9;
+		NIGHT_AIR.gN.value = 0.9 + 0.07 * rain;
 		NIGHT_AIR.rainExt.value = 0.00045 * rain * rain;
 		// the veil takes the colour of the low cloud near the horizon (SkyGlow's dome and the sky's glow)
 		const glow = ( a.skyGlow || 0.006 ) * G.night.value * 3.2;
