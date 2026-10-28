@@ -973,7 +973,7 @@ function drawLounge( ctx, R, SANS ) {
 // hidden pixels of everything drawn with it, so every wall, table and chair behind another was shaded
 // ---- FI3: `local: false` for a room the park's local lights mustn't reach (a closed room under the stands,
 // a store whose window a plaza lamp shines in at: its own lamps are baked in, and it's cheaper)
-export function insideMaterial( name, { glowNight = 1, net = false, local = true } = {} ) {
+export function insideMaterial( name, { glowNight = 1, net = false, local = true, direct = 1 } = {} ) {
 
 	const pal = new Float32Array( PAL_KEYS.length * 8 );
 	PAL_KEYS.forEach( ( k, i ) => {
@@ -1154,7 +1154,7 @@ export function insideMaterial( name, { glowNight = 1, net = false, local = true
 		c *= 0.7 + 0.5 * hi;
 	// ---- end FI3
 	}
-	s.albedo = c;
+	s.albedo = c * ${ direct.toFixed( 2 ) }; // (---- FI3: direct < 1: how much of the scene's own light falls on it: the store's windows let the light towers in)
 	s.roughness = rough;
 	s.metalness = q.y;
 	s.alpha = 1.0;
@@ -1304,7 +1304,10 @@ export class Inside {
 			return [ 0, 1, 2 ].map( ( k ) => ( a[ k ] * ( 1 - s ) + b[ k ] * s ) * ( 1 - t ) + ( d[ k ] * ( 1 - s ) + c[ k ] * s ) * t );
 
 		};
-		const U = ( i, j ) => uvf ? uvf( P( i, j ) ) : [ i / nu, j / nv ];
+		// (---- FI3 (C2I-19): with no uvf, the uv in metres along and up, as quad() and panel() have it: it was 0..1
+		// over the whole face, so a pattern stretched along a long wall into streaks)
+		const lu = Math.max( len( a, b ), len( d, c ) ), lv = Math.max( len( a, d ), len( b, c ) );
+		const U = ( i, j ) => uvf ? uvf( P( i, j ) ) : [ lu * i / nu, lv * j / nv ];
 		for ( let i = 0; i < nu; i ++ ) for ( let j = 0; j < nv; j ++ ) this.quad( P( i, j ), P( i + 1, j ), P( i + 1, j + 1 ), P( i, j + 1 ), n, [ U( i, j ), U( i + 1, j ), U( i + 1, j + 1 ), U( i, j + 1 ) ] );
 
 	}

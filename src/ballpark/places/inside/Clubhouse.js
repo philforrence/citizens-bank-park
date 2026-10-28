@@ -88,7 +88,7 @@ export default class Clubhouse {
 
 		}
 
-		this.material = insideMaterial( 'clubhouse-inside', { local: false } );
+		this.material = insideMaterial( 'clubhouse-inside', { local: false, direct: 0.3 } );
 		this.spots = [];
 		const ok = this._cutFacade();
 		if ( ok ) {
