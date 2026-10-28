@@ -598,9 +598,9 @@ export class BallparkApp {
 		if ( list ) for ( const f of list ) if ( f.shown && test( f.x, f.y || 0, f.z, 0.3 + 0.15 * f.scale, 1.85 * f.scale ) ) return true;
 		const d = this.director;
 		// (a man as tall as he is now: the catcher down in his crouch is 1.4 m, not 1.9)
-		if ( d?.actors ) for ( const [ id, a ] of d.actors ) if ( id !== skip && test( a.x, a.y || 0, a.z, 0.33, Math.min( 1.9, ( a.pose?.pelvisY ?? 0.98 ) + 0.92 ) ) ) return true;
+		if ( d?.actors ) for ( const [ id, a ] of d.actors ) if ( id !== skip && test( a.x, a.y || 0, a.z, 0.4, Math.min( 1.9, ( a.pose?.pelvisY ?? 0.98 ) + 0.92 ) ) ) return true;
 		const rit = this.places.find( ( p ) => p.press && p.party );
-		if ( rit ) for ( const c of [ rit.press.cast, rit.party.cast, rit.families?.cast ] ) for ( const f of c?.list || [] ) if ( f.visible && test( f.x, f.y || 0, f.z, 0.33, 1.85 * ( f.scale || 1 ) ) ) return true;
+		if ( rit ) for ( const c of [ rit.press.cast, rit.party.cast, rit.families?.cast, rit.throng?.cast ] ) for ( const f of c?.list || [] ) if ( f.visible && test( f.x, f.y || 0, f.z, 0.33, 1.85 * ( f.scale || 1 ) ) ) return true;
 		const ph = this.phanatic?.now;
 		if ( ph?.visible && ph.onField && test( ph.x, ph.y || 0, ph.z, 0.5, 2.0 ) ) return true;
 		return false;
