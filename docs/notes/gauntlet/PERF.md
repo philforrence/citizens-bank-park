@@ -64,3 +64,6 @@ FR1 cost nothing in the standard views. From here the job also has two celebrati
 | 12:55 | SP2's second win and FW3, the Terrace concourse (rain TV high 29.8; a real 3B seat 25.2; the plaza 23.3; celebration TV high 29.0 / center 24.7) | 22.9 | 29.1 | 19.0 | 22.6 | 19.5 | 22.5 | 30.9 |
 
 **A new view over the floor:** a real seat in the 400s behind home (`seat-400s-home-real`, eye 0, 34.7, 58.9), added now that the 400s are built as 2008 had them, sees the whole bowl at once: **35.7 ms** (GPU 30.2, opaque 23.8). Handed to SP2 as its top target. The old "upper-deck seat" eye (0, 30, 75) was never in a seat (it now looks at the backs of the Terrace stands).
+| 13:33 | SP2's crowd levels and pieces (SP2's own run: the 400s seat 31.9, rain TV high 24.0, celebration TV high 23.7) | 21.0 | 23.3 | - | - | - | 20.6 | 29.1 |
+
+**Every view under the floor again**, the 400s seat included (31.9). Left field (29.1) is the tightest.
