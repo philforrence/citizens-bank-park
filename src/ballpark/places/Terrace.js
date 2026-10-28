@@ -193,7 +193,9 @@ export default class Terrace {
 		if ( sdt ) {
 
 			this.people.catchUp = this._tempo.cut;
-			this.people.update( Math.min( sdt, 0.25 ), N, cf );
+			// (---- FW5: from below, the people drawn out to ~9 px tall: the lens's focal length decides how far)
+			const reach = up || ! cam?.projectionMatrix ? Infinity : 1.75 * Math.abs( cam.projectionMatrix.elements[ 5 ] ) * 0.5 / 0.011;
+			this.people.update( Math.min( sdt, 0.25 ), N, cf, reach );
 
 		}
 

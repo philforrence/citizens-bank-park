@@ -232,9 +232,12 @@ export class TerracePeople {
 
 			}
 
-			// ---- FW5 (C3W-1): who's seen from below and outside too (everyone but the Terrace's counter staff,
-			// behind its stands' far fronts); the galleries' stands are always drawn, so their people are
-			a.far = a.kind !== 'staff' || !! a.at?.tier;
+			// ---- FW5 (C3W-1): who's seen from below and outside too: the rail's two ranks (the band of fans the
+			// photos show at the glass), the back rails (from Pattison and the lots), a third of the walkers, and
+			// the galleries' people (their stands are always drawn). Not the counter staff, the lines, the
+			// ushers or the 27th's sheltering knots: from down there they're a few pixels deep in the dark
+			// under the deck, behind the rail's (and from left field they were 130 figures more to draw)
+			a.far = a.kind === 'rail' || a.kind === 'stand' || a.kind === 'back' || ( a.kind === 'walk' && a.rank < 0.35 ) || !! a.at?.tier;
 			a.off = a.kind === 'walk' || a.kind === 'shelter';
 
 		}
@@ -249,7 +252,7 @@ export class TerracePeople {
 	get shown() { return this.level > 0; }
 	_vis( a ) {
 
-		return ! a.off && ( this.level === 2 || ( this.level === 1 && a.far ) );
+		return ! a.off && ( this.level === 2 || ( this.level === 1 && a.far && ! a.beyond ) );
 
 	}
 
@@ -259,16 +262,39 @@ export class TerracePeople {
 		if ( level === false ) level = 0;
 		if ( level === this.level ) return;
 		this.level = level;
+		this._reach = undefined; // (---- FW5: who's beyond reach is looked at again on the next update)
 		for ( const a of this.list ) a.p.visible = this._vis( a );
 
 	}
 	// ---- end FW5
 
 	// dt (on the place's Tempo), the night (nightState), the camera's field position [ x, z ]
-	update( dt, N, cf ) {
+	// reach: from below, how far off a figure is still worth drawing (Terrace.js: about 9 px tall)
+	update( dt, N, cf, reach = Infinity ) {
 
 		this.time += dt;
 		this.frame ++;
+		// ---- FW5 (C3W-1): from below, those beyond reach aren't drawn (from left field the 1B side's Terrace
+		// is 150-190 m off: its people would be 4 px figures of 386 triangles each), checked every 8th time
+		if ( this.level === 1 && cf && ( this.frame % 8 === 0 || reach !== this._reach ) ) {
+
+			this._reach = reach;
+			const r2 = reach * reach;
+			for ( const a of this.list ) {
+
+				if ( ! a.far ) continue;
+				const beyond = ( a.p.x - cf[ 0 ] ) ** 2 + ( a.p.z - cf[ 1 ] ) ** 2 > r2;
+				if ( beyond !== !! a.beyond ) {
+
+					a.beyond = beyond;
+					a.p.visible = this._vis( a );
+
+				}
+
+			}
+
+		}
+		// ---- end FW5
 		const t = this.time, busy = N?.busy ?? 0.8, rain = N?.first ? N.rain : 0, cheer = N?.result?.home > 0 && N.result.t < 6;
 		const W = this.walk;
 		// ---- FW5 (C3W-6): how many are out walking, and whether the 27th's rain has them under the deck
