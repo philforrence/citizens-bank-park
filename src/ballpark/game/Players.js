@@ -609,6 +609,12 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		// 83485858, Lidge), not tights over the calf with the kneecap showing: below the thigh's cone (FB2)
 		// a second, round the shin's bone, 8.8 cm at the knee to 7.6 at the hem, filled out where the leg is
 		// under it and the excess taken in, the hem a little fuller where it breaks over the shoe
+		// the fly: the cloth bridges the groin's creases from thigh to thigh and hangs a little between the
+		// legs (the base mesh's groin is a V 3 cm deep: it read through the pants as a modelled crotch)
+		if ( ! phan && arm < -0.5 && lp3.y > 0.8 && lp3.y < 1.0 && lp3.z < -0.01 ) {
+			let k = ( 1.0 - smoothstep( 0.06, 0.095, abs( lp3.x ) ) ) * smoothstep( 0.8, 0.845, lp3.y ) * ( 1.0 - smoothstep( 0.965, 1.0, lp3.y ) ) * smoothstep( -0.01, -0.035, lp3.z );
+			lp3.z = min( lp3.z, mix( lp3.z, -0.094 - 0.8 * lp3.x * lp3.x, k ) );
+		}
 		if ( ! phan && ( style & 1u ) == 0u && leg > 0.3 ) {
 			let sx = sign( lp3.x );
 			let kn = vec3f( sx * ${ f( J.kneeR[ 0 ] ) }, ${ f( J.kneeR[ 1 ] ) }, ${ f( J.kneeR[ 2 ] ) } );
@@ -821,7 +827,8 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			// undershirt's collar rides up the neck, a crew neck's 1.2 cm for most, a mock turtleneck's 4 cm for
 			// some (Balfour's navy mock: Getty 83485159)
 			let chinU = L.z < nk.z - 0.075 && L.y > cy + 0.02;
-			let mock = select( 0.012, 0.038, fract( seed * 17.3 ) < 0.3 && ! ump && ! crew && ! jacket && ! phan );
+			// (the umpires' jackets close round the neck in a collar: Getty 83485455)
+			let mock = select( select( 0.012, 0.038, fract( seed * 17.3 ) < 0.3 && ! crew && ! jacket && ! phan ), 0.03, ump );
 			if ( L.y > nk.y + 0.03 || chinU || ( L.y > cy + mock && r < 0.1 ) ) { part = ${ P.skin }; skinArea = 1; }
 			// ---- end FY3
 			else if ( ( L.y > cy - 0.011 && r < 0.11 ) || vee ) { part = select( ${ P.sleeve }, ${ P.jersey }, jacket ); }
@@ -1105,9 +1112,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			let lipsOut = smoothstep( 0.92, 1.2, lq );
 			let front = smoothstep( -0.058, -0.082, L.z );
 			let jl = jawY - 0.008 + 0.034 * smoothstep( 0.02, 0.07, ax ); // the jaw's edge, rising to the ear
-			let mous = smoothstep( m.y + 0.003, m.y + 0.008, L.y ) * ( 1.0 - smoothstep( m.y + 0.018, m.y + 0.024, L.y ) ) * ( 1.0 - smoothstep( 0.022, 0.031, ax ) ) * lipsOut * fw;
-			let chinM = ( 1.0 - smoothstep( 0.02, 0.033, ax ) ) * ( 1.0 - smoothstep( m.y - 0.016, m.y - 0.009, L.y ) ) * smoothstep( jawY - 0.024, jawY - 0.01, L.y ) * front * lipsOut;
-			let corner = smoothstep( 0.016, 0.021, ax ) * ( 1.0 - smoothstep( 0.03, 0.036, ax ) ) * smoothstep( m.y - 0.03, m.y - 0.02, L.y ) * ( 1.0 - smoothstep( m.y + 0.008, m.y + 0.014, L.y ) ) * lipsOut * fw;
+			let mx2 = ( ax / 0.028 ) * ( ax / 0.028 );
+			let mous = smoothstep( m.y + 0.003 + 0.004 * mx2, m.y + 0.008 + 0.004 * mx2, L.y ) * ( 1.0 - smoothstep( m.y + 0.016 - 0.007 * mx2, m.y + 0.022 - 0.007 * mx2, L.y ) ) * ( 1.0 - smoothstep( 0.02, 0.031, ax ) ) * lipsOut * fw;
+			let chinM = ( 1.0 - smoothstep( 0.012, 0.032, ax ) * 0.85 ) * ( 1.0 - smoothstep( 0.024, 0.034, ax ) ) * ( 1.0 - smoothstep( m.y - 0.016, m.y - 0.009, L.y ) ) * smoothstep( jawY - 0.024, jawY - 0.01, L.y ) * front * lipsOut;
+			let corner = 0.62 * smoothstep( 0.017, 0.022, ax ) * ( 1.0 - smoothstep( 0.027, 0.033, ax ) ) * smoothstep( m.y - 0.028, m.y - 0.018, L.y ) * ( 1.0 - smoothstep( m.y + 0.006, m.y + 0.012, L.y ) ) * lipsOut * fw;
 			let yTop = mix( m.y + 0.016, eye.y - 0.034, smoothstep( 0.022, 0.064, ax ) ) + 0.004 * g2;
 			let cheekTop = 1.0 - smoothstep( yTop - 0.006, yTop + 0.004, L.y );
 			let fullM = cheekTop * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * smoothstep( jl - 0.024, jl - 0.01, L.y ) * lipsOut * ( 1.0 - nose );
@@ -1404,7 +1412,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			let r2 = cross( N0, dpx );
 			let det = dot( dpx, r1 );
 			let gr = sign( det ) * ( dpdx( fh ) * r1 + dpdy( fh ) * r2 );
-			s.normal = normalize( abs( det ) * N0 - gr );
+			// (the tilt held under about 20 degrees: on a sliver of a triangle, or at a grazing angle, the
+			// screen's derivatives are near degenerate and the tilt blew up into rows of bright dashes)
+			let tl = gr / max( abs( det ), 1e-12 );
+			let tn = length( tl );
+			s.normal = normalize( N0 - tl * min( 1.0, 0.36 / max( tn, 1e-6 ) ) );
 		}
 	}
 	// ---- end FY3
