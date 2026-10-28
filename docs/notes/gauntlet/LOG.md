@@ -108,3 +108,6 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 - **Coordinator:** the relievers walk in from the pen again (C5F-1), rendered.
 - **FZ1, the pre-publish fixes** (launched 17:37, stop by 18:45): C5F-2 to 6.
 - **FY4, every player his own face** (notes [FY4.md](FY4.md)): 16 face numbers per man for the 25 men the TV shows most and seeded for the rest, head sizes, the umpires', Manuel's and the coaches' older faces, the neck shortened. Still one base mesh (truly distinct faces need MakeHuman's face targets baked as blend shapes). Shots: `.claude/gauntlet/r4/FY4/` (b0, final3).
+- **FZ1, the pre-publish fixes** (notes [FZ1.md](FZ1.md)): C5F-2 (FOX 29's live shot moved off the walk in, its people collide), 3 (the walking card's Final and line score; Rain delay, Suspended), 4 (the towel staffers at their cartons), 5 (F1's T and the H panel's clock) done; 6 (the tent's glow) partly.
+
+**Wound down at 17:55 on the owner's word.** Published as stage 9.
