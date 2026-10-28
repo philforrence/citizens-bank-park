@@ -500,6 +500,8 @@ export class BallparkApp {
 		if ( this.post ) this.post.params.dof.value = 0;
 		this._lastEye = null;
 		this._tvShot = null;
+		const cables = this.places?.find( ( p ) => p.wells )?.walls?.cables;
+		if ( cables ) cables.visible = true;
 		if ( this.camMode === 'walk' ) {
 
 			this.camera.fov = this._walkFov || 62;
@@ -925,9 +927,11 @@ export class BallparkApp {
 
 			// the high home camera on the press box's roof: FOX's framing, home plate near the bottom edge
 			// and the diamond and the outfield filling the picture, little of the side stands (t13290s)
+			// (FB2, C2B-22: a little wider and higher, the plate at 89% down and the wall at 28%, the stands
+			// and the scoreboard's foot over it: it was fov 32 at ( 0, 0, -36 ), the wall at 22%)
 			eye = at( ...this._foxCamera( 'high' ) );
-			target = at( 0, 0, - 36 );
-			fov = 32;
+			target = at( 0, 0.5, - 44 );
+			fov = 37;
 
 		} else {
 
@@ -950,6 +954,10 @@ export class BallparkApp {
 
 		}
 
+		// ---- FB2 (C2B-22): the backstop net's cables, a few metres in front of the high home lens, aren't
+		// in its picture (they crossed it as three black lines)
+		const cables = this.places.find( ( p ) => p.wells )?.walls?.cables;
+		if ( cables ) cables.visible = shot.cam !== 'high';
 		if ( shot.fov ) fov = shot.fov;
 		if ( shot.close ) close = true;
 		if ( shot.aim && Array.isArray( shot.aim ) && shot.cam !== 'high3' && shot.cam !== 'high1' ) target = at( ...shot.aim );
@@ -970,16 +978,21 @@ export class BallparkApp {
 			this._camAim = null;
 			this.post?.cut();
 			if ( close ) P.dof.value = 1;
+			// (FB2: the first frames of a new shot are framed, not eased into: the players this frame were
+			// posed the frame before, which after a jump in the replay is somewhere else)
+			this._settle = 3;
 
 		}
 
 		this._lastEye = ( this._lastEye || new Vector3() ).copy( eye );
 		// ease toward the target (a camera operator, not a snap)
-		const k = 1 - Math.exp( - dt * 6 );
+		const settle = this._settle > 0;
+		if ( settle ) this._settle --;
+		const k = settle ? 1 : 1 - Math.exp( - dt * 6 );
 		this._camAim = this._camAim ? this._camAim.lerp( target, k ) : target.clone();
 		this.camera.position.copy( eye );
 		this.camera.lookAt( this._camAim );
-		const f = cut ? fov : this.camera.fov + ( fov - this.camera.fov ) * k;
+		const f = cut || settle ? fov : this.camera.fov + ( fov - this.camera.fov ) * k;
 		if ( Math.abs( f - this.camera.fov ) > 0.01 ) {
 
 			this.camera.fov = f;
@@ -1367,7 +1380,12 @@ export class BallparkApp {
 			this.director.update( dt );
 			// a jump in the replay (scrubbing, skipping) is a cut too: the players are somewhere else
 			const dT = this.director.t - ( this._lastDirT ?? this.director.t );
-			if ( Math.abs( dT ) > 1 + dt * this.director.speed ) this.post?.cut();
+			if ( Math.abs( dT ) > 1 + dt * this.director.speed ) {
+
+				this.post?.cut();
+				this._settle = 3; // ---- FB2: and the TV cameras framed afresh
+
+			}
 			this._lastDirT = this.director.t;
 			this.radio.speed = this.director.speed;
 			// ---- R (rituals): the radio track is on the old clock (a 24 s suspension): silent through the rest

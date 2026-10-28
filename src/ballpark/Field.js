@@ -1545,8 +1545,8 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	}
 	// Kentucky bluegrass in October (FB2, C2B-6: under the banks' metal halide, on FOX's white balance, a
 	// muted grey-green, not lime: FOX t13290s about sRGB 89, 118, 67, Getty 84082664 88, 115, 52; the
-	// albedo was 0.14, 0.31, 0.05)
-	var col = vec3f( 0.105, 0.215, 0.068 ) * mow * ( 0.9 + 0.14 * n1 ) * ( 0.93 + 0.09 * n2 ) * ( 0.95 + 0.07 * n3 ) * ( 0.95 + 0.08 * mx_noise_float2( p * 6.0 ) );
+	// albedo was 0.14, 0.31, 0.05, which the high home camera saw as 87, 148, 30)
+	var col = vec3f( 0.13, 0.21, 0.085 ) * mow * ( 0.9 + 0.14 * n1 ) * ( 0.93 + 0.09 * n2 ) * ( 0.95 + 0.07 * n3 ) * ( 0.95 + 0.08 * mx_noise_float2( p * 6.0 ) );
 	var rough = 0.95;
 	// worn where the outfielders stand, and a few divots
 	let wear = max( max( 1.0 - smoothstep( 2.0, 7.0, length( p - vec2f( -46.0, -80.0 ) ) ), 1.0 - smoothstep( 2.0, 7.0, length( p - vec2f( 0.0, -97.0 ) ) ) ), 1.0 - smoothstep( 2.0, 7.0, length( p - vec2f( 46.0, -80.0 ) ) ) );
