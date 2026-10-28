@@ -72,7 +72,7 @@ const TRUNK = {
 // backdrop) the same shapes on fewer sides, the cap shaped from the head; then a middle one and a far
 // one for fans a few pixels tall
 const LODS = [
-	{ name: 'close', trunk: 10, rings: TRUNK.close, limb: 6, head: [ 12, 8 ], neck: true, hands: 6, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ] },
+	{ name: 'close', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 12, 8 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ] },
 	{ name: 'near', trunk: 6, rings: TRUNK.near, limb: 4, head: [ 8, 5 ], neck: false, hands: 4, joints: true, extras: false, hair: true, crown: null, bill: 4, shoes: false, nose: false, pom: null },
 	{ name: 'mid', trunk: 6, rings: TRUNK.mid, limb: 3, head: [ 6, 4 ], neck: false, hands: 0, joints: true, extras: false, hair: true, crown: null, bill: 0, shoes: false, nose: false, pom: null },
 	{ name: 'far', trunk: 4, rings: TRUNK.far, limb: 3, head: [ 5, 3 ], neck: false, hands: 0, joints: false, extras: false, hair: false, crown: null, bill: 0, shoes: false, nose: false, pom: null },
@@ -278,7 +278,9 @@ export function fanGeometry( lod ) {
 		}
 
 		// the hand: a mitten, flat across the palm, the fingers' end rounded
-		if ( L.hands ) tube( 'wrist', 'hand', s, [ 0.036, 0.021 ], [ 0.033, 0.017 ], P.hand, s, L.hands, false, 0, 0, L.hands > 4 ? 0.035 : 0 );
+		// (FW1, C2W-6: blunt, wider across the knuckles than the wrist, the fingers' end a low round, not a
+		// pointed dome: from the front the mittens read as claws)
+		if ( L.hands ) tube( 'wrist', 'hand', s, [ 0.031, 0.021 ], [ 0.04, 0.019 ], P.hand, s, L.hands, false, 0, 0, L.hands > 4 ? 0.013 : 0 );
 		// a shoe under each ankle (t 3: the shaders colour it): the toe out in front, the heel behind
 		if ( L.shoes ) {
 
@@ -489,7 +491,8 @@ export function fanGeometry( lod ) {
 		for ( let j = 0; j < 3; j ++ ) for ( let i = 0; i < 3; i ++ ) {
 
 			const u = i / 2, v = j / 2, dx = ( 1 - 2 * u ) * 0.14;
-			const lap = add( hand( 0 ), [ dx, 0.03 - 0.012 * Math.sin( Math.PI * u ), - 0.19 * v ] );
+			// (FW1, C2W-6: folded narrower, rucked up, its far end over the knee and down: it lay flat as a card)
+			const lap = add( hand( 0 ), [ dx * 0.8 * ( 1 - 0.15 * v ), 0.03 + 0.022 * Math.sin( Math.PI * 2 * u + v * 2.4 ) * ( 0.4 + v ) - 0.11 * Math.max( 0, v - 0.45 ) ** 1.6 * 2.4, - 0.17 * v ] );
 			const lapS = add( hand( 1 ), [ dx * 0.5 * ( 1 - 0.3 * v ), - 0.26 * v, 0.02 + 0.02 * Math.sin( Math.PI * u ) ] );
 			q.push( vert( [ lap, lapS, lap, lapS, lap, lapS ], [ 0, 1, 0 ], [ 0, 0, - 1 ], P.towel, 1, v, u, v ) );
 
@@ -750,7 +753,9 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwFanPose {
 	// over the hood too)
 	var keep = 207u;
 	if ( capped ) { keep |= 1u << 4u; }
-	if ( towel == 1u && ! isRays ) { keep |= 1u << 5u; }
+	// (FW1, C2W-6: up when they twirl it; otherwise out on the lap for some, put away for the rest)
+	let towelOut = fract( h.y * 7.7 ) < 0.5 - 0.36 * rain && fract( h.z * 5.7 + h.w * 1.3 ) < 0.42 - 0.17 * rain && prop == 0u;
+	if ( towel == 1u && ! isRays && ( tw > 0.01 || towelOut ) ) { keep |= 1u << 5u; }
 	if ( prop != 0u ) { keep |= 1u << 8u; }
 	if ( sg != 0u ) { keep |= 1u << 9u; }
 	if ( ( hairStyle == 1u || hairStyle == 3u ) && ! hood && ! capped ) { keep |= 1u << 10u; }
@@ -766,7 +771,19 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwFanPose {
 	o.r1 = vec4f( face * ( 1.0 - aUR ), tw, th, yaw );
 	o.r2 = vec4f( max( 0.0, sin( t * 8.0 + h.w * 30.0 ) ) * 0.14 * jump, sin( t * 0.6 + h.z * 20.0 ) * 0.012, sin( t * 9.0 + h.w * 50.0 ) * 0.16, cos( t * 7.0 + h.z * 20.0 ) * 0.06 );
 	o.r3 = vec4f( wide, sc, max( upAll, jump ), f32( flags ) );
-	o.r4 = vec4f( lean, roll, nod, f32( prop ) );
+	// ---- FW1 (C2W-6): what he does with his hands sitting (on his lap; arms folded; in his pockets; clasped
+	// between his knees: more of them in the cold rain; a cup in hand keeps them on the lap), his towel when
+	// it's not up (draped over a knee, bunched in his fist, turned his own way), the cut of a woman's hair,
+	// the face's own proportions: packed with the prop in r4.w
+	let lu = fract( h.z * 5.7 + h.w * 1.3 );
+	var lap = select( select( select( 3u, 2u, lu < 0.85 ), 1u, lu < 0.62 ), 0u, lu < 0.42 - 0.17 * rain );
+	if ( prop != 0u ) { lap = 0u; }
+	let ts = u32( fract( h.x * 9.1 ) * 2.999 );
+	let ang = u32( fract( h.w * 11.3 ) * 3.999 );
+	let hv = u32( fract( h.y * 13.3 ) * 7.999 );
+	let fc = u32( fract( h.x * 17.7 + h.z ) * 7.999 );
+	o.r4 = vec4f( lean, roll, nod, f32( prop | ( ts << 4u ) | ( ang << 6u ) | ( lap << 8u ) | ( hv << 10u ) | ( fc << 13u ) ) );
+	// ---- end FW1
 	return o;
 }
 
@@ -876,6 +893,16 @@ struct CwPose {
 	local: vec3f,
 };
 
+// ---- FW1 (C2W-6): v turned by the rotation that takes the unit vector a to b (about their cross)
+fn cwTurn( v: vec3f, a: vec3f, b: vec3f ) -> vec3f {
+	let c = dot( a, b );
+	let k = cross( a, b );
+	let s = length( k );
+	if ( s < 1e-4 ) { return v; }
+	let ax = k / s;
+	return v * c + cross( ax, v ) * s + ax * dot( ax, v ) * ( 1.0 - c );
+}
+
 fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, standUp: vec3f, sitFace: vec3f, standFace: vec3f, info: vec4f, fan: u32, prev: bool, lod: u32 ) -> CwPose {
 	let b = fan * ${ POSE_N * 2 }u + select( 0u, ${ POSE_N }u, prev );
 	let r3 = cwPoseBuf[ b + 3u ];
@@ -910,9 +937,38 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 	var p = mix( pos + sitUp * aU + sitFace * aF, stp + standUp * aU + standFace * aF, st );
 	var n = normalize( mix( nrm, stn, st ) );
 
+	// ---- FW1 (C2W-6): the hands sitting at rest: the forearm turned about the elbow, to fold the arms (the
+	// right under, the left over), into the jacket's pockets (the hand in it), or clasped between the knees
+	let vid = u32( r4.w + 0.5 );
+	let lapP = ( vid >> 8u ) & 3u;
+	let rest = ( 1.0 - st ) * ( 1.0 - aU ) * ( 1.0 - aF );
+	if ( lapP != 0u && rest > 0.001 && ( isL || isR ) && ( part == 2u || ( part == 6u && info.y > 0.99 ) ) ) {
+		let el = vec3f( ${ SIT.elbow[ 0 ].toFixed( 3 ) } * side, ${ SIT.elbow[ 1 ].toFixed( 3 ) }, ${ SIT.elbow[ 2 ].toFixed( 3 ) } );
+		let h0 = vec3f( ${ SIT.hand[ 0 ].toFixed( 3 ) } * side, ${ SIT.hand[ 1 ].toFixed( 3 ) }, ${ SIT.hand[ 2 ].toFixed( 3 ) } );
+		var h1 = vec3f( 0.025 * side, 0.56, - 0.25 );
+		if ( lapP == 1u ) { h1 = select( vec3f( - 0.15, 0.83, - 0.035 ), vec3f( 0.15, 0.87, - 0.06 ), isL ); }
+		if ( lapP == 2u ) { h1 = vec3f( 0.125 * side, 0.67, - 0.05 ); }
+		let a = normalize( h0 - el );
+		let b = normalize( h1 - el );
+		var q = el + cwTurn( p - el, a, b );
+		// (the hand in the pocket: in it)
+		if ( lapP == 2u && part == 2u ) { let wr = el + cwTurn( vec3f( ${ SIT.wrist[ 0 ].toFixed( 3 ) } * side, ${ SIT.wrist[ 1 ].toFixed( 3 ) }, ${ SIT.wrist[ 2 ].toFixed( 3 ) } ) - el, a, b ); q = wr + ( q - wr ) * 0.15; }
+		p = mix( p, q, rest );
+		n = normalize( mix( n, cwTurn( n, a, b ), rest ) );
+	}
+	if ( part == 5u ) {
+		// the towel when it's not up: turned its own way about the hand, or bunched up in the fist
+		let hand0 = mix( ${ f3( SIT.hand ) }, ${ f3( STAND.hand ) }, st );
+		var q = p - hand0;
+		if ( ( ( vid >> 4u ) & 3u ) == 1u ) { q = q * vec3f( 0.42, 0.6, 0.38 ) + vec3f( 0.0, 0.025, 0.0 ); }
+		let ta = ( f32( ( vid >> 6u ) & 3u ) - 1.5 ) * 0.32;
+		q = vec3f( q.x * cos( ta ) + q.z * sin( ta ), q.y, - q.x * sin( ta ) + q.z * cos( ta ) );
+		p = hand0 + q;
+	}
+	// ---- end FW1
 	// what's in his left hand, held upright (CP-12): a cup, a phone, a camera (the box's corners in t a b)
 	if ( part == 8u ) {
-		let id = u32( r4.w + 0.5 );
+		let id = u32( r4.w + 0.5 ) & 15u;
 		var sz = vec3f( 0.08, 0.13, 0.08 );
 		if ( id == 3u ) { sz = vec3f( 0.065, 0.12, 0.014 ); }
 		if ( id == 4u ) { sz = vec3f( 0.11, 0.07, 0.06 ); }
@@ -970,6 +1026,17 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 		}
 		// a ponytail: the long hair narrowed
 		if ( part == 10u && ( flags & ( 1u << 14u ) ) != 0u ) { p.x = headC.x + ( p.x - headC.x ) * 0.32; p.y -= 0.03; }
+		// ---- FW1 (C2W-6): long hair to her own length (the chin to below the shoulders); each face its own
+		// width at the jaw and its own length (neighbours had the same face)
+		let hv = ( u32( r4.w + 0.5 ) >> 10u ) & 7u;
+		let fc = f32( ( u32( r4.w + 0.5 ) >> 13u ) & 7u ) / 7.0;
+		if ( part == 10u ) { p.y -= ( f32( hv ) / 7.0 - 0.35 ) * 0.13 * info.w; p.x = headC.x + ( p.x - headC.x ) * ( 0.96 + 0.1 * fract( f32( hv ) * 0.37 ) ); }
+		if ( part == 3u && info.y < 1.5 ) {
+			let dl = ( p - headC ) / ${ f3( HEAD_R ) };
+			let low = smoothstep( 0.1, - 0.6, dl.y );
+			p = vec3f( headC.x + ( p.x - headC.x ) * mix( 1.0, 0.92 + 0.12 * fc, low ), headC.y + ( p.y - headC.y ) * ( 0.97 + 0.06 * fract( fc * 3.7 ) ), p.z );
+		}
+		// ---- end FW1
 		let piv = mix( ${ f3( SIT.neck ) }, ${ f3( STAND.neck ) }, st );
 		// a kid's head is big for his body (a nine-year-old's is ~90% of a man's: CP-17)
 		if ( r3.y < 0.8 ) { p = piv + ( p - piv ) * ( 0.92 / r3.y ); }
@@ -1197,7 +1264,16 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 		// horseshoe round a bald crown (which shines)
 		// (at the sides above the ears and behind them, not over them: under a cap's band it read as a blindfold)
 		var hairy = d.y > 0.42 - 0.55 * smoothstep( - 0.35, 0.5, d.z ) || ( ax > 0.8 && d.z > - 0.3 && ( d.y > 0.24 || ( d.z > 0.3 && d.y > - 0.15 ) ) );
-		if ( hairStyle == 1u ) { hairy = d.y > 0.4 - 1.4 * smoothstep( - 0.55, 0.25, d.z ) || ( ax > 0.72 && d.y > - 0.55 && d.z > - 0.45 ); }
+		if ( hairStyle == 1u ) {
+			// ---- FW1 (C2W-6): her own cut: bangs at their own height, swept to one side, or pulled back off the
+			// face behind the ears (it was one black bob on every woman)
+			let hv = ( u32( cwPoseBuf[ fan * ${ POSE_N * 2 }u + 4u ].w + 0.5 ) >> 10u ) & 7u;
+			var fringe = 0.32 + 0.05 * f32( hv & 3u );
+			if ( hv == 2u || hv == 3u ) { fringe = 0.5 + 0.28 * d.x * select( - 1.0, 1.0, hv == 3u ); }
+			let back = hv >= 4u && hv < 6u;
+			if ( back ) { fringe = 0.58; }
+			hairy = d.y > fringe - 1.4 * smoothstep( - 0.55, 0.25, d.z ) || ( ax > 0.72 && d.y > - 0.55 && d.z > select( - 0.45, - 0.15, back ) );
+		}
 		if ( hairStyle == 3u ) { hairy = d.y > 0.38 - 1.0 * smoothstep( - 0.4, 0.4, d.z ); }
 		if ( hairStyle == 2u ) { hairy = d.y > - 0.35 && d.y < 0.2 + 0.15 * smoothstep( 0.2, 0.8, d.z ) && d.z > - 0.15; rough = select( rough, 0.3, d.y > 0.2 ); }
 		if ( hairy ) { c = hairC; rough = 0.7; }
@@ -1261,7 +1337,7 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 	if ( part == 8u ) {
 		// a clear cup of lager with its head; a white cup of hot chocolate with its black lid; a phone's
 		// lit screen; a camera, silver or black; a soda's red and white cup
-		let id = u32( cwPoseBuf[ fan * ${ POSE_N * 2 }u + 4u ].w + 0.5 );
+		let id = u32( cwPoseBuf[ fan * ${ POSE_N * 2 }u + 4u ].w + 0.5 ) & 15u;
 		let top = in.N.y > 0.7;
 		rough = 0.4;
 		if ( id == 1u ) { c = select( vec3f( 0.55, 0.33, 0.04 ), vec3f( 0.75, 0.72, 0.62 ), top ); rough = select( 0.1, 0.9, top ); }
@@ -1348,7 +1424,8 @@ function randomFan( r ) {
 	// South Philadelphia, the suburbs, the city: mostly pale, some olive, brown and dark
 	f.skin = pick( r, { 0: 22, 1: 26, 2: 16, 7: 9, 3: 11, 4: 7, 5: 5, 6: 4 } );
 	f.hairColor = f.age === 1 ? pick( r, { 6: 45, 7: 30, 1: 15, 2: 10 } )
-		: pick( r, { 0: f.skin >= 4 ? 70 : 24, 1: 30, 2: 20, 3: 9, 4: f.female ? 16 : 7, 5: 4 } );
+		// (FW1, C2W-6: the women's more varied: browns, blondes, auburn; they were most of them black)
+		: f.female ? pick( r, { 0: f.skin >= 4 ? 60 : 13, 1: 22, 2: 22, 3: 17, 4: 22, 5: 7 } ) : pick( r, { 0: f.skin >= 4 ? 70 : 24, 1: 30, 2: 20, 3: 9, 4: 7, 5: 4 } );
 	f.build = f.age === 2 ? 0 : f.female ? pick( r, { 0: 35, 1: 55, 2: 10 } ) : pick( r, { 0: 18, 1: 48, 2: 24, 3: 10 } );
 	f.hat = f.age === 1 ? pick( r, { 0: 30, 1: 22, 2: 6, 3: 6, 4: 4, 5: 14, 7: 18 } )
 		: f.female ? pick( r, { 0: 36, 1: 22, 2: 3, 3: 15, 4: 12, 7: 12 } )
