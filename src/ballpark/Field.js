@@ -98,7 +98,14 @@ export class Field {
 
 		for ( const d of this.dugouts ) if ( this._inDugout( d, x, z ) ) return - DUGOUT_DEPTH;
 		let h = moundHeight( x, z );
-		for ( const m of this.pens || [] ) h = Math.max( h, m.y + bumpHeight( x - m.x, z - m.z ) );
+		// a pen's mound only where it is: off it, the pens' decks are the colliders' (the upper pen's
+		// y used to lift the whole pit to 2.75 m)
+		for ( const m of this.pens || [] ) {
+
+			const b = bumpHeight( x - m.x, z - m.z );
+			if ( b > 0 ) h = Math.max( h, m.y + b );
+
+		}
 		return h;
 
 	}
