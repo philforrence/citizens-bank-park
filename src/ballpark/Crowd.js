@@ -1963,13 +1963,16 @@ export class Crowd {
 
 		if ( seg.kind === 'inplay' || seg.kind === 'result' ) {
 
-			const r = seg.ev?.result || seg.snap?.result;
+			// the play's own result (segments carry neither ev.result nor snap.result, so every Rays ball in
+			// play read as "good" and no Phillies hit did: C4S-1); types matched whole ("grounded_into_double_play"
+			// holds "double")
+			const r = seg.ev?.result || seg.snap?.result || d.game?.plays?.[ seg.pi ]?.result;
 			const type = r?.type || '';
-			const hit = /single|double|triple|home_run/.test( type ), scored = ( r?.rbi || 0 ) > 0 || seg.scored > 0;
+			const hit = /^(single|double|triple|home_run)$/.test( type ), scored = ( r?.rbi || 0 ) > 0 || seg.scored > 0;
 			const good = s.half === 'bottom' ? ( hit || scored ) : ! hit;
 			if ( good ) {
 
-				const big = scored || /home_run|double|triple/.test( type ) || ( s.half === 'top' && outs2 );
+				const big = scored || /^(home_run|double|triple)$/.test( type ) || ( s.half === 'top' && outs2 );
 				const k = Math.min( 1, lt / 1.2 );
 				m.stand = Math.max( m.stand, ( big ? 0.85 : 0.35 ) * k );
 				m.cheer = ( big ? 0.6 : 0.2 ) * k;
