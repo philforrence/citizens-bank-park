@@ -723,7 +723,21 @@ export class BallparkApp {
 
 				if ( lt < 1 ) return high;
 				const home = s.batting === 'home';
-				return close( s.batter, home ? 'low3' : 'low1' ) || close( s.batter, home ? 'high3' : 'high1', 1.2, 1.4 ) || batterClose() || high;
+				// ---- FB4 (C4B-2): the low camera waited for. Someone crossing its line as he sets off (the bat
+				// boy back from the last hitter's bat, a coach) gave it up for the whole walk-up, which then went
+				// out from 50 m up (C4B: 14 of 16 on the high cameras). Until the line's first clear moment the
+				// wide holds, up to 3.4 s in (the walk from the circle is six); from then it's his
+				const low = home ? 'low3' : 'low1';
+				const W = this._wuWait?.t0 === seg.t0 ? this._wuWait : ( this._wuWait = { t0: seg.t0, clear: false } );
+				if ( ! W.clear ) {
+
+					const at = body( s.batter, 1.35 );
+					if ( at && ! this._lensBlocked( this._foxCamera( low ), at, s.batter, 1.25 ) ) W.clear = true;
+					else if ( lt < 3.4 ) return high;
+
+				}
+				// ---- end FB4
+				return close( s.batter, low ) || close( s.batter, home ? 'high3' : 'high1', 1.2, 1.4 ) || batterClose() || high;
 
 			}
 			case 'pitch': {

@@ -89,37 +89,37 @@ export class OnDeck {
 			for ( const f of this.fetches ) {
 
 				if ( f.team !== team || t < f.t0 || t >= f.t0 + 14 ) continue;
-				const n = this._near( f, spot ), L = Math.hypot( n[ 0 ] - spot[ 0 ], n[ 1 ] - spot[ 1 ] );
-				if ( ! F || t - f.t0 >= 0 && t - F.t0 >= L / 3.8 + 1.3 + L / 3.3 ) F = f;
+				const L = this._route( f, spot ).len;
+				if ( ! F || t - f.t0 >= 0 && t - F.t0 >= L / 4.6 + 1.3 + L / 4.0 ) F = f;
 
 			}
 
 			let x = spot[ 0 ], z = spot[ 1 ], yaw = face, pose = null;
 			if ( F ) {
 
-				const near = this._near( F, spot );
-				const dist = Math.hypot( near[ 0 ] - spot[ 0 ], near[ 1 ] - spot[ 1 ] );
-				const T1 = dist / 3.8, T2 = 1.3, T3 = dist / 3.3;
+				// (---- FB4, C4B-2: round behind the plate, out and back: _route)
+				const route = this._route( F, spot ), dist = route.len;
+				const T1 = dist / 4.6, T2 = 1.3, T3 = dist / 4.0; // (---- FB4: hustling, as they do)
 				const tau = t - F.t0;
-				const yawOut = Math.atan2( - ( near[ 0 ] - spot[ 0 ] ), - ( near[ 1 ] - spot[ 1 ] ) ), yawBack = yawOut + Math.PI;
 				if ( tau >= 0 && tau < T1 ) {
 
 					const k = tau / T1;
-					x = spot[ 0 ] + ( near[ 0 ] - spot[ 0 ] ) * k; z = spot[ 1 ] + ( near[ 1 ] - spot[ 1 ] ) * k; yaw = yawOut;
+					[ x, z, yaw ] = this._along( route, dist * k );
 					pose = Mo.run( dist * k / 2.4 + seed, 0.55 );
 
 				} else if ( tau >= T1 && tau < T1 + T2 ) {
 
 					// down for it and up with it
 					const k = ( tau - T1 ) / T2, b = Math.sin( Math.PI * Math.min( 1, k * 1.1 ) );
-					x = near[ 0 ]; z = near[ 1 ]; yaw = yawOut;
+					[ x, z, yaw ] = this._along( route, dist );
 					pose = Mo.blend( Mo.stand( t ), Mo.fieldGrounder( 0 ), b );
 					if ( k > 0.5 ) pose.bat = { dir: [ 0.15, 0.2 - 0.9 * b, - 0.95 ] };
 
 				} else if ( tau >= T1 + T2 && tau < T1 + T2 + T3 ) {
 
 					const k = ( tau - T1 - T2 ) / T3;
-					x = near[ 0 ] + ( spot[ 0 ] - near[ 0 ] ) * k; z = near[ 1 ] + ( spot[ 1 ] - near[ 1 ] ) * k; yaw = yawBack;
+					[ x, z, yaw ] = this._along( route, dist * ( 1 - k ) );
+					yaw += Math.PI;
 					pose = Mo.run( dist * k / 2.3 + seed + 0.5, 0.5 );
 					pose.bat = { dir: [ 0.25, 0.9, 0.3 ] };
 
@@ -174,10 +174,40 @@ export class OnDeck {
 	// where he picks the bat up: just short of it, on his way
 	_near( F, spot ) {
 
-		const l = Math.hypot( spot[ 0 ] - F.at[ 0 ], spot[ 1 ] - F.at[ 1 ] );
-		return [ F.at[ 0 ] + ( spot[ 0 ] - F.at[ 0 ] ) * 0.55 / l, F.at[ 1 ] + ( spot[ 1 ] - F.at[ 1 ] ) * 0.55 / l ];
+		// (---- FB4: from behind it, the way he comes now)
+		const from = this._via( spot );
+		const l = Math.hypot( from[ 0 ] - F.at[ 0 ], from[ 1 ] - F.at[ 1 ] );
+		return [ F.at[ 0 ] + ( from[ 0 ] - F.at[ 0 ] ) * 0.55 / l, F.at[ 1 ] + ( from[ 1 ] - F.at[ 1 ] ) * 0.55 / l ];
 
 	}
+
+	// ---- FB4 (C4B-2): his way out and back: round behind the plate umpire (z 3.4, on his own side), not
+	// straight across the front of the plate. Straight, he ran down the low camera's line to the next hitter
+	// walking up from the on-deck circle (the third base camera on a Phillie, the first base one on a Ray),
+	// and the lens guard gave up the walk-up's close-up (C4B: 14 of 16 walk-ups on the high cameras)
+	_via( spot ) {
+
+		return [ Math.sign( spot[ 0 ] ) * 2.4, 3.4 ];
+
+	}
+
+	_route( F, spot ) {
+
+		const via = this._via( spot ), near = this._near( F, spot );
+		const a = Math.hypot( via[ 0 ] - spot[ 0 ], via[ 1 ] - spot[ 1 ] ), b = Math.hypot( near[ 0 ] - via[ 0 ], near[ 1 ] - via[ 1 ] );
+		return { pts: [ spot, via, near ], legs: [ a, b ], len: a + b };
+
+	}
+
+	// where he is d along it, and which way he faces going out
+	_along( route, d ) {
+
+		const [ p0, p1, p2 ] = route.pts, [ a, b ] = route.legs;
+		const [ u, v, k ] = d <= a ? [ p0, p1, d / Math.max( 1e-6, a ) ] : [ p1, p2, Math.min( 1, ( d - a ) / Math.max( 1e-6, b ) ) ];
+		return [ u[ 0 ] + ( v[ 0 ] - u[ 0 ] ) * k, u[ 1 ] + ( v[ 1 ] - u[ 1 ] ) * k, Math.atan2( - ( v[ 0 ] - u[ 0 ] ), - ( v[ 1 ] - u[ 1 ] ) ) ];
+
+	}
+	// ---- end FB4
 	// ---- end FR2
 
 	// the mats and the on-deck hitters' things
@@ -277,7 +307,12 @@ export class OnDeck {
 			const drop = prev && prev.kind === 'inplay' ? prev.t0 + 0.2 : seg.t0 + 0.3;
 			const h = rnd( i * 1.7 );
 			const at = [ box[ 0 ] + side * ( 0.5 + h * 0.8 ), box[ 1 ] + 0.5 + rnd( i * 2.3 ) * 0.9 ];
-			this.fetches.push( { team, drop, t0: seg.t0 + 0.6, at, yaw: rnd( i * 3.1 ) * 6.28 } );
+			// ---- FB4 (C4B-2): out for it once the ball's away from the plate, while the play's still on (it
+			// was from the result, so he was at the bat 1.6-2.9 s into the next walk-up, on the low camera's
+			// line to the hitter); not when a runner's coming home (there's a play at the plate)
+			const live = prev && prev.kind === 'inplay' && ! prev.plan?.runners?.some( ( r ) => r.to === 4 );
+			this.fetches.push( { team, drop, t0: live ? prev.t0 + 2.6 : seg.t0 + 0.6, at, yaw: rnd( i * 3.1 ) * 6.28 } );
+			// ---- end FB4
 
 		} );
 		// the plate umpire's balls: the fouls go into the stands, and every five or so the Phillies' bat
@@ -323,8 +358,7 @@ export class OnDeck {
 			bat.visible = false;
 			if ( F ) {
 
-				const near = this._near( F, spot );
-				const T1 = Math.hypot( near[ 0 ] - spot[ 0 ], near[ 1 ] - spot[ 1 ] ) / 3.8, T2 = 1.3;
+				const T1 = this._route( F, spot ).len / 4.6, T2 = 1.3; // (---- FB4: round behind the plate)
 				const tau = t - F.t0;
 				bat.visible = tau < T1 + T2 * 0.5;
 				bat.position.set( F.at[ 0 ], 0.032, F.at[ 1 ] );
