@@ -743,6 +743,8 @@ export class Director {
 		this.ballAt = null;
 		// where the cameras look for the ball: where it is, or (in a glove) where it was last
 		this.ballFocus = null;
+		this._stealCall = null;
+		this._stealBall = false;
 		this.now = { seg, snap: seg.snap, count: [ Math.min( 3, seg.snap.balls ), Math.min( 2, seg.snap.strikes ) ], outs: seg.snap.outs, desc: seg.snap.desc, pitch: null };
 		this[ 'show_' + seg.kind ]( seg, lt );
 		if ( this.ballFocus == null ) this.ballFocus = this.ballAt;
@@ -785,6 +787,16 @@ export class Director {
 			if ( tc > 0 && ( e.call === 'C' || ( three && ( e.call === 'S' || e.call === 'W' || e.call === 'T' ) ) ) ) crew[ 0 ][ 2 ] = M.umpStrike( tc, three );
 			const tf = lt - PACE.set - M.REL - seg.path.flight;
 			if ( seg.foul && tf > 0.2 && ! three ) crew[ 0 ][ 2 ] = M.umpArmsUp( tf - 0.2 );
+
+		}
+
+		// a steal: the base umpire's call as the runner slides in (show_pitch / show_steal set it)
+		const sc = this._stealCall;
+		if ( sc && ( seg.kind === 'pitch' || seg.kind === 'steal' ) ) {
+
+			const d = lt - ( seg.kind === 'pitch' ? PACE.set : 0.8 );
+			const tr = d - sc.t;
+			if ( tr > 0 && tr < 1.8 ) crew[ sc.base === 3 ? 3 : 2 ][ 2 ] = M.umpCall( tr, sc.out );
 
 		} else if ( seg.kind === 'inplay' ) {
 
@@ -1171,7 +1183,7 @@ export class Director {
 				const th = throwPath( POSITIONS.C, root, 14 );
 				const tt = tb - toC - 1.3;
 				const k3 = e.count[ 1 ] >= 3;
-				this.ballAt = tt < th.time && ! k3 ? th.at( tt ) : null;
+				this.ballAt = tt < th.time && ! k3 && ! seg.acts.some( ( a ) => /stolen|caught/.test( a.e.kind || '' ) ) ? th.at( tt ) : null;
 
 			}
 
@@ -1206,14 +1218,47 @@ export class Director {
 		this._batter( s, bp, Math.max( inOff, out * 0.55 ) );
 
 		// steals and passed balls on this pitch
-		for ( const a of seg.acts ) for ( const mv of a.moves ) {
+		for ( const a of seg.acts ) for ( const mv of a.moves ) this._steal( s, a, mv, d, M.REL + toC, catchAt );
 
-			const from = mv.start || mv.from, to = runTo( mv, from );
-			const k = Math.min( 1, Math.max( 0, ( d - 0.1 ) * RUN / ( 27.43 * Math.max( 1, to - from ) ) ) );
-			const p = basePath( from, to, k );
-			this.act( mv.id, p[ 0 ], p[ 1 ], yawTo( BASES[ from % 4 ], BASES[ to % 4 ] ), k < 1 ? M.run( d * 1.4, 1 ) : M.stand( lt ) );
+	}
 
-		}
+	// A runner going on the pitch (d: seconds since the pitcher's first move). A steal or a caught
+	// stealing: he breaks from his lead with the pitcher's first move, the catcher takes the pitch and
+	// throws through to the bag (a 2 s pop time), the shortstop (or the second baseman, with a lefty up;
+	// the third baseman at third) covers and puts the tag down, and the runner slides in feet first, a
+	// step ahead of it or a step behind; the base umpire calls it. A wild pitch or a passed ball: he just
+	// goes. (They used to run in upright and stop dead on the bag, with no throw.)
+	_steal( s, a, mv, d, tCatch, catchAt ) {
+
+		const from = mv.start || mv.from, to = runTo( mv, from );
+		const len = Math.max( 0, to - from ) * 27.43, lead = Math.min( len, from === 3 ? 1.6 : 3.3 );
+		const steal = /stolen|caught/.test( a.e.kind || '' ) && to <= 3;
+		const base = BASES[ to % 4 ];
+		const tRel = tCatch + 0.75, th = throwPath( POSITIONS.C, base, 31 ), tBall = tRel + th.time;
+		const r = { id: mv.id, from, to, start: 0.05, len, lead, halt: 1, out: !! mv.out, scores: to >= 4, slide: steal ? 'feet' : null,
+			tArrive: steal ? tBall + ( mv.out ? 0.3 : - 0.12 ) : 0.05 + ( len - lead ) / RUN + 0.3 };
+		const at = this._runnerAt( r, d, s );
+		if ( at ) this.act( mv.id, at.x, at.z, at.yaw, at.pose, at.extra );
+		if ( ! steal ) return;
+		this._stealCall = { base: to, t: r.tArrive, out: !! mv.out };
+		// the catcher: up out of the crouch and throwing through
+		const cid = s.defense.C;
+		if ( cid && d > tCatch + 0.1 && d < tRel + 0.6 ) this.act( cid, POSITIONS.C[ 0 ], POSITIONS.C[ 1 ] - 0.2, yawTo( POSITIONS.C, base ), M.throwBall( Math.max( 0, d - tCatch - 0.1 ) * 0.62 + 0.05 ), { roleAdd: ROLE.mask } );
+		// the ball: in the mitt, then on its way to the bag, then in the glove
+		if ( d > tCatch + 0.05 ) this.ballAt = d < tRel ? null : d < tBall ? th.at( d - tRel ) : null;
+		this._stealBall = d > tCatch + 0.05;
+		// the man covering: over to the bag as the pitch goes, the throw taken low, the tag
+		const cPos = to === 3 ? '3B' : s.bats === 'L' ? '2B' : 'SS';
+		const id = s.defense[ cPos ];
+		if ( ! id || d < M.REL ) return;
+		const home = POSITIONS[ cPos ];
+		const spot = lerp2( base, home, 0.9 / Math.max( 1, dist( base, home ) ) );
+		const k = Math.min( 1, ( d - M.REL ) * RUN * 0.85 / dist( home, spot ) );
+		const p = lerp2( home, spot, k );
+		let pose = k < 1 ? M.run( d * 1.45, 1 ) : M.receive( d, 1.0 / this._height( id ) );
+		// the tag: the glove swept down to the bag in front of the slide
+		if ( k >= 1 && d > tBall - 0.05 ) pose = M.blend( pose, M.receive( d, 0.35 / this._height( id ) ), ease01( ( d - tBall + 0.05 ) / 0.2 ) );
+		this.act( id, p[ 0 ], p[ 1 ], k < 1 ? yawTo( home, spot ) : yawTo( p, POSITIONS.C ), this._hand( id, pose ) );
 
 	}
 
@@ -1224,14 +1269,8 @@ export class Director {
 		this._catcher( s, lt );
 		this._pitcherStanding( s, lt );
 		this._batter( s, M.batterStance( lt ) );
-		for ( const a of seg.acts ) for ( const mv of a.moves ) {
-
-			const from = mv.start || mv.from, to = runTo( mv, from );
-			const k = Math.min( 1, Math.max( 0, ( lt - 0.8 ) * RUN / 27.43 ) );
-			const p = basePath( from, to, k );
-			this.act( mv.id, p[ 0 ], p[ 1 ], yawTo( BASES[ from % 4 ], BASES[ to % 4 ] ), k < 1 ? M.run( lt * 1.4, 1 ) : M.stand( lt ) );
-
-		}
+		// (as on a pitch: the catcher's catch a pitch's time after the break at 0.8 s)
+		for ( const a of seg.acts ) for ( const mv of a.moves ) this._steal( s, a, mv, lt - 0.8, M.REL + 0.45, [ 0, 0.9, 1.1 ] );
 
 	}
 
