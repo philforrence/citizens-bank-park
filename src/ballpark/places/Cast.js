@@ -250,7 +250,7 @@ export function lookAt( key, spot ) {
 
 // lod 0: the near figure; lod 1: the far one (fewer sides, no joints' rounds, a plain hand, no nose);
 // lod 2: the distant one (a few pixels tall: the fewest sides, next to nothing in hand)
-function figureGeometry( lod = 0 ) {
+export function figureGeometry( lod = 0 ) {
 
 	const fine = lod === 0, tiny = lod === 2, N8 = fine ? 8 : tiny ? 3 : 5, N6 = fine ? 6 : tiny ? 3 : 4;
 
@@ -1005,16 +1005,28 @@ fn c3Rig( q0: vec3f, n0: vec3f, bone: u32, part: u32, at: vec4f, a1: vec4f, a2: 
 
 // the palette (the shaders read it from a buffer, not an array in every invocation)
 const PAL = { colors: 0, skin: 32, hair: 40, pants: 48, shoes: 56, size: 64 };
+const SKINS = [ [ 0.62, 0.42, 0.32 ], [ 0.56, 0.36, 0.25 ], [ 0.5, 0.31, 0.2 ], [ 0.42, 0.25, 0.15 ], [ 0.3, 0.17, 0.1 ], [ 0.2, 0.11, 0.06 ], [ 0.12, 0.065, 0.04 ], [ 0.5, 0.34, 0.2 ] ];
+const HAIRS = [ [ 0.016, 0.012, 0.01 ], [ 0.04, 0.024, 0.014 ], [ 0.1, 0.058, 0.03 ], [ 0.19, 0.12, 0.06 ], [ 0.4, 0.29, 0.14 ], [ 0.28, 0.08, 0.03 ], [ 0.26, 0.25, 0.24 ], [ 0.58, 0.57, 0.55 ] ];
+const PANTS = [ [ 0.05, 0.075, 0.14 ], [ 0.02, 0.03, 0.06 ], [ 0.3, 0.25, 0.16 ], [ 0.015, 0.015, 0.015 ], [ 0.2, 0.2, 0.2 ], [ 0.015, 0.02, 0.05 ], [ 0.14, 0.14, 0.15 ], [ 0.09, 0.1, 0.05 ] ];
+const SHOES = [ [ 0.62, 0.61, 0.58 ], [ 0.015, 0.015, 0.015 ], [ 0.3, 0.19, 0.08 ], [ 0.08, 0.04, 0.02 ], [ 0.2, 0.2, 0.2 ] ];
 function palette() {
 
 	const a = new Float32Array( PAL.size * 4 );
 	const put = ( i, c ) => a.set( [ c[ 0 ], c[ 1 ], c[ 2 ], 1 ], i * 4 );
 	COLORS.forEach( ( c, i ) => put( PAL.colors + i, c ) );
-	[ [ 0.62, 0.42, 0.32 ], [ 0.56, 0.36, 0.25 ], [ 0.5, 0.31, 0.2 ], [ 0.42, 0.25, 0.15 ], [ 0.3, 0.17, 0.1 ], [ 0.2, 0.11, 0.06 ], [ 0.12, 0.065, 0.04 ], [ 0.5, 0.34, 0.2 ] ].forEach( ( c, i ) => put( PAL.skin + i, c ) );
-	[ [ 0.016, 0.012, 0.01 ], [ 0.04, 0.024, 0.014 ], [ 0.1, 0.058, 0.03 ], [ 0.19, 0.12, 0.06 ], [ 0.4, 0.29, 0.14 ], [ 0.28, 0.08, 0.03 ], [ 0.26, 0.25, 0.24 ], [ 0.58, 0.57, 0.55 ] ].forEach( ( c, i ) => put( PAL.hair + i, c ) );
-	[ [ 0.05, 0.075, 0.14 ], [ 0.02, 0.03, 0.06 ], [ 0.3, 0.25, 0.16 ], [ 0.015, 0.015, 0.015 ], [ 0.2, 0.2, 0.2 ], [ 0.015, 0.02, 0.05 ], [ 0.14, 0.14, 0.15 ], [ 0.09, 0.1, 0.05 ] ].forEach( ( c, i ) => put( PAL.pants + i, c ) );
-	[ [ 0.62, 0.61, 0.58 ], [ 0.015, 0.015, 0.015 ], [ 0.3, 0.19, 0.08 ], [ 0.08, 0.04, 0.02 ], [ 0.2, 0.2, 0.2 ] ].forEach( ( c, i ) => put( PAL.shoes + i, c ) );
+	SKINS.forEach( ( c, i ) => put( PAL.skin + i, c ) );
+	HAIRS.forEach( ( c, i ) => put( PAL.hair + i, c ) );
+	PANTS.forEach( ( c, i ) => put( PAL.pants + i, c ) );
+	SHOES.forEach( ( c, i ) => put( PAL.shoes + i, c ) );
 	return a;
+
+}
+
+// ---- FW1 (C2W-1): the palette's colours, for People's throng (dressed as the Cast figure that takes
+// each of them over up close, so the two match at the handover)
+export function castPalette() {
+
+	return { colors: COLORS, skin: SKINS, hair: HAIRS, pants: PANTS, shoes: SHOES };
 
 }
 
