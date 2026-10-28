@@ -672,7 +672,9 @@ const MAX_FANS = 49152;
 // ---- FP2: the camera flashes' sprites (_flashBuild)
 const FLASHES = 4096;
 // the seats in each piece of a chunk (addChunk)
-const PIECE = 360;
+// (---- SP2: 120, not 360: a piece takes its level from its nearest fan, so from a seat in the stands
+// a third of the 400s round you went at the near level for its front rows' sake: 1.4M triangles)
+const PIECE = 120;
 
 // Everything about a fan that's the same for all his vertices and all his pixels is worked out once a
 // frame, for each fan, by a compute pass (Crowd._kernel): how far up he is, each arm raised or at his
