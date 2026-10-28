@@ -1,4 +1,4 @@
-import { Group, Vector3, Sphere } from '../../engine/index.js';
+import { Group, Vector3, Sphere, Mesh, BufferGeometry, Float32BufferAttribute } from '../../engine/index.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
 import { standard } from '../../materials/Materials.js';
 import { offsetPolyline } from '../Bowl.js';
@@ -102,6 +102,26 @@ export default class Club {
 		this._glass();
 		this._case();
 		this._floorAndWalls();
+		// ---- FC4 (C4R-11): the rain kept out of the room: its ceiling, glass to back wall, for RainCover
+		// (the room's own meshes are shown by distance, `dynamic`, and the cover leaves those out). Not
+		// drawn, and so not batched; the drops beyond the glass still fall. By day it rained on the carpet
+		// (out past the glass by a cell of the cover's map, 0.75 m: the drops by the drink rail fell in it)
+		const pos = [], G0 = line( dG - 0.8 );
+		for ( let i = 0; i < G0.length - 1; i ++ ) {
+
+			const [ a, b, c, d ] = [ G0[ i ], G0[ i + 1 ], this.BK[ i + 1 ], this.BK[ i ] ].map( ( q ) => [ q[ 0 ], y + CEIL, q[ 1 ] ] );
+			pos.push( ...a, ...b, ...c, ...a, ...c, ...d );
+
+		}
+
+		const roof = new BufferGeometry();
+		roof.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		const cover = new Mesh( roof, this.material );
+		cover.name = 'club-rain-cover';
+		cover.visible = false;
+		this.group.add( cover );
+		this.rainRoof = [ cover ];
+		// ---- end FC4
 		bowl.group.traverse( ( o ) => {
 
 			if ( o.isMesh && o.name === 'club-glass' && this.farGlass ) o.visible = false;
