@@ -6,7 +6,7 @@ import { StorageBuffer } from '../engine/gpu/Texture.js';
 import { standard } from '../materials/Materials.js';
 import { SEAT_BACK } from './Stands.js';
 // ---- FW1 (CP-12): the backs' names and numbers come from the Cast's atlas (a blank one without it)
-import { castPool } from './places/Cast.js';
+import { castPool, filmModule } from './places/Cast.js';
 import { signAtlas, SIGN, SIGN_GRID } from './places/home/Signs.js';
 import { canvasTexture } from './geo.js';
 let _blank = null;
@@ -79,7 +79,7 @@ const TRUNK = {
 // backdrop) the same shapes on fewer sides, the cap shaped from the head; then a middle one and a far
 // one for fans a few pixels tall
 const LODS = [
-	{ name: 'close', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 12, 8 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ], sign: true },
+	{ name: 'close', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 16, 11 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ], sign: true },
 	{ name: 'near', trunk: 6, rings: TRUNK.near, limb: 4, head: [ 8, 5 ], neck: false, hands: 4, joints: true, extras: false, hair: true, crown: null, bill: 4, shoes: false, nose: false, pom: null, sign: true },
 	{ name: 'mid', trunk: 6, rings: TRUNK.mid, limb: 3, head: [ 6, 4 ], neck: false, hands: 0, joints: true, extras: false, hair: true, crown: null, bill: 0, shoes: false, nose: false, pom: null },
 	{ name: 'far', trunk: 4, rings: TRUNK.far, limb: 3, head: [ 5, 3 ], neck: false, hands: 0, joints: false, extras: false, hair: false, crown: null, bill: 0, shoes: false, nose: false, pom: null },
@@ -323,6 +323,19 @@ export function fanGeometry( lod ) {
 			const jaw = Math.max( 0, Math.min( 1, ( - d[ 1 ] - 0.15 ) / 0.7 ) );
 			const o = [ d[ 0 ] * r[ 0 ] * ( 1 - 0.16 * jaw ), d[ 1 ] * r[ 1 ], d[ 2 ] * r[ 2 ] ];
 			if ( d[ 2 ] < 0 ) o[ 2 ] += 0.007 * jaw * d[ 2 ];
+			// ---- FW4 (C3W-4): close up the face modelled a little, as the Cast's near one is: the eyes set
+			// back under the brow's ridge, the cheekbones, the chin forward, the back of the head tucked in
+			// above the nape (a faceted egg with a square jaw, at arm's length)
+			if ( L.name === 'close' ) {
+
+				const ax = Math.abs( d[ 0 ] ), front = Math.max( 0, Math.min( 1, ( 0.15 - d[ 2 ] ) / 0.7 ) );
+				const g = ( x, y, sx, sy ) => Math.exp( - ( x * x ) / ( sx * sx ) - ( y * y ) / ( sy * sy ) );
+				o[ 2 ] += ( 0.007 * g( ax - 0.33, d[ 1 ] - 0.09, 0.17, 0.12 ) - 0.005 * g( ax - 0.25, d[ 1 ] - 0.29, 0.3, 0.065 )
+					- 0.004 * g( ax - 0.5, d[ 1 ] + 0.06, 0.14, 0.11 ) - 0.004 * g( d[ 0 ], d[ 1 ] + 0.43, 0.26, 0.1 ) - 0.009 * g( d[ 0 ], d[ 1 ] + 0.74, 0.3, 0.13 ) ) * front;
+				if ( d[ 2 ] > 0 ) o[ 2 ] -= d[ 2 ] * r[ 2 ] * 0.25 * jaw;
+
+			}
+			// ---- end FW4
 			return o;
 
 		};
@@ -331,7 +344,17 @@ export function fanGeometry( lod ) {
 			const th = j / H * Math.PI, ph = i / W * Math.PI * 2;
 			const d = [ Math.sin( th ) * Math.cos( ph ), Math.cos( th ), Math.sin( th ) * Math.sin( ph ) ];
 			const o = shape( d );
-			vert( fixed( add( SIT.head, o ), add( STAND.head, o ) ), d, d, P.head, 0 );
+			// (FW4: close up the normal from the shape itself, so the brow and the chin take the light)
+			let n = d;
+			if ( L.name === 'close' && j > 0 && j < H ) {
+
+				const e = 1e-3, dd = ( t, p ) => shape( [ Math.sin( t ) * Math.cos( p ), Math.cos( t ), Math.sin( t ) * Math.sin( p ) ] );
+				n = norm( cross( sub( dd( th, ph + e ), dd( th, ph - e ) ), sub( dd( th + e, ph ), dd( th - e, ph ) ) ) );
+				if ( n[ 0 ] * d[ 0 ] + n[ 1 ] * d[ 1 ] + n[ 2 ] * d[ 2 ] < 0 ) n = mul( n, - 1 );
+
+			}
+
+			vert( fixed( add( SIT.head, o ), add( STAND.head, o ) ), n, n, P.head, 0 );
 
 		}
 
@@ -347,11 +370,15 @@ export function fanGeometry( lod ) {
 		// Cast's pyramid went dark)
 		if ( L.nose ) {
 
+			// ---- FW4 (C3W-4): a bridge from between the brows to the tip, the wings either side, the
+			// underside back to the lip in shade (it was a wedge: a beak in profile)
 			const z0 = - r[ 2 ];
-			const pts = [ [ 0, - 0.016, z0 - 0.019 ], [ - 0.016, - 0.034, z0 + 0.012 ], [ 0.016, - 0.034, z0 + 0.012 ], [ 0, 0.02, z0 + 0.008 ] ];
-			const nrm = [ [ 0, - 0.3, - 1 ], [ - 0.6, - 0.35, - 0.75 ], [ 0.6, - 0.35, - 0.75 ], [ 0, 0.4, - 0.9 ] ];
+			const pts = [ [ 0, 0.024, z0 + 0.006 ], [ 0, - 0.014, z0 - 0.017 ], [ - 0.014, - 0.03, z0 + 0.004 ], [ 0.014, - 0.03, z0 + 0.004 ], [ 0, - 0.032, z0 - 0.004 ],
+				[ - 0.007, 0.004, z0 - 0.004 ], [ 0.007, 0.004, z0 - 0.004 ] ];
+			const nrm = [ [ 0, 0.45, - 0.9 ], [ 0, - 0.15, - 1 ], [ - 0.75, - 0.25, - 0.6 ], [ 0.75, - 0.25, - 0.6 ], [ 0, - 0.9, - 0.4 ], [ - 0.6, 0.15, - 0.8 ], [ 0.6, 0.15, - 0.8 ] ];
 			const q = pts.map( ( o, i ) => vert( fixed( add( SIT.head, o ), add( STAND.head, o ) ), norm( nrm[ i ] ), norm( nrm[ i ] ), P.head, 0 ) );
-			index.push( q[ 0 ], q[ 3 ], q[ 1 ], q[ 0 ], q[ 2 ], q[ 3 ], q[ 0 ], q[ 1 ], q[ 2 ] );
+			index.push( q[ 0 ], q[ 5 ], q[ 1 ], q[ 0 ], q[ 1 ], q[ 6 ], q[ 5 ], q[ 2 ], q[ 1 ], q[ 6 ], q[ 1 ], q[ 3 ], q[ 1 ], q[ 2 ], q[ 4 ], q[ 1 ], q[ 4 ], q[ 3 ] );
+			// ---- end FW4
 
 		}
 
@@ -1163,7 +1190,7 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 	const mat = standard( {
 		// (the near ones are all 'crowd-near' to the rain: Night.js's FABRIC)
 		name: 'crowd-' + [ 'near', 'near', 'mid', 'far', 'far' ][ lod ], roughness: 0.8, side: 'double', // (SP2: the distant one is 'far' too)
-		modules: [ crowdModule ],
+		modules: [ crowdModule, filmModule ],
 		defines: { CROWD_LOD: lod },
 		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf, cwIds: idsBuf },
 		// ---- FW1 (CP-12): the Cast's atlas, for the names and numbers on the backs; (FP2) the signs' boards
@@ -1295,8 +1322,21 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		// a poncho over it all: clear plastic over the jacket (it shows through, glossy and crumpled, beaded
 		// with the rain), or a coloured one's opaque plastic
 		let crinkle = sin( dot( L, vec3f( 61.0, 23.0, 47.0 ) ) + 2.0 * sin( dot( L, vec3f( 13.0, 41.0, 29.0 ) ) ) );
-		if ( clear ) { c = c * 0.88 + vec3f( 0.012 ); rough = 0.08 + 0.22 * smoothstep( - 0.2, 0.9, crinkle ); }
-		else { c *= 0.92 + 0.08 * crinkle; rough = 0.3; }
+		// ---- FW4 (C3W-4): close up the film crumpled (Cast.js filmCrumple: facets and creases, the normal
+		// tilted with them) and the clear ones a silvery haze over the jacket, whiter in the creases and seen
+		// edge on (Getty 83457911, 83893023). It was a smooth glossy coat straight on the jacket: in the
+		// rain at arm's length a red jacket glittering with points, the critic's sequinned plastic
+		var cr = vec4f( 0.0 );
+#if CROWD_LOD <= 1
+		// (the trunk's and the sleeves' L.y runs 0..2 from the hips to the collar: about 0.3 m to its unit)
+		let Lm = vec3f( L.x, L.y * 0.3, L.z );
+		cr = filmCrumple( Lm, length( fwidth( Lm ) ) );
+		s.normal = filmTilt( s.normal, cr.xyz );
+#endif
+		let edge = pow( 1.0 - abs( dot( normalize( s.normal ), normalize( in.V ) ) ), 2.0 );
+		if ( clear ) { c = mix( c * 0.72, vec3f( 0.44, 0.46, 0.5 ), 0.2 + 0.05 * cr.w + 0.3 * edge + 0.05 * crinkle ); rough = 0.2 + 0.06 * crinkle; }
+		else { c *= ( 0.92 + 0.08 * crinkle ) * ( 0.96 + 0.06 * cr.w ); rough = 0.26; }
+		// ---- end FW4
 	}
 	if ( part == 1u ) {
 		c = c3.rgb; rough = 0.9;
@@ -1341,9 +1381,14 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		if ( facial == 1u || facial == 3u ) { c = mix( c, hairC, smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.3 ) * front ); }
 		if ( facial == 2u ) { c = mix( c, hairC, ( smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.28 ) + step( d.y, - 0.5 ) * step( ax, 0.24 ) ) * front ); }
 		if ( facial == 3u ) {
-			let grain = 0.9 + 0.1 * smoothstep( - 0.6, - 0.2, d.y );
-			let cover = smoothstep( - 0.12, - 0.32, d.y ) * step( d.z, 0.4 ) * smoothstep( 0.5, 0.7, mo ) * smoothstep( 0.98, 0.72, ax + max( 0.0, d.y + 0.2 ) );
-			c = mix( c, hairC * grain, 0.75 * cover );
+			// ---- FW4 (C3W-4): on the jaw and the cheeks below the cheekbone's line, up to the sideburns in front
+			// of the ears, thinning at its edges, the skin through it (it ran round the side of the head to the
+			// back from the mouth down: a black bar from ear to ear, at arm's length)
+			let grain = 0.85 + 0.15 * sin( d.x * 93.0 ) * sin( d.y * 71.0 + d.z * 37.0 );
+			let edgeY = - 0.16 + 0.24 * smoothstep( 0.35, 0.85, ax );
+			let cover = smoothstep( edgeY + 0.03, edgeY - 0.1, d.y ) * smoothstep( 0.18, - 0.12, d.z ) * smoothstep( 0.5, 0.7, mo ) * smoothstep( 1.02, 0.86, ax );
+			c = mix( c, mix( hairC, c, 0.22 ) * grain, 0.7 * cover );
+			// ---- end FW4
 		}
 		if ( facial == 0u && ! female && age != 2u && c1.w < 0.35 ) { c *= mix( vec3f( 1.0 ), vec3f( 0.82, 0.84, 0.88 ), step( d.y, - 0.2 ) * step( d.z, 0.3 ) * step( 0.8, mo ) ); }
 		// glasses: thin dark frames round the eyes and over the nose
@@ -1399,13 +1444,26 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 			let oval = length( vec2f( d.x * 1.05, ( d.y + 0.08 ) * 0.92 ) );
 			let opening = oval < 0.72 && d.z < - 0.35;
 			if ( clear ) {
-				// a clear poncho's hood: the hair and the cap under the film, a wet gloss
-				c = c * 0.9 + vec3f( 0.01 );
-				rough = 0.1;
+				// a clear poncho's hood: the hair and the cap under the film
+				// ---- FW4 (C3W-4): crumpled, a haze over them (it was the hair lacquered: a black helmet)
+				var hc = vec4f( 0.0 );
+#if CROWD_LOD <= 1
+				if ( ! opening ) {
+					hc = filmCrumple( L * 1.2, length( fwidth( L ) ) );
+					s.normal = filmTilt( s.normal, hc.xyz );
+				}
+#endif
+				c = mix( c * 0.7, vec3f( 0.44, 0.46, 0.5 ), select( 0.22 + 0.12 * hc.w, 0.0, opening ) );
+				rough = 0.22;
+				// ---- end FW4
 			} else if ( ! opening ) {
 				// a hood: cloth (matte, the rain soaks it: WET_FABRIC), darker inside its rim
 				c = shirt * select( 1.0, 0.55, oval < 0.85 && d.z < - 0.2 );
 				rough = select( 0.85, 0.3, poncho );
+#if CROWD_LOD <= 1
+				// (FW4: a coloured poncho's hood crumpled as its film is)
+				if ( poncho ) { let hk = filmCrumple( L * 1.2, length( fwidth( L ) ) ); s.normal = filmTilt( s.normal, hk.xyz ); }
+#endif
 			}
 		}
 	}
@@ -1470,7 +1528,16 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 	}
 #endif
 	// (FP2: its strands, darker in among them and toward the ends: one flat colour read as a helmet)
-	if ( part == 10u ) { c = hairC * ( 0.8 + 0.2 * sin( atan2( L.x, L.z ) * 60.0 + L.y * 25.0 ) ) * mix( 1.0, 0.82, smoothstep( - 0.05, - 0.2, L.y ) ); rough = 0.7; }
+	if ( part == 10u ) {
+		c = hairC * ( 0.8 + 0.2 * sin( atan2( L.x, L.z ) * 60.0 + L.y * 25.0 ) ) * mix( 1.0, 0.82, smoothstep( - 0.05, - 0.2, L.y ) ); rough = 0.7;
+#if CROWD_LOD == 0
+		// ---- FW4 (C3W-12): close up the strands lit as strands (the Cast's: the normal turned across them)
+		let sa = atan2( L.x, L.z );
+		s.normal = normalize( s.normal + ( 0.22 * sin( sa * 23.0 + L.y * 9.0 ) + 0.1 * sin( sa * 61.0 - L.y * 14.0 ) ) * vec3f( cos( sa ), 0.0, - sin( sa ) ) );
+		rough = 0.62;
+		// ---- end FW4
+#endif
+	}
 	// lit by the stands' fill after dark, as the seats are
 	s.albedo = c;
 	s.roughness = rough;
