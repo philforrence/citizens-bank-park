@@ -2185,6 +2185,15 @@ function castMaterial( pool ) {
 		if ( hairStyle == 2u ) { hairy = d.y > 0.36 - 0.6 * smoothstep( - 0.4, 0.4, d.z ) || ( d.z > 0.6 && d.y > - 0.4 && ax < 0.25 ); }
 		if ( hairStyle == 3u ) { hairy = d.y > - 0.35 && d.y < 0.2 + 0.15 * smoothstep( 0.2, 0.8, d.z ) && d.z > - 0.15; rough = select( rough, 0.3, d.y > 0.2 ); }
 		if ( hairy ) { c = hairC; rough = 0.7; }
+		// ---- FW6 (C4W-6): the hair on the head in strands too, combed back from the face and down the
+		// sides, the light breaking along them (it was one flat colour: a helmet)
+		if ( hairy && hairStyle != 3u ) {
+			let ha = atan2( d.x, - d.z ) * select( 1.0, 0.6, hairStyle == 1u );
+			let hs = sin( ha * 38.0 + d.y * 6.0 + 2.0 * sin( ha * 7.0 + seed * 9.0 ) );
+			c *= 0.86 + 0.14 * hs;
+			s.normal = normalize( s.normal + 0.12 * hs * normalize( vec3f( cos( ha ), 0.0, sin( ha ) ) ) * near );
+		}
+		// ---- end FW6
 		// hats: a cap (the white P on the red one), a knit hat (a folded cuff, ribs, the Phillies' white
 		// band), a hood round the face
 		var capC = select( select( vec3f( 0.014, 0.02, 0.06 ), vec3f( 0.33, 0.015, 0.02 ), hat == ${ HAT.capRed }u || hat == ${ HAT.capBack }u ), vec3f( 0.12, 0.018, 0.026 ), hat == ${ HAT.cap1980 }u );
