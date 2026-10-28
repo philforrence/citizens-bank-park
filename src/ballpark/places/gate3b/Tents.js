@@ -292,6 +292,14 @@ export function buildTents( { group, colliders = null, field = null, cast = null
 				cast.add( { at: till, face: front, act: 'sell', who: 'store', y: lift } );
 				cast.add( { at: front, face: till, act: 'buy', y: lift, noRainGear: true } );
 				cast.add( { at: at( hl * 0.55, back * ( hw - 0.6 ) ), face: at( hl * 0.55, 0 ), act: 'stand', who: 'store', y: lift } );
+				// and at the front row of racks, from the open side, going through the jackets
+				for ( const a of [ - hl * 0.55, 0.4, hl * 0.6 ] ) {
+
+					const b0 = open * ( hw * 0.45 + 0.75 ), b1 = open * hw * 0.45;
+					cast.add( { at: at( a, b0 ), face: at( a, b1 ), act: 'window', y: lift, noRainGear: true, when: ( w ) => ( w.k ?? 0.5 ) > 0.1 } );
+
+				}
+
 				let k = 0;
 				for ( let a = - hl + 2; a <= hl - 2; a += 2.5 ) {
 
