@@ -12,7 +12,7 @@ The players are the MakeHuman base mesh (`game/data/body.js`, built by `tools/bu
 
 Every place a fan could walk in Citizens Bank Park in 2008 should be walkable here, and nothing more: the plazas and gates, every concourse level, the ramps, stairs, escalators and elevators, the aisles and cross-aisles of the seating bowl, the outfield seats (the left field seats, the Pavilion and the right field seats), Ashburn Alley and the bullpens' overlook, the Terrace and the 400s, the suites' and the club's levels. Two audits first: a technical flood fill of the walker over the whole park (unreachable floors, holes, invisible walls, stairs that don't climb, places you get stuck or fall) and a walk of the outfield seats and the inner bowl against the real stadium's layout. Then fixers on what they find.
 
-## Round 1 (launched 18:10)
+## Round 1 (launched 19:24)
 
 | Key | Work |
 |---|---|

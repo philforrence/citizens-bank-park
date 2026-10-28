@@ -1,5 +1,7 @@
 # 🛑 START HERE: where we are
 
+**Wednesday 2026-10-28, night: step 10 is under way** ([STEP10.md](docs/notes/worlds/STEP10.md)): the fans get the players' facial structure, and the whole park walkable as it really is. A loop until the owner stops it.
+
 **Wednesday 2026-10-28, evening: step 9, "the gauntlet", is merged and published as stage 9.** Branch `ballpark`.
 
 - **What it was:** the owner's critique-and-fix loop, run from 7:40 am to 7 pm. Critics went round the park holding views up to photos of October 2008 (and random shots, the broadcast, the walk, the seats), and about thirty fixers fixed what they found, merged one by one. The plan is [STEP9.md](docs/notes/worlds/STEP9.md), the brief [gauntlet/BRIEF.md](docs/notes/gauntlet/BRIEF.md), every merge with its evidence [gauntlet/LOG.md](docs/notes/gauntlet/LOG.md), and each fixer's notes beside it (what they did, what's left).
