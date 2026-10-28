@@ -34,3 +34,4 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 - **FB2, the broadcast** (launched 10:16).
 - **C2I, inside and outside** (returned 10:23): 19 findings. The street trees are still icosahedra, three-quarters of the lots are empty, the Majestic Clubhouse Store is a white box, the World Series tents are missing, and in the new insides a cap floats under the club's ceiling, the buffets are toy blocks and the glass has no tint. Bundled into FW2 (outside) and FI3 (the insides' polish).
 - **FW2, the walk's building and outside** (launched 10:24).
+- **SP1's second speed win** (a62a3a7): the insides' material (one uniform palette, the netting's discard in the cages' own material), the players' draw packed to its visible slots, the local lights' BRDF only facing the light. Under the stands 33.0 -> 18.8 ms; the images unchanged.

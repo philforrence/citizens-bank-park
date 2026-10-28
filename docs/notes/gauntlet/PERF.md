@@ -42,3 +42,6 @@ FP1's crowd culls and picks its LOD per 360-seat piece, so the TV views got chea
 | 10:08 | FI2, the insides (rain TV high 27.3; a real 3B field seat 25.7) | 21.2 | 25.9 | 20.3 | 24.1 | **33.0** | 25.2 | 30.8 |
 
 **Under the stands is at the floor:** the old "3B field seat" eye is under the stands, where FI2's lounge, cages and tunnels now draw (21.8 -> 33.0 ms). Handed to SP1 ahead of left field. A real field-level seat is 25.7.
+| 10:50 | SP1, the insides' material (SP1's own run, exclusive; rain TV high 26.5, a real 3B seat 24.8) | 21.1 | 25.8 | 19.0 | 22.6 | **18.8** | 24.9 | 30.2 |
+
+Under the stands is back from the floor: FI2's room material built two 58-entry palettes per pixel and carried the cages' `discard`, which turns off the GPU's hidden-surface removal for everything drawn with it.
