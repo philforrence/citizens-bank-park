@@ -1419,7 +1419,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			if ( part == ${ P.pants } ) {
 				fh = mx_noise_float3( vec3f( L.x * 34.0, L.y * 4.5, L.z * 34.0 ) + seed * 2.0 ) * 0.0042
 					+ mx_noise_float3( vec3f( L.x * 80.0, L.y * 14.0, L.z * 80.0 ) ) * 0.0012;
-				fh += sin( L.y * 150.0 + 4.0 * mx_noise_float3( L * 40.0 ) ) * 0.0016 * smoothstep( 0.72, 0.86, leg );
+				fh += sin( L.y * 130.0 + 7.0 * mx_noise_float3( L * vec3f( 30.0, 12.0, 30.0 ) + seed ) ) * 0.0016 * smoothstep( 0.72, 0.86, leg );
 				// the knee's bend, from this frame's bones: creases behind the knee and over the front of the
 				// thigh as he crouches (the pitcher's set, a fielder's ready, the catcher), none standing
 				if ( leg > 0.2 && leg < 0.6 ) {
@@ -1439,13 +1439,13 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 				let dx = abs( L.x );
 				fh = mx_noise_float3( vec3f( ( dx * 0.8 + L.y * 0.6 ) * 22.0, ( L.y - dx * 0.5 ) * 7.0, L.z * 22.0 ) + seed * 2.0 ) * 0.0045
 					+ mx_noise_float3( L * vec3f( 60.0, 25.0, 60.0 ) ) * 0.0012
-					+ sin( L.y * 120.0 + 3.0 * mx_noise_float3( L * 30.0 ) ) * 0.0012 * ( 1.0 - smoothstep( 1.12, 1.25, L.y ) ) * select( 1.0, 0.0, arm > -0.5 );
+					+ sin( L.y * 110.0 + 7.0 * mx_noise_float3( L * vec3f( 18.0, 9.0, 18.0 ) + seed ) ) * 0.0012 * ( 1.0 - smoothstep( 1.12, 1.25, L.y ) ) * select( 1.0, 0.0, arm > -0.5 );
 				// the trunk bent over the pelvis (the set, the crouch): the cloth creases across the belly
 				if ( arm < -0.5 && L.z < 0.0 && L.y < 1.35 ) {
 					let up = normalize( ( plBones[ slotU * ${ NB }u + 1u ] * vec4f( 0.0, 1.0, 0.0, 0.0 ) ).xyz );
 					let upP = normalize( ( plBones[ slotU * ${ NB }u ] * vec4f( 0.0, 1.0, 0.0, 0.0 ) ).xyz );
 					let bendT = clamp( 1.0 - dot( up, upP ), 0.0, 1.0 );
-					fh += sin( L.y * 140.0 + 4.0 * mx_noise_float3( L * 25.0 + seed ) ) * 0.003 * min( bendT * 6.0, 1.0 ) * smoothstep( -0.02, -0.08, L.z );
+					fh += sin( L.y * 120.0 + 8.0 * mx_noise_float3( L * vec3f( 20.0, 10.0, 20.0 ) + seed ) ) * 0.0022 * min( bendT * 6.0, 1.0 ) * smoothstep( -0.02, -0.08, L.z );
 				}
 			}
 			fh *= fk * select( 1.0, 0.6, jacket );
