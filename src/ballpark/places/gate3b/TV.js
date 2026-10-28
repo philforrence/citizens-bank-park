@@ -23,8 +23,11 @@ const STREET = LEVELS.mainConcourse;
 export function buildTV( { group, colliders, field, cast } ) {
 
 	const y = ( h ) => STREET + LIFT + h;
-	// the live shot's line: the camera looks at the reporter with the gate behind her
-	const cam = [ - 103.2, 64.4 ], rep = [ - 99.4, 59.2 ];
+	// the live shot's line: the camera looks at the reporter with the gate behind her. FZ1 (C5F-2): set up
+	// beside the walk from the start to the gate, 5.5 m toward the store, not on it (the camera and the
+	// reporter stood 0.3 and 0.1 m off that line, and W from the start walked you into the photographer's
+	// back and through her); a crew sets up its shot out of the crowd's way, the gate still behind her
+	const cam = [ - 107.8, 61.3 ], rep = [ - 104.0, 56.1 ];
 	const d = [ rep[ 0 ] - cam[ 0 ], rep[ 1 ] - cam[ 1 ] ], dl = Math.hypot( ...d );
 	const f = [ d[ 0 ] / dl, d[ 1 ] / dl ], s = [ - f[ 1 ], f[ 0 ] ];
 	const at = ( a, b ) => [ cam[ 0 ] + f[ 0 ] * a + s[ 0 ] * b, cam[ 1 ] + f[ 1 ] * a + s[ 1 ] * b ];
@@ -247,6 +250,10 @@ export function buildTV( { group, colliders, field, cast } ) {
 
 	} } } );
 	CA.add( { at: at( - 1.3, 1.5 ), face: rep, act: 'listen', who: 'crew', props: [ 'umbrella' ] } ); // the producer, the umbrella up
+	// (FZ1, C5F-2: the three of them stop you, as the tripod and the light stands do)
+	collide( rep[ 0 ], rep[ 1 ], 0.3, 1.8 );
+	collide( ...at( - 0.55, - 0.15 ), 0.3, 1.8 );
+	collide( ...at( - 1.3, 1.5 ), 0.35, 1.8 );
 	// the fans behind her, into the shot when she's on
 	for ( const [ a, b, act ] of [ [ 6.2, - 1.2, 'wave' ], [ 6.6, 0.3, 'jump' ], [ 6.1, 1.4, 'wave' ], [ 7.2, - 0.4, 'talk' ] ] ) {
 
