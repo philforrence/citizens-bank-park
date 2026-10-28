@@ -738,6 +738,9 @@ const f3 = ( a ) => `vec3f( ${ a.map( ( x ) => x.toFixed( 3 ) ).join( ', ' ) } )
 const MAX_FANS = 49152;
 // ---- FP2: the camera flashes' sprites (_flashBuild)
 const FLASHES = 4096;
+// ---- FS1 (C4S-8): the share of the open seats' fans with an umbrella in the rain, and how far his right
+// hand's brought to his face holding it (the kernel and _umbrellas)
+const UMBRELLA_SHARE = 0.014, UMBRELLA_FACE = 0.6;
 // the seats in each piece of a chunk (addChunk)
 // (---- SP2: 120, not 360: a piece takes its level from its nearest fan, so from a seat in the stands
 // a third of the 400s round you went at the near level for its front rows' sake: 1.4M triangles)
@@ -862,7 +865,8 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 	// the flag in the song: Crowd._look), a third of it in his shoulders (cwVertex), up to ~70 degrees
 	// from his seat's way; each a little his own way, one in ten hardly looking (the phone, the neighbour).
 	// It was only the talk to a neighbour: down the lines the whole row stared across the field
-	let fwd = vec2f( sin( seat.w ), cos( seat.w ) );
+	let cov = seat.w > 4.0; // (FS1: under a deck: _seat() adds 8 to the facing angle)
+	let fwd = vec2f( sin( seat.w - select( 0.0, 8.0, cov ) ), cos( seat.w - select( 0.0, 8.0, cov ) ) );
 	let rgt = vec2f( - fwd.y, fwd.x );
 	let toF = cw.fsLook.xy - seat.xz;
 	let attend = cw.fsLook.z * select( 1.0, 0.3, fract( h.x * 23.7 ) < 0.1 ) * select( 1.0, 0.0, ( act >> 31u ) == 1u );
@@ -959,6 +963,19 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 		sup *= 1.0 - sol;
 		opn = mix( opn, 0.28 * step( 0.45, fract( h.y * 7.9 ) ) * ( 0.6 + 0.4 * sin( t * 2.6 + h.w * 9.0 ) ), sol );
 	}
+	// ---- FS1 (C4S-4): the rain delay (fs.z): the ones who stay are up and about, nearly half on their feet
+	// stretching their legs or talking, turned to each other, not sat square to an empty field as if a
+	// pitch were coming (Getty 83458502: the stayers standing, walking up the aisles)
+	if ( fs.z > 0.0 ) {
+		st = max( st, select( 0.0, fs.z, fract( h.y * 31.7 ) < 0.45 ) );
+		yaw = clamp( yaw + select( - 0.8, 0.8, h.z > 0.5 ) * cwWin( fract( t / ( 14.0 + h.x * 10.0 ) + h.w ), 0.0, 0.45 ) * fs.z, - 1.35, 1.35 );
+	}
+	// ---- FS1 (C4S-8): an umbrella for about one in seventy out in the open in the rain (Crowd._umbrellas
+	// draws them, the same fans): the right hand up in front of the chest on its shaft
+	let umb = select( 0.0, smoothstep( 0.3, 0.5, rain ), ! cov && ! isRays && f32( cwHash( i * 7u + 3u ) ) / 4294967296.0 < ${ UMBRELLA_SHARE } );
+	fR = mix( fR, ${ UMBRELLA_FACE }, umb );
+	aUR *= 1.0 - umb;
+	tw *= 1.0 - umb;
 	// ---- end FS1
 
 	// his build (broad, a belly), a kid's size
@@ -1635,7 +1652,18 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 			hairy = d.y > fringe - 1.4 * smoothstep( - 0.55, 0.25, d.z ) || ( ax > 0.72 && d.y > - 0.55 && d.z > select( - 0.45, - 0.15, back ) );
 		}
 		if ( hairStyle == 3u ) { hairy = d.y > 0.38 - 1.0 * smoothstep( - 0.4, 0.4, d.z ); }
-		if ( hairStyle == 2u ) { hairy = d.y > - 0.35 && d.y < 0.2 + 0.15 * smoothstep( 0.2, 0.8, d.z ) && d.z > - 0.15; rough = select( rough, 0.3, d.y > 0.2 ); }
+		if ( hairStyle == 2u ) {
+			// ---- FS1 (C4S-6): the horseshoe as it grows: from the crown's edge (higher at the back) down to the
+			// nape's hairline behind, round above and behind the ears to a sideburn in front of them, its edges
+			// broken. It began at the temples by the eyes and stopped above the nape: goggles from the side, a
+			// strap round a bald egg from behind
+			let gr = 0.035 * sin( d.x * 61.0 ) * sin( d.y * 47.0 + d.z * 29.0 );
+			let yTop = mix( 0.24, 0.32, smoothstep( 0.0, 0.8, d.z ) ) + gr;
+			let yBot = mix( select( - 0.1, - 0.3, d.z > - 0.05 ), - 0.62, smoothstep( 0.25, 0.85, d.z ) ) + gr;
+			let ear = ax > 0.72 && abs( d.y + 0.02 ) < 0.2 && d.z > - 0.1 && d.z < 0.28;
+			hairy = d.z > - 0.24 + gr && d.y < yTop && d.y > yBot && ! ear;
+			rough = select( rough, 0.3, d.y > yTop );
+		}
 		if ( hairy ) { c = hairC; rough = 0.7; }
 		// a cap (CP-1): down to just above the brows in front, the tops of the ears at the sides and low
 		// behind (the crowd's own crown covers it close up), its panels' seams, the white P on the front
@@ -2207,6 +2235,15 @@ export class Crowd {
 
 		}
 
+		// ---- FS1 (C4S-8): the umbrellas up in the rain (the kernel brings the hands up with the same weight)
+		if ( this._umbMat ) {
+
+			const w = Math.min( 1, Math.max( 0, ( rain - 0.3 ) / 0.2 ) ), u = w * w * ( 3 - 2 * w );
+			this._umbMat.uniforms.umb.value.x = u;
+			this._umbMesh.visible = u > 0.01;
+
+		}
+
 		// ---- FP2 (CP-12): the night, for the words on the signs
 		const nt = d?.night ? d.night( d.t ).night : 29;
 		if ( nt !== this._night ) {
@@ -2272,7 +2309,9 @@ export class Crowd {
 		const w = this.toWorld ? this.toWorld( L.x, L.z ) : { x: L.x, z: L.z };
 		U.fsLook.value.set( w.x, w.z, L.a, 0 );
 		this._sol = ( this._sol || 0 ) + ( sol - ( this._sol || 0 ) ) * ( leap ? 1 : 1 - Math.exp( - dt * 3 ) );
-		U.fs1.value.set( champ ? champ.lt : - 1, this._sol, 0, 0 );
+		// the delay: from the tarp going on (a few seconds into the break) to the end of the 27th
+		const dl = N && N.delay ? ease( 4, 20, N.lt ) : 0;
+		U.fs1.value.set( champ ? champ.lt : - 1, this._sol, dl, 0 );
 
 	}
 	// ---- end FS1
@@ -2333,13 +2372,14 @@ export class Crowd {
 
 	_writeIds() {
 
-		const ids = this._ids, seats = this._seats, p = { x: 0, y: 0, z: 0 };
+		const ids = this._ids, seats = this._seats, p = { x: 0, y: 0, z: 0, cover: 0 };
 		let n = 0;
 		for ( let f = 0; f < this.count; f ++ ) {
 
 			p.x = seats[ f * 4 ];
 			p.y = seats[ f * 4 + 1 ];
 			p.z = seats[ f * 4 + 2 ];
+			p.cover = this._cover ? this._cover[ f ] : 0; // ---- FS1 (C4S-4): under a deck (0..1, _covers())
 			const empty = ( this._vacate || [] ).some( ( t ) => t( p ) );
 			ids[ f * 4 + 2 ] = empty ? ( ids[ f * 4 + 2 ] | 0x80000000 ) >>> 0 : ids[ f * 4 + 2 ] & 0x7fffffff;
 			if ( empty ) n ++;
@@ -2378,12 +2418,15 @@ export class Crowd {
 		this._fwd = fwd;
 		this._ids = ids;
 		this._seats = seats;
+		this._covers(); // ---- FS1 (C4S-4)
+		for ( let f = 0; f < this.count; f ++ ) if ( this._cover[ f ] > 0.5 ) seats[ f * 4 + 3 ] += 8; // (FS1: and for the kernel, in the facing angle)
 		this.seatsBuf.write( seats );
 		this._writeIds();
 		// ---- FP2: where home plate is (the world's x, z), for which way the signs face
 		const hp = this.toWorld ? this.toWorld( 0, 0 ) : { x: 0, z: 0 };
 		for ( const mt of this.materials ) mt.uniforms.cwHome.value.set( hp.x, 0, hp.z, 0 );
 		this._flashBuild();
+		this._umbrellas(); // ---- FS1 (C4S-8)
 		this._kernel = new ComputeKernel( {
 			label: 'crowd', modules: [ cwHashModule ], workgroupSize: [ 64, 1, 1 ],
 			bindings: {
@@ -2394,6 +2437,151 @@ export class Crowd {
 		} );
 
 	}
+
+	// ---- FS1 (C4S-4): which seats are under a deck (the overhang of the level above: its seats over his
+	// head, 3.5 m or more up, within a couple of metres), 0..1, for who stays in the rain delay (Seats.js:
+	// those under cover stay, the open rows empty, low and high; Getty 83458502, the 3B field level nearly
+	// empty, the stayers under the overhangs and in the aisles). A grid of the highest seat per 2 m cell
+	_covers() {
+
+		const S = this._seats, n = this.count, cell = 2, top = new Map();
+		const key = ( ix, iz ) => ix * 65536 + iz;
+		for ( let f = 0; f < n; f ++ ) {
+
+			const k = key( Math.floor( S[ f * 4 ] / cell ), Math.floor( S[ f * 4 + 2 ] / cell ) );
+			const y = S[ f * 4 + 1 ];
+			if ( ! ( top.get( k ) >= y ) ) top.set( k, y );
+
+		}
+
+		const cover = this._cover = new Float32Array( n );
+		for ( let f = 0; f < n; f ++ ) {
+
+			const ix = Math.floor( S[ f * 4 ] / cell ), iz = Math.floor( S[ f * 4 + 2 ] / cell ), y = S[ f * 4 + 1 ];
+			let hit = 0;
+			for ( let a = - 1; a <= 1; a ++ ) for ( let b = - 1; b <= 1; b ++ ) {
+
+				const t = top.get( key( ix + a, iz + b ) );
+				if ( t !== undefined && t > y + 3.5 ) hit ++;
+
+			}
+
+			cover[ f ] = Math.min( 1, hit / 3 );
+
+		}
+
+	}
+	// ---- end FS1
+
+	// ---- FS1 (C4S-8): umbrellas over the open seats in the 27th's rain (Getty 83458180: a black-and-white
+	// one up in the middle of the section behind the 3B dugout; luidude 2981634108: three behind the
+	// Phillies' dugout from above). About one fan in seventy out in the open (not under a deck), the same
+	// ones the kernel gives the raised right hand: an eight-gore canopy about a metre across on its shaft
+	// in that hand, red, black, black and white, golf-striped or navy, tipped a little into the wind toward
+	// the field. One draw, placed on the GPU from his pose (sat or stood, his build), folded away when it
+	// isn't raining or his seat's empty
+	_umbrellas() {
+
+		const n = this.count, S = this._seats, Fw = this._fwd, C = this._cover;
+		if ( ! n || this._umbMesh ) return;
+		const pos = [], nrm = [], col = [], seat = [], dir = [], index = [];
+		const RED = [ 0.36, 0.02, 0.03 ], BLK = [ 0.02, 0.02, 0.022 ], WHT = [ 0.62, 0.62, 0.6 ], NAVY = [ 0.015, 0.02, 0.07 ], YEL = [ 0.6, 0.45, 0.03 ];
+		const STYLES = [ [ RED ], [ BLK ], [ BLK, WHT ], [ RED, WHT, NAVY, YEL ], [ NAVY ], [ RED, WHT ] ];
+		const R = 0.5, AP = 0.9, RIM = 0.6, G = 8;
+		const fans = [];
+		let m = 0;
+		for ( let f = 0; f < n; f ++ ) {
+
+			if ( C[ f ] > 0.5 || pcg( ( f * 7 + 3 ) >>> 0 ) / 4294967296 >= UMBRELLA_SHARE ) continue;
+			if ( ( this._ids[ f * 4 + 2 ] >> 18 ) & 1 ) continue;
+			const fl = Math.hypot( Fw[ f * 2 ], Fw[ f * 2 + 1 ] ) || 1;
+			const st = STYLES[ pcg( f * 13 + 5 ) % STYLES.length ], tw = ( pcg( f * 17 + 1 ) / 4294967296 ) * Math.PI;
+			const add = ( p, nn, c ) => {
+
+				pos.push( ...p );
+				nrm.push( ...nn );
+				col.push( ...c );
+				seat.push( S[ f * 4 ], S[ f * 4 + 1 ], S[ f * 4 + 2 ], f );
+				dir.push( Fw[ f * 2 ] / fl, Fw[ f * 2 + 1 ] / fl, 0, 0 );
+				return pos.length / 3 - 1;
+
+			};
+			// the canopy: each gore from the tip to its two ribs, sagging between them
+			for ( let g = 0; g < G; g ++ ) {
+
+				const a0 = tw + g / G * Math.PI * 2, a1 = tw + ( g + 1 ) / G * Math.PI * 2, am = ( a0 + a1 ) / 2;
+				const c = st[ g % st.length ];
+				const r0 = [ R * Math.cos( a0 ), RIM, R * Math.sin( a0 ) ], r1 = [ R * Math.cos( a1 ), RIM, R * Math.sin( a1 ) ], mid = [ R * 0.9 * Math.cos( am ), RIM + 0.05, R * 0.9 * Math.sin( am ) ];
+				const nn = [ Math.cos( am ) * 0.55, 0.83, Math.sin( am ) * 0.55 ];
+				const i0 = add( [ 0, AP, 0 ], [ 0, 1, 0 ], c ), i1 = add( r0, nn, c ), i2 = add( mid, nn, c ), i3 = add( r1, nn, c );
+				index.push( i0, i1, i2, i0, i2, i3 );
+
+			}
+
+			// the shaft, two crossed strips, the tip through the top
+			for ( const [ ux, uz ] of [ [ 0.007, 0 ], [ 0, 0.007 ] ] ) {
+
+				const q = [ add( [ - ux, - 0.06, - uz ], [ uz, 0, ux ], BLK ), add( [ ux, - 0.06, uz ], [ uz, 0, ux ], BLK ), add( [ ux, AP + 0.06, uz ], [ uz, 0, ux ], BLK ), add( [ - ux, AP + 0.06, - uz ], [ uz, 0, ux ], BLK ) ];
+				index.push( q[ 0 ], q[ 1 ], q[ 2 ], q[ 0 ], q[ 2 ], q[ 3 ] );
+
+			}
+
+			fans.push( f );
+			m ++;
+
+		}
+
+		if ( ! m ) return;
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		g.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
+		g.setAttribute( 'color', new Float32BufferAttribute( col, 3 ) );
+		g.setAttribute( 'aSeat', new Float32BufferAttribute( seat, 4 ) );
+		g.setAttribute( 'aDir', new Float32BufferAttribute( dir, 4 ) );
+		g.setIndex( index );
+		const hand = ( base, face ) => base.hand.map( ( v, k ) => v + ( face.hand[ k ] - v ) * UMBRELLA_FACE );
+		const mat = this._umbMat = standard( {
+			name: 'crowd-umbrellas', color: new Color( 1, 1, 1 ), roughness: 0.3, side: 'double', vertexColors: true,
+			uniforms: { umb: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] },
+			storage: { cwPoseBuf: this.poseBuf },
+			attributes: { aSeat: 'vec4f', aDir: 'vec4f' },
+			vertex: /* wgsl */`
+	// (the gores' color is the geometry's own, per vertex)
+	let fi = u32( v.aSeat.w + 0.5 );
+	let b = fi * ${ POSE_N * 2 }u;
+	let st = cwPoseBuf[ b ].x;
+	let r3 = cwPoseBuf[ b + 3u ];
+	let flags = u32( r3.w + 0.5 );
+	let on = mat.umb.x * select( 1.0, 0.0, ( flags & 4095u ) == 0u );
+	// his right hand (brought up to the chest: the kernel's UMBRELLA_FACE), his build and size
+	let hand = mix( ${ f3( hand( SIT, SIT_FACE ) ) }, ${ f3( hand( STAND, STAND_FACE ) ) }, st ) * vec3f( r3.x, 1.0, 1.0 ) * r3.y;
+	let fw = vec3f( v.aDir.x, 0.0, v.aDir.y );
+	let rt = vec3f( - v.aDir.y, 0.0, v.aDir.x );
+	// opened up from the grip, tipped toward the field (into the wind off the outfield)
+	let lp = v.position * on;
+	let tip = 0.14 * lp.y;
+	let wp = v.aSeat.xyz + rt * ( hand.x + lp.x ) + vec3f( 0.0, hand.y + lp.y, 0.0 ) - fw * ( hand.z + lp.z ) + fw * tip;
+	v.useWorld = true;
+	v.worldPos = select( v.aSeat.xyz, wp, on > 0.01 );
+	v.worldNormal = normalize( rt * v.normal.x + vec3f( 0.0, v.normal.y, 0.0 ) - fw * v.normal.z + fw * 0.14 * v.normal.y );
+	v.prevWorldPos = v.worldPos;
+`,
+		} );
+		mat.underwaterLighting = 'none';
+		const mesh = this._umbMesh = new Mesh( g, mat );
+		mesh.name = 'crowd-umbrellas';
+		mesh.frustumCulled = false;
+		mesh.castShadow = false;
+		mesh.receiveShadow = true;
+		mesh.userData.dynamic = true;
+		mesh.visible = false;
+		let root = this.chunks[ 0 ].near;
+		while ( root.parent ) root = root.parent;
+		root.add( mesh );
+		this.umbrellas = { mesh, count: m, fans };
+
+	}
+	// ---- end FS1
 
 	// ---- FP2 (C2B-16): the point-and-shoots' flashes. In 2008 every big moment of a night game went off
 	// in camera flashes all round the bowl (FOX's center field frame of the last pitch has one behind the
