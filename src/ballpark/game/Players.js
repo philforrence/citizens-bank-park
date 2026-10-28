@@ -23,6 +23,7 @@ import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 const MAX = 96;
 const COSTUMES = 4; // the Phanatic's costume's draw: at most this many of him at once
 const LOD_PX = 128; // ---- SP2: a player shorter than this on screen (px of the view's height) is drawn far
+const MID_PX = 480; // ---- SP2: ... and shorter than this from the middle figure
 const K = 4; // vec4s per slot
 const Z16 = new Float32Array( 16 );
 const CELL = 128, COLS = 8, ROWS = 16, ATLAS_W = CELL * COLS, ATLAS_H = CELL * ROWS;
@@ -128,6 +129,19 @@ export class Players {
 		this.far.count = 0;
 		this.mesh.add( this.far );
 		this.lodPx = LOD_PX;
+		// the middle figure (buildPlayerGeometry( { lod: 'mid' } ): the body to two fifths, the pieces whole)
+		// from LOD_PX to MID_PX: FOX's long lens from center field has most of its players there
+		const midGeo = buildPlayerGeometry( { lod: 'mid' } );
+		this.midSlots = new InstancedBufferAttribute( new Float32Array( MAX ), 1 );
+		midGeo.setAttribute( 'aSlot', this.midSlots );
+		this.mid = new InstancedMesh( midGeo, this.material, MAX );
+		this.mid.name = 'players-mid';
+		this.mid.frustumCulled = false;
+		this.mid.castShadow = true;
+		this.mid.receiveShadow = true;
+		this.mid.count = 0;
+		this.mesh.add( this.mid );
+		this.midPx = MID_PX;
 		// ---- end SP2
 		// a soft contact shadow on the ground under each player (grounds them under any light)
 		const blobGeo = new PlaneGeometry( 1, 1 );
@@ -307,10 +321,10 @@ export class Players {
 	// across at that size: it looks the same there (checked in shot pairs, TV high and center)
 	lodSplit( camera, height ) {
 
-		const n = this._drawn || 0, ds = this.drawSlots.array, fs = this.farSlots.array;
-		const k = camera.projectionMatrix.elements[ 5 ] * height * 0.5, T = this.lodPx;
+		const n = this._drawn || 0, ds = this.drawSlots.array, fs = this.farSlots.array, ms = this.midSlots.array;
+		const k = camera.projectionMatrix.elements[ 5 ] * height * 0.5, T = this.lodPx, TM = this.midPx;
 		const me = this.mesh.matrixWorld.elements, c = camera.matrixWorld.elements;
-		let near = 0, far = 0;
+		let near = 0, far = 0, mid = 0;
 		for ( let j = 0; j < n; j ++ ) {
 
 			const i = ds[ j ], p = this.slots[ i ];
@@ -321,7 +335,9 @@ export class Players {
 			const wz = me[ 2 ] * x + me[ 6 ] * y + me[ 10 ] * z + me[ 14 ] - c[ 14 ];
 			const px = 1.88 * ( p.look.height || 1 ) * k / Math.max( 0.1, Math.hypot( wx, wy, wz ) );
 			p.lodFar = p.lodFar ? px < T * 1.08 : px < T * 0.92;
+			p.lodMid = p.lodMid ? px < TM * 1.08 : px < TM * 0.92;
 			if ( p.lodFar ) fs[ far ++ ] = i;
+			else if ( p.lodMid ) ms[ mid ++ ] = i;
 			else ds[ near ++ ] = i;
 
 		}
@@ -331,11 +347,13 @@ export class Players {
 
 			this.drawSlots.needsUpdate = true;
 			this.farSlots.needsUpdate = far > 0;
+			this.midSlots.needsUpdate = mid > 0;
 			this.mesh.count = near;
 
 		}
 
 		this.far.count = far;
+		this.mid.count = mid;
 
 	}
 	// ---- end SP2

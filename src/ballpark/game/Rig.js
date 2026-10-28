@@ -1,6 +1,6 @@
 import { BufferGeometry, Float32BufferAttribute, BoxGeometry, CylinderGeometry, SphereGeometry, LatheGeometry, TorusGeometry, Matrix3, Matrix4, Vector2, Vector3, Quaternion, Euler } from '../../engine/index.js';
 import { BODY } from './data/body.js';
-import { BODY_LOD } from './data/bodyLod.js'; // ---- SP2
+import { BODY_LOD, BODY_MID } from './data/bodyLod.js'; // ---- SP2
 
 // A ballplayer's body: 17 bones and one continuous skinned mesh (data/body.js: the MakeHuman base mesh
 // shaped into a 6'2" athlete, the fingers closed in a grip, every vertex weighted to up to four of our
@@ -106,11 +106,14 @@ function decode( b64, Type ) {
 
 // Attributes: position and normal (bind pose), aBones / aWeights (vec4), aPart, aField (the body's
 // distance along the arm and along the leg, -1 elsewhere).
-// ---- SP2 (speed): `lod`: the far players' figure (Players.js, under ~64 px tall): the body simplified to
+// ---- SP2 (speed): `lod`: the far players' figure (Players.js, under 128 px tall): the body simplified to
 // a sixth (data/bodyLod.js, tools/build-body-lod.mjs: its vertices are the body's own, so the uniform,
 // the skinning and the shader's shaping are unchanged), the rigid pieces with half their segments, and
-// no Phanatic (his costume has its own draw)
+// no Phanatic (his costume has its own draw). `lod: 'mid'` (up to ~480 px): the body to two fifths
+// (BODY_MID), the pieces whole, no Phanatic
 export function buildPlayerGeometry( { lod = false } = {} ) {
+
+	const mid = lod === 'mid'; // ---- SP2
 
 	const pos = [], nrm = [], bones = [], weights = [], part = [], field = [], index = [];
 	const Q = BODY.scale;
@@ -121,7 +124,7 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 		const P = decode( BODY.position, Int16Array ), N = decode( BODY.normal, Int8Array ), I = decode( BODY.bones, Uint8Array ), W = decode( BODY.weights, Uint8Array );
 		const F = decode( BODY.field, Int16Array ), G = decode( BODY.flag, Uint8Array ), X0 = decode( BODY.index, Uint16Array );
 		// ---- SP2: the far body keeps only the vertices its triangles use (renumbered in order)
-		const XL = lod ? decode( BODY_LOD.index, Uint16Array ) : null;
+		const XL = lod ? decode( ( mid ? BODY_MID : BODY_LOD ).index, Uint16Array ) : null;
 		const keep = lod ? new Int32Array( BODY.count ).fill( - 1 ) : null;
 		if ( lod ) {
 
@@ -218,7 +221,7 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 	};
 
 	const B = BONES, P = PART, D = DIM, F = FACE;
-	const S = ( k, min = 4 ) => lod ? Math.max( min, Math.round( k / 2 ) ) : k; // ---- SP2: the far figure's segments
+	const S = ( k, min = 4 ) => lod && ! mid ? Math.max( min, Math.round( k / 2 ) ) : k; // ---- SP2: the far figure's segments
 	const cyl = ( r0, r1, h, seg = 12 ) => new CylinderGeometry( r0, r1, h, S( seg ), 1, false );
 	const sph = ( r, w = 12, h = 8 ) => new SphereGeometry( r, S( w ), S( h, 3 ) );
 	const dome = ( r, w, h, thetaLen ) => new SphereGeometry( r, S( w ), S( h, 3 ), 0, Math.PI * 2, 0, thetaLen );
@@ -364,7 +367,7 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 
 	// the cleats: a lofted shoe on each foot (the ankle is the frame's origin; the sole on the ground)
 	const ankleY = BODY.joints.ankleL[ 1 ];
-	for ( const ft of [ B.footL, B.footR ] ) add( cleat( ankleY, lod ? 8 : 16 ), ft, P.shoes ); // ---- SP2: lod
+	for ( const ft of [ B.footL, B.footR ] ) add( cleat( ankleY, lod && ! mid ? 8 : 16 ), ft, P.shoes ); // ---- SP2: lod
 
 	// the glove: the pocket and heel, four finger stalls side by side (closed, as a broken-in glove is
 	// carried), the thumb, the laced web between the thumb and the first finger; about a hand and a third
