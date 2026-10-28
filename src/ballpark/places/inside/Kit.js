@@ -807,21 +807,54 @@ export class Reach {
 
 // Within `near` m of the camera (and a dithered band beyond) the glass is clear and the room behind it is
 // really there; past that it's traced in the glass's own shader (interior mapping) and the room isn't
-// drawn. The two meshes split every pixel between them by the same test (nearK).
+// drawn. The two meshes split every pixel between them by the same test (nearK). Both materials carry the
+// uniform nearOn: 0 when the place has its rooms off (the camera's where it can't see in), and then the
+// glass is traced however near.
+export const GLASS_UNIFORMS = () => ( { nearOn: [ 'f32', 1 ] } );
 export function glassSplit( near, band ) {
 
 	return /* wgsl */`
 	let dith = fract( 52.9829189 * fract( dot( floor( in.pixel ), vec2f( 0.06711056, 0.00583715 ) ) ) );
 	let dc = distance( in.P, frame.cameraPos );
-	let nearK = dc < ${ near.toFixed( 1 ) } + ${ band.toFixed( 1 ) } * dith;
+	let nearK = dc < ${ near.toFixed( 1 ) } + ${ band.toFixed( 1 ) } * dith && mat.nearOn > 0.5;
 `;
+
+}
+
+// the signed distance of ( x, z ) back from a polyline (the field frame; + away from the field)
+export function backFrom( P, x, z ) {
+
+	let best = Infinity, sd = 0;
+	for ( let i = 0; i < P.length - 1; i ++ ) {
+
+		const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ];
+		const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1;
+		const t = Math.max( 0, Math.min( 1, ( ( x - ax ) * dx + ( z - az ) * dz ) / l2 ) );
+		const px = ax + dx * t, pz = az + dz * t, d = Math.hypot( x - px, z - pz );
+		if ( d < best ) {
+
+			best = d;
+			let nx = - dz, nz = dx;
+			if ( nx * ( ( ax + bx ) / 2 ) + nz * ( ( az + bz ) / 2 + 40 ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			sd = ( x - px ) * nx + ( z - pz ) * nz >= 0 ? d : - d;
+
+		}
+
+	}
+
+	return sd;
 
 }
 
 // the clear glass, near the camera: a faint tint, the reflection at a glancing angle, smudges low down
 export function clearGlass( name, near, band ) {
 
-	const m = standard( { name, roughness: 0.04, metalness: 0.2, transparent: true, depthWrite: false, side: 'double', modules: [ commonModule ],
+	const m = standard( { name, roughness: 0.04, metalness: 0.2, transparent: true, depthWrite: false, side: 'double', modules: [ commonModule ], uniforms: GLASS_UNIFORMS(),
 		surface: glassSplit( near, band ) + /* wgsl */`
 	if ( ! nearK ) { discard; }
 	let N = normalize( in.N );

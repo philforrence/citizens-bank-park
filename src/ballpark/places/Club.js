@@ -7,7 +7,7 @@ import { Cast, PROP, TOP, COLOR, HAT, seat } from './Cast.js';
 import { GESTURE, dress, sizeOf } from './Concourse3BKit.js';
 import { nightState } from './Concourse3BPeople.js';
 import { Tempo } from './Tempo.js';
-import { Inside, insideMaterial, insideAtlas, frame, Reach, cellUV, rnd, glassSplit, clearGlass, clearGlassMesh, interiorsModule, Screens, wallCollider, yawOf } from './inside/Kit.js';
+import { Inside, insideMaterial, insideAtlas, frame, Reach, cellUV, rnd, glassSplit, clearGlass, clearGlassMesh, interiorsModule, Screens, wallCollider, yawOf, GLASS_UNIFORMS, backFrom } from './inside/Kit.js';
 
 // FI2 (gauntlet CI-6): the Hall of Fame Club, the 200 level's enclosed concourse behind the club seats
 // round the infield (sections 212-232), as it was in 2008. Behind the glass a long carpeted room under a
@@ -534,7 +534,7 @@ export default class Club {
 		const interiors = interiorsModule( this.bowl, 'suite-glass' );
 		if ( interiors ) {
 
-			const fm = standard( { name: 'club-glass-far', roughness: 0.06, metalness: 0.5, vertexColors: true, modules: [ commonModule, interiors ],
+			const fm = this.farMat = standard( { name: 'club-glass-far', roughness: 0.06, metalness: 0.5, vertexColors: true, modules: [ commonModule, interiors ], uniforms: GLASS_UNIFORMS(),
 				textures: { inAtlas: insideAtlas() }, surface: glassSplit( NEAR, BAND ) + this._farWGSL() } );
 			fm.underwaterLighting = 'none';
 			fm.setDefine( 'DRY', 1 );
@@ -791,7 +791,14 @@ export default class Club {
 		if ( ! this.reach || ! camera ) return;
 		const F = this.field;
 		const [ cx, cz ] = F.toField( camera.position.x, camera.position.z );
-		const any = this.reach.update( [ cx, camera.position.y - F.y0, cz ] );
+		const cy = camera.position.y - F.y0;
+		// only from where you could see in: in it, from its seats and above, or from the field side of the
+		// club's front (the field and the lower seats looking up); not from the suites or the concourse
+		// under it, nor from behind its back wall
+		const d = backFrom( this.G, cx, cz );
+		const sees = d < DEPC + 0.5 && ( cy > this.y - 4 || d < - 9.5 );
+		const any = this.reach.update( sees ? [ cx, cy, cz ] : [ 1e4, 0, 0 ] );
+		if ( this.farMat ) this.farMat.uniforms.nearOn.value = sees ? 1 : 0;
 		if ( this.tvs ) this.tvs.visible = any;
 		this.nearGlass.visible = any;
 		this.caseGlass.visible = any;

@@ -7,7 +7,7 @@ import { Cast, PROP, seat } from './Cast.js';
 import { Walkway, GESTURE, dress, sizeOf } from './Concourse3BKit.js';
 import { nightState } from './Concourse3BPeople.js';
 import { Tempo } from './Tempo.js';
-import { Inside, insideMaterial, frame, Reach, cellUV, rnd, glassSplit, clearGlass, clearGlassMesh, interiorsModule } from './inside/Kit.js';
+import { Inside, insideMaterial, frame, Reach, cellUV, rnd, glassSplit, clearGlass, clearGlassMesh, interiorsModule, GLASS_UNIFORMS, backFrom } from './inside/Kit.js';
 
 // FI2 (gauntlet CI-5): the suites, the row of private boxes behind the glass round the infield at the
 // suite level, as they were in 2008, built to be walked into. Each is a room two panes wide behind the
@@ -673,7 +673,7 @@ export default class Suites {
 		const interiors = interiorsModule( this.bowl, 'suite-glass' );
 		if ( interiors ) {
 
-			const fm = standard( { name: 'suites-glass-far', roughness: 0.08, metalness: 0.6, vertexColors: true, modules: [ commonModule, interiors ],
+			const fm = this.farMat = standard( { name: 'suites-glass-far', roughness: 0.08, metalness: 0.6, vertexColors: true, modules: [ commonModule, interiors ], uniforms: GLASS_UNIFORMS(),
 				surface: glassSplit( NEAR, BAND ) + farGlassWGSL() } );
 			fm.underwaterLighting = 'none';
 			fm.setDefine( 'DRY', 1 );
@@ -852,9 +852,14 @@ export default class Suites {
 		const F = this.field;
 		const [ cx, cz ] = F.toField( camera.position.x, camera.position.z );
 		const cy = camera.position.y - F.y0;
-		const any = this.reach.update( [ cx, cy, cz ] );
+		// only from where you could see in: not from behind the corridor's wall, nor from under the floor
+		// (the main concourse, FI1's walkway: the rooms over them were drawn for nothing)
+		const d = backFrom( this.A, cx, cz );
+		const sees = d < 7.5 && ! ( cy < this.y - 0.3 && d > - 2.5 );
+		const any = this.reach.update( sees ? [ cx, cy, cz ] : [ 1e4, 0, 0 ] );
 		if ( this.tvs ) this.tvs.visible = any;
 		this.nearGlass.visible = any;
+		if ( this.farMat ) this.farMat.uniforms.nearOn.value = sees ? 1 : 0;
 		// the parties: only in the rooms drawn
 		let changed = false;
 		for ( const w of this.who || [] ) {
