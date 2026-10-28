@@ -5,6 +5,7 @@ import { blendState } from './Material.js';
 import { SceneLighting } from './wgsl/lighting.js';
 import { FrameUniforms } from './Frame.js';
 import { Frustum, Matrix4, Sphere, Vector3 } from '../math/index.js';
+import { Occlusion } from './Occlusion.js';
 
 // Draws scene meshes: geometry upload, pipeline cache, per-draw uniforms, culling and sorting.
 //
@@ -17,6 +18,7 @@ import { Frustum, Matrix4, Sphere, Vector3 } from '../math/index.js';
 //     depthCompare: 'greater-equal',
 //     layerMask: 1 << LAYER,
 //     filter: ( object ) => bool,
+//     occlusion: true,                // skip big objects hidden last frame, test their boxes (Occlusion.js)
 //     after: ( pass ) => {}           // extra draws inside the same render pass (background, ...)
 //   } );
 
@@ -43,13 +45,17 @@ export class MeshRenderer {
 		this.drawData = null;
 		this.drawCount = 0;
 		this.frame = - 1;
-		this.stats = { draws: 0, triangles: 0, pipelines: 0 };
+		this.stats = { draws: 0, triangles: 0, pipelines: 0, occluded: 0 };
 		this.drawLayout = null;
 		this.drawBindGroup = null;
 		// true: a draw compiles its pipeline on the spot (one-off bakes, portraits, tests); the engine's
 		// scene renderer sets false: pipelines compile in the background and a draw is skipped until
 		// its pipeline is ready (no first-use stalls)
 		this.syncPipelines = true;
+		// occlusion culling for passes that ask for it (the main opaque pass); made at first use, off
+		// with `occlusionEnabled = false` (?noOcclusion)
+		this.occlusion = null;
+		this.occlusionEnabled = typeof location === 'undefined' || ! /[?&]noOcclusion\b/.test( location.search );
 
 	}
 
@@ -395,7 +401,7 @@ export class MeshRenderer {
 
 	// ------------------------------------------------------------------------------ draw lists
 
-	collect( scene, { camera, layerMask = 0xffffffff, filter = null, kind = 'main', cull = true } ) {
+	collect( scene, { camera, layerMask = 0xffffffff, filter = null, kind = 'main', cull = true, occluder = null } ) {
 
 		const opaque = [];
 		const transparent = [];
@@ -419,7 +425,7 @@ export class MeshRenderer {
 
 					// ported systems use this for their own LOD / culling (called per pass, as three does)
 					if ( o.onBeforeRender ) o.onBeforeRender( null, null, camera, o.geometry, o.material, null );
-					if ( o.visible || all ) this._addItems( o, opaque, transparent );
+					if ( ( o.visible || all ) && ! ( occluder && o.visible && occluder.culled( o ) ) ) this._addItems( o, opaque, transparent );
 
 				}
 
@@ -500,7 +506,18 @@ export class MeshRenderer {
 			frameBlock: FrameUniforms, layerMask: 0xffffffff, ...pass,
 		};
 		pass.passKey = `${ pass.kind }.${ pass.late ? 1 : 0 }.${ pass.colorFormats.join( ',' ) }.${ pass.depthFormat }.${ pass.depthCompare }.${ pass.cullOverride || '' }.${ pass.defines ? JSON.stringify( pass.defines ) : '' }`;
-		const lists = pass.items || this.collect( scene, pass );
+		// occlusion culling: only a main pass with a camera and a depth buffer, collected here
+		let occ = null;
+		if ( pass.occlusion && this.occlusionEnabled && ! this.precompiling && ! pass.items && pass.camera && pass.depthView ) {
+
+			occ = this.occlusion || ( this.occlusion = new Occlusion() );
+			occ.begin( pass.camera );
+			if ( ! occ.active ) occ = null;
+
+		}
+
+		const lists = pass.items || this.collect( scene, occ ? { ...pass, occluder: occ } : pass );
+		if ( occ ) this.stats.occluded = occ.stats.hidden;
 		const enc = GPU.getEncoder();
 		const colorAttachments = ( pass.colorViews || [] ).map( ( view, i ) => {
 
@@ -516,6 +533,7 @@ export class MeshRenderer {
 			depthClearValue: pass.clearDepth ?? 0,
 		};
 		if ( pass.timestampWrites ) desc.timestampWrites = pass.timestampWrites;
+		if ( occ && occ.count ) desc.occlusionQuerySet = occ.querySet;
 		const rp = enc.beginRenderPass( desc );
 		if ( pass.viewport ) rp.setViewport( ...pass.viewport );
 		rp.setBindGroup( 0, group0ForBlock( pass.frameBlock, 'render' ).getBindGroup() );
@@ -523,7 +541,10 @@ export class MeshRenderer {
 		if ( pass.betweenLists ) pass.betweenLists( rp );
 		this.drawItems( rp, lists.transparent, pass );
 		if ( pass.after ) pass.after( rp );
+		// the big objects' boxes against the finished depth, with the frame's own (jittered) projection
+		if ( occ && occ.count ) occ.draw( rp, pass, pass.frameBlock.fields.viewProj.value );
 		rp.end();
+		if ( occ ) occ.resolve( enc );
 
 	}
 

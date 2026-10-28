@@ -1,4 +1,4 @@
-import { Vector3, Euler, Color, MathUtils } from '../engine/index.js';
+import { Vector3, Euler, Color, MathUtils, Box3, Sphere } from '../engine/index.js';
 import { GPU } from '../engine/gpu/GPU.js';
 import { ShaderModule } from '../engine/gpu/Shader.js';
 import { SunShadows } from '../engine/render/Shadows.js';
@@ -1137,6 +1137,7 @@ export class BallparkApp {
 		for ( const p of this.places ) p.update?.( dt, this.director, this.camera );
 
 		this.players.update();
+		this._playerBounds(); // ---- SP1
 		if ( this.gameHUD ) this.gameHUD.refresh();
 		this.localLights.update( this.camera, dt );
 		this.sound?.listen( this.camera );
@@ -1168,6 +1169,36 @@ export class BallparkApp {
 		this.input.endFrame();
 
 	}
+
+	// ---- SP1 (speed): the players' bounds, every frame, from where they stand. Players.js draws all its
+	// slots as one instanced mesh with no bounds (frustumCulled = false), so it was drawn into every
+	// shadow cascade and behind every wall: a million triangles. With a box round the players on the
+	// field, the cascades that don't reach them skip them, and the occlusion culling (engine
+	// render/Occlusion.js) drops them when the field can't be seen (from the concourse)
+	_playerBounds() {
+
+		const P = this.players, m = P?.mesh;
+		if ( ! m || ! m.parent ) return;
+		const b = m.occlusionBox || ( m.occlusionBox = new Box3() );
+		b.makeEmpty();
+		const v = this._pv || ( this._pv = new Vector3() );
+		for ( const p of P.slots ) if ( p && p.visible ) b.expandByPoint( v.set( p.x, p.y || 0, p.z ) );
+		if ( b.isEmpty() ) {
+
+			m.frustumCulled = false;
+			m.occlusionBox = null;
+			return;
+
+		}
+
+		// a player's reach from where he stands: lying in the dogpile, arms up, a leap at the wall
+		b.min.x -= 2.5; b.min.z -= 2.5; b.min.y -= 0.5;
+		b.max.x += 2.5; b.max.z += 2.5; b.max.y += 3.2;
+		b.getBoundingSphere( m.boundingSphere || ( m.boundingSphere = new Sphere() ) );
+		m.frustumCulled = true;
+
+	}
+	// ---- end SP1
 
 	// Internal render resolution relative to the output (0.5..1)
 	setRenderScale( v ) {
