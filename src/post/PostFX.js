@@ -9,7 +9,7 @@ import { commonModule } from '../engine/render/wgsl/common.js';
 import { Matrix4, Vector2, Vector3 } from '../engine/math/index.js';
 import { GTAO } from './GTAO.js';
 import { AntiAlias } from './AntiAlias.js';
-import { TemporalUpscale } from './TemporalUpscale.js';
+import { TemporalUpscale, TAAU_LUMA_WGSL } from './TemporalUpscale.js';
 import { LensDroplets } from './LensDroplets.js';
 import { LensFlare } from './LensFlare.js';
 import { MotionBlur } from './MotionBlur.js';
@@ -84,6 +84,10 @@ export class PostFX {
 			dof: [ 'f32', 0 ],
 			dofFocus: [ 'f32', 100 ],
 			dofScale: [ 'f32', 4 ],
+			// ---- SP2 (speed): the beauty pass writes the TAA's lock luma into its alpha (1), or the TAA works
+			// it out nine times a pixel itself (0: as before, for an A/B)
+			lockLuma: [ 'f32', 1 ],
+			// ---- end SP2
 		}, { label: 'post' } );
 		this.params = this.uniforms.fields;
 
@@ -249,8 +253,9 @@ ${ taps }
 				postFinalDepth: { texture: () => this.finalDepth },
 				postAO: { texture: () => this.aoBlurY.texture },
 				postAODepth: { texture: () => this.aoDepth.texture },
+				postExposure: { storage: this.exposure, access: 'read' }, // ---- SP2
 			},
-			code: /* wgsl */`
+			code: TAAU_LUMA_WGSL + /* wgsl */`
 fn postDepthLoad( uv: vec2f, which: i32 ) -> f32 {
 	if ( which == 0 ) {
 		let s = vec2i( textureDimensions( postOpaqueDepth ) );
@@ -304,7 +309,11 @@ fn postSceneSample( uv: vec2f ) -> vec3f {
 }
 
 fn fragment( in: FSIn ) -> vec4f {
-	return underwaterComposite( in.uv, in.pos.xy );
+	let c = underwaterComposite( in.uv, in.pos.xy );
+	// ---- SP2: the TAA's lock luma, once per pixel (TemporalUpscale.js), in the alpha nothing else reads
+	var a = 1.0;
+	if ( post.lockLuma > 0.5 ) { a = taauLockLumaOf( c.rgb, postExposure[ 0 ] * frame.exposure ); }
+	return vec4f( c.rgb, a );
 }
 `,
 		} );
@@ -704,6 +713,8 @@ fn fragment( in: FSIn ) -> vec4f {
 		if ( this.aaMode === 'taa' || this.aaMode === 'smaataa' ) {
 
 			if ( this.aaMode === 'smaataa' ) this.aa.render( 'smaa', this.smaaIn.texture );
+			// ---- SP2: the lock luma is in the beauty's alpha (not in SMAA's output)
+			this.taau.settings.lumaInAlpha.value = this.aaMode === 'taa' && this.params.lockLuma.value > 0.5 ? 1 : 0;
 			this.taau.render();
 
 		} else {
