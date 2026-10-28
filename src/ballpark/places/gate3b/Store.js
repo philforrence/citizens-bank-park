@@ -314,17 +314,27 @@ export function buildStore( group, colliders, field ) {
 
 		} else {
 
-			// a rose: a low mound of little faces, some of them flowers
-			for ( let k = 0; k < 10; k ++ ) {
+			// ---- FI3 (C2I-16): a shrub rose in late October (Getty, 27 Oct 2008: the bed by the store gone
+			// autumn-dull): a mound of small leaf faces over a dome, each tangent to it (so its outline is a lumpy
+			// round, not squares), the leaves dark green going bronze; on top a few last blooms, faded pink, and
+			// red hips. (It was ten flat squares, 14-22 cm, pink and green: Post-it notes in the bed.)
+			const R2 = ( 0.24 + r() * 0.1 ) * s;
+			for ( let k = 0; k < 46; k ++ ) {
 
-				const q = r() * Math.PI * 2, rr = r() * 0.3 * s, yy = 0.1 + r() * 0.35 * s, sz = 0.14 + r() * 0.08;
-				const c = [ base[ 0 ] + Math.cos( q ) * rr, base[ 1 ] + yy, base[ 2 ] + Math.sin( q ) * rr ];
-				const flower = r() < 0.3;
-				const uvx = flower ? 0.95 : 0.5;
-				const ax = [ Math.cos( q + 1.5 ) * sz, 0, Math.sin( q + 1.5 ) * sz ];
-				leafy.face( [ c[ 0 ] - ax[ 0 ], c[ 1 ] - sz * 0.5, c[ 2 ] - ax[ 2 ] ], [ c[ 0 ] + ax[ 0 ], c[ 1 ] - sz * 0.5, c[ 2 ] + ax[ 2 ] ], [ c[ 0 ] + ax[ 0 ], c[ 1 ] + sz * 0.5, c[ 2 ] + ax[ 2 ] ], [ c[ 0 ] - ax[ 0 ], c[ 1 ] + sz * 0.5, c[ 2 ] - ax[ 2 ] ], [ Math.cos( q ), 0.8, Math.sin( q ) ], [ [ uvx, 0 ], [ uvx, 0 ], [ uvx, 1 ], [ uvx, 1 ] ] );
+				const q = r() * Math.PI * 2, ph = r() * 1.35, top = ph < 0.6;
+				const bloom = top && r() < 0.22, hip = ! bloom && top && r() < 0.18;
+				const sz = bloom ? 0.045 : hip ? 0.02 : 0.055 + r() * 0.035;
+				const lift = bloom || hip ? 0.02 : 0;
+				const nrm = [ Math.cos( q ) * Math.sin( ph ), Math.cos( ph ), Math.sin( q ) * Math.sin( ph ) ];
+				const c = [ base[ 0 ] + nrm[ 0 ] * ( R2 + lift ), base[ 1 ] - 0.06 + nrm[ 1 ] * ( R2 * 0.85 + lift ), base[ 2 ] + nrm[ 2 ] * ( R2 + lift ) ];
+				const sp = r() * Math.PI, cs = Math.cos( sp ), sn = Math.sin( sp );
+				const e1 = [ - Math.sin( q ), 0, Math.cos( q ) ], e2 = [ - Math.cos( q ) * Math.cos( ph ), Math.sin( ph ), - Math.sin( q ) * Math.cos( ph ) ];
+				const t1 = e1.map( ( v, i ) => ( v * cs + e2[ i ] * sn ) * sz ), t2 = e1.map( ( v, i ) => ( - v * sn + e2[ i ] * cs ) * sz * ( bloom || hip ? 1 : 0.7 ) );
+				const uvx = bloom ? 0.95 : hip ? 0.88 : 0.45 + r() * 0.3;
+				leafy.face( [ c[ 0 ] - t1[ 0 ] - t2[ 0 ], c[ 1 ] - t1[ 1 ] - t2[ 1 ], c[ 2 ] - t1[ 2 ] - t2[ 2 ] ], [ c[ 0 ] + t1[ 0 ] - t2[ 0 ], c[ 1 ] + t1[ 1 ] - t2[ 1 ], c[ 2 ] + t1[ 2 ] - t2[ 2 ] ], [ c[ 0 ] + t1[ 0 ] + t2[ 0 ], c[ 1 ] + t1[ 1 ] + t2[ 1 ], c[ 2 ] + t1[ 2 ] + t2[ 2 ] ], [ c[ 0 ] - t1[ 0 ] + t2[ 0 ], c[ 1 ] - t1[ 1 ] + t2[ 1 ], c[ 2 ] - t1[ 2 ] + t2[ 2 ] ], nrm, [ [ uvx, 0 ], [ uvx, 0 ], [ uvx, 1 ], [ uvx, 1 ] ] );
 
 			}
+			// ---- end FI3
 
 		}
 
@@ -335,8 +345,17 @@ export function buildStore( group, colliders, field ) {
 	// uv.x: grass (buff to plum), rose leaves, rose flowers
 	let n = mx_noise_float3( in.P * 9.0 );
 	var c = mix( vec3f( 0.3, 0.24, 0.12 ), vec3f( 0.18, 0.08, 0.1 ), smoothstep( -0.3, 0.5, n ) ) * ( 0.6 + 0.5 * in.uv.y );
-	if ( in.uv.x > 0.3 ) { c = vec3f( 0.05, 0.1, 0.03 ) * ( 0.7 + 0.5 * n ); }
-	if ( in.uv.x > 0.8 ) { c = mix( vec3f( 0.6, 0.18, 0.28 ), vec3f( 0.7, 0.35, 0.4 ), n * 0.5 + 0.5 ); }
+	// ---- FI3 (C2I-16): the rose's leaves each their own shade, dark green to bronze (uv.x 0.45-0.75), a
+	// midrib and darker edges on each (uv.y across it); its hips red (0.88); its last blooms faded pink, paler
+	// at the middle (0.95)
+	if ( in.uv.x > 0.3 ) {
+		let lv = fract( in.uv.x * 13.7 );
+		let edge = 1.0 - 0.35 * smoothstep( 0.3, 0.5, abs( in.uv.y - 0.5 ) ) + 0.15 * ( 1.0 - smoothstep( 0.0, 0.05, abs( in.uv.y - 0.5 ) ) );
+		c = mix( vec3f( 0.035, 0.075, 0.025 ), vec3f( 0.13, 0.065, 0.025 ), smoothstep( 0.55, 0.95, lv ) ) * ( 0.7 + 0.5 * n ) * edge;
+	}
+	if ( in.uv.x > 0.85 ) { c = vec3f( 0.42, 0.04, 0.03 ) * ( 0.8 + 0.3 * n ); }
+	if ( in.uv.x > 0.92 ) { c = mix( vec3f( 0.55, 0.2, 0.28 ), vec3f( 0.72, 0.45, 0.48 ), 1.0 - abs( in.uv.y - 0.5 ) * 1.6 ) * ( 0.85 + 0.2 * n ); }
+	// ---- end FI3
 	s.albedo = c;
 	s.translucency = c * 0.2;
 ` } );

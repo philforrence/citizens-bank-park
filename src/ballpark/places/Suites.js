@@ -70,6 +70,7 @@ export default class Suites {
 		const line = ( d ) => offsetPolyline( infield, d, [ 0, - 40 ] );
 		this.A = line( d0 ); this.W = line( d0 + DROOM ); this.W2 = line( d0 + DROOM + WALL ); this.BC = line( dIn - 0.03 ); this.B = line( dIn );
 		this.CM = line( d0 + DROOM + WALL + ( 7 - DROOM - WALL - 0.03 ) / 2 ); // the corridor's middle
+		this.line = line; this.dSeats = D.suites; // ---- FI3 (C2I-18): the outdoor seats' rows, for their drink rails
 
 		this.material = insideMaterial( 'suites-inside' );
 		this._layout();
@@ -329,21 +330,21 @@ export default class Suites {
 		this._wallWithDoor( b, p0, p1, 0, RH, nBack, ds, 2.13, 'wallpaper' );
 		// the jambs through the wall, the head, the frame's casing on both faces
 		const J = frame( [ P( 0, 0, DROOM + WALL / 2 )[ 0 ], y, P( 0, 0, DROOM + WALL / 2 )[ 2 ] ], R.u, R.nIn );
-		const dc = ( R.door[ 0 ] + R.door[ 1 ] ) / 2, dw = R.door[ 1 ] - R.door[ 0 ];
-		b.use( 'cherry' ).box( J, R.door[ 0 ] - 0.04, 1.08, 0, 0.08, 2.16, WALL + 0.04, [ 'bottom' ] );
-		b.use( 'cherry' ).box( J, R.door[ 1 ] + 0.04, 1.08, 0, 0.08, 2.16, WALL + 0.04, [ 'bottom' ] );
-		b.use( 'cherry' ).box( J, dc, 2.17, 0, dw + 0.16, 0.08, WALL + 0.04 );
+		const dc = ( R.door[ 0 ] + R.door[ 1 ] ) / 2, dw = R.door[ 1 ] - R.door[ 0 ]; // (---- FI3 (C2I-15): honey doors in grey steel frames, harpo42 2010)
+		b.use( 'steel' ).box( J, R.door[ 0 ] - 0.04, 1.08, 0, 0.08, 2.16, WALL + 0.04, [ 'bottom' ] );
+		b.use( 'steel' ).box( J, R.door[ 1 ] + 0.04, 1.08, 0, 0.08, 2.16, WALL + 0.04, [ 'bottom' ] );
+		b.use( 'steel' ).box( J, dc, 2.17, 0, dw + 0.16, 0.08, WALL + 0.04 );
 		// the door: shut in its frame, or swung open into the room
 		if ( R.open ) {
 
 			const hx = R.door[ 0 ] + ( R.buffetLeft ? 0.02 : dw - 0.02 );
 			const H = frame( [ P( hx, 0, DROOM - 0.03 )[ 0 ], y, P( hx, 0, DROOM - 0.03 )[ 2 ] ], R.nIn.map( ( v ) => - v ), R.u );
-			b.use( 'cherry' ).box( H, dw / 2 * 0.97, 1.05, 0, dw * 0.97, 2.09, 0.045 );
+			b.use( 'honey' ).box( H, dw / 2 * 0.97, 1.05, 0, dw * 0.97, 2.09, 0.045 );
 			b.use( 'brass' ).box( H, dw * 0.85, 1.0, 0.05, 0.12, 0.03, 0.04 );
 
 		} else {
 
-			b.use( 'cherry' ).box( J, dc, 1.05, 0, dw, 2.1, 0.045 );
+			b.use( 'honey' ).box( J, dc, 1.05, 0, dw, 2.1, 0.045 );
 			b.use( 'brass' ).box( J, R.buffetLeft ? R.door[ 0 ] + 0.12 : R.door[ 1 ] - 0.12, 1.0, - 0.05, 0.12, 0.03, 0.06 );
 
 		}
@@ -362,13 +363,42 @@ export default class Suites {
 		// the base: cherry, doors on it, the granite top
 		b.use( 'cherry' ).box( P, xc, 0.46, z - 0.3, w, 0.8, 0.6, [ 'front', 'back' ] );
 		b.use( 'cherry' ).box( P, xc, 0.05, z - 0.27, w, 0.1, 0.54, [ 'back' ] );
-		b.use( 'cherry' ).panel4( P( x0, 0.1, z - 0.6 ), P( x1, 0.1, z - 0.6 ), P( x1, 0.86, z - 0.6 ), P( x0, 0.86, z - 0.6 ), nF, 0.5, ( p ) => [ p[ 0 ] * 0.7 + p[ 2 ] * 0.7, p[ 1 ] ] );
-		for ( let s = x0 + 0.5; s < x1 - 0.1; s += 0.5 ) b.use( 'black' ).box( P, s, 0.48, z - 0.602, 0.012, 0.7, 0.004 );
-		for ( let s = x0 + 0.25; s < x1; s += 0.5 ) b.use( 'chrome' ).box( P, s + 0.15, 0.74, z - 0.615, 0.02, 0.1, 0.025 );
-		// the drinks fridge at one end: its glass door lit
-		const fx = R.buffetLeft ? x0 + 0.33 : x1 - 0.33;
-		b.use( 'stainless' ).box( P, fx, 0.43, z - 0.605, 0.6, 0.78, 0.02 );
-		b.use( R.lit ? 'fridge' : 'glass' ).box( P, fx, 0.45, z - 0.617, 0.48, 0.6, 0.005 );
+		// (---- FI3 (C2I-8): the front's cherry round the fridge's opening; the uppers' fronts in panels, so the
+		// cans' light on them is smooth: one quad each made a stair-step of it)
+		const fx = R.buffetLeft ? x0 + 0.33 : x1 - 0.33, fa = fx - 0.3, fb = fx + 0.3;
+		const front = ( a, c, h0, h1 ) => {
+
+			if ( c - a > 0.01 ) b.use( 'cherry' ).panel4( P( a, h0, z - 0.6 ), P( c, h0, z - 0.6 ), P( c, h1, z - 0.6 ), P( a, h1, z - 0.6 ), nF, 0.3, ( p ) => [ p[ 0 ] * 0.7 + p[ 2 ] * 0.7, p[ 1 ] ] );
+
+		};
+		front( x0, fa, 0.1, 0.86 ); front( fb, x1, 0.1, 0.86 ); front( fa, fb, 0.1, 0.14 ); front( fa, fb, 0.8, 0.86 );
+		for ( let s = x0 + 0.5; s < x1 - 0.1; s += 0.5 ) if ( s < fa - 0.02 || s > fb + 0.02 ) b.use( 'black' ).box( P, s, 0.48, z - 0.602, 0.012, 0.7, 0.004 );
+		for ( let s = x0 + 0.25; s < x1; s += 0.5 ) if ( s + 0.15 < fa || s + 0.15 > fb ) b.use( 'chrome' ).box( P, s + 0.15, 0.74, z - 0.615, 0.02, 0.1, 0.025 );
+		// the drinks fridge in it: its stainless door frame, and through the glass the lit back, its walls,
+		// three wire shelves of cans and bottles (it was a glowing white panel)
+		for ( const [ x, y, sx, sy ] of [ [ fx, 0.12, 0.6, 0.04 ], [ fx, 0.8, 0.6, 0.04 ], [ fa + 0.02, 0.46, 0.04, 0.72 ], [ fb - 0.02, 0.46, 0.04, 0.72 ] ] ) b.use( 'stainless' ).box( P, x, y, z - 0.61, sx, sy, 0.02, [ 'back' ] );
+		b.use( R.lit ? 'fridgeBack' : 'black' ).quad( P( fa, 0.14, z - 0.1 ), P( fb, 0.14, z - 0.1 ), P( fb, 0.8, z - 0.1 ), P( fa, 0.8, z - 0.1 ), nF );
+		b.use( 'white' ).quad( P( fa + 0.04, 0.14, z - 0.6 ), P( fa + 0.04, 0.14, z - 0.1 ), P( fa + 0.04, 0.8, z - 0.1 ), P( fa + 0.04, 0.8, z - 0.6 ), P.dir( 1, 0, 0 ) );
+		b.use( 'white' ).quad( P( fb - 0.04, 0.14, z - 0.1 ), P( fb - 0.04, 0.14, z - 0.6 ), P( fb - 0.04, 0.8, z - 0.6 ), P( fb - 0.04, 0.8, z - 0.1 ), P.dir( - 1, 0, 0 ) );
+		b.use( 'white' ).quad( P( fa, 0.79, z - 0.6 ), P( fb, 0.79, z - 0.6 ), P( fb, 0.79, z - 0.1 ), P( fa, 0.79, z - 0.1 ), [ 0, - 1, 0 ] );
+		b.use( 'steel' ).quad( P( fa, 0.15, z - 0.6 ), P( fb, 0.15, z - 0.6 ), P( fb, 0.15, z - 0.1 ), P( fa, 0.15, z - 0.1 ), [ 0, 1, 0 ] );
+		const cr = rnd( R.num * 17 + 3 );
+		for ( const sh of [ 0.15, 0.36, 0.57 ] ) {
+
+			b.use( 'steel' ).box( P, fx, sh, z - 0.35, 0.5, 0.008, 0.45 );
+			if ( R.lit || cr() < 0.5 ) for ( let k = 0; k < 7; k ++ ) for ( const dz of [ - 0.12, 0.1 ] ) {
+
+				const c = cr(), bottle = c > 0.72;
+				b.use( c < 0.3 ? 'canRed' : c < 0.55 ? 'canSilver' : c < 0.72 ? 'canBlue' : c < 0.86 ? 'glassBrown' : 'glassGreen' ).cyl( P, fx - 0.21 + k * 0.07, z - 0.35 + dz, sh + 0.005, sh + ( bottle ? 0.13 : 0.12 ), 0.031, 0.03, 7, ! bottle );
+				if ( bottle ) b.cyl( P, fx - 0.21 + k * 0.07, z - 0.35 + dz, sh + 0.13, sh + 0.19, 0.03, 0.012, 7, true );
+
+			}
+
+		}
+
+		// (a glint down the door's glass)
+		b.use( 'chrome' ).box( P, fb - 0.12, 0.47, z - 0.615, 0.015, 0.4, 0.004 );
+		// ---- end FI3
 		b.use( 'granite' ).box( P, xc, 0.88, z - 0.31, w + 0.04, 0.04, 0.64 );
 		// the lit glass behind the counter, under the uppers
 		b.use( R.lit ? 'backsplash' : 'cream' ).quad( P( x0, 0.9, z - 0.004 ), P( x1, 0.9, z - 0.004 ), P( x1, 1.42, z - 0.004 ), P( x0, 1.42, z - 0.004 ), nF );
@@ -377,22 +407,43 @@ export default class Suites {
 		for ( const [ a, c ] of [ [ x0, tv - 0.45 ], [ tv + 0.45, x1 ] ] ) {
 
 			if ( c - a < 0.2 ) continue;
-			b.use( 'cherry' ).box( P, ( a + c ) / 2, ( 1.42 + RH ) / 2, z - 0.18, c - a, RH - 1.42, 0.36, [ 'front' ] );
+			b.use( 'cherry' ).box( P, ( a + c ) / 2, ( 1.42 + RH ) / 2, z - 0.18, c - a, RH - 1.42, 0.36, [ 'front', 'back' ] );
+			b.use( 'cherry' ).panel4( P( a, 1.42, z - 0.36 ), P( c, 1.42, z - 0.36 ), P( c, RH, z - 0.36 ), P( a, RH, z - 0.36 ), nF, 0.3 ); // ---- FI3
 			for ( let s = a + 0.45; s < c - 0.1; s += 0.45 ) b.use( 'black' ).box( P, s, ( 1.42 + RH ) / 2, z - 0.362, 0.01, RH - 1.5, 0.004 );
 
 		}
 
-		b.use( 'cherry' ).box( P, tv, ( 2.0 + RH ) / 2, z - 0.18, 0.9, RH - 2.0, 0.36, [ 'front' ] );
+		b.use( 'cherry' ).box( P, tv, ( 2.0 + RH ) / 2, z - 0.18, 0.9, RH - 2.0, 0.36, [ 'front', 'back' ] );
+		b.use( 'cherry' ).panel4( P( tv - 0.45, 2.0, z - 0.36 ), P( tv + 0.45, 2.0, z - 0.36 ), P( tv + 0.45, RH, z - 0.36 ), P( tv - 0.45, RH, z - 0.36 ), nF, 0.3 ); // ---- FI3
 		b.use( 'cherry' ).box( P, tv, 1.44, z - 0.18, 0.9, 0.04, 0.36 );
 		// the TV: a tube in a dark grey case, the game on it
 		b.use( 'plastic' ).box( P, tv, 1.7, z - 0.25, 0.64, 0.48, 0.46 );
 		this._screen( b, P( tv - 0.25, 1.52, z - 0.481 ), P( tv + 0.25, 1.52, z - 0.481 ), P( tv + 0.25, 1.88, z - 0.481 ), P( tv - 0.25, 1.88, z - 0.481 ), nF, R.lit );
 		// on the counter: the ice bucket and its beers, the cans, the paper plates
 		const ib = R.buffetLeft ? x1 - 0.5 : x0 + 0.5;
-		b.use( 'stainless' ).cyl( P, ib, z - 0.32, 0.9, 1.12, 0.14, 0.17, 10, false );
-		b.use( 'white' ).cyl( P, ib, z - 0.32, 1.06, 1.1, 0.15, 0.16, 10, true );
-		for ( let j = 0; j < 4; j ++ ) b.use( 'food' ).cyl( P, ib + Math.cos( j * 1.6 ) * 0.07, z - 0.32 + Math.sin( j * 1.6 ) * 0.07, 1.08, 1.2, 0.025, 0.02, 6, true );
-		for ( let j = 0; j < 3; j ++ ) b.use( j === 1 ? 'white' : 'redVinyl' ).cyl( P, xc + 0.6 + j * 0.09, z - 0.4, 0.9, 1.02, 0.033, 0.033, 8, true );
+		// ---- FI3 (C2I-8): the galvanized bucket heaped with ice, the necks of brown and green bottles and the
+		// tops of silver cans standing out of it (it was a matte octagon of four wooden pegs); a few Coke cans,
+		// the clear cups (Ernst & Young's suite, Apr 2009; jrab, Aug 2008)
+		b.use( 'galvanized' ).cyl( P, ib, z - 0.32, 0.9, 1.12, 0.14, 0.18, 12, false );
+		b.use( 'galvanized' ).cyl( P, ib, z - 0.32, 1.11, 1.125, 0.185, 0.185, 12, false );
+		b.use( 'ice' ).cyl( P, ib, z - 0.32, 1.06, 1.115, 0.175, 0.13, 12, true );
+		const br = rnd( R.num * 13 + 1 );
+		for ( let j = 0; j < 7; j ++ ) {
+
+			const a = j * 0.9 + br(), rr = 0.03 + br() * 0.09, bx = ib + Math.cos( a ) * rr, bz = z - 0.32 + Math.sin( a ) * rr, c = br();
+			if ( c < 0.6 ) {
+
+				b.use( c < 0.4 ? 'glassBrown' : 'glassGreen' ).cyl( P, bx, bz, 1.08, 1.15, 0.03, 0.03, 7, false );
+				b.cyl( P, bx, bz, 1.15, 1.21, 0.03, 0.012, 7, false );
+				b.use( 'canSilver' ).cyl( P, bx, bz, 1.21, 1.22, 0.014, 0.014, 6, true );
+
+			} else b.use( c < 0.8 ? 'canSilver' : 'canRed' ).cyl( P, bx, bz, 1.07, 1.16, 0.032, 0.032, 8, true );
+
+		}
+
+		for ( let j = 0; j < 3; j ++ ) b.use( j === 1 ? 'canSilver' : 'canRed' ).cyl( P, xc + 0.6 + j * 0.09, z - 0.4, 0.9, 1.02, 0.033, 0.033, 8, true );
+		for ( let j = 0; j < 4; j ++ ) b.use( 'glass' ).cyl( P, xc + 0.25 + j * 0.08, z - 0.22, 0.9, 1.0, 0.03, 0.042, 8, false );
+		// ---- end FI3
 		b.use( 'white' ).cyl( P, xc - 0.7, z - 0.35, 0.9, 0.95, 0.12, 0.12, 12, true );
 
 	}
@@ -406,25 +457,75 @@ export default class Suites {
 		b.use( 'cherry' ).box( W, c, 0.05, 0.3, L - 0.04, 0.1, 0.55, [ 'back' ] );
 		b.use( 'granite' ).box( W, c, 0.86, 0.32, L + 0.04, 0.04, 0.66 );
 		for ( let s = z0 + 0.55; s < z1; s += 0.55 ) b.use( 'black' ).box( W, s, 0.44, 0.612, 0.012, 0.7, 0.004 );
-		// the chafing dishes, their domed lids; the plates, the napkins
+		// ---- FI3 (C2I-8): the chafing dishes as in Ernst & Young's suite (Apr 2009): stainless roll-tops on
+		// wire stands, a sterno's blue flame under each, the pan's rim; the open ones show the food (chicken
+		// fingers, meatballs in their sauce, hot dogs in a row with the rolls beside), a serving spoon in it;
+		// the stack of plates, the napkins. (They were white trays each holding a tan slab, under cones.)
 		const n = Math.max( 2, Math.floor( L / 0.7 ) );
+		const r = rnd( R.num * 31 + 7 );
 		for ( let j = 0; j < n; j ++ ) {
 
 			const s = z0 + ( j + 0.5 ) * L / n;
-			// the stand, the pan (its lid on, or off and the food showing), the burner's glow under it
-			b.use( 'black' ).box( W, s, 0.93, 0.32, 0.46, 0.08, 0.28 );
-			b.use( 'stainless' ).box( W, s, 0.99, 0.32, 0.52, 0.05, 0.34 );
-			if ( R.lit && j % 2 === 0 ) {
+			// the stand: a wire frame, four legs, the sterno can and its flame
+			for ( const [ dx, dz ] of [ [ - 0.24, - 0.14 ], [ 0.24, - 0.14 ], [ - 0.24, 0.14 ], [ 0.24, 0.14 ] ] ) b.use( 'black' ).box( W, s + dx, 0.93, 0.32 + dz, 0.012, 0.1, 0.012 );
+			b.use( 'black' ).box( W, s, 0.975, 0.32, 0.5, 0.01, 0.3, [ 'bottom' ] );
+			b.use( 'redPaint' ).cyl( W, s, 0.32, 0.88, 0.93, 0.035, 0.035, 8, true );
+			if ( R.lit ) b.use( 'flame' ).cyl( W, s, 0.32, 0.93, 0.96, 0.025, 0.005, 6, false );
+			// the pan: its body, the rim
+			b.use( 'stainless' ).box( W, s, 1.0, 0.32, 0.5, 0.05, 0.3, [ 'top' ] );
+			b.use( 'stainless' ).box( W, s, 1.027, 0.32, 0.54, 0.008, 0.34, [ 'bottom' ] );
+			const open = R.lit && ( j + R.num ) % 3 !== 0;
+			if ( ! open ) this._rollTop( b, W, s, 0.32, 1.03, 0.5, 0.15 );
+			else {
 
-				b.use( 'stainless' ).cyl( W, s, 0.32, 1.015, 1.06, 0.17, 0.12, 12, false );
-				b.use( 'stainless' ).cyl( W, s, 0.32, 1.06, 1.09, 0.12, 0.03, 12, true );
+				const kind = ( j + R.num ) % 3;
+				b.use( kind === 1 ? 'sauce' : 'stainless' ).box( W, s, 1.02, 0.32, 0.48, 0.01, 0.28 );
+				for ( let k = 0; k < 14; k ++ ) {
 
-			} else b.use( 'food' ).box( W, s, 1.017, 0.32, 0.46, 0.01, 0.28 );
+					const fx = s - 0.2 + r() * 0.4, fz = 0.32 - 0.11 + r() * 0.22;
+					if ( kind === 1 ) b.use( 'meat' ).cyl( W, fx, fz, 1.025, 1.06, 0.022, 0.016, 6, true );
+					else if ( kind === 2 ) {
+
+						if ( k < 7 ) {
+
+							b.use( 'meat' ).box( W, s - 0.2 + k * 0.065, 1.042, 0.3, 0.02, 0.02, 0.15 );
+							b.use( 'bun' ).box( W, s - 0.2 + k * 0.065, 1.035, 0.38, 0.045, 0.03, 0.15 );
+
+						}
+
+					} else b.use( 'golden' ).box( W, fx, 1.03 + r() * 0.012, fz, 0.025 + r() * 0.01, 0.018, 0.08 + r() * 0.03 );
+
+				}
+
+				// a serving spoon, its handle over the rim
+				b.use( 'stainless' ).box( W, s + 0.12, 1.06, 0.2, 0.03, 0.01, 0.24 );
+
+			}
 
 		}
 
 		b.use( 'white' ).cyl( W, z1 + 0.25, 0.3, 0.88, 0.99, 0.13, 0.13, 12, true );
+		for ( let k = 0; k < 6; k ++ ) b.use( 'white' ).cyl( W, z1 + 0.25, 0.3, 0.99 + k * 0.006, 0.994 + k * 0.006, 0.135, 0.135, 12, false );
 		b.use( 'redVinyl' ).box( W, z1 + 0.25, 0.9, 0.52, 0.18, 0.03, 0.14 );
+		// ---- end FI3
+
+	}
+
+	// ---- FI3 (C2I-8): a chafer's roll-top lid: half a cylinder lying along the pan (W's x), radius r, its
+	// axis at ( x, y, z ); the ends closed, a handle on its crown
+	_rollTop( b, W, x, z, y, L, r ) {
+
+		const k = 8, at = ( sx, a ) => W( x + sx * L / 2, y + Math.sin( a ) * r * 0.75, z + Math.cos( a ) * r );
+		b.use( 'stainless' );
+		for ( let i = 0; i < k; i ++ ) {
+
+			const a0 = i / k * Math.PI, a1 = ( i + 1 ) / k * Math.PI, am = ( a0 + a1 ) / 2;
+			b.quad( at( - 1, a0 ), at( 1, a0 ), at( 1, a1 ), at( - 1, a1 ), W.dir( 0, Math.sin( am ), Math.cos( am ) ) );
+
+		}
+
+		for ( const sx of [ - 1, 1 ] ) for ( let i = 0; i < k; i ++ ) b.tri( W( x + sx * L / 2, y, z ), at( sx, i / k * Math.PI ), at( sx, ( i + 1 ) / k * Math.PI ), W.dir( sx, 0, 0 ), W.dir( sx, 0, 0 ), W.dir( sx, 0, 0 ) );
+		b.use( 'black' ).box( W, x, y + r * 0.75 + 0.02, z, 0.12, 0.025, 0.025 );
 
 	}
 
@@ -504,11 +605,12 @@ export default class Suites {
 		const uvC = ( p ) => [ s0 + dot( sub( [ p[ 0 ], p[ 2 ] ], W2[ i ] ), u ), dot( sub( [ p[ 0 ], p[ 2 ] ], W2[ i ] ), nIn ) ];
 		const at = ( p, h ) => [ p[ 0 ], y + h, p[ 1 ] ];
 		b.use( 'blocks' ).panel4( at( W2[ i ], 0.004 ), at( W2[ i + 1 ], 0.004 ), at( BC[ i + 1 ], 0.004 ), at( BC[ i ], 0.004 ), [ 0, 1, 0 ], 0.7, uvC );
-		b.use( 'tile' ).panel4( at( W2[ i ], CH ), at( W2[ i + 1 ], CH ), at( BC[ i + 1 ], CH ), at( BC[ i ], CH ), [ 0, - 1, 0 ], 0.8, uvC );
+		b.use( 'openGrid' ) /* ---- FI3 (C2I-15): the dark open grid, not an office's tiles */.panel4( at( W2[ i ], CH ), at( W2[ i + 1 ], CH ), at( BC[ i + 1 ], CH ), at( BC[ i ], CH ), [ 0, - 1, 0 ], 0.8, uvC );
 		for ( const l of lamps ) {
 
 			const L = frame( [ l[ 0 ], l[ 1 ], l[ 2 ] ], u, nIn );
-			b.use( 'can' ).box( L, 0, 0.01, 0, 0.18, 0.01, 0.18, [ 'top' ] );
+			b.use( 'can' ).cyl( L, 0, 0, - 0.005, 0.0, 0.09, 0.09, 12, false ); // ---- FI3: round cans
+			b.use( 'can' ).cyl( L, 0, 0, - 0.0055, - 0.005, 0.0, 0.09, 12, false );
 
 		}
 
@@ -518,6 +620,36 @@ export default class Suites {
 			const offs = dot( sub( R.C0, R.G0 ), u ); // (the mitred end's offset from the glass's)
 			const ds = [ R.door[ 0 ] - ( - R.hw + offs ), R.door[ 1 ] - ( - R.hw + offs ) ];
 			this._wallWithDoor( b, R.C0, R.C1, 0, CH, [ nIn[ 0 ], 0, nIn[ 1 ] ], ds, 2.13, 'paint', s0 );
+			// ---- FI3 (C2I-15): wall-size photographs between the doors, one after another (harpo42, 2010);
+			// the walls were plain sage for 20-30 m at a time
+			{
+
+				const wl = Math.hypot( R.C1[ 0 ] - R.C0[ 0 ], R.C1[ 1 ] - R.C0[ 1 ] ), wu = unit( sub( R.C1, R.C0 ) );
+				const [ s0m, s1m ] = ds[ 0 ] > wl - ds[ 1 ] ? [ 0.35, ds[ 0 ] - 0.45 ] : [ ds[ 1 ] + 0.45, wl - 0.35 ];
+				const ml = s1m - s0m;
+				if ( ml > 2.2 ) {
+
+					const keys = [ 'muralCrowd', 'muralVet', 'muralCrowd2' ], key = keys[ R.num % 3 ];
+					const r0 = cellUV( key ), aspect = key === 'muralCrowd2' ? 2 : 4;
+					// (as much of the picture as fits, its middle)
+					const hgt = 1.8, need = hgt * aspect, cut = Math.max( 0, ( 1 - ml / need ) / 2 );
+					const ru = [ r0[ 0 ] + ( r0[ 2 ] - r0[ 0 ] ) * cut, r0[ 1 ], r0[ 2 ] - ( r0[ 2 ] - r0[ 0 ] ) * cut, r0[ 3 ] ];
+					const w = Math.min( ml, need ), sc = ( s0m + s1m ) / 2;
+					const c = along( R.C0, wu, sc ), n2 = [ nIn[ 0 ], nIn[ 1 ] ], rt = [ n2[ 1 ], - n2[ 0 ] ];
+					const Q = ( sx, h ) => [ c[ 0 ] + rt[ 0 ] * sx * w / 2 + n2[ 0 ] * 0.012, y + h, c[ 1 ] + rt[ 1 ] * sx * w / 2 + n2[ 1 ] * 0.012 ];
+					b.use( 'black' ).quad( Q( - 1.02, 0.5 ), Q( 1.02, 0.5 ), Q( 1.02, 0.55 + hgt + 0.05 ), Q( - 1.02, 0.55 + hgt + 0.05 ), [ nIn[ 0 ], 0, nIn[ 1 ] ] );
+					const Q2 = ( sx, h ) => {
+
+						const p = Q( sx, h );
+						return [ p[ 0 ] + n2[ 0 ] * 0.006, p[ 1 ], p[ 2 ] + n2[ 1 ] * 0.006 ];
+
+					};
+					b.use( 'print' ).print( Q2( - 1, 0.55 ), Q2( 1, 0.55 ), Q2( 1, 0.55 + hgt ), Q2( - 1, 0.55 + hgt ), [ nIn[ 0 ], 0, nIn[ 1 ] ], ru );
+
+				}
+
+			}
+			// ---- end FI3
 			b.use( 'black' ).panel4( at( R.C0, 0 ), at( R.C1, 0 ), at( R.C1, 0.1 ), at( R.C0, 0.1 ), [ nIn[ 0 ], 0, nIn[ 1 ] ] );
 			// the plaque by the door, on the latch side
 			const px = R.buffetLeft ? R.door[ 0 ] - 0.25 : R.door[ 1 ] + 0.25;
@@ -618,12 +750,13 @@ export default class Suites {
 			const n = [ - R.nIn[ 0 ], 0, - R.nIn[ 1 ] ];
 			const G = frame( [ R.O[ 0 ], y, R.O[ 1 ] ], R.u, R.nIn );
 			const w = R.hw * 2;
-			// the mullions at the partitions and mid-room; the sliding door's stile and its pull
-			for ( const x of [ - R.hw, 0, R.hw ] ) b.use( 'bronze' ).box( G, x, RH / 2, 0, x ? 0.16 : 0.09, RH, 0.12 );
-			b.use( 'bronze' ).box( G, - R.hw / 2, RH / 2 - 0.05, 0.03, 0.06, RH - 0.1, 0.05 );
+			// the mullions at the partitions and mid-room; the sliding door's stile and its pull; ---- FI3 (C2I-9): navy, as in
+			// yeago81's 2007 photo (they were bronze)
+			for ( const x of [ - R.hw, 0, R.hw ] ) b.use( 'navyFrame' ).box( G, x, RH / 2, 0, x ? 0.16 : 0.09, RH, 0.12 );
+			b.use( 'navyFrame' ).box( G, - R.hw / 2, RH / 2 - 0.05, 0.03, 0.06, RH - 0.1, 0.05 );
 			b.use( 'chrome' ).box( G, - R.hw / 2 - 0.08, 1.0, 0.08, 0.025, 0.4, 0.03 );
-			b.use( 'bronze' ).box( G, 0, 0.05, 0, w, 0.1, 0.14 );
-			b.use( 'bronze' ).box( G, 0, RH - 0.03, 0, w, 0.06, 0.12 );
+			b.use( 'navyFrame' ).box( G, 0, 0.05, 0, w, 0.1, 0.14 );
+			b.use( 'navyFrame' ).box( G, 0, RH - 0.03, 0, w, 0.06, 0.12 );
 			// the band over the glass (the slab's edge) up to the club's seats
 			b.use( 'concrete' ).quad( G( - R.hw, RH, - 0.06 ), G( R.hw, RH, - 0.06 ), G( R.hw, yTop - y + 0.2, - 0.06 ), G( - R.hw, yTop - y + 0.2, - 0.06 ), n );
 			b.use( 'concrete' ).quad( G( - R.hw, RH, - 0.06 ), G( R.hw, RH, - 0.06 ), G( R.hw, RH, 0.2 ), G( - R.hw, RH, 0.2 ), [ 0, - 1, 0 ] );
@@ -646,6 +779,38 @@ export default class Suites {
 
 		}
 
+		// ---- FI3 (C2I-18): the suites' outdoor seats have a drink rail in front of each row (pvsbond 2010,
+		// jrab Aug 2008): a granite top along the front wall, and one on navy posts behind the first row's
+		// backs; cups and paper plates on them now and then. (Not the glass dividers between the suites:
+		// the seated crowd's seats don't line up with the rooms' partitions, and a pane through a fan is worse
+		// than none.)
+		{
+
+			const ds = this.dSeats, rows = [ [ this.line( ds + 0.12 ), y + 0.22, null ], [ this.line( ds + 1.07 ), y + 0.45, y - 0.25 ] ];
+			const r = rnd( 1029 );
+			for ( const [ rl, top, foot ] of rows ) for ( let i = 0; i < rl.length - 1; i ++ ) {
+
+				const a = rl[ i ], c = rl[ i + 1 ], u = unit( sub( c, a ) ), len = Math.hypot( c[ 0 ] - a[ 0 ], c[ 1 ] - a[ 1 ] );
+				let nIn = [ - u[ 1 ], u[ 0 ] ];
+				if ( dot( nIn, sub( lerp( a, c, 0.5 ), [ 0, - 40 ] ) ) < 0 ) nIn = [ - nIn[ 0 ], - nIn[ 1 ] ];
+				const m0 = lerp( a, c, 0.5 ), Q = frame( [ m0[ 0 ], 0, m0[ 1 ] ], u, nIn );
+				b.use( 'granite' ).box( Q, 0, top - 0.02, 0, len, 0.04, 0.28 );
+				b.use( 'navyFrame' ).box( Q, 0, top - 0.06, 0.12, len, 0.04, 0.02 );
+				if ( foot !== null ) for ( let x = - len / 2 + 0.4; x < len / 2; x += 1.6 ) b.use( 'navyFrame' ).box( Q, x, ( foot + top - 0.04 ) / 2, 0.05, 0.05, top - 0.04 - foot, 0.05 );
+				for ( let x = - len / 2 + 0.5; x < len / 2 - 0.3; x += 0.45 ) {
+
+					const k = r();
+					if ( k < 0.12 ) b.use( 'golden' ).cyl( Q, x, ( r() - 0.5 ) * 0.12, top, top + 0.13, 0.032, 0.042, 8, false );
+					else if ( k < 0.18 ) b.use( 'white' ).cyl( Q, x, ( r() - 0.5 ) * 0.1, top, top + 0.012, 0.11, 0.11, 10, true );
+					else if ( k < 0.22 ) b.use( 'canRed' ).cyl( Q, x, ( r() - 0.5 ) * 0.1, top, top + 0.12, 0.033, 0.033, 8, true );
+
+				}
+
+			}
+
+		}
+		// ---- end FI3
+
 		const m = b.mesh( insideMaterial( 'suites-shell' ), 'suites-shell' );
 		m.castShadow = true;
 		this.group.add( m );
@@ -664,7 +829,9 @@ export default class Suites {
 			// side, the party)
 			far.with( [ - R.hw, R.hw, R.seed, ( R.lit ? 4 : 0 ) + ( R.buffetLeft ? 2 : 0 ) + Math.min( 0.99, R.party ) ] );
 			far.quad( a, bb, c, d, n, [ [ - R.hw, 0.1 ], [ R.hw, 0.1 ], [ R.hw, RH ], [ - R.hw, RH ] ] );
-			near.quad( a, bb, c, d, n );
+			// (---- FI3: the near glass knows its room too, for the room's reflection in it after dark)
+			near.with( [ - R.hw, R.hw, R.seed, ( R.lit ? 4 : 0 ) + ( R.buffetLeft ? 2 : 0 ) + Math.min( 0.99, R.party ) ] );
+			near.quad( a, bb, c, d, n, [ [ - R.hw, 0.1 ], [ R.hw, 0.1 ], [ R.hw, RH ], [ - R.hw, RH ] ] );
 
 		}
 
@@ -679,7 +846,11 @@ export default class Suites {
 
 		}
 
-		const m = this.nearGlass = clearGlassMesh( near, clearGlass( 'suites-glass-near', NEAR, BAND ), 'suites-glass-near' );
+		// (---- FI3 (C2I-9): the room behind you in it after dark: its cans, its walls; the people aren't)
+		const reflect = suiteRoomWGSL() + /* wgsl */`
+		refl = select( vec3f( 0.0 ), room * 0.3 + glow * 0.8, lit );
+`;
+		const m = this.nearGlass = clearGlassMesh( near, clearGlass( 'suites-glass-near', NEAR, BAND, { reflect, colors: true } ), 'suites-glass-near' );
 		this.group.add( m );
 
 	}
@@ -920,25 +1091,72 @@ function farGlassWGSL() {
 
 	return /* wgsl */`
 	if ( nearK ) { discard; }
-	let xl = in.color.r; let xr = in.color.g; let seed = in.color.b;
-	let fl = in.color.a;
-	let lit = fl >= 3.5;
-	let bl = ( fl - select( 0.0, 4.0, lit ) ) >= 1.5;
-	let party = fract( fl );
-	let RH = ${ RH.toFixed( 2 ) };
-	let DEP = ${ DROOM.toFixed( 2 ) };
+	let seed = in.color.b;
+	let party = fract( in.color.a );
 	let N = normalize( vec3f( in.N.x, 0.0, in.N.z ) );
 	let T = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), N ) );
 	let Vd = normalize( in.P - frame.cameraPos );
 	let rd = vec3f( dot( Vd, T ), Vd.y, max( dot( Vd, - N ), 0.05 ) );
 	let ro = vec3f( in.uv.x, in.uv.y, 0.0 );
+	${ suiteRoomWGSL() }
+	let h2 = fract( seed * 13.71 );
+	let nk = smoothstep( 0.1, 0.7, frame.night );
+	// ---- FI3 (C2I-9): by day the room behind the tinted glass is barely there (wallyg 2005, yeago81 2007:
+	// from the field a dark band, the wood just visible), its cans no beacons; after dark it glows as before.
+	// The glass's tint (grey-green) over all of it
+	let lk = select( 0.02, mix( 0.07, 0.48, nk ), lit ) * ( 0.85 + 0.3 * h2 );
+	room = ( room * lk + glow * select( 0.0, mix( 0.12, 1.0, nk ), lit ) ) * vec3f( 0.8, 0.92, 0.86 );
+	// ---- end FI3
+	// the people: at the counter, round the high-top, at the glass (nearer drawn over further)
+	for ( var kk = 0; kk < 3; kk ++ ) {
+		let zP = select( select( 0.75, 1.95, kk == 1 ), 3.2, kk == 0 );
+		let tP = zP / rd.z;
+		if ( lit && tP < t && tP > 0.0 ) {
+			let pp = ro + rd * tP;
+			let cell = floor( pp.x / 0.7 ) + seed * 977.0 + f32( kk ) * 7.0;
+			let a = ihash( cell ); let b = ihash( cell + 3.3 ); let c = ihash( cell + 5.7 );
+			let cx = ( floor( pp.x / 0.7 ) + 0.3 + 0.4 * b ) * 0.7;
+			if ( a < party * select( 0.55, 0.4, kk == 1 ) && cx > xl + 0.4 && cx < xr - 0.4 ) {
+				var coat = vec3f( 0.36, 0.025, 0.03 );
+				if ( c > 0.45 ) { coat = vec3f( 0.03, 0.035, 0.08 ); }
+				if ( c > 0.62 ) { coat = vec3f( 0.03 ); }
+				if ( c > 0.78 ) { coat = vec3f( 0.22, 0.2, 0.18 ); }
+				if ( c > 0.9 ) { coat = vec3f( 0.6, 0.58, 0.55 ); }
+				let hair = mix( vec3f( 0.05, 0.035, 0.02 ), vec3f( 0.35, 0.25, 0.12 ), step( 0.7, b ) ) + vec3f( 0.3 ) * step( 0.9, a * 1.8 );
+				let skin = mix( vec3f( 0.55, 0.38, 0.3 ), vec3f( 0.3, 0.19, 0.13 ), step( 0.85, c ) );
+				let f = figure( vec2f( pp.x - cx, pp.y ), select( 1.62 + 0.24 * b, 1.52 + 0.12 * b, kk == 1 ), coat, hair, skin, 0.0 );
+				if ( f.w > 0.5 ) { room = f.xyz * mix( 0.03, 0.3, nk ) * ( 0.8 + 0.4 * h2 ); }
+			}
+		}
+	}
+	let fres = pow( 1.0 - max( dot( - Vd, N ), 0.0 ), 3.0 );
+	// (---- FI3: a little more of the sky's reflection, a floor under the Fresnel)
+	s.albedo = vec3f( 0.045, 0.06, 0.056 );
+	s.roughness = 0.08;
+	s.metalness = 0.6;
+	s.alpha = 1.0;
+	s.emissive = room * ( 1.0 - max( fres, 0.12 ) );
+`;
+
+}
+
+// ---- FI3 (C2I-9): a suite traced from its glass (the far glass, and the near glass's reflection after
+// dark): ro on the glass (x across from the room's middle, y up), rd into the room; in.color: the walls' x,
+// a seed, 4 * lit + 2 * buffet-left + party. Leaves t, hit, room (its surfaces' colour) and glow (its lamps)
+function suiteRoomWGSL() {
+
+	return /* wgsl */`
+	let xl = in.color.r; let xr = in.color.g;
+	let fl = in.color.a;
+	let lit = fl >= 3.5;
+	let bl = ( fl - select( 0.0, 4.0, lit ) ) >= 1.5;
+	let RH = ${ RH.toFixed( 2 ) };
+	let DEP = ${ DROOM.toFixed( 2 ) };
 	let tx = ( select( xl + 0.06, xr - 0.06, rd.x > 0.0 ) - ro.x ) / rd.x;
 	let ty = ( select( 0.0, RH, rd.y > 0.0 ) - ro.y ) / rd.y;
 	let tz = DEP / rd.z;
 	let t = min( tx, min( ty, tz ) );
 	let hit = ro + rd * t;
-	let h2 = fract( seed * 13.71 );
-	let nk = smoothstep( 0.1, 0.7, frame.night );
 	var room = vec3f( 0.52, 0.42, 0.27 ) * ( 0.92 + 0.12 * step( 0.5, fract( ( hit.z + hit.x ) / 0.18 ) ) );
 	var glow = vec3f( 0.0 );
 	if ( t == ty && rd.y > 0.0 ) {
@@ -972,36 +1190,6 @@ function farGlassWGSL() {
 		if ( abs( hit.x - xc ) < 0.32 && hit.y > 1.46 && hit.y < 1.94 ) { room = vec3f( 0.03 ); if ( lit && abs( hit.x - xc ) < 0.25 && hit.y > 1.52 && hit.y < 1.88 ) { glow = vec3f( 0.12, 0.38, 0.12 ) * 2.0; } }
 		if ( hit.x > dx0 && hit.x < dx0 + 0.95 && hit.y < 2.13 ) { room = vec3f( 0.38, 0.19, 0.07 ); glow = vec3f( 0.0 ); }
 	}
-	let lk = select( 0.025, mix( 0.3, 0.48, nk ), lit ) * ( 0.85 + 0.3 * h2 );
-	room = room * lk + glow * select( 0.0, mix( 0.5, 1.0, nk ), lit );
-	// the people: at the counter, round the high-top, at the glass (nearer drawn over further)
-	for ( var kk = 0; kk < 3; kk ++ ) {
-		let zP = select( select( 0.75, 1.95, kk == 1 ), 3.2, kk == 0 );
-		let tP = zP / rd.z;
-		if ( lit && tP < t && tP > 0.0 ) {
-			let pp = ro + rd * tP;
-			let cell = floor( pp.x / 0.7 ) + seed * 977.0 + f32( kk ) * 7.0;
-			let a = ihash( cell ); let b = ihash( cell + 3.3 ); let c = ihash( cell + 5.7 );
-			let cx = ( floor( pp.x / 0.7 ) + 0.3 + 0.4 * b ) * 0.7;
-			if ( a < party * select( 0.55, 0.4, kk == 1 ) && cx > xl + 0.4 && cx < xr - 0.4 ) {
-				var coat = vec3f( 0.36, 0.025, 0.03 );
-				if ( c > 0.45 ) { coat = vec3f( 0.03, 0.035, 0.08 ); }
-				if ( c > 0.62 ) { coat = vec3f( 0.03 ); }
-				if ( c > 0.78 ) { coat = vec3f( 0.22, 0.2, 0.18 ); }
-				if ( c > 0.9 ) { coat = vec3f( 0.6, 0.58, 0.55 ); }
-				let hair = mix( vec3f( 0.05, 0.035, 0.02 ), vec3f( 0.35, 0.25, 0.12 ), step( 0.7, b ) ) + vec3f( 0.3 ) * step( 0.9, a * 1.8 );
-				let skin = mix( vec3f( 0.55, 0.38, 0.3 ), vec3f( 0.3, 0.19, 0.13 ), step( 0.85, c ) );
-				let f = figure( vec2f( pp.x - cx, pp.y ), select( 1.62 + 0.24 * b, 1.52 + 0.12 * b, kk == 1 ), coat, hair, skin, 0.0 );
-				if ( f.w > 0.5 ) { room = f.xyz * mix( 0.12, 0.3, nk ) * ( 0.8 + 0.4 * h2 ); }
-			}
-		}
-	}
-	let fres = pow( 1.0 - max( dot( - Vd, N ), 0.0 ), 3.0 );
-	s.albedo = vec3f( 0.02, 0.03, 0.035 );
-	s.roughness = 0.08;
-	s.metalness = 0.6;
-	s.alpha = 1.0;
-	s.emissive = room * ( 1.0 - fres );
 `;
 
 }

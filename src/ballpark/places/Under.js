@@ -5,7 +5,7 @@ import { DUGOUT_DEPTH, DUGOUT_WIDTH } from '../Field.js';
 import { Cast, PROP, TOP, COLOR, HAT, seat } from './Cast.js';
 import { GESTURE, dress, sizeOf } from './Concourse3BKit.js';
 import { Tempo } from './Tempo.js';
-import { Inside, insideMaterial, frame, Reach, cellUV, rnd, clearGlass, clearGlassMesh, Screens, yawOf } from './inside/Kit.js';
+import { Inside, insideMaterial, frame, Reach, cellUV, rnd, clearGlass, clearGlassMesh, Screens, yawOf, netMaterial } from './inside/Kit.js';
 
 // FI2 (gauntlet CI-14): what's under the field level's seats round home plate, where there was a hollow
 // with the risers' undersides for a ceiling. Behind home, under sections 119-128, the Diamond Club's
@@ -63,7 +63,7 @@ export default class Under {
 
 		}
 
-		this.material = insideMaterial( 'under-inside' );
+		this.material = insideMaterial( 'under-inside', { local: false } ); // ---- FI3: closed rooms: no local light reaches them
 		// where the dugouts' tunnels come in: a doorway in the room's front wall ([ segment, s along it ])
 		this.doors = [];
 		for ( const [ side, si ] of [ [ 'first', 0 ], [ 'third', 4 ] ] ) {
@@ -104,9 +104,18 @@ export default class Under {
 		{
 
 			const b = new Inside();
+			// ---- FI3 (C2I-14): the netting in a mesh of its own on the late (transparent) pass, a veil: its
+			// twine drawn where it's wider than a pixel, its coverage (an eighth) as a dark grey tint where it
+			// isn't (puckfiend 2005: everything in the cages seen through it). It was cut out of the cages'
+			// opaque material, a pixel-wide black lattice that crawled with moiré, and its discard turned off
+			// the hidden-surface removal for the whole room (SP1); the room's material has none now
+			this.nets = new Inside();
 			this._cages( b, this.segs[ 0 ] );
-			// (---- SP1: their own material, the only one with the netting's cut-outs: Kit.js insideMaterial)
-			add( b, 'under-cages', mid( this.segs[ 0 ] ), 16, insideMaterial( 'under-cages', { net: true } ) );
+			add( b, 'under-cages', mid( this.segs[ 0 ] ), 16 );
+			const nm = clearGlassMesh( this.nets, netMaterial(), 'under-nets' );
+			this.group.add( nm );
+			this.reach.add( nm, mid( this.segs[ 0 ] ), 16 );
+			// ---- end FI3
 
 		}
 
@@ -129,7 +138,7 @@ export default class Under {
 		this.tvs = this.screens.mesh( 'under-tvs' );
 		if ( this.tvs ) this.group.add( this.tvs );
 		// the glass onto the cages
-		this.cageGlass = clearGlassMesh( this.glassQuads, clearGlass( 'under-cage-glass', 40, 1 ), 'under-cage-glass' );
+		this.cageGlass = clearGlassMesh( this.glassQuads, clearGlass( 'under-cage-glass', 40, 1, { tint: false } ), 'under-cage-glass' );
 		this.group.add( this.cageGlass );
 		this._outside();
 		this._people();
@@ -194,6 +203,23 @@ export default class Under {
 		b.use( 'terrazzo' ).panel4( fl( sg.a, 0.005 ), fl( sg.c, 0.005 ), fl( sg.b1, 0.005 ), fl( sg.b0, 0.005 ), [ 0, 1, 0 ], 0.7, uvT );
 		b.use( 'blackPaint' ).panel4( fl( sg.a, CL ), fl( sg.c, CL ), fl( sg.b1, CL ), fl( sg.b0, CL ), [ 0, - 1, 0 ], 1.2 );
 		for ( const l of lamps ) if ( l[ 4 ] !== 'omni' && l[ 1 ] > CL - 0.1 ) b.use( 'can' ).box( frame( [ l[ 0 ], l[ 1 ], l[ 2 ] ], sg.u, sg.nIn ), 0, 0.03, 0, 0.16, 0.01, 0.16, [ 'top' ] );
+		// ---- FI3 (C2I-10): what hangs in the black: a duct along the room with its grilles, two tracks of spot
+		// heads (pompomflipflop: track spots in the black ceiling); the ceiling was a flat black void
+		b.use( 'steel' ).box( P, sg.len / 2, CL - 0.22, 3.9, sg.len - 0.4, 0.38, 0.55, [ 'top' ] );
+		for ( let s = 2; s < sg.len - 1; s += 4 ) b.use( 'pipeWhite' ).box( P, s, CL - 0.415, 3.9, 0.45, 0.01, 0.35, [ 'top' ] );
+		for ( const z of [ 2.2, 5.6 ] ) {
+
+			b.use( 'black' ).box( P, sg.len / 2, CL - 0.03, z + 0.5, sg.len - 0.6, 0.04, 0.04 );
+			for ( let s = 1.0; s < sg.len - 0.6; s += 1.6 ) {
+
+				b.use( 'black' ).box( P, s, CL - 0.08, z + 0.5, 0.02, 0.08, 0.02 );
+				b.use( 'black' ).cyl( P, s, z + 0.5, CL - 0.24, CL - 0.1, 0.05, 0.045, 8, true );
+				b.use( 'lamp' ).cyl( P, s, z + 0.5, CL - 0.245, CL - 0.24, 0.0, 0.045, 8, false );
+
+			}
+
+		}
+		// ---- end FI3
 		// the front wall (toward the field): dark wood below, deep red above; the murals; the banquettes
 		this._face( b, sg.a, sg.c, 0, 1.0, nIn, 'cherry' );
 		this._face( b, sg.a, sg.c, 1.0, CL, nIn, 'redPaint', 1.0 );
@@ -210,8 +236,17 @@ export default class Under {
 		if ( ! home ) for ( let s = 1.4; s < sg.len - 1.4; s += 2.6 ) {
 
 			if ( Math.abs( s - sg.len / 2 ) < 2.3 ) continue;
-			b.use( 'leather' ).box( P, s, 0.22, 0.65, 2.2, 0.44, 0.6 );
-			b.use( 'leather' ).box( P, s, 0.75, 0.15, 2.2, 0.62, 0.22 );
+			// ---- FI3 (C2I-10): a tall back channel-tufted in horizontal rolls of glossy red leather, two seat
+			// cushions (pompomflipflop, Mar 2008); they were plain red boxes
+			b.use( 'leather' ).box( P, s, 0.2, 0.65, 2.2, 0.4, 0.6 );
+			for ( const sx of [ - 0.545, 0.545 ] ) b.use( 'leather' ).box( P, s + sx, 0.45, 0.66, 1.07, 0.1, 0.56 );
+			for ( let k = 0; k < 6; k ++ ) {
+
+				b.use( 'leather' ).box( P, s, 0.5 + k * 0.135 + 0.06, 0.2 - k * 0.012, 2.2, 0.115, 0.24 );
+				b.use( 'black' ).box( P, s, 0.5 + k * 0.135 + 0.125, 0.19 - k * 0.012, 2.18, 0.02, 0.22 );
+
+			}
+			// ---- end FI3
 			b.use( 'black' ).cyl( P, s, 1.45, 0.0, 0.52, 0.05, 0.05, 6, false );
 			b.use( 'granite' ).cyl( P, s, 1.45, 0.52, 0.56, 0.38, 0.38, 12, true );
 			this.spots.push( { p: P( s - 0.5, 0, 0.75 ), face: sg.nIn, sit: 0.46, room: 'lounge' } );
@@ -224,7 +259,7 @@ export default class Under {
 		// the high-tops with their black woven chairs
 		for ( let s = 2.2; s < sg.len - 1.5; s += 3.6 ) {
 
-			const z = home ? 4.4 : 5.4;
+			const z = home ? 6.5 : 5.4; // (---- FI3 (C2I-10): behind home, close to the bar, as in harpo42's photo: it was 4.4)
 			if ( home && Math.abs( s - sg.len / 2 ) < 1.2 ) continue;
 			b.use( 'black' ).cyl( P, s, z, 1.0, 1.04, 0.42, 0.42, 14, true );
 			b.use( 'black' ).cyl( P, s, z, 0.04, 1.0, 0.045, 0.045, 6, false );
@@ -280,15 +315,43 @@ export default class Under {
 		const zb = depth - 0.3;
 		b.use( 'black' ).box( P, sc, 0.46, zb, L + 1, 0.92, 0.6 );
 		b.use( 'granite' ).box( P, sc, 0.94, zb, L + 1.02, 0.04, 0.62 );
+		// ---- FI3 (C2I-10): the back panels (harpo42, Aug 2008): dark, columns of names in white and a great
+		// figure glowing in each (they were blank blue-white rectangles); in front of them the bar's working
+		// kit: two frozen-drink machines churning, rows of bottles, the registers, a cooler's lit doors
+		let pk = 0;
 		for ( let x = sc - L / 2; x < sc + L / 2; x += 1.6 ) {
 
-			b.use( 'frost' ).quad( P( x + 0.05, 1.05, depth - 0.02 ), P( x + 1.55, 1.05, depth - 0.02 ), P( x + 1.55, 2.25, depth - 0.02 ), P( x + 0.05, 2.25, depth - 0.02 ), nOut );
-			b.use( 'black' ).box( P, x, 1.65, depth - 0.04, 0.06, 1.3, 0.04 );
+			const r = cellUV( 'loungePanel', pk ++ % 2, 2, 1 );
+			b.use( 'printLit' ).quad( P( x + 0.05, 1.05, depth - 0.02 ), P( x + 1.55, 1.05, depth - 0.02 ), P( x + 1.55, 2.55, depth - 0.02 ), P( x + 0.05, 2.55, depth - 0.02 ), nOut, [ [ r[ 0 ], r[ 3 ] ], [ r[ 2 ], r[ 3 ] ], [ r[ 2 ], r[ 1 ] ], [ r[ 0 ], r[ 1 ] ] ] );
+			b.use( 'black' ).box( P, x, 1.8, depth - 0.04, 0.06, 1.6, 0.04 );
 
 		}
 
 		b.use( 'fridge' ).box( P, sc + L / 2 - 0.5, 1.6, depth - 0.15, 0.8, 1.2, 0.02 );
-		b.use( 'stainless' ).box( P, sc - L / 2 + 0.6, 1.25, zb - 0.1, 0.5, 0.6, 0.4 );
+		for ( const x of [ sc - L / 2 + 0.6, sc - L / 2 + 1.2 ] ) {
+
+			b.use( 'stainless' ).box( P, x, 1.25, zb - 0.1, 0.5, 0.6, 0.4 );
+			b.use( x < sc - L / 2 + 1 ? 'barGlow' : 'frost' ).box( P, x, 1.35, zb - 0.305, 0.36, 0.3, 0.01 );
+
+		}
+
+		const br = rnd( 2008 );
+		for ( let x = sc - L / 2 + 1.8; x < sc + L / 2 - 1.2; x += 0.1 + br() * 0.05 ) {
+
+			if ( Math.abs( x - sc ) < 0.6 ) continue;
+			const k = br(), ht = 0.22 + br() * 0.1;
+			b.use( k < 0.35 ? 'bottleGreen' : k < 0.7 ? 'bottleAmber' : 'bottleClear' ).cyl( P, x, zb - 0.05, 0.96, 0.96 + ht * 0.7, 0.035, 0.035, 6, false );
+			b.cyl( P, x, zb - 0.05, 0.96 + ht * 0.7, 0.96 + ht, 0.035, 0.012, 6, true );
+
+		}
+
+		for ( const x of [ sc - 3, sc + 2.5 ] ) {
+
+			b.use( 'plastic' ).box( P, x, 1.02, zb - 0.15, 0.4, 0.12, 0.3 );
+			b.use( 'screen' ).quad( P( x + 0.15, 1.1, zb - 0.32 ), P( x - 0.15, 1.1, zb - 0.32 ), P( x - 0.15, 1.3, zb - 0.28 ), P( x + 0.15, 1.3, zb - 0.28 ), nOut );
+
+		}
+		// ---- end FI3
 		// the sign, the TVs, the soffit
 		// (read from the room: its left is the - u side)
 		b.use( 'printLit' ).print( P( sc - 1.3, 2.4, depth - 0.03 ), P( sc + 1.3, 2.4, depth - 0.03 ), P( sc + 1.3, 3.05, depth - 0.03 ), P( sc - 1.3, 3.05, depth - 0.03 ), nOut, cellUV( 'diamondSign' ) );
@@ -301,6 +364,20 @@ export default class Under {
 		}
 
 		b.use( 'redPaint' ).box( P, sc, CL - 0.22, zc + 0.3, L + 2, 0.44, 2.4, [ 'top' ] );
+		// ---- FI3 (C2I-10): the soffit's curved ends; over the bar's front a line of pale elliptical discs,
+		// each with its downlights (harpo42: the room's ceiling is black, but full of things the light catches)
+		for ( const sx of [ - 1, 1 ] ) b.use( 'redPaint' ).cyl( P, sc + sx * ( L / 2 + 1 ), zc + 0.3, CL - 0.44, CL, 1.2, 1.2, 16, false );
+		for ( const sx of [ - 1, 1 ] ) b.use( 'redPaint' ).cyl( P, sc + sx * ( L / 2 + 1 ), zc + 0.3, CL - 0.441, CL - 0.44, 0.0, 1.2, 16, false );
+		for ( let k = 0; k < 7; k ++ ) {
+
+			const x = sc - 4.5 + k * 1.5;
+			b.use( 'cream' ).cyl( P, x, zc - 1.3, CL - 0.32, CL - 0.3, 0.62, 0.62, 14, false );
+			b.use( 'cream' ).cyl( P, x, zc - 1.3, CL - 0.321, CL - 0.32, 0.0, 0.62, 14, false );
+			b.use( 'black' ).box( P, x, CL - 0.15, zc - 1.3, 0.02, 0.3, 0.02 );
+			for ( const dx of [ - 0.25, 0.25 ] ) b.use( 'can' ).box( P, x + dx, CL - 0.325, zc - 1.3, 0.1, 0.008, 0.1, [ 'top' ] );
+
+		}
+		// ---- end FI3
 		// the stools at the bar, the bartenders' places
 		for ( let x = sc - L / 2 + 0.6; x < sc + L / 2 - 0.4; x += 0.95 ) {
 
@@ -366,8 +443,7 @@ export default class Under {
 			const zc = ( z0 + z1 ) / 2, x0 = 1.2, x1 = len - 1.6, top = CL - 0.25;
 			const net = ( a, bb, c, d, n ) => {
 
-				b.use( 'net' ).quad( a, bb, c, d, n );
-				b.use( 'net' ).quad( a, d, c, bb, n.map( ( v ) => - v ) );
+				this.nets.quad( a, bb, c, d, n ); // ---- FI3 (C2I-14): into the netting's own see-through mesh
 
 			};
 			for ( const z of [ z0, z1 ] ) net( P( x0, 0, z ), P( x1, 0, z ), P( x1, top, z ), P( x0, top, z ), nIn );
@@ -387,7 +463,7 @@ export default class Under {
 			b.use( 'black' ).box( P, xm + 1.6, 1.0, zc - 0.6, 0.05, 2.0, 0.05 );
 			b.use( 'black' ).box( P, xm + 1.6, 2.0, zc, 0.05, 0.05, 1.25 );
 			b.use( 'black' ).box( P, xm + 1.6, 1.0, zc - 0.15, 0.05, 0.05, 0.9 );
-			b.use( 'net' ).quad( P( xm + 1.6, 0, zc - 0.6 ), P( xm + 1.6, 0, zc + 0.6 ), P( xm + 1.6, 2.0, zc + 0.6 ), P( xm + 1.6, 2.0, zc - 0.6 ), [ sg.u[ 0 ], 0, sg.u[ 1 ] ] );
+			this.nets.quad( P( xm + 1.6, 0, zc - 0.6 ), P( xm + 1.6, 0, zc + 0.6 ), P( xm + 1.6, 2.0, zc + 0.6 ), P( xm + 1.6, 2.0, zc - 0.6 ), [ sg.u[ 0 ], 0, sg.u[ 1 ] ] );
 			// a ball cart: a wire basket of balls on legs and wheels
 			for ( const [ x, z ] of [ [ xm + 2.4, zc + 1.2 ], [ xh - 1.6, zc - 1.3 ] ] ) {
 
@@ -516,30 +592,59 @@ export default class Under {
 		// the steel door at the dugout's end of it (on the dugout's back wall), the door at the far end
 		b.use( 'maroon' ).box( P, 0, - Dd + 1.05, t0 + 0.03, 1.0, 2.1, 0.05 );
 		b.use( 'steel' ).box( P, 0.35, - Dd + 1.0, t0 + 0.07, 0.12, 0.03, 0.04 );
-		// the bat rack: cubbies on the wall, a bat in each; the helmets on their shelf
+		// ---- FI3 (C2I-11): the bat rack: a dark frame on the wall, its rails and slots, the bats standing in it
+		// knob up, their barrels down in the tray (ash, maple, black); the batting helmets on the shelf over it,
+		// glossy domes with one ear flap and a short bill to the front, as they're left, a few turned bill-in.
+		// (The rack was a row of honey slabs, a wooden comb; the helmets bowler hats: a brim all round.)
 		const r = rnd( side === 'first' ? 11 : 13 );
 		const sd = side === 'first' ? 1 : - 1, xw = sd * ( w / 2 - 0.2 );
+		const rk0 = t0 + 0.75, rk1 = t0 + 0.75 + 14 * 0.12, fr = floor( ( rk0 + rk1 ) / 2 );
+		for ( const [ y, h ] of [ [ 0.06, 0.12 ], [ 0.62, 0.05 ], [ 0.95, 0.04 ] ] ) b.use( 'black' ).box( P, xw, fr + y, ( rk0 + rk1 ) / 2, 0.34, h, rk1 - rk0 );
+		for ( let k = 0; k <= 14; k ++ ) b.use( 'black' ).box( P, xw, fr + 0.5, rk0 + k * 0.12, 0.3, 1.0, 0.012 );
 		for ( let k = 0; k < 14; k ++ ) {
 
-			const t = t0 + 0.8 + k * 0.12, f = floor( t );
-			b.use( 'honey' ).box( P, xw, f + 0.6, t, 0.36, 1.2, 0.02 );
-			b.use( r() < 0.75 ? 'honey' : 'black' ).cyl( P, xw + sd * 0.02, t + 0.06, f + 0.08, f + 0.92, 0.022, 0.033, 6, true );
+			if ( r() < 0.12 ) continue; // (a bat out: in the dugout)
+			const t = rk0 + 0.06 + k * 0.12, c = r();
+			const pal = c < 0.5 ? 'honey' : c < 0.78 ? 'black' : 'oak';
+			b.use( pal ).cyl( P, xw + sd * 0.02, t, fr + 0.12, fr + 0.62, 0.033, 0.03, 7, false );
+			b.cyl( P, xw + sd * 0.02, t, fr + 0.62, fr + 0.95, 0.03, 0.013, 7, false );
+			b.cyl( P, xw + sd * 0.02, t, fr + 0.95, fr + 0.97, 0.022, 0.022, 7, true );
+			b.use( 'black' ).box( P, xw + sd * 0.02, fr + 0.88, t, 0.03, 0.05, 0.03 ); // (the grip's tape)
 
 		}
 
-		b.use( 'honey' ).box( P, xw, floor( t0 + 1.6 ) + 1.3, t0 + 1.62, 0.36, 0.03, 1.7 );
-		// (a helmet: a shell, its brim, the ear flap)
+		const shelf = floor( t0 + 1.6 ) + 1.3;
+		b.use( 'black' ).box( P, xw, shelf, t0 + 1.62, 0.36, 0.03, 1.7 );
 		for ( let k = 0; k < 6; k ++ ) {
 
-			const t = t0 + 0.95 + k * 0.27, f = floor( t0 + 1.6 ) + 1.315;
-			b.use( side === 'first' ? 'redPaint' : 'navyVinyl' ).cyl( P, xw, t, f, f + 0.1, 0.11, 0.09, 10, false );
-			b.cyl( P, xw, t, f + 0.1, f + 0.15, 0.09, 0.04, 10, true );
-			b.box( P, xw - sd * 0.1, f + 0.01, t, 0.08, 0.012, 0.16 );
+			const t = t0 + 0.95 + k * 0.27, fwd = P.dir( - sd, 0, 0 ), bk = r() < 0.25;
+			// (the helmet's own frame: its bill to + z, out into the tunnel or back to the wall)
+			const f2 = bk ? [ - fwd[ 0 ], - fwd[ 2 ] ] : [ fwd[ 0 ], fwd[ 2 ] ];
+			const H = frame( P( xw, shelf + 0.015, t ), [ f2[ 1 ], - f2[ 0 ] ], f2 );
+			this._helmet( b, H, side === 'first' ? 'helmetRed' : 'helmetNavy', r() < 0.5 );
 
 		}
+		// ---- end FI3
 		// where it meets the room behind: a doorway in the room's front wall
 		this[ side + 'Tunnel' ] = { P, t1, w };
 		return [ ...P( 0, 0, ( t0 + t1 ) / 2 ) ].map( ( v, i ) => i === 1 ? 0.5 : v );
+
+	}
+
+	// ---- FI3 (C2I-11): a batting helmet sitting on its rim (H: its frame, the bill to + z): the dome in
+	// bands, rounder than a head and dropping lower at the back, the ear flap on one side (left or right
+	// handed), the short bill, the vent holes on the crown
+	_helmet( b, H, pal, left ) {
+
+		const bands = [ [ 0, 0.035, 0.122, 0.124 ], [ 0.035, 0.075, 0.124, 0.115 ], [ 0.075, 0.105, 0.115, 0.093 ], [ 0.105, 0.125, 0.093, 0.062 ], [ 0.125, 0.137, 0.062, 0.02 ] ];
+		b.use( pal );
+		for ( const [ y0, y1, r0, r1 ] of bands ) b.cyl( H, 0, - 0.01, y0, y1, r0, r1, 12, y1 > 0.13 );
+		// the back, down over the neck; the ear flap; the bill
+		b.box( H, 0, - 0.012, - 0.095, 0.16, 0.05, 0.05, [ 'top' ] );
+		b.box( H, left ? - 0.11 : 0.11, - 0.035, 0.02, 0.03, 0.08, 0.12 );
+		b.box( H, 0, 0.012, 0.135, 0.17, 0.012, 0.07 );
+		b.use( 'black' ).box( H, 0, 0.02, 0.115, 0.17, 0.02, 0.012 );
+		for ( const x of [ - 0.035, 0.035 ] ) b.use( 'black' ).box( H, x, 0.133, 0.0, 0.012, 0.01, 0.035 );
 
 	}
 
@@ -586,8 +691,92 @@ export default class Under {
 		const m = b.mesh( insideMaterial( 'under-outside' ), 'under-outside' );
 		this.group.add( m );
 		this.reach.add( m, [ 0, 1.5, 30 ], 40 );
+		this._hollow(); // ---- FI3 (C2I-19)
 
 	}
+
+	// ---- FI3 (C2I-19): the hollow round the rooms is storage, as the space under the seats is: behind the
+	// third base corridor and beyond the cages, under a couple of caged work lights, the stadium's things
+	// (common sense: no photo): cages of folding chairs, a golf cart on charge, pallets of cups and napkins
+	// shrink-wrapped, kegs, a stack of crowd barriers; it was a vast empty dark hall
+	_hollow() {
+
+		const b = new Inside(), r = rnd( 2004 );
+		const spots = [];
+		const sgC = this.corridorSeg, sgK = this.cageSeg;
+		if ( sgC ) for ( const s of [ 4, 11, 18 ] ) if ( s < sgC.len - 2 ) spots.push( [ sgC, s, 5.0 ] );
+		if ( sgK ) for ( const s of [ 3, 9 ] ) if ( s < sgK.len - 2 ) spots.push( [ sgK, s, D2 - D1 + 0.8 ] );
+		const lamps = spots.map( ( [ sg, s, z ] ) => [ ...this.P( sg, s )( 0, 2.6, z ), 1.4, 'omni', 2.5 ] );
+		b.room( { lamps, amb: 0.05, bounce: 0.05 } );
+		spots.forEach( ( [ sg, s, z ], k ) => {
+
+			const P = this.P( sg, s ), kind = k % 5;
+			// the work light in its cage on a conduit drop
+			b.use( 'steel' ).box( P, 0, 2.85, z, 0.02, 0.5, 0.02 );
+			b.use( 'lamp' ).cyl( P, 0, z, 2.5, 2.6, 0.07, 0.07, 8, true );
+			if ( kind === 0 ) {
+
+				// a cage of folding chairs on its dolly
+				b.use( 'steel' ).box( P, 0, 0.05, z, 1.2, 0.1, 0.9 );
+				for ( let i = 0; i < 18; i ++ ) b.use( i % 3 ? 'cmu' : 'steel' ).box( P, - 0.5 + i * 0.058, 0.62, z, 0.035, 0.95, 0.78 );
+				for ( const [ dx, dz ] of [ [ - 0.6, - 0.45 ], [ 0.6, - 0.45 ], [ - 0.6, 0.45 ], [ 0.6, 0.45 ] ] ) b.use( 'steel' ).box( P, dx, 0.7, z + dz, 0.03, 1.3, 0.03 );
+
+			} else if ( kind === 1 ) {
+
+				// a golf cart, plugged in
+				b.use( 'white' ).box( P, 0, 0.55, z, 1.2, 0.5, 2.3 );
+				b.use( 'black' ).box( P, 0, 0.85, z + 0.2, 1.1, 0.12, 0.6 );
+				b.use( 'black' ).box( P, 0, 1.1, z + 0.45, 1.1, 0.5, 0.1 );
+				b.use( 'white' ).box( P, 0, 1.95, z, 1.25, 0.06, 1.6 );
+				for ( const [ dx, dz ] of [ [ - 0.55, - 0.7 ], [ 0.55, - 0.7 ], [ - 0.55, 0.7 ], [ 0.55, 0.7 ] ] ) {
+
+					b.use( 'steel' ).box( P, dx, 1.35, z + dz, 0.04, 1.2, 0.04 );
+					b.use( 'black' ).box( P, dx * 1.05, 0.22, z + dz * 1.2, 0.18, 0.44, 0.44 );
+
+				}
+
+				b.use( 'black' ).box( P, 0.62, 0.9, z - 1.0, 0.02, 1.8, 0.02 );
+
+			} else if ( kind === 2 ) {
+
+				// pallets of cups and napkins, shrink-wrapped
+				for ( const dx of [ - 0.6, 0.6 ] ) {
+
+					b.use( 'oak' ).box( P, dx, 0.07, z, 1.1, 0.14, 1.1 );
+					const n = 3 + Math.floor( r() * 3 );
+					for ( let j = 0; j < n; j ++ ) for ( const [ ex, ez ] of [ [ - 0.27, - 0.27 ], [ 0.27, - 0.27 ], [ - 0.27, 0.27 ], [ 0.27, 0.27 ] ] ) b.use( 'paper' ).box( P, dx + ex, 0.3 + j * 0.34, z + ez, 0.52, 0.32, 0.52 );
+					b.use( 'glass' ).box( P, dx, 0.14 + n * 0.17, z, 1.12, n * 0.34 + 0.02, 1.12, [ 'bottom' ] );
+
+				}
+
+			} else if ( kind === 3 ) {
+
+				// kegs, two high
+				for ( let i = 0; i < 6; i ++ ) b.use( 'canSilver' ).cyl( P, - 0.8 + ( i % 3 ) * 0.45, z + ( i < 3 ? - 0.25 : 0.25 ), 0, 0.6, 0.2, 0.2, 10, true );
+				for ( let i = 0; i < 3; i ++ ) b.use( 'canSilver' ).cyl( P, - 0.8 + i * 0.45, z - 0.25, 0.6, 1.2, 0.2, 0.2, 10, true );
+
+			} else {
+
+				// the crowd barriers, stacked on their sides
+				for ( let i = 0; i < 8; i ++ ) {
+
+					const h = 0.1 + i * 0.12;
+					b.use( 'steel' ).box( P, 0, h, z, 2.4, 0.03, 0.03 );
+					b.use( 'steel' ).box( P, 0, h, z + 1.1, 2.4, 0.03, 0.03 );
+					for ( let j = 0; j < 9; j ++ ) b.use( 'steel' ).box( P, - 1.1 + j * 0.275, h, z + 0.55, 0.02, 0.02, 1.1 );
+
+				}
+
+			}
+
+		} );
+		if ( ! b.count ) return;
+		const m = b.mesh( this.material, 'under-hollow' );
+		this.group.add( m );
+		this.reach.add( m, [ 0, 1.5, 30 ], 40 );
+
+	}
+	// ---- end FI3
 
 	// ---------------------------------------------------------------- who's down there
 
