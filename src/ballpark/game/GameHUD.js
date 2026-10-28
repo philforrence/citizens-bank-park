@@ -37,6 +37,8 @@ const CSS = `
 .gm-diamond i.on { background: #ffd24a; border-color: #ffd24a; }
 .gm-outs span { display: inline-block; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid #cbd6e2; margin-left: 3px; }
 .gm-outs span.on { background: #ffd24a; border-color: #ffd24a; }
+.gm-hud.gm-tv .gm-outs span { display: none; }
+.gm-hud.gm-tv .gm-outs::before { content: attr( data-tv ); font-size: 11px; font-weight: 700; }
 .gm-count { font-variant-numeric: tabular-nums; font-weight: 700; }
 .gm-match { opacity: 0.9; flex: 1; min-width: 180px; }
 .gm-match small { opacity: 0.65; }
@@ -50,6 +52,31 @@ const CSS = `
 .gm-ticks { position: absolute; left: 0; right: 0; top: 19px; height: 8px; pointer-events: none; font-size: 9px; opacity: 0.6; }
 .gm-ticks span { position: absolute; transform: translateX( -50% ); }
 .gm-time { font-variant-numeric: tabular-nums; opacity: 0.75; min-width: 86px; text-align: right; font-size: 12px; }
+/* FB2 (C2B-20): on TV the bug is 2008 television's, not a glass card: an opaque box in navy under a
+   brushed-silver WORLD SERIES header, bevelled, the teams stacked in their colours, the inning spelled
+   out in its tab (TOP 9TH), the count and the outs (2 OUT) in condensed caps (the world feed's bug,
+   U_R8E614TB8 t13150s) */
+.gm-ws { display: none; }
+.gm-hud.gm-tv .gm-ws { display: block; margin: -7px -9px 6px; padding: 2px 9px 1px; border-radius: 2px 2px 0 0;
+	background: linear-gradient( #eef1f5, #aab3c0 48%, #8a95a5 52%, #c9d0da ); color: #0b1f4d;
+	font: 800 11px/1.25 "Arial Narrow", "Helvetica Neue", Arial, sans-serif; letter-spacing: 0.22em; text-align: center;
+	border-bottom: 1px solid #5a6474; }
+.gm-hud.gm-tv .gm-card { background: linear-gradient( #22396d, #0c1a3b 60%, #0a1430 ); backdrop-filter: none; -webkit-backdrop-filter: none;
+	border: 1px solid #8f9bb0; border-radius: 3px; box-shadow: inset 0 1px 0 rgba( 255, 255, 255, 0.28 ), inset 0 -1px 0 rgba( 0, 0, 0, 0.5 ), 0 2px 7px rgba( 0, 0, 0, 0.65 );
+	font-family: "Arial Narrow", "Helvetica Neue", Arial, sans-serif; }
+.gm-hud.gm-tv .gm-score { flex-direction: column; border-radius: 2px; text-transform: uppercase; }
+.gm-hud.gm-tv .gm-team { padding: 2px 8px; justify-content: space-between; min-width: 64px; box-shadow: inset 0 1px 0 rgba( 255, 255, 255, 0.2 ); }
+.gm-hud.gm-tv .gm-team b { font-size: 16px; }
+.gm-hud.gm-tv .gm-inning { justify-content: center; background: linear-gradient( #d6dce5, #98a3b3 ); color: #0b1f4d; font-weight: 800; font-size: 11px; letter-spacing: 0.06em; padding: 1px 8px; }
+.gm-hud.gm-tv .gm-count, .gm-hud.gm-tv .gm-outs { text-transform: uppercase; letter-spacing: 0.04em; }
+.gm-hud.gm-tv .gm-match { text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
+/* FB2 (C2B-10): a replay on the air: FOX's tag over the bug */
+.gm-replay { display: none; position: absolute; left: 0; bottom: calc( 100% + 6px ); padding: 3px 10px 3px 8px; border-radius: 3px;
+	background: linear-gradient( #c8ccd3, #8a929e ); color: #0d1b3a; font: 800 13px/1.2 Inter, system-ui, sans-serif; letter-spacing: 0.12em;
+	box-shadow: 0 1px 3px rgba( 0, 0, 0, 0.5 ); }
+.gm-replay::before { content: ''; display: inline-block; width: 0; height: 0; margin-right: 7px; vertical-align: 1px;
+	border-left: 8px solid #b0101f; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.gm-hud.gm-tv.gm-replaying .gm-replay { display: block; }
 `;
 
 export class GameHUD {
@@ -67,7 +94,9 @@ export class GameHUD {
 		const el = this.el = document.createElement( 'div' );
 		el.className = 'gm-hud';
 		el.innerHTML = `
+			<div class="gm-replay">REPLAY</div>
 			<div class="gm-card">
+				<div class="gm-ws">World Series</div>
 				<div class="gm-top">
 					<div class="gm-score">
 						<div class="gm-team away">${ game.teams.away.abbr } <b data-k="away">0</b></div>
@@ -213,21 +242,24 @@ export class GameHUD {
 		const d = this.d, g = this.g, n = d.now;
 		if ( ! n ) return;
 		const s = n.snap, P = g.players;
-		const key = [ d.t.toFixed( 1 ), d.playing, d.speed, this.radio?.muted, this.sound?.muted, this.app?.camMode ].join();
+		const key = [ d.t.toFixed( 1 ), d.playing, d.speed, this.radio?.muted, this.sound?.muted, this.app?.camMode, this.app?._replaying ].join();
 		if ( ! force && key === this._last ) return;
 		this._last = key;
 		this.$( 'away' ).textContent = s.score.away;
 		this.$( 'home' ).textContent = s.score.home;
-		this.$( 'inning' ).textContent = `${ s.half === 'top' ? '▲' : '▼' } ${ s.inning }`;
+		const tv = !! this.app?.camMode && this.app.camMode !== 'walk';
+		this.$( 'inning' ).textContent = tv ? `${ s.half === 'top' ? 'Top' : 'Bot' } ${ ordinal( s.inning ) }` : `${ s.half === 'top' ? '▲' : '▼' } ${ s.inning }`;
 		this.el.querySelectorAll( '[data-b]' ).forEach( ( i ) => i.classList.toggle( 'on', !! s.bases[ Number( i.dataset.b ) ] ) );
 		this.$( 'count' ).textContent = `${ n.count[ 0 ] }-${ n.count[ 1 ] }`;
 		this.$( 'outs' ).querySelectorAll( 'span' ).forEach( ( o, i ) => o.classList.toggle( 'on', i < n.outs ) );
+		this.$( 'outs' ).dataset.tv = tv ? `${ n.outs } out` : '';
 		const pit = P[ s.pitcher ], bat = P[ s.batter ];
 		const pitch = n.pitch && n.pitch.speed ? `<small> · ${ Math.round( n.pitch.speed ) } mph ${ n.pitch.typeName || '' }</small>` : '';
 		this.$( 'match' ).innerHTML = bat && pit ? `${ pit.last } <small>pitching to</small> ${ bat.name } <small>#${ bat.num }</small>${ pitch }` : '';
 		this.$( 'desc' ).innerHTML = this._playLine( n, s );
 		// on TV the panel is a corner bug
 		this.el.classList.toggle( 'gm-tv', !! this.app?.camMode && this.app.camMode !== 'walk' );
+		this.el.classList.toggle( 'gm-replaying', !! this.app?._replaying );
 		const slider = this.$( 'slider' );
 		if ( document.activeElement !== slider ) slider.value = d.t;
 		const bt = this.el.querySelector( '[data-a="play"]' );

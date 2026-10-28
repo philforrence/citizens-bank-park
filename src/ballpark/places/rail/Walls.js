@@ -167,8 +167,11 @@ export function buildWalls( group, M ) {
 	const cm = new Mesh( cq.geometry(), M.cable );
 	cm.name = 'backstop-cables';
 	cm.castShadow = false;
+	// (FB2, C2B-22: kept out of the batch, so FOX's high home camera can leave them out: a lens focused on
+	// the field 50 m off doesn't see a 2 cm cable a few metres in front of it)
+	cm.userData.dynamic = true;
 	group.add( cm );
 	// the night's panel: [ the 29th's, the 27th's ]
-	return { swap };
+	return { swap, cables: cm };
 
 }

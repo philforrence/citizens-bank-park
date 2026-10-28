@@ -60,10 +60,11 @@ function drawPanel() {
 			if ( ! ad ) return;
 			const [ x, y ] = cell( i + 1 );
 			const nikon = ad === 'Nikon', wisers = ad === "WISER'S", tip = ad === 'TIPTOP';
-			ctx.fillStyle = nikon ? '#101010' : wisers ? '#f1ece0' : tip ? '#c8102e' : '#1b3f8b';
+			// (FB2, C2B-23: Nikon keyed as the feed had it, black on its yellow; the colours were swapped)
+			ctx.fillStyle = nikon ? '#f5d000' : wisers ? '#f1ece0' : tip ? '#c8102e' : '#1b3f8b';
 			ctx.fillRect( x, y, 1024, 64 );
-			ctx.fillStyle = nikon ? '#f5d000' : wisers ? '#1a1a1a' : '#ffffff';
-			ctx.font = `${ nikon ? 'italic 800' : wisers ? '700' : '800' } 46px ${ wisers ? 'Georgia, "Times New Roman", serif' : '"Helvetica Neue", Arial, sans-serif' }`;
+			ctx.fillStyle = nikon ? '#101010' : wisers ? '#1a1a1a' : '#ffffff';
+			ctx.font = `${ nikon ? '800' : wisers ? '700' : '800' } 46px ${ wisers ? 'Georgia, "Times New Roman", serif' : '"Helvetica Neue", Arial, sans-serif' }`;
 			ctx.fillText( ad, x + 512, y + 34 );
 
 		} );
