@@ -140,11 +140,11 @@ export default class Clubhouse {
 		this.X1 = cross2( this.front.inP, this.front.u, this.side.p, this.side.u );
 		this.X2 = cross2( this.side.inP, this.side.u, this.front.p, this.front.u );
 		this.X3 = cross2( this.far.inP, this.far.u, this.front.p, this.front.u );
-		// the glass on each: the front from the post to the far wall's inner face; the side from the post to
-		// 0.77 m short of A (where the facade's own frontage ended)
+		// the glass on each: the front from the post to the far wall's inner face; the side from the post to the
+		// back wall (the facade's frontage ran on 0.77 m short of A, into the stair tower behind it)
 		const tOn = ( e, P ) => dot( sub( P, e.p ), e.u );
 		this.front.glass = [ tOn( this.front, this.X2 ), tOn( this.front, this.X3 ) - 0.004 ];
-		this.side.glass = [ 0.77, tOn( this.side, this.X1 ) ];
+		this.side.glass = [ BACK_IN + 0.12, tOn( this.side, this.X1 ) ];
 		// a pair of doors in the front's middle (the gate3b place's people come and go there)
 		const dm = ( this.front.glass[ 0 ] + this.front.glass[ 1 ] ) / 2;
 		this.doorT = [ dm - 0.9, dm + 0.9 ];
@@ -373,7 +373,7 @@ export default class Clubhouse {
 		form( FW, x0 + 0.5, 0.45, hp, [ 'pinstripe', PRINT.home ], fr.n );
 		form( FW, dmx + 1.65, 0.45, hp, [ 'creamCloth', PRINT.alt ], fr.n );
 		// (the side's bay: forms looking out at the gate)
-		for ( const [ t, kind ] of [ [ 2.0, [ 'blackCloth', PRINT.ws ] ], [ 4.0, [ 'redCloth', PRINT.pJacket ] ], [ 6.1, [ 'roadGrey', PRINT.road ] ] ] ) {
+		for ( const [ t, kind ] of [ [ 1.8, [ 'blackCloth', PRINT.ws ] ], [ 3.6, [ 'redCloth', PRINT.pJacket ] ], [ 5.3, [ 'roadGrey', PRINT.road ] ] ] ) {
 
 			const p = add( add( sd.q, mul( sd.u, - t ) ), mul( sd.n, - 0.42 ) );
 			form( frame( [ p[ 0 ], YF, p[ 1 ] ], sd.u.map( ( v ) => - v ), sd.nIn ), 0, 0, hp, kind, sd.n );
