@@ -3,7 +3,7 @@ import { StorageBuffer } from '../../engine/gpu/Texture.js';
 import { standard } from '../../materials/Materials.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
 import { buildPlayerGeometry, solvePose, skinMatrices, neutralPose, NB, BONES, PART, UNIFORM, FACE, DIM, JOINTS as BODY_JOINTS, PHAN, PHANATIC_PARTS } from './Rig.js';
-import { look as lookFor, FACE_KEYS } from './Looks.js';
+import { look as lookFor, FACE_PACK } from './Looks.js';
 import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 
 // Everyone on the field in one instanced draw: each instance is a slot, its 17 skinning matrices (and
@@ -380,13 +380,13 @@ function packLook( L ) {
 
 }
 
-// ---- FY4: the face's twelve numbers (Looks.js' FACE_KEYS, -1 to 1) a byte each, three to a float (whole
+// ---- FY4: the face's sixteen numbers (Looks.js' FACE_PACK, -1 to 1) six bits each, four to a float (whole
 // numbers under 2^24, exact in an f32)
 function packFace( face ) {
 
-	const b = ( k ) => Math.round( ( Math.max( - 1, Math.min( 1, ( face && face[ k ] ) || 0 ) ) + 1 ) * 127.5 );
+	const b = ( k ) => Math.round( ( Math.max( - 1, Math.min( 1, ( face && face[ k ] ) || 0 ) ) + 1 ) * 31 ); // (0 to 62: 31 is the base face exactly)
 	const out = [ 0, 0, 0, 0 ];
-	FACE_KEYS.forEach( ( k, i ) => out[ i / 3 | 0 ] += b( k ) * 256 ** ( i % 3 ) );
+	FACE_PACK.forEach( ( k, i ) => out[ i >> 2 ] += b( k ) * 64 ** ( i & 3 ) );
 	return out;
 
 }
@@ -711,7 +711,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 	}
 	// ---- end FY2
 	// ---- FY4: every man his own face. The mesh has one MakeHuman face; Looks.js' twelve numbers (the
-	// slot's fifth vec4, three bytes to a float) shape it in the bind pose, a few millimetres at a time:
+	// slot's fifth vec4, sixteen numbers, four to a float) shape it in the bind pose, a few millimetres at a time:
 	// the lower face's length, the chin's jut and breadth, the cheekbones, the cheeks' flesh, the brow, the
 	// nose's length, breadth and bridge, the eyes' spacing, the ears, the neck's thickness; and age's own
 	// (jowls, the nose and ears grown) for the umpires, the coaches and Manuel. The head sits 4-8 mm lower
@@ -721,10 +721,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 	var fd = vec3f( 0.0 );
 	if ( keep && ! phan && lp3.y > ${ f( U.collar - 0.012 ) } && arm < -0.5 && leg < -0.5 ) {
 		let qa = vec4u( plInfo[ slot * ${ K }u + 4u ] + 0.5 );
-		let fA = vec3f( f32( qa.x & 255u ), f32( ( qa.x >> 8u ) & 255u ), f32( qa.x >> 16u ) ) / 127.5 - 1.0;
-		let fB = vec3f( f32( qa.y & 255u ), f32( ( qa.y >> 8u ) & 255u ), f32( qa.y >> 16u ) ) / 127.5 - 1.0;
-		let fC = vec3f( f32( qa.z & 255u ), f32( ( qa.z >> 8u ) & 255u ), f32( qa.z >> 16u ) ) / 127.5 - 1.0;
-		let fD = vec3f( f32( qa.w & 255u ), f32( ( qa.w >> 8u ) & 255u ), f32( qa.w >> 16u ) ) / 127.5 - 1.0;
+		let fA = vec4f( f32( qa.x & 63u ), f32( ( qa.x >> 6u ) & 63u ), f32( ( qa.x >> 12u ) & 63u ), f32( ( qa.x >> 18u ) & 63u ) ) / 31.0 - 1.0;
+		let fB = vec4f( f32( qa.y & 63u ), f32( ( qa.y >> 6u ) & 63u ), f32( ( qa.y >> 12u ) & 63u ), f32( ( qa.y >> 18u ) & 63u ) ) / 31.0 - 1.0;
+		let fC = vec4f( f32( qa.z & 63u ), f32( ( qa.z >> 6u ) & 63u ), f32( ( qa.z >> 12u ) & 63u ), f32( ( qa.z >> 18u ) & 63u ) ) / 31.0 - 1.0;
+		let fD = vec4f( f32( qa.w & 63u ), f32( ( qa.w >> 6u ) & 63u ), f32( ( qa.w >> 12u ) & 63u ), f32( ( qa.w >> 18u ) & 63u ) ) / 31.0 - 1.0;
 		let aged = smoothstep( 0.45, 1.0, floor( i3.w ) / 9.0 );
 		let x = lp3.x; let y = lp3.y; let z = lp3.z;
 		let ax = abs( x );
@@ -750,6 +750,16 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			fd += vec3f( 0.0, - 0.003, - 0.01 ) * fA.y * chinK;
 			let chinWK = ( 1.0 - smoothstep( 0.03, 0.046, ax ) ) * ( 1.0 - smoothstep( 0.012, 0.03, abs( y - 1.66 ) ) ) * smoothstep( - 0.07, - 0.1, z );
 			fd.x += x * 0.32 * fA.z * chinWK;
+			// the jaw's angle flared or soft; under the chin, a heavy man's and an old man's fullness
+			let gnK = ( 1.0 - smoothstep( 0.008, 0.024, length( vec2f( y - 1.664, ( z + 0.045 ) * 0.8 ) ) ) ) * smoothstep( 0.035, 0.052, ax );
+			fd += vec3f( sx * 0.006, - 0.002, 0.0 ) * fD.w * gnK;
+			let sbK = ( 1.0 - smoothstep( 0.02, 0.042, ax ) ) * smoothstep( 1.612, 1.628, y ) * ( 1.0 - smoothstep( 1.64, 1.65, y ) ) * smoothstep( - 0.06, - 0.072, z );
+			fd += vec3f( 0.0, - 0.003, - 0.007 ) * ( 0.6 * max( fB.y, 0.0 ) + 0.7 * aged ) * sbK;
+			// the lips fuller or thinner, the mouth wider or narrower
+			let lpK = ( 1.0 - smoothstep( 0.016, 0.028, ax ) ) * ( 1.0 - smoothstep( 0.006, 0.016, abs( y - ${ f( F.mouth[ 1 ] ) } ) ) ) * smoothstep( - 0.128, - 0.136, z );
+			fd += vec3f( 0.0, sign( y - ${ f( F.mouth[ 1 ] ) } ) * 0.0015, - 0.0035 ) * fA.w * lpK;
+			let mwK = ( 1.0 - smoothstep( 0.022, 0.036, ax ) ) * ( 1.0 - smoothstep( 0.008, 0.02, abs( y - ${ f( F.mouth[ 1 ] ) } ) ) ) * smoothstep( - 0.115, - 0.13, z );
+			fd.x += x * 0.15 * fB.w * mwK;
 			// the cheekbones, out and a little forward; the cheeks' flesh below them; age's jowls along the jaw
 			let ckK = ( 1.0 - smoothstep( 0.008, 0.022, length( vec2f( y - 1.745, ( z + 0.098 ) * 0.7 ) ) ) ) * smoothstep( 0.035, 0.055, ax );
 			fd += vec3f( sx * 0.008, 0.0, - 0.004 ) * fB.x * ckK;
@@ -776,13 +786,16 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			// the eyes' sockets wider apart or closer (the eyes themselves below)
 			let esK = ( 1.0 - smoothstep( 0.012, 0.028, length( vec2f( ax - 0.031, y - 1.767 ) ) ) ) * fr;
 			fd.x += sx * 0.0035 * fD.x * esK;
+			// deep-set or prominent (the eyes themselves below; the brow stays)
+			let dpK = ( 1.0 - smoothstep( 0.01, 0.022, length( vec2f( ax - 0.031, y - 1.767 ) ) ) ) * fr;
+			fd.z += 0.003 * fC.w * dpK;
 			// the ears: bigger about their root, and standing off the head (less under a helmet's flaps)
 			let ears = ( fD.y + 0.5 * aged ) * select( 1.0, 0.4, helmet );
 			let erK = smoothstep( 0.068, 0.075, ax ) * smoothstep( 1.704, 1.716, y ) * ( 1.0 - smoothstep( 1.78, 1.792, y ) ) * smoothstep( - 0.064, - 0.052, z ) * ( 1.0 - smoothstep( 0.006, 0.016, z ) );
 			let er0 = vec3f( sx * 0.07, 1.746, - 0.024 );
 			fd += ( ( lp3 - er0 ) * 0.2 * ears + vec3f( sx * 0.005 * max( ears, 0.0 ) * clamp( ( ax - 0.07 ) / 0.02, 0.0, 1.0 ), 0.0, 0.0 ) ) * erK;
 		} else if ( pt == ${ P.eye } ) {
-			fd += vec3f( sx * 0.0035 * fD.x, - drop, 0.0 );
+			fd += vec3f( sx * 0.0035 * fD.x, - drop, 0.003 * fC.w );
 		} else if ( onHead ) {
 			fd.y -= drop;
 		}

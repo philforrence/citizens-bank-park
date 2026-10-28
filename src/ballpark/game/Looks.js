@@ -174,7 +174,7 @@ LOOKS[ 150100 ].stubble = 0.75;
 // ---- end FY3
 
 // ---- FY4 (gauntlet r4, every man his own face): the mesh is one MakeHuman face; Players.js shapes it in
-// the vertex stage by twelve numbers, -1 to 1 (0 the base mesh's), each a few millimetres at its ends:
+// the vertex stage by sixteen numbers (twelve here, four in MORE below), -1 to 1 (0 the base mesh's), each a few millimetres at its ends:
 //   jawL the lower face's length (the chin lower), chin its jut, chinW its breadth (square or pointed),
 //   cheek the cheekbones, full the cheeks' flesh (a round face or a gaunt one), brow the ridge over the
 //   eyes, noseL the nose's length and how far it stands out, noseW its breadth at the wings, bridge how
@@ -189,6 +189,10 @@ LOOKS[ 150100 ].stubble = 0.75;
 // get age's own besides (Players.js: jowls, the nose and ears grown): the umpires, the coaches, Manuel.
 // The jaw's width stays the look's `jaw`
 export const FACE_KEYS = [ 'jawL', 'chin', 'chinW', 'cheek', 'full', 'brow', 'noseL', 'noseW', 'bridge', 'eyes', 'ears', 'neck' ];
+// (and four more, FACE_MORE: lips fuller, mouthW wider, deep-set eyes, gonion the jaw's angle flared)
+export const FACE_MORE = [ 'lips', 'mouthW', 'deep', 'gonion' ];
+// how Players.js packs them: four to a float, in this order
+export const FACE_PACK = [ 'jawL', 'chin', 'chinW', 'lips', 'cheek', 'full', 'brow', 'mouthW', 'noseL', 'noseW', 'bridge', 'deep', 'eyes', 'ears', 'neck', 'gonion' ];
 const fc = ( ...v ) => Object.fromEntries( FACE_KEYS.map( ( k, i ) => [ k, v[ i ] ?? 0 ] ) );
 //                     jawL  chin chinW cheek  full brow noseL noseW bridge eyes ears  neck
 const FACES = {
@@ -235,6 +239,21 @@ const FACES = {
 	'r:moyer': fc( 0.3, 0.1, - 0.2, 0.1, - 0.4, 0.2, 0.4, - 0.1, 0.3, 0.0, 0.3, - 0.2 ),
 	'r:hickey': fc( 0.1, 0.2, 0.3, 0.2, 0.3, 0.3, 0.4, 0.2, 0.2, 0.0, 0.3, 0.5 ),
 };
+//                     lips mouthW deep gonion
+const MORE = {
+	400058: [ - 0.5, 0.0, 0.6, 0.2 ], 434563: [ 0.4, 0.3, 0.0, 0.5 ], 400134: [ 0.0, 0.2, 0.3, 0.5 ], 400284: [ - 0.4, 0.1, 0.7, 0.6 ],
+	429667: [ 0.7, 0.5, 0.1, 0.6 ], 276519: [ 0.5, 0.2, 0.0, - 0.3 ], 150029: [ - 0.2, 0.1, 0.5, 0.3 ], 150268: [ 0.4, 0.3, 0.3, 0.5 ],
+	150100: [ - 0.2, 0.2, 0.6, 0.8 ], 430935: [ - 0.3, - 0.2, 0.0, - 0.5 ], 425664: [ 0.4, 0.4, - 0.2, 0.1 ], 132961: [ - 0.3, 0.0, 0.4, 0.3 ],
+	425492: [ - 0.3, - 0.1, 0.3, - 0.2 ], 408307: [ 0.6, 0.2, - 0.1, - 0.2 ], 446334: [ - 0.1, 0.1, 0.5, 0.8 ], 425834: [ 0.5, 0.0, - 0.1, - 0.3 ],
+	150289: [ 0.3, 0.3, 0.4, 0.6 ], 430583: [ - 0.4, - 0.3, 0.3, - 0.4 ], 425900: [ 0.4, 0.2, - 0.2, 0.2 ], 456034: [ 0.6, 0.2, 0.0, - 0.2 ],
+	346797: [ - 0.4, 0.1, 0.7, 0.6 ], 493127: [ - 0.1, 0.1, - 0.6, 0.3 ], 408306: [ - 0.2, 0.0, 0.4, 0.3 ], 431148: [ - 0.2, - 0.2, 0.1, - 0.2 ],
+	430632: [ 0.3, 0.2, 0.0, 0.4 ], 445010: [ 0.5, 0.1, - 0.1, - 0.2 ],
+	'-1': [ 0.0, 0.2, 0.3, 0.4 ], '-2': [ - 0.4, 0.0, 0.4, 0.1 ], '-3': [ 0.4, 0.3, 0.2, 0.4 ], '-4': [ - 0.3, - 0.1, 0.5, 0.0 ],
+	'-5': [ 0.1, 0.3, 0.1, 0.6 ], '-6': [ - 0.2, 0.1, 0.6, 0.3 ],
+	manuel: [ 0.2, 0.3, 0.6, 0.3 ], maddon: [ - 0.3, 0.0, 0.3, 0.0 ], lopes: [ 0.4, 0.2, 0.2, 0.0 ], smith: [ - 0.2, 0.0, 0.3, 0.3 ],
+	hendrick: [ 0.5, 0.2, 0.2, 0.1 ], foley: [ - 0.2, 0.1, 0.3, 0.4 ], 'r:moyer': [ - 0.3, 0.0, 0.3, - 0.1 ], 'r:hickey': [ - 0.1, 0.1, 0.3, 0.3 ],
+};
+for ( const [ id, m ] of Object.entries( MORE ) ) FACE_MORE.forEach( ( k, i ) => FACES[ id ][ k ] = m[ i ] );
 for ( const [ id, f ] of Object.entries( FACES ) ) ( LOOKS[ id ] || STAFF[ id ] ).face = f;
 // the jaw's width where the notes had none
 Object.assign( LOOKS[ 400134 ], { jaw: 0.4 } );
@@ -259,7 +278,7 @@ function seededFace( seed, soft = false ) {
 
 	};
 
-	const f = fc( ...FACE_KEYS.map( ( k, i ) => ( r( i + 1 ) * 2 - 1 ) * 0.6 ) );
+	const f = Object.fromEntries( FACE_PACK.map( ( k, i ) => [ k, ( r( i + 1 ) * 2 - 1 ) * 0.6 ] ) );
 	if ( soft ) Object.assign( f, { chin: - 0.3, chinW: - 0.5, brow: - 0.6, neck: - 0.8, full: 0.1, noseL: - 0.5, noseW: - 0.4 } );
 	return f;
 
