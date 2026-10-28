@@ -654,6 +654,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		if ( arm < -0.5 && leg < -0.5 && lp3.y > ${ f( J.neck[ 1 ] ) } ) {
 			let jawK = smoothstep( eye.y, ${ f( F.jaw[ 1 ] ) }, lp3.y ) * smoothstep( ${ f( J.neck[ 1 ] - 0.01 ) }, ${ f( F.jaw[ 1 ] ) }, lp3.y );
 			lp3.x = lp3.x * ( 1.0 + i3.z * 0.09 * jawK );
+			// ---- FY3: a brow ridge, 3 mm over each eye, so the sockets sit under something and the bill's
+			// shadow has an edge to fall from (the base mesh's brow is smooth)
+			let brk = ( 1.0 - smoothstep( 0.005, 0.014, abs( lp3.y - ${ f( F.eyeR[ 1 ] + 0.019 ) } ) ) ) * smoothstep( 0.006, 0.014, abs( lp3.x ) ) * ( 1.0 - smoothstep( 0.048, 0.06, abs( lp3.x ) ) ) * smoothstep( eye.z + 0.03, eye.z, lp3.z );
+			lp3.z -= 0.003 * brk;
+			// ---- end FY3
 			let beard = u32( i2.w + 0.5 ) & 7u;
 			let front = lp3.z < eye.z + 0.075;
 			let bz = lp3.y < ${ f( F.mouth[ 1 ] ) } + 0.012 && lp3.y > ${ f( F.jaw[ 1 ] - 0.035 ) } && front;
@@ -1180,7 +1185,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		let ec = vec3f( side * ${ f( F.eyeR[ 0 ] ) }, ${ f( F.eyeR[ 1 ] ) }, ${ f( F.eyeR[ 2 ] ) } );
 		let d = normalize( L - ec );
 		c = vec3f( 0.62, 0.6, 0.56 ); rough = 0.08;
-		if ( d.z < -0.93 ) { c = vec3f( 0.06, 0.035, 0.02 ); }
+		// (FY3: blue or grey-green eyes for some of the fair-skinned men, by seed; brown for the rest)
+		let iris = select( vec3f( 0.06, 0.035, 0.02 ), select( vec3f( 0.07, 0.1, 0.14 ), vec3f( 0.08, 0.09, 0.06 ), fract( seed * 53.1 ) < 0.15 ), skinC.r > 0.45 && fract( seed * 31.7 ) < 0.45 );
+		if ( d.z < -0.93 ) { c = iris * ( 0.8 + 0.4 * smoothstep( -0.93, -0.975, d.z ) ); }
 		if ( d.z < -0.985 ) { c = vec3f( 0.005 ); }
 	}
 	if ( part == ${ P.helmet } || part == ${ P.flapL } || part == ${ P.flapR } || part == ${ P.ccap } ) {
