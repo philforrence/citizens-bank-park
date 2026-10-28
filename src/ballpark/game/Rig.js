@@ -365,10 +365,13 @@ export function buildPlayerGeometry() {
 	add( new BoxGeometry( 0.045 * gk, 0.1 * gk, 0.012 ), B.glove, P.glove, 0.08 * gk, - 0.2 * gk, - 0.03 * gk, 0, 0, - 0.2 );
 	// the catcher's mitt: a round, thick pillow with a laced rim and a stubby thumb; the first baseman's:
 	// a long scoop with a laced web
-	add( new TorusGeometry( 0.112, 0.014, 5, 20 ), B.glove, P.mittC, 0, - 0.105, - 0.022, 0, 0, 0, 1.08, 1.04, 1 );
+	// (FB2, C2B-19: 88% of the size it was and deeper in the pocket: it read as a flat disc bigger than the
+	// catcher's head)
+	const mk = 0.88;
+	add( new TorusGeometry( 0.112 * mk, 0.016, 5, 20 ), B.glove, P.mittC, 0, - 0.105 * mk, - 0.024, 0, 0, 0, 1.08, 1.04, 1 );
 	mark = - 1;
-	add( sph( 0.1, 16, 12 ), B.glove, P.mittC, 0, - 0.105, - 0.02, 0, 0, 0, 1.2, 1.16, 0.52 );
-	add( sph( 0.1, 10, 6 ), B.glove, P.mittC, 0.105, - 0.05, - 0.035, 0, 0, - 0.5, 0.32, 0.55, 0.36 );
+	add( sph( 0.1 * mk, 16, 12 ), B.glove, P.mittC, 0, - 0.105 * mk, - 0.02, 0, 0, 0, 1.2, 1.16, 0.66 );
+	add( sph( 0.1 * mk, 10, 6 ), B.glove, P.mittC, 0.105 * mk, - 0.05 * mk, - 0.035, 0, 0, - 0.5, 0.32, 0.55, 0.4 );
 	add( sph( 0.1, 16, 12 ), B.glove, P.mitt1B, 0, - 0.125, - 0.02, 0, 0, 0, 0.82, 1.55, 0.42 );
 	mark = - 2;
 	add( new BoxGeometry( 0.05, 0.11, 0.012 ), B.glove, P.mitt1B, 0.07, - 0.21, - 0.028, 0, 0, - 0.15 );

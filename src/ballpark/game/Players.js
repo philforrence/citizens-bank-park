@@ -948,6 +948,8 @@ function playerMaterial( bones, info, atlas, costume = false ) {
 		// a tan one; the lacing darker
 		let g = fract( seed * 5.3 );
 		c = select( select( vec3f( 0.015, 0.013, 0.012 ), vec3f( 0.075, 0.03, 0.012 ), g < 0.55 ), vec3f( 0.26, 0.12, 0.045 ), g < 0.18 ); rough = 0.45;
+		// (FB2, C2B-19: the catchers' mitts: Ruiz's black, Navarro's a dark brown; never the tan pancake)
+		if ( part == ${ P.mittC } ) { c = select( vec3f( 0.06, 0.026, 0.011 ), vec3f( 0.016, 0.014, 0.013 ), home ); }
 		if ( fract( ( L.y + L.x * 0.3 ) * 90.0 ) < 0.12 && abs( in.vs.vField.x + 2.0 ) < 0.5 ) { c = c * 0.35; }
 		if ( soak > 0.1 ) { c = c * 0.75; rough = 0.3; }
 	}
