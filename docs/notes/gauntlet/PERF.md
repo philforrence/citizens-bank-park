@@ -123,3 +123,12 @@ Every view is at 43 fps or better. Step 8's baseline, by the same honest measure
 | The celebration, TV high / TV center | 20.0 / 20.6 | 50 / 48 |
 
 No console errors; 12.9 s to load. Every view at 39 fps or better against the 30 fps floor. (Step 8's, by the same measure, were its GPU column above: 21.6-27.6 ms, 36-46 fps, with its walking views lit at 4 pm.)
+
+## Step 10
+
+| When | Merged | TV center | TV high | follow | concourse | lounge | real 3B seat | plaza | left field | **400s seat** | celebration |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 17:58 | step 9 as published | 19.8 | 19.1 | 15.0 | 15.6 | 12.6 | 18.8 | 17.7 | 21.6 | **25.4** | 20.0 / 20.6 |
+| 19:58 | FF1, the fans' MakeHuman heads | 20.2 | 19.4 | 15.4 | 15.8 | 12.9 | 19.0 | 17.3 | 21.4 | **25.3** (40 fps) | 19.8 / 20.3 |
+
+FF1 cost ~0.3 ms in TV center and nothing measurable elsewhere; no console errors.
