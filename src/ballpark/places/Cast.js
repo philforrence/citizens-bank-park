@@ -1834,7 +1834,7 @@ function castMaterial( pool ) {
 	// ---- FW6 (C4W-4): and its lower sides the forearm's, so a beer held up, a phone at the ear, hands on
 	// the rail lift the film over the arm and the hand comes out from under its edge (the forearm came out
 	// through the plastic at mid-height, the hand a paddle sticking out of a bell)
-	let wFore = smoothstep( 1.2, 1.0, q.y );
+	let wFore = select( 0.0, smoothstep( 1.2, 1.0, q.y ), lod == 0u || lod == 3u );
 	if ( wArm > 0.0 ) {
 		let ra = c3Rig( q, n, armB, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Hang( c3Pose[ armR2 ], armOut ), c3Pose[ k + 6u ], a7.x );
 		var ap = ra.p;
@@ -1851,7 +1851,9 @@ function castMaterial( pool ) {
 	// ---- end FW1
 	// ---- FW6 (C4W-1): a jacket's skirt below the waist stays round the hips when the trunk turns or leans
 	// (it swung with the chest, and the trousers showed through its sides)
-	let wHem = select( 0.0, smoothstep( 0.99, 0.87, q.y ), part == ${ PART.torso }u || part == ${ PART.apron }u || ( part == ${ PART.poncho }u && poncho == 0u ) );
+	// (the near and middle figures: further off it's under a pixel, and the far ones stay as cheap as they were)
+	let fineLod = lod == 0u || lod == 3u;
+	let wHem = select( 0.0, smoothstep( 0.99, 0.87, q.y ), fineLod && ( part == ${ PART.torso }u || part == ${ PART.apron }u || ( part == ${ PART.poncho }u && poncho == 0u ) ) );
 	if ( wHem > 0.0 ) {
 		let rh = c3Rig( q, n, 0u, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Pose[ armRow ], c3Pose[ k + 6u ], a7.x );
 		r0.p = mix( r0.p, rh.p, wHem );
@@ -1861,7 +1863,7 @@ function castMaterial( pool ) {
 	// the arm: blended toward the spine's rig from 10 cm under the joint up, so an arm brought forward or
 	// up stretches the cloth from the shoulder rather than swinging the head's back up over it (a ball on
 	// every shoulder at the rail, every phone and every beer). Held right up (a towel), the arm takes more
-	let wSh = select( 0.0, smoothstep( ${ ( J.shoulder[ 1 ] - 0.1 ).toFixed( 3 ) }, ${ ( J.shoulder[ 1 ] - 0.005 ).toFixed( 3 ) }, q.y ) * ( 0.72 - 0.4 * smoothstep( 1.6, 2.6, abs( c3Pose[ armRow ].x ) ) ), part == ${ PART.sleeve }u && ( bone == 3u || bone == 4u ) );
+	let wSh = select( 0.0, smoothstep( ${ ( J.shoulder[ 1 ] - 0.1 ).toFixed( 3 ) }, ${ ( J.shoulder[ 1 ] - 0.005 ).toFixed( 3 ) }, q.y ) * ( 0.72 - 0.4 * smoothstep( 1.6, 2.6, abs( c3Pose[ armRow ].x ) ) ), fineLod && part == ${ PART.sleeve }u && ( bone == 3u || bone == 4u ) );
 	if ( wSh > 0.0 ) {
 		let rs = c3Rig( q, n, 1u, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Pose[ armRow ], c3Pose[ k + 6u ], a7.x );
 		r0.p = mix( r0.p, rs.p, wSh );
