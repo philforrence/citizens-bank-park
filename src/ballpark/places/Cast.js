@@ -1714,7 +1714,7 @@ function castMaterial( pool ) {
 		if ( ( ${ any( 'hat', knitHats ) } ) && part == ${ PART.head }u ) {
 			let rel = d.y - c3KnitEdge( d );
 			let on = smoothstep( - 0.035, 0.005, rel );
-			let off = on * ( 0.0105 + 0.0065 * smoothstep( 0.15, 0.12, rel ) );
+			let off = on * ( 0.009 + 0.005 * smoothstep( 0.15, 0.12, rel ) );
 			q = q + normalize( q - headC ) * off;
 			q.y += 0.007 * smoothstep( 0.55, 1.0, d.y );
 			q.z += 0.009 * smoothstep( 0.45, 0.95, d.y ) * smoothstep( - 0.5, 0.4, d.z );
@@ -2262,7 +2262,7 @@ function castMaterial( pool ) {
 			let kp = fract( seed * 41.3 );
 			let kv = fract( seed * 29.7 );
 			let plain = select( select( select( vec3f( 0.014, 0.02, 0.06 ), vec3f( 0.5, 0.47, 0.4 ), kp > 0.45 ), vec3f( 0.06, 0.06, 0.065 ), kp > 0.75 ), vec3f( 0.62, 0.3, 0.4 ), kp > 0.86 && female );
-			var kc = select( select( select( vec3f( 0.3, 0.29, 0.26 ), vec3f( 0.012 ), hat == ${ HAT.knitBlack }u ), vec3f( 0.32, 0.018, 0.025 ), hat == ${ HAT.knitRed }u ), plain, hat == ${ HAT.knitPlain }u );
+			var kc = select( select( select( vec3f( 0.3, 0.29, 0.26 ), vec3f( 0.026 ), hat == ${ HAT.knitBlack }u ), vec3f( 0.32, 0.018, 0.025 ), hat == ${ HAT.knitRed }u ), plain, hat == ${ HAT.knitPlain }u );
 			let rib = 0.88 + 0.12 * sin( atan2( d.x, d.z ) * 40.0 );
 			c = kc * rib;
 			let cuffB = kRel < 0.13;

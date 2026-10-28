@@ -1197,7 +1197,7 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 				// ears' tops at the sides, the nape behind), the cuff a step out and the crown a finger out
 				// hugging the skull, a little higher and slouched back (it came down to the eyes: a can)
 				let kr = d.y - cwKnitEdge( d );
-				let ko = smoothstep( - 0.035, 0.005, kr ) * ( 0.0105 + 0.0065 * smoothstep( 0.15, 0.12, kr ) );
+				let ko = smoothstep( - 0.035, 0.005, kr ) * ( 0.009 + 0.005 * smoothstep( 0.15, 0.12, kr ) );
 				p = headC + local + normalize( local ) * ko + vec3f( 0.0, 0.007 * smoothstep( 0.55, 1.0, d.y ), 0.009 * smoothstep( 0.45, 0.95, d.y ) * smoothstep( - 0.5, 0.4, d.z ) );
 				// ---- end FW6
 			} else if ( ( flags & 16u ) != 0u && lod > 0u ) {
