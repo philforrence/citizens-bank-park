@@ -2,7 +2,7 @@ import * as M from './Motions.js';
 import * as R from './RitualMoves.js';
 import { ROLE } from './Players.js';
 import { POSITIONS, MOUND, DUGOUT, ON_DECK, polar, dist, lerp2, yawTo } from './Plays.js';
-import { tarpState, rollAxis, sheetPoint, tubeAt, PULL_DIR, R_CORE, SHEET, T29, moundY } from './TarpPlan.js';
+import { tarpState, rollAxis, rollFrame, sheetPoint, tubeAt, PULL_DIR, LAY_DIR, R_CORE, SHEET, T27, T29, moundY } from './TarpPlan.js';
 
 // The suspension, on the players' rig: the break after the top of the 6th, the 27th's part and then the
 // 29th's (Director.night(): the split at 0.55). A pure function of the time into the break, like the rest
@@ -14,16 +14,17 @@ import { tarpState, rollAxis, sheetPoint, tubeAt, PULL_DIR, R_CORE, SHEET, T29, 
 //   - the Phillies' fielders come in; the Rays stay in their dugout; nobody goes out;
 //   - the plate umpire waves the grounds crew on, and the umpires walk off to their room;
 //   - twenty of the crew, in their red hooded rain jackets and khakis (Getty 83458220, 83458149), run
-//     out along the tube on the third base side, swing the roll out from the wall onto the left side of
-//     the infield and push it across, bent over it shoulder to shoulder, the sheet paying out behind;
-//   - they take the edges and walk it square, and three of them roll the bare black core on off the
-//     sheet onto the grass (83458149);
+//     out along the tube on the third base side, push the roll off the wall onto the grass by the left
+//     field line and on, bent over it shoulder to shoulder, along the outfield edge of the clay behind
+//     short and second, the folded strip laying out behind it (---- FR2: TarpPlan's route, as photographed);
+//   - they string out along the strip's infield edge, pull it in toward home by the handles and walk the
+//     edges square; three stand by the bare black core where it lies behind second (83458149, 83458151);
 //   - both bullpens walk in across the outfield in their jackets (83458226: the Phillies' relievers
 //     crossing right field during the pull), round the tarp to their dugouts;
 //   - the crew stand round the edges, hoods up; most go in, six stay out with it.
 // The 29th, before 8:37 pm, cold and dry:
-//   - the crew are out along the first base side; the core rolled back, the sheet wound back onto it
-//     from the first base side, the roll swung back to the wall;
+//   - the crew are out along the first base side; the edge walked back and folded, the roll wound back
+//     over the strip to the third base line and swung back to the wall (---- FR2);
 //   - then the work: rakes round the bags, the hose on the clay (Getty 83824985), the chalk liner down
 //     the third base line, two of them dragging the mats round the arc, one tamping the mound;
 //   - the Rays run out for the bottom of the 6th; Grant Balfour jogs in from the pen (W3 has him warming
@@ -119,26 +120,9 @@ function tubeSide( s, t ) {
 // W4's eight waiting along the tube (their s and how far off it), taken over by crew 19 .. 12
 const WAIT = [ 1.5, 2.6, 4.4, 6.0, 7.7, 9.5, 11.2, 13.3 ].map( ( s, k ) => tubeSide( s, 1.45 + hash( k * 3 ) * 0.4 ) );
 
-// The roll's frame at v: its axis point, radius, and the way it's going (unit, field frame)
-function rollAt( st, axis, v ) {
-
-	const n = axis.length - 1, x = v * n, i = Math.min( n - 1, Math.floor( x ) ), k = x - i;
-	const a = axis[ i ], b = axis[ i + 1 ];
-	const p = [ a[ 0 ] + ( b[ 0 ] - a[ 0 ] ) * k, a[ 2 ] + ( b[ 2 ] - a[ 2 ] ) * k ];
-	let dir;
-	if ( st.phase === 'lift' || st.phase === 'stowed' ) {
-
-		const w = tubeAt( 1 - v ), e = sheetPoint( 0, v );
-		dir = norm( [ e[ 0 ] - w[ 0 ], e[ 1 ] - w[ 1 ] ] );
-		if ( st.dir < 0 ) dir = [ - dir[ 0 ], - dir[ 1 ] ];
-
-	} else dir = [ PULL_DIR[ 0 ] * st.dir, PULL_DIR[ 1 ] * st.dir ];
-	// how far the roll has come at this v (for the pushers' stride)
-	const w = tubeAt( 1 - v ), e = sheetPoint( 0, v ), swing = dist( w, e );
-	const travelled = st.phase === 'lift' || st.phase === 'stowed' ? swing * st.lift : swing + st.u * SHEET.S;
-	return { p, dir, r: st.r, travelled };
-
-}
+// ---- FR2: the roll's frame at s along it (TarpPlan.rollFrame: its axis point, radius, the way it's
+// pushed, how far it's come); each man's place on it is his c.v
+const rollAt = ( st, axis, s ) => rollFrame( st, axis, s );
 
 // someone pushing the roll at v, behind it
 function pusher( d, c, st, axis, role, t ) {
@@ -157,28 +141,38 @@ function pusher( d, c, st, axis, role, t ) {
 }
 
 // someone pulling the sheet's free edge across by its handle (Getty 83458149: walking with the strap
-// behind him, leaning into it), just ahead of the edge; on the 29th walking it back to the roll, the
-// folded edge carried in front of him. From his place behind the roll at the pull's start he steps
-// round it to the edge in the first moments.
-function puller( d, c, st, axis, role, t, t0 ) {
+// behind him, leaning into it), just ahead of the edge; on the 29th walking it back to the strip, the
+// folded edge carried in front of him. (---- FR2: they're at the edge already, strung out along the strip
+// from where the roll ran out: spread() below)
+function puller( d, c, st, axis, role, t ) {
 
 	const e = sheetPoint( st.u, c.v ), fwd = st.dir > 0;
 	const off = fwd ? 0.9 : 0.6;
-	let p = [ e[ 0 ] + PULL_DIR[ 0 ] * off, e[ 1 ] + PULL_DIR[ 1 ] * off ];
-	const k = fwd ? ease( ( t - t0 ) / 1.6 ) : 1;
-	if ( k < 1 ) {
-
-		// from behind the roll (where the swing left him) round to the front
-		const f = rollAt( { ...st, phase: 'lift', lift: 1, dir: 1 }, axis, c.v ), back = f.r + 0.52;
-		const from = [ f.p[ 0 ] - f.dir[ 0 ] * back, f.p[ 1 ] - f.dir[ 1 ] * back ];
-		p = [ from[ 0 ] + ( p[ 0 ] - from[ 0 ] ) * k, from[ 1 ] + ( p[ 1 ] - from[ 1 ] ) * k ];
-
-	}
-
+	const p = [ e[ 0 ] + PULL_DIR[ 0 ] * off, e[ 1 ] + PULL_DIR[ 1 ] * off ];
 	const walked = st.pull * SHEET.S;
 	const pose = st.speed > 0 ? ( fwd ? M.pullBehind( walked / 1.3 + c.seed ) : R.pushLiner( ( 1 - st.pull ) * SHEET.S / 2.1 + c.seed ) ) : R.tugEdge( t, c.seed );
 	const face = fwd ? PULL_DIR : [ - PULL_DIR[ 0 ], - PULL_DIR[ 1 ] ];
 	d.act( c.id, p[ 0 ], p[ 1 ], yawTo( p, [ p[ 0 ] + face[ 0 ], p[ 1 ] + face[ 1 ] ] ), pose, { who: c.who, role, y: moundY( p[ 0 ], p[ 1 ] ) } );
+
+}
+
+// ---- FR2: from one place to another by a time, running as hard as it takes (a jog at least), then
+// standing there holding the edge up, facing in (the spread along the strip, and back to the roll on the
+// 29th); null before t0
+function runTo( d, c, from, to, t0, t1, t, face, extra, hold ) {
+
+	if ( t < t0 ) return false;
+	const L = dist( from, to ), v = Math.max( 2.6, L / Math.max( 0.5, t1 - t0 ) );
+	const w = along( [ from, to ], t0, v, t );
+	if ( ! w.done ) {
+
+		d.act( c.id, w.p[ 0 ], w.p[ 1 ], w.yaw, M.run( w.dist / 3.2, Math.min( 1, v / 6 ) ), { ...extra, y: moundY( w.p[ 0 ], w.p[ 1 ] ) + 0.04 } );
+		return true;
+
+	}
+
+	d.act( c.id, to[ 0 ], to[ 1 ], yawTo( to, [ to[ 0 ] + face[ 0 ], to[ 1 ] + face[ 1 ] ] ), hold, { ...extra, y: moundY( to[ 0 ], to[ 1 ] ) } );
+	return true;
 
 }
 
@@ -194,8 +188,32 @@ const EDGES = CREW.map( ( c, i ) => {
 	return { u: 0.1 + 0.8 * ( i - 13 ) / 6, v: 1, out: OUT_E4 };
 
 } );
-// the three who roll the core off, and the six who stay out with the tarp on the 27th
+// the three who stand by the core (---- FR2: beyond it, behind second), and the six who stay out with the
+// tarp on the 27th
 const CORE_CREW = [ 4, 9, 14 ], CORE_V = [ 0.25, 0.5, 0.75 ];
+const coreSpot = ( st, axis, ci ) => {
+
+	const f = rollAt( st, axis, CORE_V[ ci ] ), k = f.r + 0.55;
+	return [ f.p[ 0 ] + LAY_DIR[ 0 ] * k, f.p[ 1 ] + LAY_DIR[ 1 ] * k ];
+
+};
+// ---- FR2: each man's place at the free edge before the pull (the strip's infield edge, at his v)
+const edgeStart = ( c ) => {
+
+	const e = sheetPoint( 0, c.v );
+	return [ e[ 0 ] + PULL_DIR[ 0 ] * 0.9, e[ 1 ] + PULL_DIR[ 1 ] * 0.9 ];
+
+};
+// ... and his place pushing the roll at an end of the strip ('end': behind second, where it runs out;
+// 'start': by the third base line), pushing it on (dir 1, the 27th) or back (dir -1, the 29th)
+const _endAxis = [];
+const pushSpot = ( c, end, dir, back = 0.52 ) => {
+
+	const st = { phase: 'lay', vRoll: end === 'end' ? - ( R_CORE + 0.15 ) / SHEET.S : 1 + 0.65 / SHEET.S, r: end === 'end' ? R_CORE : R_FULL_29, lift: 1, dir };
+	const A = rollAxis( st, 20, _endAxis ), f = rollAt( st, A, c.v ), k = f.r + back;
+	return [ f.p[ 0 ] - f.dir[ 0 ] * k, f.p[ 1 ] - f.dir[ 1 ] * k ];
+
+};
 const KEEP = new Set( [ 1, 6, 8, 11, 15, 18 ] );
 
 function edgeSpot( i, off = 0.75 ) {
@@ -225,7 +243,9 @@ function night27( d, seg, lt, st, axis ) {
 	if ( s.oldDefense ) d._runIn( s.oldDefense, s.batting, lt );
 	umpiresOff( d, lt );
 	pensIn( d, lt );
-	const T = { out: 1.5, lift: 7, pull: 20, pullEnd: 44, leave: 60 };
+	// ---- FR2: on the plan's times (TarpPlan.T27): off the wall, along the clay's edge laying the strip,
+	// strung out along it, the pull; then the edges walked square
+	const T = { out: T27.out, lift: T27.lift[ 0 ], spread: T27.spread[ 0 ], pull: T27.pull[ 0 ], pullEnd: T27.pull[ 1 ], leave: 67 };
 	for ( const [ i, c ] of CREW.entries() ) {
 
 		const role = c.hood ? ROLE.hood : 0;
@@ -257,31 +277,43 @@ function night27( d, seg, lt, st, axis ) {
 
 		}
 
-		// swinging it out off the wall onto the grass
-		if ( lt < T.pull ) {
+		// off the wall and along the clay's edge, the strip laying out behind
+		if ( lt < T.spread ) {
 
 			pusher( d, c, st, axis, role, lt );
 			continue;
 
 		}
 
-		// three stay at the roll, turning it as the sheet feeds off (and stand by the core after); the
-		// rest take the free edge by its handles and pull it across, walking with them behind their backs
+		// three stay by the core where it ran out, behind second; the rest string out along the strip's
+		// infield edge, each to his place (the far ones running), and take it up by the handles
 		const ci = CORE_CREW.indexOf( i );
 		if ( ci >= 0 ) {
 
-			const f = rollAt( st, axis, CORE_V[ ci ] ), back = f.r + 0.5;
-			const at = [ f.p[ 0 ] - PULL_DIR[ 0 ] * back, f.p[ 1 ] - PULL_DIR[ 1 ] * back ];
-			if ( lt < T.pullEnd ) d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ at[ 0 ] + PULL_DIR[ 0 ], at[ 1 ] + PULL_DIR[ 1 ] ] ), R.pushRoll( st.speed > 0 ? f.travelled / 6 + c.seed : 0, f.r * 2, c.seed ), who );
-			else if ( lt < T.leave + i * 0.4 ) d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ 0, - 20 ] ), R.waitAbout( lt, c.seed ), who );
-			else leave( d, c, at, T.leave + i * 0.4, lt, who );
+			// (round the end of it to beyond it, facing the sheet)
+			const at = coreSpot( st, axis, ci ), from = pushSpot( c, 'end', 1 );
+			const by = [ from[ 0 ] + ( at[ 0 ] - from[ 0 ] ) * 0.5 - LAY_DIR[ 1 ] * 1.2 * ( CORE_V[ ci ] < 0.5 ? 1 : - 1 ), from[ 1 ] + ( at[ 1 ] - from[ 1 ] ) * 0.5 + LAY_DIR[ 0 ] * 1.2 * ( CORE_V[ ci ] < 0.5 ? 1 : - 1 ) ];
+			if ( lt < T.leave + i * 0.4 ) {
+
+				const w = alongOr( [ from, by, at ], T.spread + 0.3, 1.6, lt );
+				if ( ! w.done ) d.act( c.id, w.p[ 0 ], w.p[ 1 ], w.yaw, R.walk( w.dist / 2.3 ), who );
+				else d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ at[ 0 ] - LAY_DIR[ 0 ] * 5 + PULL_DIR[ 0 ] * ( lt > T.pull ? 6 : 0 ), at[ 1 ] - LAY_DIR[ 1 ] * 5 + PULL_DIR[ 1 ] * ( lt > T.pull ? 6 : 0 ) ] ), R.waitAbout( lt, c.seed ), who );
+
+			} else leave( d, c, at, T.leave + i * 0.4, lt, who );
+			continue;
+
+		}
+
+		if ( lt < T.pull ) {
+
+			runTo( d, c, pushSpot( c, 'end', 1 ), edgeStart( c ), T.spread + c.seed * 0.5, T.pull - 0.5, lt, PULL_DIR, who, R.tugEdge( lt, c.seed ) );
 			continue;
 
 		}
 
 		if ( lt < T.pullEnd + 0.5 ) {
 
-			puller( d, c, st, axis, role, lt, T.pull );
+			puller( d, c, st, axis, role, lt );
 			continue;
 
 		}
@@ -324,7 +356,7 @@ function night27( d, seg, lt, st, axis ) {
 		}
 
 		const at = [ spot[ 0 ] + e.out[ 0 ] * 0.8, spot[ 1 ] + e.out[ 1 ] * 0.8 ];
-		const tLeave = T.leave + hash( i * 7.7 ) * 6;
+		const tLeave = Math.max( T.leave + hash( i * 7.7 ) * 6, tArr + 4.5 ); // ---- FR2: not before he's there
 		if ( KEEP.has( i ) || lt < tLeave ) d.act( c.id, at[ 0 ], at[ 1 ], faceIn + ( c.seed - 0.5 ) * 0.8, R.waitAbout( lt, c.seed ), who );
 		else leave( d, c, at, tLeave, lt, who );
 
@@ -393,42 +425,70 @@ function night29( d, seg, l2real, st, axis, dur ) {
 	const [ g0, g1 ] = G29.gba;
 	const singing = l2real >= g0 && l2real < g1;
 	let l2 = l2real < g0 ? l2real : l2real < g1 ? g0 : l2real - ( g1 - g0 );
-	const T = { unpull: T29.unpull[ 0 ], stow: T29.stow[ 0 ], stowEnd: T29.stow[ 1 ] };
+	// ---- FR2: on the plan's times (TarpPlan.T29): the edge walked back and folded; the roll wound back
+	// over the strip from behind second to the third base line, the men nearest it on it from the start and
+	// the rest taking hold as it comes along to where each put the edge down; then swung back to the wall
+	const T = { unpull: T29.unpull[ 0 ], gather: T29.unpull[ 1 ], wind: T29.wind[ 0 ], stow: T29.stow[ 0 ], stowEnd: T29.stow[ 1 ] };
 	for ( const [ i, c ] of CREW.entries() ) {
 
 		const who = { who: c.who, role: 0 };
 		const ci = CORE_CREW.indexOf( i );
-		// out along the first base side, the tarp still on from Monday night
-		if ( l2 < T.unpull ) {
+		// (his place on the roll winding it: the three at the core and the near ones spread along it, the
+		// later ones near its infield end, where they're standing when it reaches them)
+		const early = ci >= 0 || c.v < 0.25;
+		const cw = { ...c, v: ci >= 0 ? CORE_V[ ci ] : early ? 0.08 + c.v * 3 : 0.55 + 0.4 * c.seed };
+		// out along the first base side, the tarp still on from Monday night; three by the core
+		if ( l2 < T.gather ) {
 
 			if ( ci >= 0 ) {
 
-				// at the roll, ready to wind it
-				const f = rollAt( st, axis, CORE_V[ ci ] ), back = f.r + 0.5;
-				const at = [ f.p[ 0 ] - PULL_DIR[ 0 ] * back, f.p[ 1 ] - PULL_DIR[ 1 ] * back ];
-				d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ at[ 0 ] + PULL_DIR[ 0 ], at[ 1 ] + PULL_DIR[ 1 ] ] ), R.waitAbout( l2, c.seed ), who );
+				const at = coreSpot( st, axis, ci );
+				d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ 0, - 20 ] ), R.waitAbout( l2, c.seed ), who );
+				continue;
+
+			}
+
+			if ( l2 >= T.unpull ) {
+
+				puller( d, c, st, axis, 0, l2 );
 				continue;
 
 			}
 
 			// waiting at the first base line's edge, where they'll take it up from
 			const e1 = sheetPoint( 1, c.v );
-			const at = [ e1[ 0 ] + PULL_DIR[ 0 ] * ( 0.6 + c.seed * 0.6 ), e1[ 1 ] + PULL_DIR[ 1 ] * ( 0.6 + c.seed * 0.6 ) ];
+			const at = [ e1[ 0 ] + PULL_DIR[ 0 ] * 0.6, e1[ 1 ] + PULL_DIR[ 1 ] * 0.6 ];
 			d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ at[ 0 ] - PULL_DIR[ 0 ], at[ 1 ] - PULL_DIR[ 1 ] ] ), R.waitAbout( l2, c.seed ), who );
 			continue;
 
 		}
 
-		// walking the edge back to the roll, the three at the roll winding it
 		if ( l2 < T.stow ) {
 
-			if ( ci >= 0 ) {
+			const from = ci >= 0 ? coreSpot( st, axis, ci ) : edgeStart( c );
+			if ( early ) {
 
-				const f = rollAt( st, axis, CORE_V[ ci ] ), back = f.r + 0.5;
-				const at = [ f.p[ 0 ] - PULL_DIR[ 0 ] * back, f.p[ 1 ] - PULL_DIR[ 1 ] * back ];
-				d.act( c.id, at[ 0 ], at[ 1 ], yawTo( at, [ at[ 0 ] + PULL_DIR[ 0 ], at[ 1 ] + PULL_DIR[ 1 ] ] ), R.pushRoll( f.travelled / 6 + c.seed, f.r * 2, c.seed ), who );
+				// to the roll behind second, then on it
+				if ( l2 < T.wind ) runTo( d, c, from, pushSpot( cw, 'end', - 1 ), T.gather + c.seed * 0.3, T.wind, l2, [ - LAY_DIR[ 0 ], - LAY_DIR[ 1 ] ], who, R.pushRoll( 0, R_CORE * 2, c.seed ) );
+				else pusher( d, cw, st, axis, 0, l2 );
+				continue;
 
-			} else puller( d, c, st, axis, 0, l2, 0 );
+			}
+
+			// waiting where he put the edge down until the roll comes by, then on it
+			const f = rollAt( st, axis, cw.v ), back = f.r + 0.52;
+			const station = [ f.p[ 0 ] - f.dir[ 0 ] * back, f.p[ 1 ] - f.dir[ 1 ] * back ];
+			const k = ease( ( st.vRoll - c.v + 0.22 ) * SHEET.S / 9.5 );
+			if ( k >= 1 ) {
+
+				pusher( d, cw, st, axis, 0, l2 );
+				continue;
+
+			}
+
+			const p = [ from[ 0 ] + ( station[ 0 ] - from[ 0 ] ) * k, from[ 1 ] + ( station[ 1 ] - from[ 1 ] ) * k ];
+			const face = k > 0.5 ? f.dir : [ - LAY_DIR[ 0 ], - LAY_DIR[ 1 ] ];
+			d.act( c.id, p[ 0 ], p[ 1 ], yawTo( p, [ p[ 0 ] + face[ 0 ], p[ 1 ] + face[ 1 ] ] ), k > 0 ? M.blend( R.walk( k * 3 ), R.pushRoll( 0, f.r * 2, c.seed ), k ) : R.waitAbout( l2, c.seed ), { ...who, y: moundY( p[ 0 ], p[ 1 ] ) } );
 			continue;
 
 		}
@@ -437,17 +497,15 @@ function night29( d, seg, l2real, st, axis, dur ) {
 		// short), and the other ten, by the third base end, swing the roll back to the wall and go in
 		if ( i < 10 ) {
 
-			// (where each finished the unpull: behind the roll at the sheet's left field edge)
-			const e = sheetPoint( 0, c.v );
-			const from = [ e[ 0 ] + PULL_DIR[ 0 ] * ( R_FULL_29 + 0.52 ), e[ 1 ] + PULL_DIR[ 1 ] * ( R_FULL_29 + 0.52 ) ];
-			work( d, c, i, from, l2 - T.stow, who );
+			// (where each finished winding it: behind the roll at the third base line)
+			work( d, c, i, pushSpot( cw, 'start', - 1 ), l2 - T.stow, who );
 			continue;
 
 		}
 
 		// spreading out along it as it goes (ten men for the whole length)
 		const vStow = 0.05 + 0.9 * ( i - 10 ) / 9;
-		const cs = { ...c, v: c.v + ( vStow - c.v ) * ease( ( l2 - T.stow ) / 2.5 ) };
+		const cs = { ...c, v: cw.v + ( vStow - cw.v ) * ease( ( l2 - T.stow ) / 2.5 ) };
 		if ( l2 < T.stowEnd ) {
 
 			pusher( d, cs, st, axis, 0, l2 );
@@ -504,7 +562,9 @@ function work( d, c, i, from, tt, extra ) {
 
 	}
 
-	const done = 12 + hash( i ) * 2.5;
+	// (---- FR2: they come from the third base line now, where the roll was wound back: a few seconds at
+	// the job whatever the walk)
+	const done = Math.max( 12 + hash( i ) * 2.5, t0 + ( J.at ? dist( from, J.at ) / ( J.job === 'rake' ? 3.6 : 3.0 ) : 0 ) + 5 );
 	if ( J.job === 'drag' ) {
 
 		// round the arc of the infield's clay (95 ft from the mound's centre), from the third base side to
@@ -542,8 +602,10 @@ function work( d, c, i, from, tt, extra ) {
 
 	}
 
-	if ( tt > done ) return leave( d, c, J.at, done, tt, { ...extra, role }, 3.0 );
-	const drift = J.job === 'rake' ? Math.sin( tt * 0.35 + i ) * 1.2 : 0;
+	// (---- FR2: off from where he is, the rake's drift and all; the drift from where he got to)
+	const tAt = t0 + dist( from, J.at ) / ( J.job === 'rake' ? 3.6 : 3.0 );
+	const drift = J.job === 'rake' ? Math.sin( Math.min( tt, done ) * 0.35 + i ) * 1.2 * Math.min( 1, Math.max( 0, Math.min( tt, done ) - tAt ) / 2 ) : 0;
+	if ( tt > done ) return leave( d, c, [ J.at[ 0 ] + drift * 0.7, J.at[ 1 ] + drift * 0.7 ], done, tt, { ...extra, role }, 3.0 );
 	const p = [ J.at[ 0 ] + drift * 0.7, J.at[ 1 ] + drift * 0.7 ];
 	const face = J.job === 'tamp' ? yawTo( p, [ 0, 0 ] ) : yawTo( p, MOUND ) + Math.sin( tt * 0.2 + i ) * 0.6;
 	const pose = J.job === 'rake' ? M.rake( tt + c.seed ) : J.job === 'hose' ? R.hose( tt, c.seed ) : R.tamp( tt );
