@@ -48,7 +48,9 @@ const FOOD = {
 		menu: [ [ 'ON DRAFT', [ [ 'YUENGLING LAGER', '5.00' ], [ 'BUD LIGHT', '5.00' ], [ 'MILLER LITE', '5.00' ], [ 'COORS LIGHT', '5.00' ] ] ],
 			[ 'CRAFT & IMPORT', [ [ 'YARDS PHILLY PALE', '6.00' ], [ 'VICTORY HOPDEVIL', '6.00' ], [ 'BLUE MOON', '6.00' ], [ 'HEINEKEN', '6.00' ] ] ],
 			[ 'MUST BE 21', [ [ 'BREWERYTOWN SANDWICH', '7.50' ], [ 'SOFT PRETZEL', '3.25' ], [ 'PEANUTS', '4.00' ], [ 'ID REQUIRED', '' ] ] ] ] },
-	schmitter: { name: 'THE SCHMITTER', tag: 'FROM McNALLY\'S TAVERN  ·  CHESTNUT HILL', bg: '#151414', fg: '#dc2a30', accent: '#efe4cc', serif: true, kitchen: 0,
+	// (---- FW3 (CI-12): the dark green awning's colours and its line, 'PHILADELPHIA'S BIG LEAGUE SANDWICH'
+	// (a fan's photo behind 139, Aug 27 2008); it was black and red)
+	schmitter: { name: 'THE SCHMITTER', tag: 'PHILADELPHIA\'S BIG LEAGUE SANDWICH', bg: '#173d2b', fg: '#f3ecd8', accent: '#f3ecd8', serif: true, kitchen: 0,
 		menu: [ [ 'THE SCHMITTER', [ [ 'THE SCHMITTER', '8.00' ], [ 'BEEF · SALAMI · CHEESE', '' ], [ 'FRIED ONIONS · TOMATO', '' ], [ 'SPECIAL SAUCE · KAISER', '' ] ] ],
 			[ 'ALSO', [ [ 'CHEESESTEAK', '8.00' ], [ 'FRENCH FRIES', '3.75' ], [ 'CHEESE FRIES', '4.50' ], [ 'HOT DOG', '3.50' ] ] ], DRINKS ] },
 	// ---- FW3 (C2W-7): the Terrace Level's own (the October 2008 guide): Fairmount Fries (behind 208 and 319:
