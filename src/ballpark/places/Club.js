@@ -7,7 +7,7 @@ import { Cast, PROP, TOP, COLOR, HAT, seat } from './Cast.js';
 import { GESTURE, dress, sizeOf } from './Concourse3BKit.js';
 import { nightState } from './Concourse3BPeople.js';
 import { Tempo } from './Tempo.js';
-import { Inside, insideMaterial, insideAtlas, frame, Reach, cellUV, rnd, glassSplit, clearGlass, clearGlassMesh, interiorsModule, Screens, wallCollider, yawOf, GLASS_UNIFORMS, backFrom } from './inside/Kit.js';
+import { Inside, insideMaterial, insideAtlas, frame, Reach, cellUV, rnd, glassSplit, clearGlass, clearGlassMesh, interiorsModule, Screens, wallCollider, yawOf, GLASS_UNIFORMS, backFrom, PAINTINGS, paintingUV } from './inside/Kit.js';
 
 // FI2 (gauntlet CI-6): the Hall of Fame Club, the 200 level's enclosed concourse behind the club seats
 // round the infield (sections 212-232), as it was in 2008. Behind the glass a long carpeted room under a
@@ -178,17 +178,33 @@ export default class Club {
 
 		}
 
-		// the paintings in what's left of the back wall, every 2.8 m
+		// the paintings in what's left of the back wall, every 2.8 m (---- FI3 (C2I-12): 24 canvases dealt
+		// along it so no two neighbours or near neighbours match (it was eight in strict order); every sixth
+		// place a lit wood-and-glass case instead (pompomflipflop 2009: bats, balls, a jersey)
 		this.paintings = [];
+		this.cases = [];
 		let k = 0;
+		const deal = rnd( 1950 ), recent = [];
 		for ( let s = 2.5; s < this.Lg - 2.5; s += 2.8 ) {
 
 			if ( this.taken.some( ( [ a, b ] ) => s > a - 0.7 && s < b + 0.7 ) ) continue;
 			const sg = this.at( s ).sg;
 			if ( s - sg.s0 < 1.2 || sg.s0 + sg.len - s < 1.2 ) continue;
-			this.paintings.push( { s, cell: k ++ % 8 } );
+			if ( k ++ % 6 === 3 ) {
+
+				this.cases.push( { s } );
+				continue;
+
+			}
+
+			let cell = Math.floor( deal() * PAINTINGS );
+			while ( recent.includes( cell ) ) cell = ( cell + 7 ) % PAINTINGS;
+			recent.push( cell );
+			if ( recent.length > 6 ) recent.shift();
+			this.paintings.push( { s, cell } );
 
 		}
+		// ---- end FI3
 
 	}
 
@@ -239,6 +255,7 @@ export default class Club {
 
 		// what's along the back wall here
 		for ( const p of this.paintings ) if ( this.at( p.s ).sg === sg ) this._painting( b, p );
+		for ( const c of this.cases ) if ( this.at( c.s ).sg === sg ) this._displayCase( b, c ); // ---- FI3 (C2I-12)
 		for ( const br of this.bars ) if ( this.at( br.s ).sg === sg ) this._bar( b, br );
 		for ( const l of this.lifts ) if ( this.at( l.s ).sg === sg ) this._lift( b, l );
 		if ( this.at( this.balls.s ).sg === sg ) this._wallOfBalls( b );
@@ -302,11 +319,48 @@ export default class Club {
 		b.use( 'gilt' ).box( P, 0, 2.0, z - 0.03, 1.18, 1.18, 0.06, [ 'front' ] );
 		b.use( 'black' ).box( P, 0, 2.0, z - 0.061, 1.0, 1.0, 0.004 );
 		// (read from the room: its left is the - u side)
-		b.use( 'print' ).print( P( - 0.48, 1.52, z - 0.066 ), P( 0.48, 1.52, z - 0.066 ), P( 0.48, 2.48, z - 0.066 ), P( - 0.48, 2.48, z - 0.066 ), n, cellUV( 'paintings', p.cell, 8, 1 ) );
+		b.use( 'print' ).print( P( - 0.48, 1.52, z - 0.066 ), P( 0.48, 1.52, z - 0.066 ), P( 0.48, 2.48, z - 0.066 ), P( - 0.48, 2.48, z - 0.066 ), n, paintingUV( p.cell ) ); // ---- FI3
 		b.use( 'brass' ).box( P, 0, 1.25, z - 0.01, 0.3, 0.08, 0.02 );
 		b.use( 'brass' ).box( P, 0, 2.72, z - 0.12, 0.5, 0.04, 0.06 );
 		b.use( 'lamp' ).box( P, 0, 2.695, z - 0.12, 0.44, 0.01, 0.04, [ 'top' ] );
 		b.use( 'brass' ).box( P, 0, 2.66, z - 0.05, 0.02, 0.12, 0.1 );
+
+	}
+
+	// ---- FI3 (C2I-12): a display case against the back wall (pompomflipflop, Aug 2009: the club's lit
+	// wood-and-glass cases): a cherry cabinet, its lit glass box over it (the glass in _case), and in it a
+	// jersey on the back panel, two bats standing, balls on stands, a cap, a brass plate
+	_displayCase( b, c ) {
+
+		const { P, sg } = this.at( c.s ), z = DEPC - 0.35, n = [ - sg.nIn[ 0 ], 0, - sg.nIn[ 1 ] ];
+		const r = rnd( Math.round( c.s * 10 ) );
+		b.use( 'cherry' ).box( P, 0, 0.45, z, 1.3, 0.9, 0.6 );
+		b.use( 'cherry' ).box( P, 0, 2.27, z, 1.34, 0.12, 0.64 );
+		b.use( 'navyWall' ).quad( P( - 0.62, 0.9, z + 0.28 ), P( 0.62, 0.9, z + 0.28 ), P( 0.62, 2.21, z + 0.28 ), P( - 0.62, 2.21, z + 0.28 ), n );
+		b.use( 'lamp' ).box( P, 0, 2.2, z, 1.2, 0.01, 0.04, [ 'top' ] );
+		// the jersey on the back panel: a flannel body and sleeves, its script, the number
+		const pal = r() < 0.5 ? 'pinstripe' : 'creamCloth';
+		b.use( pal ).quad( P( - 0.22, 1.25, z + 0.26 ), P( 0.22, 1.25, z + 0.26 ), P( 0.22, 1.95, z + 0.26 ), P( - 0.22, 1.95, z + 0.26 ), n );
+		b.use( pal ).quad( P( - 0.36, 1.6, z + 0.255 ), P( 0.36, 1.6, z + 0.255 ), P( 0.3, 1.95, z + 0.255 ), P( - 0.3, 1.95, z + 0.255 ), n );
+		b.use( 'print' ).print( P( - 0.15, 1.62, z + 0.25 ), P( 0.15, 1.62, z + 0.25 ), P( 0.15, 1.77, z + 0.25 ), P( - 0.15, 1.77, z + 0.25 ), n, cellUV( 'prints', pal === 'pinstripe' ? 0 : 1, 8, 2 ) );
+		// two bats standing at the sides, balls on little stands, a cap
+		for ( const sx of [ - 0.5, 0.5 ] ) {
+
+			b.use( 'honey' ).cyl( P, sx, z + 0.15, 0.9, 1.5, 0.032, 0.03, 7, false );
+			b.cyl( P, sx, z + 0.15, 1.5, 1.95, 0.03, 0.012, 7, false );
+			b.cyl( P, sx, z + 0.15, 1.95, 1.97, 0.02, 0.02, 7, true );
+
+		}
+
+		for ( const sx of [ - 0.28, 0, 0.28 ] ) {
+
+			b.use( 'brass' ).cyl( P, sx, z - 0.12, 0.9, 0.97, 0.025, 0.02, 6, true );
+			b.use( 'ball' ).cyl( P, sx, z - 0.12, 0.97, 1.04, 0.032, 0.032, 8, true );
+
+		}
+
+		b.use( 'navyCloth' ).cyl( P, 0.0, z + 0.05, 0.9, 0.96, 0.09, 0.07, 8, true );
+		b.use( 'brass' ).box( P, 0, 0.62, z - 0.302, 0.3, 0.07, 0.01 );
 
 	}
 
@@ -459,6 +513,15 @@ export default class Club {
 		g.quad( C( - w, y0, d ), C( - w, y0, - d ), C( - w, y1, - d ), C( - w, y1, d ), [ 1, 0, 0 ] );
 		g.quad( C( w, y0, - d ), C( w, y0, d ), C( w, y1, d ), C( w, y1, - d ), [ 1, 0, 0 ] );
 		g.quad( C( - w, y1, - d ), C( w, y1, - d ), C( w, y1, d ), C( - w, y1, d ), [ 0, 1, 0 ] );
+		// ---- FI3 (C2I-12): the display cases' glass fronts and ends
+		for ( const c of this.cases || [] ) {
+
+			const { P: Q, sg } = this.at( c.s ), zc = DEPC - 0.35, n = [ - sg.nIn[ 0 ], 0, - sg.nIn[ 1 ] ], side = [ sg.u[ 0 ], 0, sg.u[ 1 ] ];
+			g.quad( Q( - 0.65, 0.9, zc - 0.3 ), Q( 0.65, 0.9, zc - 0.3 ), Q( 0.65, 2.21, zc - 0.3 ), Q( - 0.65, 2.21, zc - 0.3 ), n );
+			for ( const sx of [ - 0.65, 0.65 ] ) g.quad( Q( sx, 0.9, zc - 0.3 ), Q( sx, 0.9, zc + 0.3 ), Q( sx, 2.21, zc + 0.3 ), Q( sx, 2.21, zc - 0.3 ), side );
+
+		}
+		// ---- end FI3
 		const m = clearGlassMesh( g, clearGlass( 'club-case-glass', NEAR, BAND, { tint: false } ), 'club-case-glass' );
 		this.group.add( m );
 		this.caseGlass = m;
@@ -555,13 +618,13 @@ export default class Club {
 			refl = vec3f( 0.0 );
 		} else if ( t == ty && rd.y > 0.0 ) {
 			let g = vec2f( abs( fract( hit.x / 3.0 ) - 0.5 ) * 3.0, min( min( abs( hit.z - 2.2 ), abs( hit.z - 4.9 ) ), abs( hit.z - 7.6 ) ) );
-			refl = vec3f( 0.58, 0.57, 0.54 ) * 0.25 + vec3f( 1.0, 0.86, 0.66 ) * 2.0 * step( g.x, 0.6 ) * step( g.y, 0.3 );
+			refl = vec3f( 0.58, 0.57, 0.54 ) * 0.1 + vec3f( 1.0, 0.86, 0.66 ) * 2.0 * step( g.x, 0.6 ) * step( g.y, 0.3 );
 		} else if ( t == ty ) {
 			refl = vec3f( 0.05, 0.02, 0.02 );
 		} else {
-			refl = select( vec3f( 0.3, 0.27, 0.21 ), vec3f( 0.1, 0.04, 0.02 ), hit.y < 1.0 );
+			refl = select( vec3f( 0.12, 0.11, 0.085 ), vec3f( 0.04, 0.016, 0.008 ), hit.y < 1.0 );
 			let px = ( fract( ( hit.x - 2.5 ) / 2.8 + 0.5 ) - 0.5 ) * 2.8;
-			if ( abs( px ) < 0.55 && abs( hit.y - 2.0 ) < 0.55 ) { refl = vec3f( 0.25, 0.17, 0.08 ); }
+			if ( abs( px ) < 0.55 && abs( hit.y - 2.0 ) < 0.55 ) { refl = vec3f( 0.1, 0.07, 0.03 ); }
 		}
 `;
 		this.nearGlass = clearGlassMesh( near, clearGlass( 'club-glass-near', NEAR, BAND, { reflect } ), 'club-glass-near' );
@@ -582,6 +645,7 @@ export default class Club {
 
 		} ).join( ', ' );
 		const pr = cellUV( 'paintings', 0, 8, 1 ), pw = 256 / 2048;
+		const pv = [ pr[ 1 ], cellUV( 'paintings2', 0, 8, 1 )[ 1 ], cellUV( 'paintings3', 0, 8, 1 )[ 1 ] ]; // ---- FI3: three rows of canvases
 		return /* wgsl */`
 	if ( nearK ) { discard; }
 	let H = ${ f( CEIL ) };
@@ -616,8 +680,11 @@ export default class Club {
 		if ( abs( px ) < 0.59 && abs( hit.y - 2.0 ) < 0.59 ) {
 			room = vec3f( 0.5, 0.36, 0.1 );
 			if ( abs( px ) < 0.48 && abs( hit.y - 2.0 ) < 0.48 ) {
-				let cell = f32( u32( floor( ( hit.x - 2.5 ) / 2.8 + 0.5 ) ) % 8u );
-				let auv = vec2f( ${ f( pr[ 0 ] ) } + ( cell + 0.5 + px / 0.96 ) * ${ f( pw ) }, ${ f( pr[ 1 ] ) } + ( 0.5 - ( hit.y - 2.0 ) / 0.96 ) * ${ f( pr[ 3 ] - pr[ 1 ] ) } );
+				// (---- FI3 (C2I-12): the 24 canvases, dealt along the wall)
+				let pi = ( u32( floor( ( hit.x - 2.5 ) / 2.8 + 0.5 ) ) * 7u ) % 24u;
+				let cell = f32( pi % 8u );
+				let rowV = select( select( ${ f( pv[ 0 ] ) }, ${ f( pv[ 1 ] ) }, pi >= 8u ), ${ f( pv[ 2 ] ) }, pi >= 16u );
+				let auv = vec2f( ${ f( pr[ 0 ] ) } + ( cell + 0.5 + px / 0.96 ) * ${ f( pw ) }, rowV + ( 0.5 - ( hit.y - 2.0 ) / 0.96 ) * ${ f( pr[ 3 ] - pr[ 1 ] ) } );
 				room = textureSampleLevel( inAtlas, smpAnisoClamp, auv, 2.0 ).rgb;
 			}
 		}

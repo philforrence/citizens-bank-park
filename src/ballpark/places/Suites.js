@@ -70,6 +70,7 @@ export default class Suites {
 		const line = ( d ) => offsetPolyline( infield, d, [ 0, - 40 ] );
 		this.A = line( d0 ); this.W = line( d0 + DROOM ); this.W2 = line( d0 + DROOM + WALL ); this.BC = line( dIn - 0.03 ); this.B = line( dIn );
 		this.CM = line( d0 + DROOM + WALL + ( 7 - DROOM - WALL - 0.03 ) / 2 ); // the corridor's middle
+		this.line = line; this.dSeats = D.suites; // ---- FI3 (C2I-18): the outdoor seats' rows, for their drink rails
 
 		this.material = insideMaterial( 'suites-inside' );
 		this._layout();
@@ -329,21 +330,21 @@ export default class Suites {
 		this._wallWithDoor( b, p0, p1, 0, RH, nBack, ds, 2.13, 'wallpaper' );
 		// the jambs through the wall, the head, the frame's casing on both faces
 		const J = frame( [ P( 0, 0, DROOM + WALL / 2 )[ 0 ], y, P( 0, 0, DROOM + WALL / 2 )[ 2 ] ], R.u, R.nIn );
-		const dc = ( R.door[ 0 ] + R.door[ 1 ] ) / 2, dw = R.door[ 1 ] - R.door[ 0 ];
-		b.use( 'cherry' ).box( J, R.door[ 0 ] - 0.04, 1.08, 0, 0.08, 2.16, WALL + 0.04, [ 'bottom' ] );
-		b.use( 'cherry' ).box( J, R.door[ 1 ] + 0.04, 1.08, 0, 0.08, 2.16, WALL + 0.04, [ 'bottom' ] );
-		b.use( 'cherry' ).box( J, dc, 2.17, 0, dw + 0.16, 0.08, WALL + 0.04 );
+		const dc = ( R.door[ 0 ] + R.door[ 1 ] ) / 2, dw = R.door[ 1 ] - R.door[ 0 ]; // (---- FI3 (C2I-15): honey doors in grey steel frames, harpo42 2010)
+		b.use( 'steel' ).box( J, R.door[ 0 ] - 0.04, 1.08, 0, 0.08, 2.16, WALL + 0.04, [ 'bottom' ] );
+		b.use( 'steel' ).box( J, R.door[ 1 ] + 0.04, 1.08, 0, 0.08, 2.16, WALL + 0.04, [ 'bottom' ] );
+		b.use( 'steel' ).box( J, dc, 2.17, 0, dw + 0.16, 0.08, WALL + 0.04 );
 		// the door: shut in its frame, or swung open into the room
 		if ( R.open ) {
 
 			const hx = R.door[ 0 ] + ( R.buffetLeft ? 0.02 : dw - 0.02 );
 			const H = frame( [ P( hx, 0, DROOM - 0.03 )[ 0 ], y, P( hx, 0, DROOM - 0.03 )[ 2 ] ], R.nIn.map( ( v ) => - v ), R.u );
-			b.use( 'cherry' ).box( H, dw / 2 * 0.97, 1.05, 0, dw * 0.97, 2.09, 0.045 );
+			b.use( 'honey' ).box( H, dw / 2 * 0.97, 1.05, 0, dw * 0.97, 2.09, 0.045 );
 			b.use( 'brass' ).box( H, dw * 0.85, 1.0, 0.05, 0.12, 0.03, 0.04 );
 
 		} else {
 
-			b.use( 'cherry' ).box( J, dc, 1.05, 0, dw, 2.1, 0.045 );
+			b.use( 'honey' ).box( J, dc, 1.05, 0, dw, 2.1, 0.045 );
 			b.use( 'brass' ).box( J, R.buffetLeft ? R.door[ 0 ] + 0.12 : R.door[ 1 ] - 0.12, 1.0, - 0.05, 0.12, 0.03, 0.06 );
 
 		}
@@ -604,11 +605,12 @@ export default class Suites {
 		const uvC = ( p ) => [ s0 + dot( sub( [ p[ 0 ], p[ 2 ] ], W2[ i ] ), u ), dot( sub( [ p[ 0 ], p[ 2 ] ], W2[ i ] ), nIn ) ];
 		const at = ( p, h ) => [ p[ 0 ], y + h, p[ 1 ] ];
 		b.use( 'blocks' ).panel4( at( W2[ i ], 0.004 ), at( W2[ i + 1 ], 0.004 ), at( BC[ i + 1 ], 0.004 ), at( BC[ i ], 0.004 ), [ 0, 1, 0 ], 0.7, uvC );
-		b.use( 'tile' ).panel4( at( W2[ i ], CH ), at( W2[ i + 1 ], CH ), at( BC[ i + 1 ], CH ), at( BC[ i ], CH ), [ 0, - 1, 0 ], 0.8, uvC );
+		b.use( 'openGrid' ) /* ---- FI3 (C2I-15): the dark open grid, not an office's tiles */.panel4( at( W2[ i ], CH ), at( W2[ i + 1 ], CH ), at( BC[ i + 1 ], CH ), at( BC[ i ], CH ), [ 0, - 1, 0 ], 0.8, uvC );
 		for ( const l of lamps ) {
 
 			const L = frame( [ l[ 0 ], l[ 1 ], l[ 2 ] ], u, nIn );
-			b.use( 'can' ).box( L, 0, 0.01, 0, 0.18, 0.01, 0.18, [ 'top' ] );
+			b.use( 'can' ).cyl( L, 0, 0, - 0.005, 0.0, 0.09, 0.09, 12, false ); // ---- FI3: round cans
+			b.use( 'can' ).cyl( L, 0, 0, - 0.0055, - 0.005, 0.0, 0.09, 12, false );
 
 		}
 
@@ -618,6 +620,36 @@ export default class Suites {
 			const offs = dot( sub( R.C0, R.G0 ), u ); // (the mitred end's offset from the glass's)
 			const ds = [ R.door[ 0 ] - ( - R.hw + offs ), R.door[ 1 ] - ( - R.hw + offs ) ];
 			this._wallWithDoor( b, R.C0, R.C1, 0, CH, [ nIn[ 0 ], 0, nIn[ 1 ] ], ds, 2.13, 'paint', s0 );
+			// ---- FI3 (C2I-15): wall-size photographs between the doors, one after another (harpo42, 2010);
+			// the walls were plain sage for 20-30 m at a time
+			{
+
+				const wl = Math.hypot( R.C1[ 0 ] - R.C0[ 0 ], R.C1[ 1 ] - R.C0[ 1 ] ), wu = unit( sub( R.C1, R.C0 ) );
+				const [ s0m, s1m ] = ds[ 0 ] > wl - ds[ 1 ] ? [ 0.35, ds[ 0 ] - 0.45 ] : [ ds[ 1 ] + 0.45, wl - 0.35 ];
+				const ml = s1m - s0m;
+				if ( ml > 2.2 ) {
+
+					const keys = [ 'muralCrowd', 'muralVet', 'muralCrowd2' ], key = keys[ R.num % 3 ];
+					const r0 = cellUV( key ), aspect = key === 'muralCrowd2' ? 2 : 4;
+					// (as much of the picture as fits, its middle)
+					const hgt = 1.8, need = hgt * aspect, cut = Math.max( 0, ( 1 - ml / need ) / 2 );
+					const ru = [ r0[ 0 ] + ( r0[ 2 ] - r0[ 0 ] ) * cut, r0[ 1 ], r0[ 2 ] - ( r0[ 2 ] - r0[ 0 ] ) * cut, r0[ 3 ] ];
+					const w = Math.min( ml, need ), sc = ( s0m + s1m ) / 2;
+					const c = along( R.C0, wu, sc ), n2 = [ nIn[ 0 ], nIn[ 1 ] ], rt = [ n2[ 1 ], - n2[ 0 ] ];
+					const Q = ( sx, h ) => [ c[ 0 ] + rt[ 0 ] * sx * w / 2 + n2[ 0 ] * 0.012, y + h, c[ 1 ] + rt[ 1 ] * sx * w / 2 + n2[ 1 ] * 0.012 ];
+					b.use( 'black' ).quad( Q( - 1.02, 0.5 ), Q( 1.02, 0.5 ), Q( 1.02, 0.55 + hgt + 0.05 ), Q( - 1.02, 0.55 + hgt + 0.05 ), [ nIn[ 0 ], 0, nIn[ 1 ] ] );
+					const Q2 = ( sx, h ) => {
+
+						const p = Q( sx, h );
+						return [ p[ 0 ] + n2[ 0 ] * 0.006, p[ 1 ], p[ 2 ] + n2[ 1 ] * 0.006 ];
+
+					};
+					b.use( 'print' ).print( Q2( - 1, 0.55 ), Q2( 1, 0.55 ), Q2( 1, 0.55 + hgt ), Q2( - 1, 0.55 + hgt ), [ nIn[ 0 ], 0, nIn[ 1 ] ], ru );
+
+				}
+
+			}
+			// ---- end FI3
 			b.use( 'black' ).panel4( at( R.C0, 0 ), at( R.C1, 0 ), at( R.C1, 0.1 ), at( R.C0, 0.1 ), [ nIn[ 0 ], 0, nIn[ 1 ] ] );
 			// the plaque by the door, on the latch side
 			const px = R.buffetLeft ? R.door[ 0 ] - 0.25 : R.door[ 1 ] + 0.25;
@@ -747,6 +779,38 @@ export default class Suites {
 
 		}
 
+		// ---- FI3 (C2I-18): the suites' outdoor seats have a drink rail in front of each row (pvsbond 2010,
+		// jrab Aug 2008): a granite top along the front wall, and one on navy posts behind the first row's
+		// backs; cups and paper plates on them now and then. (Not the glass dividers between the suites:
+		// the seated crowd's seats don't line up with the rooms' partitions, and a pane through a fan is worse
+		// than none.)
+		{
+
+			const ds = this.dSeats, rows = [ [ this.line( ds + 0.12 ), y + 0.22, null ], [ this.line( ds + 1.07 ), y + 0.45, y - 0.25 ] ];
+			const r = rnd( 1029 );
+			for ( const [ rl, top, foot ] of rows ) for ( let i = 0; i < rl.length - 1; i ++ ) {
+
+				const a = rl[ i ], c = rl[ i + 1 ], u = unit( sub( c, a ) ), len = Math.hypot( c[ 0 ] - a[ 0 ], c[ 1 ] - a[ 1 ] );
+				let nIn = [ - u[ 1 ], u[ 0 ] ];
+				if ( dot( nIn, sub( lerp( a, c, 0.5 ), [ 0, - 40 ] ) ) < 0 ) nIn = [ - nIn[ 0 ], - nIn[ 1 ] ];
+				const m0 = lerp( a, c, 0.5 ), Q = frame( [ m0[ 0 ], 0, m0[ 1 ] ], u, nIn );
+				b.use( 'granite' ).box( Q, 0, top - 0.02, 0, len, 0.04, 0.28 );
+				b.use( 'navyFrame' ).box( Q, 0, top - 0.06, 0.12, len, 0.04, 0.02 );
+				if ( foot !== null ) for ( let x = - len / 2 + 0.4; x < len / 2; x += 1.6 ) b.use( 'navyFrame' ).box( Q, x, ( foot + top - 0.04 ) / 2, 0.05, 0.05, top - 0.04 - foot, 0.05 );
+				for ( let x = - len / 2 + 0.5; x < len / 2 - 0.3; x += 0.45 ) {
+
+					const k = r();
+					if ( k < 0.12 ) b.use( 'golden' ).cyl( Q, x, ( r() - 0.5 ) * 0.12, top, top + 0.13, 0.032, 0.042, 8, false );
+					else if ( k < 0.18 ) b.use( 'white' ).cyl( Q, x, ( r() - 0.5 ) * 0.1, top, top + 0.012, 0.11, 0.11, 10, true );
+					else if ( k < 0.22 ) b.use( 'canRed' ).cyl( Q, x, ( r() - 0.5 ) * 0.1, top, top + 0.12, 0.033, 0.033, 8, true );
+
+				}
+
+			}
+
+		}
+		// ---- end FI3
+
 		const m = b.mesh( insideMaterial( 'suites-shell' ), 'suites-shell' );
 		m.castShadow = true;
 		this.group.add( m );
@@ -784,7 +848,7 @@ export default class Suites {
 
 		// (---- FI3 (C2I-9): the room behind you in it after dark: its cans, its walls; the people aren't)
 		const reflect = suiteRoomWGSL() + /* wgsl */`
-		refl = select( vec3f( 0.0 ), room * 0.45 + glow * 0.8, lit );
+		refl = select( vec3f( 0.0 ), room * 0.3 + glow * 0.8, lit );
 `;
 		const m = this.nearGlass = clearGlassMesh( near, clearGlass( 'suites-glass-near', NEAR, BAND, { reflect, colors: true } ), 'suites-glass-near' );
 		this.group.add( m );

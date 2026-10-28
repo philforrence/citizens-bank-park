@@ -26,7 +26,7 @@ import { Builder } from '../home/Build.js';
 // [ linear albedo, roughness, metalness, glow (a lamp: lit by itself), pattern ]
 const P_PLAIN = 0, P_CARPET = 1, P_BLOCKS = 2, P_STRIPES = 3, P_GRAIN = 4, P_TILE = 5, P_SPECKLE = 6, P_TERRAZZO = 7, P_ATLAS = 8,
 	P_BALLS = 9, P_CMU = 10, P_TURF = 11, P_NET = 12, P_SCREEN = 13, P_RIBS = 14,
-	P_PLANKS = 15, P_SLAT = 16, P_PIN = 17, P_STEEL = 18, P_ICE = 19; // ---- FI3
+	P_PLANKS = 15, P_SLAT = 16, P_PIN = 17, P_STEEL = 18, P_ICE = 19, P_GRIDCEIL = 20; // ---- FI3
 export const PAL = {
 	// floors
 	carpet: [ [ 0.03, 0.035, 0.055 ], 0.95, 0, 0, P_CARPET ], // a suite's: dark blue-grey, a small figure in it (Ernst & Young's suite, 2009)
@@ -44,6 +44,7 @@ export const PAL = {
 	blackPaint: [ [ 0.018, 0.018, 0.02 ], 0.8, 0, 0, P_PLAIN ],
 	redPaint: [ [ 0.3, 0.02, 0.025 ], 0.45, 0, 0, P_PLAIN ],
 	tile: [ [ 0.58, 0.57, 0.54 ], 0.9, 0, 0, P_TILE ], // 2 ft acoustic tiles in their grid
+	openGrid: [ [ 0.19, 0.15, 0.11 ], 0.6, 0.3, 0, P_GRIDCEIL ], // ---- FI3 (C2I-15): the suite corridor's dark bronze open-cell ceiling
 	cmu: [ [ 0.5, 0.49, 0.46 ], 0.75, 0, 0, P_CMU ], // painted block
 	cmuRed: [ [ 0.3, 0.02, 0.025 ], 0.6, 0, 0, P_CMU ],
 	concrete: [ [ 0.3, 0.29, 0.27 ], 0.85, 0, 0, P_SPECKLE ],
@@ -198,27 +199,59 @@ function drawAtlas( ctx ) {
 	const SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif', SERIF = 'Georgia, "Times New Roman", serif';
 
 	// the suite corridor's murals (harpo42, 2010: photographs blown up wall-size). Invented here: a packed
-	// crowd on its feet in red, the towels up; and the old Vet at night from the 700 level
+	// crowd on its feet in red, the towels up; and the old Vet at night from the 700 level. ---- FI3
+	// (C2I-15): the crowd as a photograph, not polka dots: rows going back and smaller, faces with their
+	// eyes and the stadium light on them, caps, towels and arms up, the near ones big and soft; and a third,
+	// the 1980 parade down Broad Street (confetti, the crowd lining it, the flatbeds)
 	{
 
 		const [ x0, y0, w, h ] = R( 'muralCrowd' ), r = rnd( 7 );
 		const g = ctx.createLinearGradient( 0, y0, 0, y0 + h );
-		g.addColorStop( 0, '#2a2622' ); g.addColorStop( 1, '#4a2420' );
+		g.addColorStop( 0, '#1a1614' ); g.addColorStop( 1, '#3a1a18' );
 		ctx.fillStyle = g;
 		ctx.fillRect( x0, y0, w, h );
-		for ( let row = 0; row < 15; row ++ ) {
+		const skins = [ '#e0b090', '#d29a78', '#c08060', '#a86a48', '#8a5236', '#6a3c26' ];
+		for ( let row = 0; row < 7; row ++ ) {
 
-			const yy = y0 + 18 + row * 16, sz = 7 + row * 0.9;
-			for ( let x = x0 - 8; x < x0 + w + 8; x += sz * 1.25 + r() * 4 ) {
+			const sz = 7 + row * row * 0.75, yy = y0 + 8 + row * ( 6 + row * 3.6 );
+			for ( let x = x0 - sz; x < x0 + w + sz; x += sz * ( 1.5 + r() * 0.5 ) ) {
 
-				ctx.fillStyle = r() < 0.62 ? `hsl(355, ${ 60 + r() * 25 }%, ${ 28 + r() * 18 }%)` : r() < 0.5 ? '#e8e2d6' : `hsl(220, 30%, ${ 12 + r() * 20 }%)`;
-				ctx.fillRect( x, yy + sz * 0.6, sz * 1.15, sz * 1.3 );
-				ctx.fillStyle = `hsl(25, ${ 30 + r() * 20 }%, ${ 45 + r() * 25 }%)`;
-				ctx.beginPath(); ctx.arc( x + sz * 0.58, yy + sz * 0.3, sz * 0.42, 0, Math.PI * 2 ); ctx.fill();
-				if ( r() < 0.25 ) {
+				const cx = x + ( r() - 0.5 ) * sz * 0.4, top = yy + ( r() - 0.5 ) * sz * 0.3;
+				// the body: a red jacket mostly, a white jersey, a dark coat
+				const jk = r();
+				ctx.fillStyle = jk < 0.58 ? `hsl(355, ${ 65 + r() * 20 }%, ${ 30 + r() * 14 }%)` : jk < 0.78 ? '#e2ddd2' : `hsl(220, 20%, ${ 12 + r() * 12 }%)`;
+				ctx.beginPath(); ctx.ellipse( cx, top + sz * 1.6, sz * 0.85, sz * 0.9, 0, Math.PI, 0 ); ctx.fill();
+				ctx.fillRect( cx - sz * 0.85, top + sz * 1.6, sz * 1.7, sz * 1.4 );
+				// an arm up with a white towel, now and then
+				if ( r() < 0.3 ) {
 
+					const side = r() < 0.5 ? - 1 : 1;
+					ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = sz * 0.35;
+					ctx.beginPath(); ctx.moveTo( cx + side * sz * 0.6, top + sz * 1.4 ); ctx.lineTo( cx + side * sz * 0.9, top - sz * 0.4 ); ctx.stroke();
 					ctx.fillStyle = '#f2efe8';
-					ctx.fillRect( x + sz * 0.2 + ( r() - 0.5 ) * 8, yy - sz * 0.9, sz * 0.8, sz * 0.7 );
+					ctx.fillRect( cx + side * sz * 0.9 - sz * 0.4, top - sz * 1.1, sz * 0.8, sz * 0.7 );
+
+				}
+
+				// the head: lit from above, the shadow side, the eyes, a cap on most
+				const sk = skins[ Math.floor( r() * skins.length ) ];
+				ctx.fillStyle = sk;
+				ctx.beginPath(); ctx.ellipse( cx, top + sz * 0.6, sz * 0.48, sz * 0.6, 0, 0, Math.PI * 2 ); ctx.fill();
+				ctx.fillStyle = 'rgba(30,10,5,0.35)';
+				ctx.beginPath(); ctx.ellipse( cx + sz * 0.18, top + sz * 0.65, sz * 0.28, sz * 0.52, 0, - Math.PI / 2, Math.PI / 2 ); ctx.fill();
+				ctx.fillStyle = '#140c08';
+				ctx.fillRect( cx - sz * 0.25, top + sz * 0.5, sz * 0.14, sz * 0.08 ); ctx.fillRect( cx + sz * 0.1, top + sz * 0.5, sz * 0.14, sz * 0.08 );
+				ctx.fillStyle = 'rgba(90,30,20,0.6)'; ctx.fillRect( cx - sz * 0.15, top + sz * 0.85, sz * 0.3, sz * 0.06 );
+				if ( r() < 0.7 ) {
+
+					ctx.fillStyle = r() < 0.75 ? '#a8141e' : r() < 0.5 ? '#1b2a57' : '#e8e4da';
+					ctx.beginPath(); ctx.ellipse( cx, top + sz * 0.32, sz * 0.52, sz * 0.36, 0, Math.PI, 0 ); ctx.fill();
+					ctx.fillRect( cx - sz * 0.1, top + sz * 0.3, sz * 0.7, sz * 0.1 );
+
+				} else {
+
+					ctx.fillStyle = [ '#1a1410', '#3a2a1a', '#6a4a2a', '#8a7a6a' ][ Math.floor( r() * 4 ) ];
+					ctx.beginPath(); ctx.ellipse( cx, top + sz * 0.22, sz * 0.48, sz * 0.25, 0, Math.PI, 0 ); ctx.fill();
 
 				}
 
@@ -226,9 +259,72 @@ function drawAtlas( ctx ) {
 
 		}
 
+		// the photograph's grain and the light falling off at its edges
+		for ( let k = 0; k < 2500; k ++ ) {
+
+			ctx.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)';
+			ctx.fillRect( x0 + r() * w, y0 + r() * h, 2, 2 );
+
+		}
+
+		const v = ctx.createRadialGradient( x0 + w / 2, y0 + h / 2, h * 0.4, x0 + w / 2, y0 + h / 2, w * 0.6 );
+		v.addColorStop( 0, 'rgba(0,0,0,0)' ); v.addColorStop( 1, 'rgba(0,0,0,0.45)' );
+		ctx.fillStyle = v; ctx.fillRect( x0, y0, w, h );
 		ctx.fillStyle = 'rgba(255,255,255,0.85)';
 		ctx.font = `italic bold 30px ${ SERIF }`;
 		ctx.fillText( 'The Fans', x0 + 24, y0 + h - 18 );
+
+	}
+	{
+
+		const [ x0, y0, w, h ] = R( 'muralCrowd2' ), r = rnd( 1980 );
+		// Broad Street, 1 November 1980: the buildings either side going back to the hall's tower, the crowd
+		// packed along the curbs, the flatbeds in the middle, the confetti and the paper falling
+		const g = ctx.createLinearGradient( 0, y0, 0, y0 + h );
+		g.addColorStop( 0, '#9ab0c4' ); g.addColorStop( 0.5, '#c8c4b4' ); g.addColorStop( 1, '#5a5650' );
+		ctx.fillStyle = g; ctx.fillRect( x0, y0, w, h );
+		const vx = x0 + w / 2, vy = y0 + h * 0.36;
+		ctx.fillStyle = '#8a7a6a'; ctx.fillRect( vx - 8, y0 + 20, 16, vy - y0 - 20 ); ctx.fillRect( vx - 4, y0 + 8, 8, 14 );
+		for ( const sd of [ - 1, 1 ] ) for ( let k = 0; k < 7; k ++ ) {
+
+			const xa = vx + sd * ( 30 + k * 34 ), ht = 60 + r() * 70;
+			ctx.fillStyle = `hsl(${ 20 + r() * 20 }, ${ 10 + r() * 15 }%, ${ 35 + r() * 25 }%)`;
+			ctx.beginPath(); ctx.moveTo( xa, vy - ht * ( 0.4 + k * 0.1 ) ); ctx.lineTo( xa + sd * 34, vy - ht * ( 0.5 + k * 0.12 ) ); ctx.lineTo( xa + sd * 34, vy + 40 + k * 6 ); ctx.lineTo( xa, vy + 30 + k * 6 ); ctx.fill();
+			ctx.fillStyle = 'rgba(30,30,40,0.5)';
+			for ( let j = 0; j < 6; j ++ ) ctx.fillRect( xa + sd * 8, vy - ht * 0.3 + j * 10, sd * 18, 5 );
+
+		}
+
+		ctx.fillStyle = '#4a4844';
+		ctx.beginPath(); ctx.moveTo( vx - 14, vy + 8 ); ctx.lineTo( vx + 14, vy + 8 ); ctx.lineTo( x0 + w * 0.8, y0 + h ); ctx.lineTo( x0 + w * 0.2, y0 + h ); ctx.fill();
+		for ( let k = 0; k < 1400; k ++ ) {
+
+			const t = r(), sd = r() < 0.5 ? - 1 : 1, yy = vy + 10 + t * ( h * 0.64 - 10 ), half = 14 + t * ( w * 0.3 - 14 );
+			const xx = vx + sd * ( half + r() * ( 20 + t * 140 ) ), s = 1 + t * 5;
+			ctx.fillStyle = r() < 0.55 ? `hsl(355, 60%, ${ 30 + r() * 20 }%)` : r() < 0.5 ? '#d8d0c0' : '#2a2a3a';
+			ctx.fillRect( xx, yy - s, s, s * 1.6 );
+
+		}
+
+		for ( const [ t, c ] of [ [ 0.35, '#e8e4da' ], [ 0.65, '#d8d4c8' ] ] ) {
+
+			const yy = vy + t * h * 0.55, s = 0.5 + t;
+			ctx.fillStyle = c; ctx.fillRect( vx - 30 * s, yy, 60 * s, 14 * s );
+			ctx.fillStyle = '#7a0a14'; ctx.fillRect( vx - 30 * s, yy + 10 * s, 60 * s, 4 * s );
+			for ( let j = - 2; j <= 2; j ++ ) { ctx.fillStyle = j % 2 ? '#e8e4da' : '#6a1020'; ctx.fillRect( vx + j * 10 * s - 2 * s, yy - 12 * s, 4 * s, 12 * s ); }
+
+		}
+
+		for ( let k = 0; k < 900; k ++ ) {
+
+			ctx.fillStyle = [ '#f2efe6', '#e8c040', '#c82030', '#4a7ac8' ][ Math.floor( r() * 4 ) ];
+			ctx.fillRect( x0 + r() * w, y0 + r() * h * 0.8, 2, 2 );
+
+		}
+
+		ctx.fillStyle = 'rgba(255,255,255,0.85)';
+		ctx.font = `italic bold 26px ${ SERIF }`;
+		ctx.fillText( 'Broad Street, 1980', x0 + 20, y0 + h - 14 );
 
 	}
 	{
@@ -275,63 +371,8 @@ function drawAtlas( ctx ) {
 
 	}
 
-	// the Cooperstown Gallery: Dick Perez's oils of the Hall of Famers. Not his paintings, nor anyone's
-	// likeness: eight invented canvases in an oil painter's manner, a figure in the uniform of his day
-	// against a painted ground (a batter, a pitcher, a fielder), under the names on the brass plates
-	{
-
-		const [ x0, y0 ] = R( 'paintings' ), r = rnd( 23 );
-		const grounds = [ [ '#a08454', '#5a4a30' ], [ '#5c7890', '#2c3c4c' ], [ '#9a5a44', '#4c2a24' ], [ '#7a8a5a', '#3c4a30' ], [ '#a88a6a', '#5c4a3a' ], [ '#6a6a90', '#2a2a3e' ], [ '#a07a3e', '#4e3a1e' ], [ '#70848c', '#38444a' ] ];
-		const uni = [ '#e9e4d6', '#d8cfbd', '#c9c4b8', '#8fa7c9', '#e9e4d6', '#b9b2a2', '#e9e4d6', '#d8cfbd' ];
-		for ( let i = 0; i < 8; i ++ ) {
-
-			const x = x0 + i * CELL, y = y0;
-			const g = ctx.createRadialGradient( x + 128, y + 100, 20, x + 128, y + 128, 180 );
-			g.addColorStop( 0, grounds[ i ][ 0 ] ); g.addColorStop( 1, grounds[ i ][ 1 ] );
-			ctx.fillStyle = g;
-			ctx.fillRect( x, y, CELL, CELL );
-			// the brushwork
-			for ( let k = 0; k < 260; k ++ ) {
-
-				ctx.fillStyle = `rgba(${ 120 + r() * 100 },${ 90 + r() * 80 },${ 60 + r() * 60 },0.06)`;
-				ctx.fillRect( x + r() * CELL, y + r() * CELL, 6 + r() * 18, 2 + r() * 4 );
-
-			}
-
-			// the figure, three-quarter length, the cap's bill, the bat or the glove
-			const cx = x + 128 + ( r() - 0.5 ) * 30;
-			ctx.fillStyle = uni[ i ];
-			ctx.beginPath();
-			ctx.moveTo( cx - 46, y + 256 ); ctx.lineTo( cx - 40, y + 130 ); ctx.quadraticCurveTo( cx, y + 105, cx + 40, y + 130 ); ctx.lineTo( cx + 48, y + 256 );
-			ctx.fill();
-			ctx.fillStyle = 'rgba(0,0,0,0.25)';
-			ctx.fillRect( cx + 10, y + 135, 30, 121 );
-			ctx.fillStyle = '#b07a58';
-			ctx.beginPath(); ctx.ellipse( cx, y + 92, 20, 25, 0, 0, Math.PI * 2 ); ctx.fill();
-			ctx.fillStyle = 'rgba(60,30,20,0.35)';
-			ctx.beginPath(); ctx.ellipse( cx + 7, y + 96, 11, 19, 0, 0, Math.PI * 2 ); ctx.fill();
-			ctx.fillStyle = i % 3 === 1 ? '#1c2a52' : '#7a1820';
-			ctx.beginPath(); ctx.ellipse( cx, y + 72, 23, 13, 0, Math.PI, 0 ); ctx.fill();
-			ctx.fillRect( cx - 4, y + 70, 30, 6 );
-			if ( i % 3 === 0 ) {
-
-				ctx.strokeStyle = '#8a5a2a'; ctx.lineWidth = 7;
-				ctx.beginPath(); ctx.moveTo( cx - 34, y + 180 ); ctx.lineTo( cx - 70, y + 40 ); ctx.stroke();
-
-			} else if ( i % 3 === 1 ) {
-
-				ctx.fillStyle = '#5a3a1a';
-				ctx.beginPath(); ctx.ellipse( cx + 44, y + 160, 18, 22, 0.3, 0, Math.PI * 2 ); ctx.fill();
-
-			}
-
-			// the frame's shadow in the canvas's edge
-			ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 6;
-			ctx.strokeRect( x + 3, y + 3, CELL - 6, CELL - 6 );
-
-		}
-
-	}
+	// the Cooperstown Gallery's canvases (---- FI3 (C2I-12): drawPortraits, below)
+	drawPortraits( ctx, R );
 
 	// the club's bars: their names lettered over the back bars (the 2008 guide's four; the lettering is
 	// invented: no photo of the signs found)
@@ -423,34 +464,11 @@ function drawAtlas( ctx ) {
 	}
 
 	// a mural of the Phillies in the clubhouse (the Diamond Club's are Dane Tilghman's oils, 2009 photo;
-	// this one's invented: a row of players in pinstripes and red caps in a warm room, no one's face)
-	{
-
-		const [ x0, y0, w, h ] = R( 'muralClub' ), r = rnd( 31 );
-		const g = ctx.createLinearGradient( 0, y0, 0, y0 + h );
-		g.addColorStop( 0, '#b8502a' ); g.addColorStop( 0.55, '#d8a060' ); g.addColorStop( 1, '#4a5a78' );
-		ctx.fillStyle = g;
-		ctx.fillRect( x0, y0, w, h );
-		for ( let k = 0; k < 11; k ++ ) {
-
-			const cx = x0 + 30 + k * 45 + ( r() - 0.5 ) * 10, top = y0 + 50 + r() * 20, s = 0.9 + r() * 0.2;
-			ctx.fillStyle = '#ece6da';
-			ctx.fillRect( cx - 13 * s, top + 26, 26 * s, 120 * s );
-			ctx.fillStyle = 'rgba(160,20,30,0.6)';
-			for ( let p = - 10; p <= 10; p += 5 ) ctx.fillRect( cx + p * s, top + 26, 1, 120 * s );
-			ctx.fillStyle = '#9a6a4a';
-			ctx.beginPath(); ctx.ellipse( cx, top + 14, 9 * s, 12 * s, 0, 0, Math.PI * 2 ); ctx.fill();
-			ctx.fillStyle = '#a01420';
-			ctx.fillRect( cx - 10 * s, top, 20 * s, 7 * s );
-			ctx.fillRect( cx - 13 * s, top + 150 * s, 9 * s, 30 * s );
-			ctx.fillRect( cx + 4 * s, top + 150 * s, 9 * s, 30 * s );
-
-		}
-
-		ctx.strokeStyle = '#20180c'; ctx.lineWidth = 8;
-		ctx.strokeRect( x0 + 4, y0 + 4, w - 8, h - 8 );
-
-	}
+	// this one's invented). ---- FI3 (C2I-10): tall stylized figures in a painter's manner, each his own pose
+	// and colour (a batter's swing, a pitcher's kick, a catcher's crouch, a fielder's reach, a runner), long
+	// limbs, warm grounds, nobody's face (it was eleven identical cream bars: a barcode); and the back bar's
+	// panels: dark, columns of names in white, a great glowing figure in each (harpo42, Aug 2008)
+	drawLounge( ctx, R, SANS );
 
 	drawStore( ctx, R, SANS, SERIF ); // ---- FI3
 
@@ -653,8 +671,299 @@ function drawStore( ctx, R, SANS, SERIF ) {
 	}
 
 }
+
+// ---- FI3 (C2I-12): the Cooperstown Gallery's canvases, 24 of them (rows 'paintings', 'paintings2',
+// 'paintings3'): Dick Perez's oils were richly coloured portraits, head and shoulders large over a montage
+// (a ballpark, a figure in action). Not his paintings, nor anyone's likeness: invented, in an oil
+// painter's manner: a head with its planes of light and shadow, eyes, brows, a moustache on some; the
+// uniform and cap of an era (the 1915 pennant Phillies' collared flannels, the 1950 Whiz Kids' pinstripes,
+// the Athletics' blue, the 1980 maroon, the powder blue road greys); behind them a grandstand's arches, a
+// crowd in dabs, a small second figure swinging or pitching. (There were eight cartoons, faceless.)
+export const PAINTINGS = 24;
+function drawPortraits( ctx, R ) {
+
+	const rows = [ R( 'paintings' ), R( 'paintings2' ), R( 'paintings3' ) ];
+	const r = rnd( 1883 );
+	// [ jersey, trim/script, cap crown, cap bill, collar ]
+	const eras = [
+		[ '#e6e0d0', '#1d2b55', '#1d2b55', '#1d2b55', true ], // 1915: flannel, navy, a collar
+		[ '#d9d4c6', '#2a3a6a', '#d9d4c6', '#2a3a6a', true ], // a road grey, the striped cap
+		[ '#ece8dc', '#b0141e', '#b0141e', '#b0141e', false ], // 1950: pinstripes, the red script
+		[ '#ece8dc', '#14285a', '#14285a', '#14285a', false ], // the Athletics' white and blue
+		[ '#e9e4d6', '#6a1020', '#6a1020', '#6a1020', false ], // 1980: maroon pinstripes
+		[ '#8fa9cc', '#6a1020', '#6a1020', '#6a1020', false ], // the powder blue road
+		[ '#c9c4b8', '#3a3a3a', '#202020', '#202020', true ], // an old grey, a dark cap
+		[ '#ece8dc', '#0e3b7a', '#ece8dc', '#0e3b7a', false ], // the A's, a white cap
+	];
+	const skins = [ '#e0b090', '#d29a78', '#c08060', '#a86a48', '#8a5236', '#6a3c26' ];
+	const hairs = [ '#2a1a10', '#4a3020', '#6a4a2a', '#1a1410', '#8a7a6a' ];
+	for ( let i = 0; i < PAINTINGS; i ++ ) {
+
+		const [ rx, ry ] = rows[ Math.floor( i / 8 ) ], x = rx + ( i % 8 ) * CELL, y = ry, S = CELL;
+		const era = eras[ ( i * 5 + Math.floor( i / 8 ) ) % eras.length ];
+		ctx.save();
+		ctx.beginPath(); ctx.rect( x, y, S, S ); ctx.clip();
+		// the ground: a sky going to dusk or a studio brown
+		const g = ctx.createLinearGradient( 0, y, 0, y + S );
+		const studio = i % 3 === 2;
+		const skyA = studio ? `hsl(${ 25 + r() * 20 }, 35%, ${ 28 + r() * 10 }%)` : `hsl(${ 195 + r() * 30 }, ${ 25 + r() * 20 }%, ${ 55 + r() * 15 }%)`;
+		const skyB = studio ? `hsl(${ 20 + r() * 15 }, 30%, 14%)` : `hsl(${ 30 + r() * 20 }, ${ 30 + r() * 20 }%, ${ 45 + r() * 15 }%)`;
+		g.addColorStop( 0, skyA ); g.addColorStop( 1, skyB );
+		ctx.fillStyle = g; ctx.fillRect( x, y, S, S );
+		if ( ! studio ) {
+
+			// a grandstand's arches across the middle distance, the crowd in dabs, the field's green below
+			const gy = y + S * ( 0.42 + r() * 0.1 );
+			ctx.fillStyle = `hsl(${ 20 + r() * 15 }, 25%, ${ 40 + r() * 15 }%)`;
+			ctx.fillRect( x, gy, S, S * 0.2 );
+			ctx.fillStyle = 'rgba(40,30,25,0.55)';
+			for ( let k = 0; k < 9; k ++ ) {
+
+				ctx.beginPath(); ctx.ellipse( x + 14 + k * 30, gy + S * 0.13, 9, 14, 0, Math.PI, 0 ); ctx.fill();
+				ctx.fillRect( x + 5 + k * 30, gy + S * 0.13, 18, 14 );
+
+			}
+
+			for ( let k = 0; k < 140; k ++ ) {
+
+				ctx.fillStyle = r() < 0.5 ? 'rgba(120,30,30,0.6)' : r() < 0.5 ? 'rgba(220,210,190,0.55)' : 'rgba(40,40,60,0.5)';
+				ctx.fillRect( x + r() * S, gy - 2 + r() * S * 0.08, 3, 3 );
+
+			}
+
+			ctx.fillStyle = `hsl(${ 90 + r() * 30 }, 30%, ${ 30 + r() * 10 }%)`;
+			ctx.fillRect( x, gy + S * 0.2, S, S );
+
+		}
+
+		// the small figure in action, off to one side: a batter's swing or a pitcher's stride, in silhouette
+		{
+
+			const fx = x + ( r() < 0.5 ? S * 0.17 : S * 0.83 ), fy = y + S * 0.58, sc = 0.7 + r() * 0.3;
+			ctx.strokeStyle = 'rgba(245,240,225,0.75)'; ctx.lineWidth = 5 * sc; ctx.lineCap = 'round';
+			ctx.beginPath();
+			ctx.moveTo( fx, fy - 30 * sc ); ctx.lineTo( fx, fy );
+			ctx.moveTo( fx, fy ); ctx.lineTo( fx - 10 * sc, fy + 22 * sc ); ctx.moveTo( fx, fy ); ctx.lineTo( fx + 12 * sc, fy + 20 * sc );
+			if ( i % 2 ) {
+
+				ctx.moveTo( fx, fy - 24 * sc ); ctx.lineTo( fx + 18 * sc, fy - 34 * sc ); ctx.moveTo( fx + 14 * sc, fy - 30 * sc ); ctx.lineTo( fx - 16 * sc, fy - 44 * sc );
+
+			} else {
+
+				ctx.moveTo( fx, fy - 24 * sc ); ctx.lineTo( fx - 20 * sc, fy - 14 * sc ); ctx.moveTo( fx, fy - 24 * sc ); ctx.lineTo( fx + 18 * sc, fy - 40 * sc );
+
+			}
+
+			ctx.stroke();
+			ctx.fillStyle = 'rgba(245,240,225,0.8)'; ctx.beginPath(); ctx.arc( fx, fy - 36 * sc, 5 * sc, 0, Math.PI * 2 ); ctx.fill();
+
+		}
+
+		// the brushwork over the ground
+		for ( let k = 0; k < 220; k ++ ) {
+
+			ctx.fillStyle = `rgba(${ 150 + r() * 100 },${ 120 + r() * 90 },${ 80 + r() * 70 },0.07)`;
+			ctx.save(); ctx.translate( x + r() * S, y + r() * S ); ctx.rotate( r() * 3 ); ctx.fillRect( - 8, - 2, 10 + r() * 16, 3 + r() * 3 ); ctx.restore();
+
+		}
+
+		// the man: shoulders filling the bottom, the head large, turned a little
+		const cx = x + S * ( 0.46 + r() * 0.08 ), turn = ( r() - 0.5 ) * 0.5;
+		const skin = skins[ Math.floor( r() * skins.length ) ], hair = hairs[ Math.floor( r() * hairs.length ) ];
+		const [ jersey, trim, crown, bill, collar ] = era;
+		// shoulders and chest
+		ctx.fillStyle = jersey;
+		ctx.beginPath();
+		ctx.moveTo( x - 10, y + S ); ctx.lineTo( x - 4, y + S * 0.8 ); ctx.quadraticCurveTo( cx - 70, y + S * 0.66, cx - 22, y + S * 0.64 );
+		ctx.lineTo( cx + 22, y + S * 0.64 ); ctx.quadraticCurveTo( cx + 72, y + S * 0.66, x + S + 4, y + S * 0.8 ); ctx.lineTo( x + S + 10, y + S );
+		ctx.fill();
+		// pinstripes on some eras, the light from the left
+		if ( jersey === '#ece8dc' || jersey === '#e9e4d6' ) {
+
+			ctx.strokeStyle = trim + '88'; ctx.lineWidth = 1;
+			for ( let k = - 8; k <= 8; k ++ ) { ctx.beginPath(); ctx.moveTo( cx + k * 9, y + S * 0.66 ); ctx.lineTo( cx + k * 11, y + S ); ctx.stroke(); }
+
+		}
+
+		ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect( cx + 10, y + S * 0.64, S, S );
+		// the collar, or the placket and the script's first letters
+		ctx.fillStyle = trim;
+		if ( collar ) {
+
+			ctx.beginPath(); ctx.moveTo( cx - 24, y + S * 0.65 ); ctx.lineTo( cx, y + S * 0.76 ); ctx.lineTo( cx + 24, y + S * 0.65 ); ctx.lineTo( cx + 30, y + S * 0.69 ); ctx.lineTo( cx, y + S * 0.82 ); ctx.lineTo( cx - 30, y + S * 0.69 ); ctx.fill();
+
+		} else {
+
+			ctx.font = `italic bold 30px ${ SCRIPT }`;
+			ctx.fillText( i % 4 === 3 ? 'A' : 'Ph', cx + 26, y + S * 0.86 );
+			ctx.fillRect( cx - 2, y + S * 0.66, 4, S * 0.4 );
+
+		}
+
+		// the neck, the head with its shadow side, the ears
+		ctx.fillStyle = skin;
+		ctx.fillRect( cx - 13, y + S * 0.52, 26, S * 0.14 );
+		ctx.beginPath(); ctx.ellipse( cx + turn * 12, y + S * 0.4, 30, 40, 0, 0, Math.PI * 2 ); ctx.fill();
+		ctx.beginPath(); ctx.ellipse( cx - 30 + turn * 6, y + S * 0.42, 6, 10, 0, 0, Math.PI * 2 ); ctx.fill();
+		ctx.beginPath(); ctx.ellipse( cx + 30 + turn * 6, y + S * 0.42, 6, 10, 0, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = 'rgba(40,15,5,0.32)';
+		ctx.beginPath(); ctx.ellipse( cx + 12 + turn * 12, y + S * 0.42, 18, 36, 0, - Math.PI / 2, Math.PI / 2 ); ctx.fill();
+		ctx.fillRect( cx - 13, y + S * 0.56, 26, 6 );
+		// the brows, the eyes (dark marks under them), the nose's shadow, the mouth; a moustache on some
+		const ex = cx + turn * 16, ey = y + S * 0.38;
+		ctx.fillStyle = hair;
+		ctx.fillRect( ex - 20, ey - 8, 13, 3 ); ctx.fillRect( ex + 6, ey - 8, 13, 3 );
+		ctx.fillStyle = '#1a100a';
+		ctx.beginPath(); ctx.ellipse( ex - 13, ey, 4, 2.5, 0, 0, Math.PI * 2 ); ctx.fill();
+		ctx.beginPath(); ctx.ellipse( ex + 13, ey, 4, 2.5, 0, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = 'rgba(60,25,10,0.45)';
+		ctx.beginPath(); ctx.moveTo( ex + 2, ey + 2 ); ctx.lineTo( ex + 7, ey + 18 ); ctx.lineTo( ex, ey + 20 ); ctx.fill();
+		ctx.fillStyle = 'rgba(255,240,220,0.25)'; ctx.fillRect( ex - 3, ey + 2, 3, 16 );
+		if ( r() < 0.35 ) { ctx.fillStyle = hair; ctx.fillRect( ex - 11, ey + 23, 22, 5 ); }
+		ctx.fillStyle = 'rgba(90,30,20,0.7)'; ctx.fillRect( ex - 8, ey + 30, 16, 3 );
+		// the cap, low over the brows, its bill; a stripe on the old ones; the hair at the temples
+		ctx.fillStyle = hair; ctx.fillRect( cx - 30 + turn * 10, y + S * 0.3, 8, 18 ); ctx.fillRect( cx + 22 + turn * 10, y + S * 0.3, 8, 18 );
+		ctx.fillStyle = crown;
+		ctx.beginPath(); ctx.ellipse( cx + turn * 10, y + S * 0.29, 33, 24, 0, Math.PI, 0 ); ctx.fill();
+		ctx.fillRect( cx - 33 + turn * 10, y + S * 0.27, 66, 9 );
+		if ( crown === eras[ 1 ][ 2 ] ) { ctx.fillStyle = trim; for ( let k = - 2; k <= 2; k ++ ) ctx.fillRect( cx + k * 12 + turn * 10, y + S * 0.2, 3, 18 ); }
+		ctx.fillStyle = bill;
+		ctx.beginPath(); ctx.ellipse( cx + turn * 22, y + S * 0.315, 36, 7, 0, 0, Math.PI ); ctx.fill();
+		ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect( cx - 28 + turn * 14, y + S * 0.325, 56, 5 );
+		// the varnish's warmth, the frame's shadow at the canvas's edge
+		ctx.fillStyle = 'rgba(120,80,20,0.08)'; ctx.fillRect( x, y, S, S );
+		ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 6;
+		ctx.strokeRect( x + 3, y + 3, S - 6, S - 6 );
+		ctx.restore();
+
+	}
+
+}
+// the atlas cell of canvas i (0 .. 23)
+export function paintingUV( i ) {
+
+	return cellUV( [ 'paintings', 'paintings2', 'paintings3' ][ Math.floor( i / 8 ) % 3 ], i % 8, 8, 1 );
+
+}
 // ---- end FI3
 
+// ---- FI3 (C2I-10): the Diamond Club's mural and back-bar panels
+function drawLounge( ctx, R, SANS ) {
+
+	// a figure in a pose: [ head, neck, hip, knees, feet, elbows, hands ] as offsets, drawn as long tapered
+	// strokes (elongated, as a painter of the leagues' old days might)
+	const figure = ( cx, by, s, pose, uni, cap, skin, bat ) => {
+
+		const P = ( p ) => [ cx + p[ 0 ] * s, by - p[ 1 ] * s ];
+		const limb = ( a, b, w, col ) => {
+
+			ctx.strokeStyle = col; ctx.lineWidth = w * s; ctx.lineCap = 'round';
+			ctx.beginPath(); ctx.moveTo( ...P( a ) ); ctx.lineTo( ...P( b ) ); ctx.stroke();
+
+		};
+		const { hip, neck, kneeL, kneeR, footL, footR, elbL, elbR, handL, handR } = pose;
+		limb( hip, kneeL, 15, uni ); limb( kneeL, footL, 12, uni ); limb( hip, kneeR, 15, uni ); limb( kneeR, footR, 12, uni );
+		limb( [ footL[ 0 ] - 4, footL[ 1 ] ], [ footL[ 0 ] + 10, footL[ 1 ] ], 7, '#1a1a1a' ); limb( [ footR[ 0 ] - 4, footR[ 1 ] ], [ footR[ 0 ] + 10, footR[ 1 ] ], 7, '#1a1a1a' );
+		limb( hip, neck, 26, uni );
+		limb( neck, elbL, 11, uni ); limb( elbL, handL, 9, skin ); limb( neck, elbR, 11, uni ); limb( elbR, handR, 9, skin );
+		if ( bat ) limb( handR, [ handR[ 0 ] + bat[ 0 ], handR[ 1 ] + bat[ 1 ] ], 6, '#c8a060' );
+		const h = P( [ neck[ 0 ] + 2, neck[ 1 ] + 16 ] );
+		ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse( h[ 0 ], h[ 1 ], 8 * s, 11 * s, 0.2, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = cap; ctx.beginPath(); ctx.ellipse( h[ 0 ], h[ 1 ] - 5 * s, 9 * s, 6 * s, 0, Math.PI, 0 ); ctx.fill();
+		ctx.fillRect( h[ 0 ], h[ 1 ] - 6 * s, 12 * s, 3 * s );
+
+	};
+	{
+
+		const [ x0, y0, w, h ] = R( 'muralClub' ), r = rnd( 31 );
+		const g = ctx.createLinearGradient( 0, y0, 0, y0 + h );
+		g.addColorStop( 0, '#3a2a5a' ); g.addColorStop( 0.45, '#c86a3a' ); g.addColorStop( 0.7, '#e0a860' ); g.addColorStop( 1, '#2e5a3a' );
+		ctx.fillStyle = g;
+		ctx.fillRect( x0, y0, w, h );
+		// the painter's ground: broad strokes, a grandstand's suggestion, the lights
+		for ( let k = 0; k < 120; k ++ ) {
+
+			ctx.fillStyle = `hsla(${ 10 + r() * 40 }, 60%, ${ 40 + r() * 30 }%, 0.12)`;
+			ctx.fillRect( x0 + r() * w, y0 + r() * h * 0.7, 20 + r() * 40, 4 + r() * 6 );
+
+		}
+
+		for ( let k = 0; k < 4; k ++ ) { ctx.fillStyle = 'rgba(255,240,200,0.5)'; ctx.fillRect( x0 + 40 + k * 130, y0 + 18, 26, 8 ); }
+		const poses = [
+			// a batter at the end of his swing
+			{ hip: [ 0, 70 ], neck: [ 6, 128 ], kneeL: [ - 14, 38 ], kneeR: [ 16, 36 ], footL: [ - 22, 0 ], footR: [ 22, 0 ], elbL: [ 24, 116 ], elbR: [ 22, 124 ], handL: [ 34, 132 ], handR: [ 30, 136 ], bat: [ - 46, 22 ] },
+			// a pitcher's high kick
+			{ hip: [ 0, 72 ], neck: [ - 6, 130 ], kneeL: [ 22, 92 ], kneeR: [ 2, 36 ], footL: [ 34, 74 ], footR: [ 4, 0 ], elbL: [ 22, 118 ], elbR: [ - 26, 140 ], handL: [ 18, 104 ], handR: [ - 38, 158 ] },
+			// a catcher in his crouch
+			{ hip: [ 0, 44 ], neck: [ 4, 98 ], kneeL: [ - 22, 52 ], kneeR: [ 22, 52 ], footL: [ - 18, 0 ], footR: [ 18, 0 ], elbL: [ - 18, 78 ], elbR: [ 22, 80 ], handL: [ - 6, 74 ], handR: [ 30, 66 ] },
+			// a fielder stretching for it
+			{ hip: [ 0, 66 ], neck: [ 22, 118 ], kneeL: [ - 20, 34 ], kneeR: [ 24, 40 ], footL: [ - 34, 0 ], footR: [ 30, 4 ], elbL: [ 44, 138 ], elbR: [ - 8, 100 ], handL: [ 62, 152 ], handR: [ - 22, 86 ] },
+			// a runner going all out
+			{ hip: [ 0, 70 ], neck: [ 16, 124 ], kneeL: [ 22, 52 ], kneeR: [ - 16, 34 ], footL: [ 14, 10 ], footR: [ - 34, 12 ], elbL: [ 30, 102 ], elbR: [ - 4, 110 ], handL: [ 26, 84 ], handR: [ - 16, 128 ] },
+			// a batter waiting, the bat on his shoulder
+			{ hip: [ 0, 70 ], neck: [ 0, 128 ], kneeL: [ - 10, 36 ], kneeR: [ 12, 36 ], footL: [ - 14, 0 ], footR: [ 16, 0 ], elbL: [ - 14, 104 ], elbR: [ 18, 106 ], handL: [ 4, 116 ], handR: [ 8, 118 ], bat: [ - 20, 40 ] },
+		];
+		const unis = [ '#efe8d8', '#8fa9cc', '#e8e0d0', '#6a1020', '#efe8d8', '#c9c4b8' ];
+		const caps = [ '#b0141e', '#6a1020', '#1d2b55', '#1a1a1a', '#b0141e', '#14285a' ];
+		const skins = [ '#c08060', '#8a5236', '#e0b090', '#6a3c26', '#d29a78', '#a86a48' ];
+		for ( let k = 0; k < 6; k ++ ) {
+
+			const cx = x0 + 45 + k * 84 + ( r() - 0.5 ) * 14, s = 1.18 + r() * 0.2;
+			figure( cx, y0 + h - 22, s, poses[ k ], unis[ k ], caps[ k ], skins[ k ], poses[ k ].bat );
+
+		}
+
+		ctx.strokeStyle = '#20180c'; ctx.lineWidth = 8;
+		ctx.strokeRect( x0 + 4, y0 + 4, w - 8, h - 8 );
+
+	}
+
+	// the back bar's panels: two cells, a batter's and a pitcher's, each glowing white in the dark among
+	// columns of names (invented: initials and years, as a roll of members)
+	{
+
+		const [ x0, y0, w, h ] = R( 'loungePanel' ), r = rnd( 1883 );
+		for ( let k = 0; k < 2; k ++ ) {
+
+			const x = x0 + k * 256;
+			ctx.fillStyle = '#0c0e14'; ctx.fillRect( x, y0, 256, h );
+			ctx.fillStyle = 'rgba(235,240,255,0.75)'; ctx.font = `bold 10px ${ SANS }`;
+			for ( let col = 0; col < 3; col ++ ) for ( let row = 0; row < 18; row ++ ) {
+
+				if ( col === 1 && row > 2 && row < 16 ) continue;
+				const L = String.fromCharCode( 65 + Math.floor( r() * 26 ) ) + '. ' + [ 'MILLER', 'KANE', 'DAVIS', 'BROWN', 'ROSSI', 'KELLY', 'WALSH', 'GRANT', 'BELL', 'MORAN', 'COLE', 'REED' ][ Math.floor( r() * 12 ) ];
+				ctx.fillText( L, x + 10 + col * 84, y0 + 16 + row * 13.5, 74 );
+
+			}
+
+			// the great figure, lit from behind
+			ctx.save();
+			ctx.shadowColor = 'rgba(200,220,255,0.9)'; ctx.shadowBlur = 18;
+			ctx.fillStyle = '#eef3ff'; ctx.strokeStyle = '#eef3ff'; ctx.lineCap = 'round';
+			const cx = x + 128, by = y0 + 236;
+			const L = ( a, b, wd ) => { ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo( cx + a[ 0 ], by - a[ 1 ] ); ctx.lineTo( cx + b[ 0 ], by - b[ 1 ] ); ctx.stroke(); };
+			if ( k === 0 ) {
+
+				L( [ 0, 100 ], [ - 20, 52 ], 16 ); L( [ - 20, 52 ], [ - 30, 0 ], 13 ); L( [ 0, 100 ], [ 24, 50 ], 16 ); L( [ 24, 50 ], [ 30, 0 ], 13 );
+				L( [ 0, 100 ], [ 4, 168 ], 30 ); L( [ 4, 160 ], [ 34, 150 ], 11 ); L( [ 34, 150 ], [ 40, 176 ], 9 ); L( [ 40, 176 ], [ - 30, 214 ], 7 );
+				ctx.beginPath(); ctx.arc( cx + 2, by - 186, 15, 0, Math.PI * 2 ); ctx.fill();
+
+			} else {
+
+				L( [ 0, 100 ], [ 30, 128 ], 16 ); L( [ 30, 128 ], [ 44, 100 ], 13 ); L( [ 0, 100 ], [ - 6, 50 ], 16 ); L( [ - 6, 50 ], [ - 4, 0 ], 13 );
+				L( [ 0, 100 ], [ - 8, 168 ], 30 ); L( [ - 8, 160 ], [ - 40, 176 ], 11 ); L( [ - 40, 176 ], [ - 56, 206 ], 9 ); L( [ - 8, 160 ], [ 24, 140 ], 11 );
+				ctx.beginPath(); ctx.arc( cx - 6, by - 186, 15, 0, Math.PI * 2 ); ctx.fill();
+
+			}
+
+			ctx.restore();
+
+		}
+
+	}
+
+}
+// ---- end FI3
 // ---------------------------------------------------------------- the material
 
 // ---- SP1 (speed): the palette is a uniform array (it was two arrays of 58 built in every pixel's
@@ -711,7 +1020,7 @@ export function insideMaterial( name, { glowNight = 1, net = false, local = true
 		let g6 = fract( uv * 6.0 );
 		let h6 = fract( sin( dot( floor( uv * 6.0 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
 		if ( h6 > 0.9 && max( abs( g6.x - 0.5 ), abs( g6.y - 0.5 ) ) < 0.32 ) { cc = select( vec3f( 0.02, 0.03, 0.1 ), vec3f( 0.012 ), h6 > 0.95 ); }
-		c = mix( cc, vec3f( 0.12, 0.05, 0.045 ), clamp( fw * 6.0 - 0.5, 0.0, 1.0 ) );
+		c = mix( cc, vec3f( 0.075, 0.052, 0.046 ) /* ---- FI3 (C2I-15): its far mix more charcoal and taupe, less red */, clamp( fw * 6.0 - 0.5, 0.0, 1.0 ) );
 	} else if ( pat == ${ P_STRIPES }u ) {
 		// the wallpaper's stripes: cream and gold, a fine line between
 		let s = fract( uv.x / 0.18 );
@@ -726,12 +1035,27 @@ export function insideMaterial( name, { glowNight = 1, net = false, local = true
 		let grid = smoothstep( 0.465, 0.485, max( g.x, g.y ) ) * clamp( 1.0 - fw * 12.0, 0.0, 1.0 );
 		c *= ( 1.0 - 0.5 * grid ) * ( 0.94 + 0.06 * h2 );
 	} else if ( pat == ${ P_SPECKLE }u ) {
-		let hs = fract( sin( dot( floor( in.P.xz * 70.0 + in.P.y * 31.0 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+		let hs = fract( sin( dot( floor( uv * 70.0 ) /* ---- FI3 (C2I-19): by the face's own uv: from world xz the walls' grains ran into long diagonal streaks */, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
 		c *= 0.75 + 0.5 * hs * clamp( 1.0 - fw * 40.0, 0.3, 1.0 );
 	} else if ( pat == ${ P_TERRAZZO }u ) {
 		// cream terrazzo, the chips; a pair of red seams round the room with their stitches (harpo42, 2008)
 		let hs = fract( sin( dot( floor( uv * 60.0 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
 		c *= 0.88 + 0.24 * hs * clamp( 1.0 - fw * 40.0, 0.2, 1.0 );
+		// ---- FI3 (C2I-10): its chips black and blue (sjc610, May 2008), brass strips fanning out from the
+		// middle, and there the Diamond Club's medallion: a steel ring, a red field, the white diamond
+		let near = clamp( 1.0 - fw * 30.0, 0.0, 1.0 );
+		let hc = fract( sin( dot( floor( uv * 33.0 ), vec2f( 39.3468, 11.135 ) ) ) * 24634.6345 );
+		if ( hc > 0.94 ) { c = mix( c, select( vec3f( 0.03, 0.03, 0.035 ), vec3f( 0.05, 0.1, 0.32 ), hc > 0.975 ), near ); }
+		let rad = length( uv );
+		let ang = atan2( uv.y, uv.x ) / 0.2618;
+		if ( rad > 1.9 && abs( fract( ang ) - 0.5 ) * 0.2618 * rad > 0.5 * 0.2618 * rad - 0.008 ) { c = mix( c, vec3f( 0.5, 0.36, 0.12 ), 0.85 * near + 0.1 ); }
+		if ( rad < 1.75 ) {
+			c = select( vec3f( 0.32, 0.03, 0.035 ), vec3f( 0.5, 0.51, 0.52 ), rad > 1.45 );
+			if ( abs( uv.x ) + abs( uv.y ) < 0.95 ) { c = vec3f( 0.75, 0.73, 0.68 ); }
+			if ( abs( uv.x ) + abs( uv.y ) < 0.75 ) { c = vec3f( 0.32, 0.03, 0.035 ); }
+			if ( abs( rad - 1.2 ) < 0.03 ) { c = vec3f( 0.75, 0.73, 0.68 ); }
+		}
+		// ---- end FI3
 		for ( var sd = - 1.0; sd <= 1.0; sd += 2.0 ) {
 			let o = vec2f( uv.x, uv.y * sd ) - vec2f( 0.0, - 7.0 );
 			let dd = length( o ) - 5.5;
@@ -817,6 +1141,13 @@ export function insideMaterial( name, { glowNight = 1, net = false, local = true
 		let can = ( 1.0 - smoothstep( 0.04, 0.12, length( cg ) ) ) * smoothstep( 0.6, 0.85, Rw.y );
 		c = c * mix( env, vec3f( 1.0 ), 0.25 ) * 1.3;
 		glow = glow + can * 1.6 * ( 1.0 - rough );
+	} else if ( pat == ${ P_GRIDCEIL }u ) {
+		// (C2I-15) an open metal grid: 60 cm bays of 15 cm cells, their bronze blades catching the light,
+		// the dark plenum above seen between them
+		let g1 = abs( fract( uv / 0.6 ) - 0.5 );
+		let g2 = abs( fract( uv / 0.15 ) - 0.5 );
+		let blade = max( step( 0.47, max( g1.x, g1.y ) ), step( 0.4, max( g2.x, g2.y ) ) * 0.7 );
+		c = mix( c * 0.18, c, mix( blade, 0.45, clamp( fw * 12.0, 0.0, 1.0 ) ) );
 	} else if ( pat == ${ P_ICE }u ) {
 		// cubed ice: lumps catching the light
 		let hi = fract( sin( dot( floor( in.P.xz * 28.0 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
@@ -1167,8 +1498,8 @@ export function backFrom( P, x, z ) {
 // near/far split's.
 export function clearGlass( name, near, band, { reflect = null, colors = false, tint = true } = {} ) {
 
-	const day = tint ? 0.7 : 0.1; // (an inside window, a display case: no tint)
-	const m = standard( { name, roughness: 0.04, metalness: 0.2, transparent: true, depthWrite: false, side: 'double', modules: [ commonModule ], uniforms: GLASS_UNIFORMS(),
+	const day = tint ? 0.86 : 0.1; // (an inside window, a display case: no tint)
+	const m = standard( { name, roughness: 0.04, metalness: 0.2, envMapIntensity: tint ? 0.55 : 1, transparent: true, depthWrite: false, side: 'double', modules: [ commonModule ], uniforms: GLASS_UNIFORMS(),
 		vertexColors: colors,
 		surface: glassSplit( near, band ) + /* wgsl */`
 	if ( ! nearK ) { discard; }
@@ -1194,7 +1525,7 @@ ${ reflect ? /* wgsl */`
 		var refl = vec3f( 0.0 );
 		${ reflect }
 		s.alpha = max( s.alpha, 0.16 );
-		s.emissive = refl * 1.8 * nk; // (by the alpha: an eighth of the walls' light, the cans bright)
+		s.emissive = refl * 0.9 * nk; // (weighed by the alpha: the walls a ghost, the lamps bright)
 	}
 ` : '' }` } );
 	m.underwaterLighting = 'none';
