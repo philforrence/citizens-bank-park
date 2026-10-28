@@ -200,14 +200,34 @@ export class Landmarks {
 		}, 'scriptSign' );
 		// channel letters: the lit faces toward the field; behind them, the letters' maroon backs (the same
 		// outline, 0.9 m back, seen reversed from outside as they should be) and their returns between
+		// ---- FX1 (FW5's note): lit as the 2008 photos have it at night. From the field the faces glow a deep
+		// red through their acrylic and the outline is a warm gold neon (7630606N06 2987955241 and ronniebruce
+		// 2988340492, Oct 27 and 29 2008); at 2.2 x the texture they went salmon pink with a white rim under
+		// the night's exposure. From the Left Field Gate's plaza the letters' backs are dark maroon with that
+		// gold light along their edges (ronniebruce 2988349308 and the postgame photo of Oct 29 2008); they
+		// were unlit, black against the sky
 		const signMat = standard( {
 			name: 'script-sign', roughness: 0.5, alphaTest: 0.5, textures: { bpScript: sign },
-			surface: 'let t = textureSample( bpScript, smpAnisoClamp, in.uv ); s.alpha = t.a; s.albedo = t.rgb * 0.6; s.emissive = t.rgb * mix( 0.2, 2.2, frame.night );',
+			surface: /* wgsl */`
+	let t = textureSample( bpScript, smpAnisoClamp, in.uv );
+	s.alpha = t.a;
+	s.albedo = t.rgb * 0.6;
+	let n = smoothstep( 0.1, 0.7, frame.night );
+	let rim = smoothstep( 0.3, 0.65, t.g ) * step( t.b, t.g + 0.1 );
+	let lit = mix( t.rgb * vec3f( 0.95, 0.5, 1.8 ), vec3f( 1.0, 0.66, 0.22 ) * 0.95, rim );
+	s.emissive = mix( t.rgb * 0.2, lit, n );
+`,
 		} );
 		const backMat = standard( {
 			name: 'script-backs', color: new Color( 0.1, 0.022, 0.022 ), roughness: 0.6, metalness: 0.3, alphaTest: 0.5, side: 'double', textures: { bpScript: sign },
-			surface: 'let t = textureSample( bpScript, smpAnisoClamp, in.uv ); s.alpha = t.a;',
+			surface: /* wgsl */`
+	let t = textureSample( bpScript, smpAnisoClamp, in.uv );
+	s.alpha = t.a;
+	let rim = smoothstep( 0.3, 0.65, t.g ) * step( t.b, t.g + 0.1 );
+	s.emissive = vec3f( 1.0, 0.62, 0.24 ) * rim * 0.45 * smoothstep( 0.1, 0.7, frame.night ) + vec3f( 0.05, 0.012, 0.01 ) * frame.night;
+`,
 		} );
+		// ---- end FX1
 		for ( const m of [ signMat, backMat ] ) m.underwaterLighting = 'none';
 		g.add( new Mesh( quadUV( SW, SH, y0 + H + 0.6, - 0.2 ), signMat ) );
 		for ( let k = 1; k <= 6; k ++ ) g.add( new Mesh( quadUV( SW, SH, y0 + H + 0.6, - 0.2 + k * 0.12 ), backMat ) );
