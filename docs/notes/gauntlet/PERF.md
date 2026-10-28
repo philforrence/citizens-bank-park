@@ -33,3 +33,6 @@ The cold load was 62 s (shaders compiling in a fresh browser), no console errors
 | 09:25 | FP1, the people (rain, TV high on the 27th: 31.4) | 23.0 | 30.3 | 22.8 | 30.8 | 29.0 | 31.8 | 31.8 |
 
 FP1's crowd culls and picks its LOD per 360-seat piece, so the TV views got cheaper (follow 25.9 -> 22.8); its close LOD and the concourse's throng cost the walking and seat views 1-2 ms. **The upper-deck seat and left field are 1.5 ms from the floor**: the speed track (SP1) has them.
+| 09:48 | FY2, the Phanatic and players (rain, TV high on the 27th: 32.4) | 23.0 | 30.6 | 22.7 | 30.9 | 28.8 | 32.5 | 32.6 |
+
+**At the floor's edge:** the upper-deck seat, left field and the rainy TV high are within 1 ms of 33.3. Until the speed track (SP1) lands, new fixes must cost nothing in those views.
