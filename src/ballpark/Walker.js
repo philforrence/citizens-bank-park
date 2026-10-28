@@ -74,7 +74,7 @@ export class Walker {
 	_pushFromPeople( p ) {
 
 		// (every person in the pool, where their place put them and as far as they've stepped aside: a few
-		// thousand comparisons, ~10 us; the places' people stand in the field's frame)
+		// thousand box tests, ~20 us; the places' people stand in the field's frame)
 		const pool = castPool(), L = pool?.people;
 		if ( ! L || ! L.length || ! pool.group ) return;
 		pool.walkerSeen = true;
