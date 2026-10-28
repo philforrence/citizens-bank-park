@@ -790,6 +790,33 @@ ${ SOFFIT_WGSL }
 		const A = line( infield, dF ), B = line( infield, d1 );
 		const panel = new Quads();
 		for ( let i = 0; i < A.length - 1; i ++ ) panel.add( [ A[ i ][ 0 ], y, A[ i ][ 1 ] ], [ B[ i ][ 0 ], y, B[ i ][ 1 ] ], [ B[ i + 1 ][ 0 ], y, B[ i + 1 ][ 1 ] ], [ A[ i + 1 ][ 0 ], y, A[ i + 1 ][ 1 ] ], [ 0, - 1, 0 ] );
+		// ---- FW3 (C2W-17): the pale blotched band was the suites' outdoor rows' own underside: their tier's
+		// soffit hangs a metre lower than the panel above (9.5-9.8 m against 10.4: it showed from the rail 6-12
+		// degrees up), galvanized-pale and shadow-mapped at a grazing angle, so it took the shadow map's acne.
+		// Under it, 5 cm down and following its rake, the same dark painted deck, and the step up to the panel
+		// at its back closed; neither receives shadows (it's all in the overhang's shade)
+		const ss = bowl.upper?.find( ( t ) => t.name === 'suite-seats' );
+		if ( ss ) {
+
+			const yF = ss.y0 - ss.soffit - 0.05, yB = ss.y0 + ( ss.rows - 1 ) * ss.rise - ss.soffit - 0.05, dB = ss.rows * ss.depth;
+			const F = offsetPolyline( ss.front, 0.02, ss.outward ), Bk = offsetPolyline( ss.front, dB - 0.02, ss.outward );
+			for ( let i = 0; i < F.length - 1; i ++ ) {
+
+				panel.add( [ F[ i ][ 0 ], yF, F[ i ][ 1 ] ], [ Bk[ i ][ 0 ], yB, Bk[ i ][ 1 ] ], [ Bk[ i + 1 ][ 0 ], yB, Bk[ i + 1 ][ 1 ] ], [ F[ i + 1 ][ 0 ], yF, F[ i + 1 ][ 1 ] ], [ 0, - 1, 0 ] );
+				// the step up at its back, facing the field
+				let nx = - ( Bk[ i + 1 ][ 1 ] - Bk[ i ][ 1 ] ), nz = Bk[ i + 1 ][ 0 ] - Bk[ i ][ 0 ];
+				if ( nx * ( - Bk[ i ][ 0 ] ) + nz * ( - 40 - Bk[ i ][ 1 ] ) < 0 ) {
+
+					nx = - nx; nz = - nz;
+
+				}
+
+				panel.add( [ Bk[ i ][ 0 ], yB, Bk[ i ][ 1 ] ], [ Bk[ i + 1 ][ 0 ], yB, Bk[ i + 1 ][ 1 ] ], [ Bk[ i + 1 ][ 0 ], y + 0.02, Bk[ i + 1 ][ 1 ] ], [ Bk[ i ][ 0 ], y + 0.02, Bk[ i ][ 1 ] ], [ nx, 0, nz ] );
+
+			}
+
+		}
+		// ---- end FW3
 		const m = standard( { name: 'suite-soffit', color: new Color( 0.05, 0.05, 0.055 ), roughness: 0.6,
 			surface: /* wgsl */`
 	// dark painted deck: its ribs every 0.3 m, a sheen on the crests
@@ -802,7 +829,7 @@ ${ SOFFIT_WGSL }
 		m.setDefine( 'DRY', 1 );
 		const mesh = new Mesh( panel.geometry(), m );
 		mesh.name = 'suite-soffit';
-		mesh.receiveShadow = true;
+		mesh.receiveShadow = false; // ---- FW3 (C2W-17): in the overhang's shade; the shadow map only speckled it
 		this.group.add( mesh );
 		// the downlights every ~6 m, a little in from the back
 		const C = line( infield, d0 + 4.6 );
