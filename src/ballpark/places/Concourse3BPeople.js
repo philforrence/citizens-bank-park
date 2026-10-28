@@ -1411,6 +1411,56 @@ export class ConcoursePeople {
 				a.headYaw = lerp( a.headYaw, f.order < 0.17 ? 0.9 : - 0.9, k );
 
 			}
+			// ---- FW6 (C4W-11): after the first moment (everyone's arms up at once) each goes through it his
+			// own way and at his own pace, a beat of 4-8 s each: the towel whirled and the other fist pumped,
+			// a fist pumped, clapping over the head, both hands on his head, one arm up and the other round the
+			// next one's shoulders, the phone held up to film it, both up again (Getty 112874141, 83486360:
+			// every pose at once at the rail). They were one rank of clones in the towel's pose
+			if ( R.kind === 'champions' && t > 2.5 ) {
+
+				const beat = 4 + 4 * f.order, n = Math.floor( ( t + f.order * 13 ) / beat );
+				const h = ( ( Math.sin( n * 12.9898 + f.order * 78.233 ) * 43758.5453 ) % 1 + 1 ) % 1;
+				const act = Math.floor( h * 7 ), w = clamp( ( ( t + f.order * 13 ) % beat ) / 0.5, 0, 1 ) * k;
+				const pump2 = 0.3 * Math.sin( T * 8 + f.order * 5 );
+				if ( act === 0 ) {
+
+					a.propR = PROP.towel;
+					a.armL = lerpArm( a.armL, [ 2.3 + pump2, 0.25, 0.1, 1.6 ], w );
+
+				} else if ( act === 1 ) {
+
+					a.armR = lerpArm( a.armR, [ GESTURE.fist[ 1 ][ 0 ] + pump2, GESTURE.fist[ 1 ][ 1 ], GESTURE.fist[ 1 ][ 2 ], GESTURE.fist[ 1 ][ 3 ] ], w );
+					a.armL = lerpArm( a.armL, [ 0.2, 0.15, 0, 0.5 ], w );
+					if ( a.propR === PROP.towel ) a.propR = 0;
+
+				} else if ( act === 2 ) {
+
+					const open = Math.max( 0, Math.sin( T * 10 + f.order * 3 ) );
+					a.armL = lerpArm( a.armL, [ 2.5, 0.15 + 0.25 * open, 0.35 - 0.3 * open, 0.5 ], w );
+					a.armR = lerpArm( a.armR, [ 2.5, 0.15 + 0.25 * open, 0.35 - 0.3 * open, 0.5 ], w );
+					if ( a.propR === PROP.towel ) a.propR = 0;
+
+				} else if ( act === 3 ) {
+
+					a.armL = lerpArm( a.armL, GESTURE.head[ 0 ], w );
+					a.armR = lerpArm( a.armR, GESTURE.head[ 1 ], w );
+					if ( a.propR === PROP.towel ) a.propR = 0;
+
+				} else if ( act === 4 ) {
+
+					a.armL = lerpArm( a.armL, [ 1.9, 1.2, - 0.5, 0.3 ], w );
+					a.twist = lerp( a.twist, f.order < 0.5 ? 0.35 : - 0.35, w );
+
+				} else if ( act === 5 ) {
+
+					a.propR = PROP.camera;
+					a.armR = lerpArm( a.armR, GESTURE.photoHigh[ 1 ], w );
+					a.armL = lerpArm( a.armL, [ 0.3, 0.12, 0, 0.6 ], w );
+
+				}
+
+			}
+			// ---- end FW6
 			a.lean = lerp( a.lean, - 0.05, k );
 			a.mouth = k * ( 0.7 + 0.3 * Math.sin( T * 5 + f.order ) );
 			a.headPitch = lerp( a.headPitch, - 0.25, k );
