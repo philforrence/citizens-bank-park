@@ -34,6 +34,19 @@ let _listToken = 0; // one per drawItems call (see BindingSet.getBindGroup)
 const DRAW_STRIDE = 256; // minUniformBufferOffsetAlignment
 const DRAW_FLOATS = 40;
 
+// ---- SP2 (speed): does a material cut holes in itself (an alpha test, or a `discard` in its code)? Once per
+// material version. (A discard compiled out by a define still counts: it's only drawn later)
+function cuts( m ) {
+
+	const c = m.__cut;
+	if ( c && c.v === m.version ) return c.cut;
+	const cut = m.alphaTest > 0 || /\bdiscard\b/.test( `${ m.surface || '' }${ m.output || '' }${ m.shadow || '' }` ) ? 1 : 0;
+	m.__cut = { v: m.version, cut };
+	return cut;
+
+}
+// ---- end SP2
+
 export class MeshRenderer {
 
 	constructor() {
@@ -56,6 +69,7 @@ export class MeshRenderer {
 		// with `occlusionEnabled = false` (?noOcclusion)
 		this.occlusion = null;
 		this.occlusionEnabled = typeof location === 'undefined' || ! /[?&]noOcclusion\b/.test( location.search );
+		this.cutLast = true; // ---- SP2: alpha-tested / discarding materials last in the opaque layer (collect())
 
 	}
 
@@ -437,7 +451,13 @@ export class MeshRenderer {
 
 		scene.updateMatrixWorld();
 		visit( scene );
-		opaque.sort( ( a, b ) => a.renderOrder - b.renderOrder || a.pipeKey - b.pipeKey || a.z - b.z );
+		// ---- SP2 (speed): what cuts holes in itself (alpha test, `discard`) after the rest of the opaque
+		// layer (Apple's order for its tile GPUs: opaque, then alpha-tested, then blended). A discard makes the
+		// hidden surface removal resolve what's under it so far; drawn last, that's only what's visible,
+		// and it's tested against the finished depth. (`cutLast = false`: in material order, for an A/B)
+		if ( this.cutLast ) opaque.sort( ( a, b ) => a.renderOrder - b.renderOrder || a.cut - b.cut || a.pipeKey - b.pipeKey || a.z - b.z );
+		else opaque.sort( ( a, b ) => a.renderOrder - b.renderOrder || a.pipeKey - b.pipeKey || a.z - b.z );
+		// ---- end SP2
 		transparent.sort( ( a, b ) => a.renderOrder - b.renderOrder || b.z - a.z );
 		return { opaque, transparent };
 
@@ -496,7 +516,7 @@ export class MeshRenderer {
 		const push = ( material, start, count ) => {
 
 			if ( ! material || ( ! material.visible && ! this.precompiling ) ) return;
-			const item = { object: o, geometry: geo, material, start, count, z, renderOrder: o.renderOrder || 0, pipeKey: material.id };
+			const item = { object: o, geometry: geo, material, start, count, z, renderOrder: o.renderOrder || 0, pipeKey: material.id, cut: cuts( material ) }; // ---- SP2: cut
 			( material.transparent ? transparent : opaque ).push( item );
 
 		};

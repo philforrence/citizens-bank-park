@@ -22,6 +22,7 @@ import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 
 const MAX = 96;
 const COSTUMES = 4; // the Phanatic's costume's draw: at most this many of him at once
+const LOD_PX = 64; // ---- SP2: a player shorter than this on screen (px of the view's height) is drawn far
 const K = 4; // vec4s per slot
 const Z16 = new Float32Array( 16 );
 const CELL = 128, COLS = 8, ROWS = 16, ATLAS_W = CELL * COLS, ATLAS_H = CELL * ROWS;
@@ -112,6 +113,22 @@ export class Players {
 		this.costume.visible = false;
 		// (a child of the players' draw, so whatever takes the players out takes it too)
 		this.mesh.add( this.costume );
+		// ---- SP2 (speed): the far players' draw. A player under LOD_PX tall on screen is drawn from the far
+		// figure (Rig.js buildPlayerGeometry( { lod: true } ): a quarter of the triangles, the same material
+		// and slots), so the TV's wide views and the walk's far ones don't skin 32,000 triangles for a man
+		// 20 px tall. lodSplit() (each frame, after update(): BallparkApp._playerBounds) sorts them
+		const farGeo = buildPlayerGeometry( { lod: true } );
+		this.farSlots = new InstancedBufferAttribute( new Float32Array( MAX ), 1 );
+		farGeo.setAttribute( 'aSlot', this.farSlots );
+		this.far = new InstancedMesh( farGeo, this.material, MAX );
+		this.far.name = 'players-far';
+		this.far.frustumCulled = false;
+		this.far.castShadow = true;
+		this.far.receiveShadow = true;
+		this.far.count = 0;
+		this.mesh.add( this.far );
+		this.lodPx = LOD_PX;
+		// ---- end SP2
 		// a soft contact shadow on the ground under each player (grounds them under any light)
 		const blobGeo = new PlaneGeometry( 1, 1 );
 		blobGeo.rotateX( - Math.PI / 2 );
@@ -227,6 +244,7 @@ export class Players {
 		}
 
 		this.mesh.count = Math.max( 1, drawn );
+		this._drawn = drawn; // ---- SP2: lodSplit() sorts these into near and far
 		// the Phanatic's costume on his slots (him, and the little one)
 		let nc = 0;
 		for ( let i = 0; i < used && nc < COSTUMES; i ++ ) {
@@ -282,6 +300,45 @@ export class Players {
 		}
 
 	}
+
+	// ---- SP2 (speed): the visible players into the near draw and the far one, by their height on screen
+	// (px of a view `height` px high; the camera's vertical scale from its projection), with a margin
+	// either side of LOD_PX so nobody flickers between them. The far figure's triangles are a few pixels
+	// across at that size: it looks the same there (checked in shot pairs, TV high and center)
+	lodSplit( camera, height ) {
+
+		const n = this._drawn || 0, ds = this.drawSlots.array, fs = this.farSlots.array;
+		const k = camera.projectionMatrix.elements[ 5 ] * height * 0.5, T = this.lodPx;
+		const me = this.mesh.matrixWorld.elements, c = camera.matrixWorld.elements;
+		let near = 0, far = 0;
+		for ( let j = 0; j < n; j ++ ) {
+
+			const i = ds[ j ], p = this.slots[ i ];
+			// his middle in the world (the players' parent frame: the field's)
+			const x = p.x, y = ( p.y || 0 ) + 0.9, z = p.z;
+			const wx = me[ 0 ] * x + me[ 4 ] * y + me[ 8 ] * z + me[ 12 ] - c[ 12 ];
+			const wy = me[ 1 ] * x + me[ 5 ] * y + me[ 9 ] * z + me[ 13 ] - c[ 13 ];
+			const wz = me[ 2 ] * x + me[ 6 ] * y + me[ 10 ] * z + me[ 14 ] - c[ 14 ];
+			const px = 1.88 * ( p.look.height || 1 ) * k / Math.max( 0.1, Math.hypot( wx, wy, wz ) );
+			p.lodFar = p.lodFar ? px < T * 1.08 : px < T * 0.92;
+			if ( p.lodFar ) fs[ far ++ ] = i;
+			else ds[ near ++ ] = i;
+
+		}
+
+		// (the near list is rewritten in place, behind the reads: near <= j)
+		if ( n ) {
+
+			this.drawSlots.needsUpdate = true;
+			this.farSlots.needsUpdate = far > 0;
+			this.mesh.count = near;
+
+		}
+
+		this.far.count = far;
+
+	}
+	// ---- end SP2
 
 }
 

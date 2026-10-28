@@ -39,6 +39,25 @@ const CLR = [ 0, 0, 0, 0 ];
 // previous, y down: history uv = uv - velocity), water mask (g = 1 on water surface pixels), the
 // exposure (a storage buffer, times frame.exposure: FSR2's thresholds are in display-referred units).
 
+// ---- SP2 (speed): the lock luma (FSR2 ComputeLockInputLuma: perceived lightness of the tone mapped,
+// exposed colour, ^1/6) is worked out once per input pixel, by the pass that writes the beauty (into its
+// alpha, which nothing else reads), not nine times per output pixel here: two pow each, 1.9 ms of TAAU
+// was mostly these. `taauLockLumaOf( rgb, exposure )` is shared by both passes, so the values are the
+// same (to the alpha's half float, ~0.05%, against FSR2's 5% similarity threshold).
+export const TAAU_LUMA_WGSL = /* wgsl */`
+fn taauTonemap( c: vec3f ) -> vec3f { return c / ( max( max( 0.0, c.r ), max( c.g, c.b ) ) + 1.0 ); }
+fn taauLockLuma( rgb: vec3f ) -> f32 {
+	let l = luminance( taauTonemap( rgb ) );
+	let p = select( pow( l, 1.0 / 3.0 ) * 116.0 - 16.0, l * ( 24389.0 / 27.0 ), l <= 216.0 / 24389.0 ) * 0.01;
+	return pow( max( p, 0.0 ), 1.0 / 6.0 );
+}
+// the luma of a beauty pixel as the resolve prepares it (clamped, exposed)
+fn taauLockLumaOf( rgb: vec3f, exposure: f32 ) -> f32 {
+	return taauLockLuma( min( max( rgb, vec3f( 0.0 ) ) * exposure, vec3f( 65504.0 ) ) );
+}
+`;
+// ---- end SP2
+
 function halton( index, base ) {
 
 	let fraction = 1;
@@ -88,6 +107,8 @@ export class TemporalUpscale {
 			instability: [ 'f32', 1 ],
 			lockThreshold: [ 'f32', 1.05 ],
 			staticKeep: [ 'f32', 1 ],
+			// SP2: 1 when the input's alpha carries the lock luma (the beauty pass's; PostFX sets it)
+			lumaInAlpha: [ 'f32', 0 ],
 		}, { label: 'taau' } );
 		// tuning uniforms (.value), for the UI:
 		//  boxStill / boxMotion: clamp box half size in standard deviations, still (FSR2: 1 at native) /
@@ -241,8 +262,8 @@ fn taauToYCoCg( c: vec3f ) -> vec3f {
 	return vec3f( dot( c, vec3f( 0.25, 0.5, 0.25 ) ), dot( c, vec3f( 0.5, 0.0, -0.5 ) ), dot( c, vec3f( -0.25, 0.5, -0.25 ) ) );
 }
 fn taauFromYCoCg( c: vec3f ) -> vec3f { return vec3f( c.x + c.y - c.z, c.x + c.z, c.x - c.y - c.z ); }
-// FSR2 Tonemap / InverseTonemap (max channel Reinhard)
-fn taauTonemap( c: vec3f ) -> vec3f { return c / ( max( max( 0.0, c.r ), max( c.g, c.b ) ) + 1.0 ); }
+// FSR2 Tonemap / InverseTonemap (max channel Reinhard; taauTonemap and the lock luma: TAAU_LUMA_WGSL)
+${ TAAU_LUMA_WGSL }
 fn taauTonemapInverse( c: vec3f ) -> vec3f { return c / max( 1e-4, 1.0 - max( c.r, max( c.g, c.b ) ) ); }
 fn taauMinDivMax( a: f32, b: f32 ) -> f32 { let m = max( a, b ); return select( 0.0, min( a, b ) / m, m != 0.0 ); }
 // Lanczos-2 of the squared distance (FSR2 Lanczos2ApproxSq)
@@ -252,13 +273,6 @@ fn taauLanczos2Sq( x2In: f32 ) -> f32 {
 	let b = 0.25 * x2 - 1.0;
 	return ( 1.5625 * a * a - 0.5625 ) * ( b * b );
 }
-// luma for the lock logic (FSR2 ComputeLockInputLuma: perceived lightness of the tone mapped colour, ^1/6)
-fn taauLockLuma( rgb: vec3f ) -> f32 {
-	let l = luminance( taauTonemap( rgb ) );
-	let p = select( pow( l, 1.0 / 3.0 ) * 116.0 - 16.0, l * ( 24389.0 / 27.0 ), l <= 216.0 / 24389.0 ) * 0.01;
-	return pow( max( p, 0.0 ), 1.0 / 6.0 );
-}
-
 // Catmull-Rom history lookup with 5 bilinear taps (the 4 corner taps are dropped)
 fn taauSampleHistory( uvIn: vec2f ) -> vec4f {
 	let size = vec2f( textureDimensions( taauHistory ) );
@@ -367,9 +381,11 @@ struct TaauOut { @location( 0 ) color: vec4f, @location( 1 ) lock: vec4f, @locat
 	var lumaSum = 0.0;
 	for ( var i = 0; i < 9; i++ ) {
 		let tap = closestTap + vec2i( i % 3 - 1, i / 3 - 1 );
-		let rgb = min( max( taauLoadBeauty( tap ).rgb, vec3f( 0.0 ) ) * exposure, vec3f( 65504.0 ) );
+		let b = taauLoadBeauty( tap );
+		let rgb = min( max( b.rgb, vec3f( 0.0 ) ) * exposure, vec3f( 65504.0 ) );
 		samples[ i ] = taauToYCoCg( rgb );
-		lumas[ i ] = taauLockLuma( rgb );
+		// (SP2: the beauty pass wrote it in the alpha; SMAA's input to the TAA hasn't it)
+		if ( taau.lumaInAlpha > 0.5 ) { lumas[ i ] = b.a; } else { lumas[ i ] = taauLockLuma( rgb ); }
 		lumaSum += lumas[ i ];
 	}
 

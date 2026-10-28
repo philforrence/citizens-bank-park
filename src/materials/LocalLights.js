@@ -26,6 +26,10 @@ const params = new UniformBlock( 'LocalLightParams', {
 	pos: [ `vec4f[${ MAX }]`, v4() ], // xyz, range^2
 	col: [ `vec4f[${ MAX }]`, v4() ], // rgb x intensity, cos(inner cone)
 	dir: [ `vec4f[${ MAX }]`, v4() ], // spot axis, cos(outer cone) (-2: point light)
+	// ---- SP2 (speed): what the shading would divide by, per light, inverted once here: 1 / range^2,
+	// 1 / ( cos(inner) - cos(outer) ) (the spot's smoothstep)
+	inv: [ `vec4f[${ MAX }]`, v4() ],
+	// ---- end SP2
 	count: [ 'i32', 0 ],
 	flashOn: [ 'f32', 0 ],
 	flashCone: [ 'vec2f', new THREE.Vector2( 0.99, 0.82 ) ], // cos inner, cos outer
@@ -37,6 +41,7 @@ const F = params.fields;
 const uPos = { array: F.pos.value };
 const uCol = { array: F.col.value };
 const uDir = { array: F.dir.value };
+const uInv = { array: F.inv.value }; // ---- SP2
 const uCount = F.count;
 
 // the flashlight for effects outside the lighting model (underwater beam in-scatter, marine snow):
@@ -63,52 +68,96 @@ fn localLightsSpotProfile( cd: f32, cosInner: f32, cosOuter: f32 ) -> f32 {
 
 fn hookLocalLights( s: Surface, P: vec3f, N: vec3f, V: vec3f, acc: ptr<function, LightAccum> ) {
 #if !IS_WATER && !NO_LOCAL_LIGHTS
+	// ---- SP2 (speed): the same light as before (the physical BRDF: Lambert, GGX, Charlie sheen), worked out
+	// with less per light. The eight banks reach every pixel of the park at night and cost 2-3 ms there:
+	//  - what's the same for every light is done once, before the loop: the view's half of the GGX
+	//    visibility term, the sheen's exponent and scale; the material's colours scale the sums after the
+	//    loop (Lambert's diffuse colour, the Fresnel's F0 and F90, the sheen colour)
+	//  - the CPU inverts what the loop divided by (1 / range^2, the spot's 1 / (cos inner - cos outer))
+	//  - a light behind the surface stops after its N.L, one outside its spill after the spot
+	//  - the water's absorption only where the path is below the sea's level (the ballpark: never)
+	//  - one division for the light's falloff and one for GGX's D x V (there were four)
 	let diffuseColor = s.albedo * ( 1.0 - s.metalness );
 	let specF0 = mix( vec3f( 0.04 ) * s.specularIntensity, s.albedo, s.metalness );
 	let specF90 = mix( s.specularIntensity, 1.0, s.metalness );
 	let rough = clamp( s.roughness, 0.03, 1.0 );
+	let alpha = rough * rough;
+	let a2 = alpha * alpha;
+	let dotNV = sat( dot( N, V ) );
+	let gvK = sqrt( a2 + ( 1.0 - a2 ) * dotNV * dotNV );
+	// D x V = ( INV_PI a2 / dd^2 ) x ( 0.5 / max( gv + gl, EPS ) )
+	let dvK = 0.5 * INV_PI * a2;
+#if SHEEN
+	let shR = max( s.sheenRoughness, 0.07 );
+	let shInvA = 1.0 / ( shR * shR );
+	let shK = ( 2.0 + shInvA ) / ( 2.0 * PI );
+	var sheen = vec3f( 0.0 );
+#endif
+	var irr = vec3f( 0.0 ); // the lights' irradiance (x the diffuse colour / PI after the loop)
+	var specA = vec3f( 0.0 ); // irradiance x D x V x ( 1 - fresnel ) (x F0 after)
+	var specB = vec3f( 0.0 ); // irradiance x D x V x fresnel (x F90 after)
 	for ( var i = 0; i < localLights.count; i++ ) {
 		let p = localLights.pos[ i ];
 		let d = p.xyz - P;
 		let d2 = dot( d, d );
 		if ( d2 < p.w ) {
-			let c = localLights.col[ i ];
-			let sd = localLights.dir[ i ];
 			let L = d * inverseSqrt( max( d2, 1e-6 ) );
-			// spot: hot centre, soft edge at the outer cone, faint wide spill
-			let spot = localLightsSpotProfile( dot( -L, sd.xyz ), c.w, sd.w );
 			let nl = dot( N, L );
-			// (SP1: a surface turned away from the light, or outside its spill, gets nothing from it, so the
-			// rest isn't worked out: it was multiplied by zero. Half the lights at half the pixels: the far
-			// side of every fan and seat from each bank, the stands behind the banks)
-			if ( nl > 0.0 && spot > 0.0 ) {
-				// smooth range window (1 - (d/r)^4)^2 on the inverse-square law
-				let x = d2 / p.w;
-				let win = sat( 1.0 - x * x );
-				// Beer-Lambert over the underwater part of the path (straight, mean sea level): red dies
-				// within metres, so what the torch lights far away under water is dim and blue-green
-				let r = d2 * inverseSqrt( max( d2, 1e-6 ) );
-				let under = sat( ( frame.seaLevel - min( P.y, p.y ) ) / max( abs( p.y - P.y ), 1e-3 ) );
-				// (SP1: the exponentials only where some of the path is under water: on dry land, for every
-				// light at every pixel, they came to exp( 0 ))
-				var Tw = vec3f( 1.0 );
-				if ( under > 0.0 ) { Tw = exp( -( frame.waterAbsorption + frame.waterScattering ) * ( r * under ) ); }
-				// the + 0.15 m^2 softens the near field of a lamp's finite size (no hot spot on the post)
-				let lightColor = c.xyz * Tw * ( win * win * spot / ( d2 + 0.15 ) );
-				let irradiance = nl * lightColor;
-#if LOCAL_LIGHTS_CHEAP
-				// foliage (heavy overdraw): Lambert only
-				( *acc ).directDiffuse += irradiance * diffuseColor * INV_PI;
-#else
-				( *acc ).directDiffuse += irradiance * diffuseColor * INV_PI;
-				( *acc ).directSpecular += irradiance * BRDF_GGX( L, V, N, specF0, specF90, rough );
+			if ( nl > 0.0 ) {
+				let c = localLights.col[ i ];
+				let sd = localLights.dir[ i ];
+				let iv = localLights.inv[ i ];
+				// spot: hot centre, soft edge at the outer cone, faint wide spill (localLightsSpotProfile)
+				let cd = dot( -L, sd.xyz );
+				let t0 = sat( ( cd - sd.w ) * iv.y );
+				let m = t0 * t0 * ( 3.0 - 2.0 * t0 );
+				let t1 = sat( ( cd - ( sd.w - 0.55 ) ) * ( 1.0 / 0.55 ) );
+				let spot = max( m * m, t1 * t1 * ( 3.0 - 2.0 * t1 ) * 0.05 );
+				if ( spot > 0.0 ) {
+					// smooth range window (1 - (d/r)^4)^2 on the inverse-square law; the + 0.15 m^2 softens the
+					// near field of a lamp's finite size (no hot spot on the post)
+					let x = d2 * iv.x;
+					let win = sat( 1.0 - x * x );
+					var lc = c.xyz;
+					// Beer-Lambert over the underwater part of the path (straight, mean sea level): red dies
+					// within metres, so what the torch lights far away under water is dim and blue-green
+					if ( frame.seaLevel > min( P.y, p.y ) ) {
+						let r = d2 * inverseSqrt( max( d2, 1e-6 ) );
+						let under = sat( ( frame.seaLevel - min( P.y, p.y ) ) / max( abs( p.y - P.y ), 1e-3 ) );
+						lc = lc * exp( -( frame.waterAbsorption + frame.waterScattering ) * ( r * under ) );
+					}
+					let irradiance = lc * ( nl * win * win * spot / ( d2 + 0.15 ) );
+					irr += irradiance;
+#if !LOCAL_LIGHTS_CHEAP
+					// GGX (BRDF_GGX)
+					let H = normalize( L + V );
+					let dotNH = sat( dot( N, H ) );
+					let dotVH = sat( dot( V, H ) );
+					let fr = exp2( ( -5.55473 * dotVH - 6.98316 ) * dotVH );
+					let gl = dotNV * sqrt( a2 + ( 1.0 - a2 ) * nl * nl );
+					let dd = dotNH * dotNH * ( a2 - 1.0 ) + 1.0;
+					let dv = dvK / ( max( nl * gvK + gl, EPS ) * dd * dd );
+					specA += irradiance * ( dv * ( 1.0 - fr ) );
+					specB += irradiance * ( dv * fr );
 #if SHEEN
-				( *acc ).directSpecular += irradiance * BRDF_Sheen( L, V, N, s.sheenColor, max( s.sheenRoughness, 0.07 ) );
+					// Charlie sheen (BRDF_Sheen)
+					let sin2h = max( 1.0 - dotNH * dotNH, 0.0078125 );
+					let vn = sat( 1.0 / ( 4.0 * ( nl + dotNV - nl * dotNV ) ) );
+					sheen += irradiance * ( shK * pow( sin2h, shInvA * 0.5 ) * vn );
 #endif
 #endif
+				}
 			}
 		}
 	}
+	( *acc ).directDiffuse += irr * diffuseColor * INV_PI;
+#if !LOCAL_LIGHTS_CHEAP
+	( *acc ).directSpecular += specF0 * specA + specF90 * specB;
+#if SHEEN
+	( *acc ).directSpecular += s.sheenColor * sheen;
+#endif
+#endif
+	// ---- end SP2
 #endif
 }
 `,
@@ -117,6 +166,8 @@ fn hookLocalLights( s: Surface, P: vec3f, N: vec3f, V: vec3f, acc: ptr<function,
 SceneLighting.set( 'localLights', localLightsModule );
 
 const _v = new THREE.Vector3(), _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3();
+// ---- SP2: a light's inverted divisors for the shading (localLights.inv)
+const invOf = ( v, range, cosInner, cosOuter ) => v.set( 1 / Math.max( range * range, 1e-6 ), 1 / Math.max( cosInner - cosOuter, 1e-6 ), 0, 0 );
 const smooth = ( x, a, b ) => {
 
 	const t = Math.min( 1, Math.max( 0, ( x - a ) / ( b - a ) ) );
@@ -191,6 +242,7 @@ export class LocalLights {
 			pos[ 0 ].set( fl.position.x, fl.position.y, fl.position.z, fl.range * fl.range );
 			col[ 0 ].set( fl.color.r * k, fl.color.g * k, fl.color.b * k, fl.cosInner );
 			dir[ 0 ].set( fl.dir.x, fl.dir.y, fl.dir.z, fl.cosOuter );
+			invOf( uInv.array[ 0 ], fl.range, fl.cosInner, fl.cosOuter ); // ---- SP2
 			n = 1;
 			FLASH.pos.value.copy( fl.position );
 			FLASH.dir.value.copy( fl.dir );
@@ -232,6 +284,7 @@ export class LocalLights {
 				col[ n ].set( s.color.r * k, s.color.g * k, s.color.b * k, s.cosInner ?? - 1.5 );
 				if ( s.dir ) dir[ n ].set( s.dir.x, s.dir.y, s.dir.z, s.cosOuter ?? - 2 );
 				else dir[ n ].set( 0, - 1, 0, - 2 );
+				invOf( uInv.array[ n ], r, col[ n ].w, dir[ n ].w ); // ---- SP2
 				n ++;
 
 			}
