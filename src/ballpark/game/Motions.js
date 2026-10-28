@@ -261,11 +261,13 @@ export function catcherCrouch( t = 0, glove = null ) {
 // over the catcher's shoulder), a base umpire's ready stance (hands on his knees)
 export function umpSet( t = 0 ) {
 
+	// down in the slot: his chin just over the catcher's head, about chest high to the batter (Getty
+	// 83485455, 83486198), the feet wide and staggered, hands braced on his thighs
 	const b = Math.sin( t * 1.4 ) * 0.008;
 	return P( {
-		pelvisY: 0.74 + b, pelvis: [ - 0.3, 0, 0 ], torso: [ - 0.25, 0, 0 ], head: [ 0.45, 0 ],
-		footL: [ - 0.34, 0.08, 0.05 ], footR: [ 0.3, 0.08, 0.18 ], footYawL: 0.35, footYawR: - 0.35,
-		handL: [ - 0.2, 0.62, - 0.22 ], handR: [ 0.22, 0.62, - 0.2 ], glove: false,
+		pelvisY: 0.63 + b, pelvis: [ - 0.38, 0, 0 ], torso: [ - 0.32, 0, 0 ], head: [ 0.62, 0 ],
+		footL: [ - 0.4, 0.08, 0.02 ], footR: [ 0.34, 0.08, 0.24 ], footYawL: 0.4, footYawR: - 0.35,
+		handL: [ - 0.24, 0.55, - 0.26 ], handR: [ 0.26, 0.55, - 0.24 ], glove: false,
 	} );
 
 }
@@ -496,6 +498,19 @@ export function onDeckKneel( t = 0 ) {
 		kneeR: [ 0, - 0.9, - 0.4 ],
 		handL: [ - 0.02, 0.95, - 0.38 ], handR: [ 0.04, 0.9, - 0.36 ],
 		bat: { dir: [ - 0.05, 0.99, 0.05 ] }, glove: false,
+	} );
+
+}
+
+// the on-deck hitter's stretch: the bat behind his neck across his shoulders, a slow twist
+export function batStretch( t = 0 ) {
+
+	const w = Math.sin( t * 1.6 ) * 0.35;
+	return P( {
+		pelvisY: DIM.hip - 0.03, torso: [ 0.02, w, 0 ], head: [ 0.05, w * 0.5 ],
+		footL: [ - 0.2, 0.08, 0.02 ], footR: [ 0.2, 0.08, - 0.02 ], footYawL: 0.2, footYawR: - 0.2,
+		handL: [ - 0.5, 1.5, 0.06 ], handR: [ 0.38, 1.52, 0.08 ],
+		bat: { dir: [ - 1, 0.04, 0 ] }, glove: false,
 	} );
 
 }

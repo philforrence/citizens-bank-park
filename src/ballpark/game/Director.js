@@ -717,7 +717,9 @@ export class Director {
 		const runners = ( s.bases || [] ).some( Boolean );
 		const r2 = Math.SQRT1_2;
 		const crew = [
-			[ - 1, [ 0.35, 2.05 ], pitching ? M.umpSet( lt ) : M.stand( lt + 1 ), ROLE.bag | ( seg.kind === 'inplay' ? 0 : ROLE.mask ) ],
+			// (in the slot between the catcher and the batter: on the third base side for a right-handed
+			// hitter, the first base side for a lefty)
+			[ - 1, [ s.bats === 'L' ? 0.32 : - 0.32, 2.0 ], pitching ? M.umpSet( lt ) : M.stand( lt + 1 ), ROLE.bag | ( seg.kind === 'inplay' ? 0 : ROLE.mask ) ],
 			[ - 2, [ 19.4 + 2.2 * r2 + 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ], pitching ? M.umpReady( lt ) : M.stand( lt + 2 ) ],
 			[ - 3, runners ? [ - 4.5, - 22.5 ] : [ - 3.5, - 32.5 ], pitching ? M.umpReady( lt ) : M.stand( lt + 3 ) ],
 			[ - 4, [ - 19.4 - 2.2 * r2 - 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ], pitching ? M.umpReady( lt ) : M.stand( lt + 4 ) ],
@@ -845,6 +847,9 @@ export class Director {
 			if ( a.role != null ) role = a.role;
 			if ( a.roleAdd ) role |= a.roleAdd;
 			s.role = role;
+			// the batter and the runners don't wear fielders' gloves: batting gloves only (Rig's neutral pose
+			// and M.run() put a glove on everyone)
+			if ( ( role & ROLE.helmet ) && a.pose ) a.pose.glove = false;
 			s.visible = true;
 			s.x = a.x; s.z = a.z; s.yaw = a.yaw; s.y = a.y || 0; s.tilt = a.tilt || null;
 			s.pose = a.pose;
@@ -918,9 +923,23 @@ export class Director {
 
 		if ( ! snap.onDeck ) return;
 		const [ x, z ] = ON_DECK[ snap.batting ];
-		const pose = M.batterStance( lt * 0.7 );
-		pose.pelvisY = 0.93;
-		this.act( snap.onDeck, x, z, yawTo( [ x, z ], MOUND ), pose );
+		// down on one knee with the bat, watching the pitcher; every so often up for a couple of easy
+		// practice swings, then a stretch with the bat across his shoulders, and down again (his own
+		// rhythm, from his id). In the circle, not in a batting stance.
+		const u = ( lt + hash( snap.onDeck ) * 17 ) % 16;
+		let pose;
+		if ( u < 9 ) pose = M.onDeckKneel( lt );
+		else if ( u < 9.6 ) pose = M.blend( M.onDeckKneel( lt ), M.batterStance( 0 ), ease01( ( u - 9 ) / 0.6 ) );
+		else if ( u < 13 ) {
+
+			// two slow swings, each from the stance
+			const w = ( u - 9.6 ) % 1.7;
+			pose = w < 1.0 ? M.swing( Math.min( 1.2, w * 1.15 ) ) : M.blend( M.swing( 1.2 ), M.batterStance( 0 ), ease01( ( w - 1.0 ) / 0.7 ) );
+
+		} else if ( u < 15.4 ) pose = M.blend( M.batterStance( 0 ), M.batStretch( lt ), ease01( ( u - 13 ) / 0.5 ) );
+		else pose = M.blend( M.batStretch( lt ), M.onDeckKneel( lt ), ease01( ( u - 15.4 ) / 0.6 ) );
+		const left = this.game.players[ snap.onDeck ]?.bats === 'L';
+		this.act( snap.onDeck, x, z, yawTo( [ x, z ], MOUND ), left ? M.mirror( pose ) : pose );
 
 	}
 
