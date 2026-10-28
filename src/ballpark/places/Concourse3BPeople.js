@@ -1434,7 +1434,9 @@ export class ConcoursePeople {
 
 				const beat = 4 + 4 * f.order, n = Math.floor( ( t + f.order * 13 ) / beat );
 				const h = ( ( Math.sin( n * 12.9898 + f.order * 78.233 ) * 43758.5453 ) % 1 + 1 ) % 1;
-				const act = Math.floor( h * 7 ), w = clamp( ( ( t + f.order * 13 ) % beat ) / 0.5, 0, 1 ) * k;
+				// (each beat eased in and out of the arms-up: no pop from one act to the next)
+				const u = ( t + f.order * 13 ) % beat;
+				const act = Math.floor( h * 7 ), w = clamp( Math.min( u, beat - u ) / 0.5, 0, 1 ) * k;
 				const pump2 = 0.3 * Math.sin( T * 8 + f.order * 5 );
 				if ( act === 0 ) {
 
