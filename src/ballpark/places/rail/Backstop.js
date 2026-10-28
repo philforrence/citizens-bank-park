@@ -158,7 +158,10 @@ export function buildCushions( group ) {
 	g.computeBoundingBox();
 	g.computeBoundingSphere();
 
-	const mat = standard( { name: 'backstop-cushions', color: new Color( 0.02, 0.15, 0.135 ), roughness: 0.42, modules: [ commonModule ],
+	// ---- FB1 (gauntlet r1, CB-11): the pads read a saturated teal in the TV center frame (sRGB ~2, 76, 70);
+	// FOX's frames of both nights show a dark grey-green vinyl (Getty 83485455, 83885893)
+	const mat = standard( { name: 'backstop-cushions', color: new Color( 0.027, 0.094, 0.072 ), roughness: 0.42, modules: [ commonModule ],
+	// ---- end FB1
 		surface: /* wgsl */`
 	// uv: x = pad * 10 + metres along, y = metres round the section from the bottom back edge
 	let id = floor( in.uv.x / 10.0 );

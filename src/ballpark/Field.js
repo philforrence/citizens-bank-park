@@ -255,7 +255,9 @@ export class Field {
 		// behind home plate the wall is red brick under a teal padded cap
 		// ---- W4 (rail): the backstop's brick, worn and lit. Its teal cushions are separate pads on top
 		// (places/FieldRail.js); behind them, in the gaps between the pads, the wall is dark
-		const brick = standard( { name: 'backstop-brick', color: new Color( 0.3, 0.085, 0.05 ), roughness: 0.85, modules: [ commonModule ],
+		// (CB-11: a deep red-brown, the mortar barely there under the lights, as in FOX's center field
+		// frames, Getty 83485455 and 83885893; it read orange with crisp light joints)
+		const brick = standard( { name: 'backstop-brick', color: new Color( 0.15, 0.04, 0.027 ), roughness: 0.85, modules: [ commonModule ],
 			surface: /* wgsl */`
 	let v = in.uv.y; let u = in.uv.x;
 	let row = floor( v / 0.075 );
@@ -279,7 +281,7 @@ export class Field {
 	if ( hb > 0.93 ) { tone = 0.6; }
 	if ( hb < 0.05 ) { tone = 1.18; }
 	tone = mix( tone * ( 0.93 + 0.12 * mx_noise_float2( in.uv * vec2f( 9.0, 22.0 ) ) ), 0.97, fr );
-	var c = mix( mat.color * tone * vec3f( 1.0, 0.94 + 0.1 * fract( hb * 7.0 ), 1.0 ), vec3f( 0.46, 0.43, 0.38 ), mortar * 0.8 );
+	var c = mix( mat.color * tone * vec3f( 1.0, 0.94 + 0.1 * fract( hb * 7.0 ), 1.0 ), vec3f( 0.2, 0.17, 0.15 ), mortar * 0.5 );
 	c = c * ( 1.0 - 0.35 * lip );
 	// the base: clay splashed up off the warning track, heaviest in the first hand's width
 	let splash = ( 1.0 - smoothstep( 0.02, 0.3, v ) ) * ( 0.55 + 0.45 * mx_noise_float2( in.uv * vec2f( 3.0, 11.0 ) ) );
@@ -299,7 +301,8 @@ export class Field {
 	s.emissive = s.albedo * vec3f( 1.0, 0.95, 0.88 ) * smoothstep( 0.2, 0.8, frame.night ) * 0.5;
 ` } );
 		// ---- end W4
-		const tealCap = standard( { name: 'backstop-cap', color: new Color( 0.02, 0.13, 0.12 ), roughness: 0.6, surface: 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
+		// (CB-11: the pads' dark grey-green, not a saturated teal: places/rail/Backstop.js's cushions)
+		const tealCap = standard( { name: 'backstop-cap', color: new Color( 0.027, 0.094, 0.072 ), roughness: 0.6, surface: 's.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.35;' } );
 		const trim = standard( { name: 'wall-trim', color: new Color( 0.75, 0.55, 0.02 ), roughness: 0.6 } );
 		const cap = standard( { name: 'wall-cap', color: new Color( 0.2, 0.2, 0.19 ), roughness: 0.8 } );
 		for ( const m of [ pad, trim, cap, brick, tealCap ] ) m.underwaterLighting = 'none';
