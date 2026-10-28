@@ -77,6 +77,7 @@ export class Walker {
 		// thousand comparisons, ~10 us; the places' people stand in the field's frame)
 		const pool = castPool(), L = pool?.people;
 		if ( ! L || ! L.length || ! pool.group ) return;
+		pool.walkerSeen = true;
 		_inv.copy( pool.group.matrixWorld ).invert();
 		_f.copy( p ).applyMatrix4( _inv );
 		const fx = _f.x, fy = _f.y, fz = _f.z;

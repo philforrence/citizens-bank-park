@@ -695,7 +695,9 @@ export function figureGeometry( lod = 0 ) {
 		[ 1.28, 0.182, 0.118, 0.012 ], [ 1.36, 0.186, 0.108, 0.022 ], [ 1.42, 0.16, 0.085, 0.028 ], [ 1.468, 0.088, 0.062, 0.03 ],
 	], fine ? F( 16, 10 ) : tiny ? 5 : 8, true, true, fine );
 	// the hips and seat (the pelvis), under the trunk's hem
-	loft( B.pelvis, PART.pants, [ [ 0.74, 0.16, 0.1, 0.012 ], [ 0.86, 0.168, 0.11, 0.012 ], [ 0.97, 0.16, 0.105, 0.012 ] ], fine ? F( 14, 9 ) : tiny ? 4 : 6, true, false, fine );
+	// (FW6: inside the jacket's hem, which follows it: its sides showed through the hem's whenever the
+	// trunk turned or leant, a square flap of jacket hanging between two patches of trousers)
+	loft( B.pelvis, PART.pants, [ [ 0.74, 0.158, 0.1, 0.012 ], [ 0.86, 0.163, 0.106, 0.012 ], [ 0.97, 0.152, 0.1, 0.012 ] ], fine ? F( 14, 9 ) : tiny ? 4 : 6, true, false, fine );
 	// the neck
 	tube( B.head, PART.neck, [ 0, 1.4, 0.03 ], [ 0, 1.54, 0.02 ], [ 0.052, 0.05 ], [ 0.046, 0.046 ], N6 );
 	// the head, the nose, a cap's brim, a knit hat's pom-pom, long hair down the back
@@ -1846,6 +1848,14 @@ function castMaterial( pool ) {
 	}
 	// ---- end FW6
 	// ---- end FW1
+	// ---- FW6 (C4W-1): a jacket's skirt below the waist stays round the hips when the trunk turns or leans
+	// (it swung with the chest, and the trousers showed through its sides)
+	let wHem = select( 0.0, smoothstep( 0.99, 0.87, q.y ), part == ${ PART.torso }u || part == ${ PART.apron }u || ( part == ${ PART.poncho }u && poncho == 0u ) );
+	if ( wHem > 0.0 ) {
+		let rh = c3Rig( q, n, 0u, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Pose[ armRow ], c3Pose[ k + 6u ], a7.x );
+		r0.p = mix( r0.p, rh.p, wHem );
+		r0.n = normalize( mix( r0.n, rh.n, wHem ) );
+	}
 	// ---- FW6 (C4W-7): the sleeve's head (the deltoid over the joint) belongs to the shoulder as much as to
 	// the arm: blended toward the spine's rig from 10 cm under the joint up, so an arm brought forward or
 	// up stretches the cloth from the shoulder rather than swinging the head's back up over it (a ball on
@@ -1868,6 +1878,7 @@ function castMaterial( pool ) {
 			if ( wFore > 0.0 ) { ap1 = mix( ap1, c3Rig( q, n, armB + 2u, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Hang( c3Prev[ armR2 ], armOut ), c3Prev[ k + 6u ], c3Prev[ k + 7u ].x ).p, wFore ); }
 			r1.p = mix( r1.p, ap1, wArm );
 		}
+		if ( wHem > 0.0 ) { r1.p = mix( r1.p, c3Rig( q, n, 0u, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Prev[ armRow ], c3Prev[ k + 6u ], c3Prev[ k + 7u ].x ).p, wHem ); }
 		if ( wSh > 0.0 ) { r1.p = mix( r1.p, c3Rig( q, n, 1u, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Prev[ armRow ], c3Prev[ k + 6u ], c3Prev[ k + 7u ].x ).p, wSh ); }
 		v.prevWorldPos = ( v.prevModel * vec4f( r1.p, 1.0 ) ).xyz;
 	} else {
@@ -3085,6 +3096,10 @@ class Pool {
 		// ---- FW6 (C4W-5): the camera in the field frame (people step aside from it)
 		const IE = inv.elements;
 		const fcx = IE[ 0 ] * cx + IE[ 4 ] * cy + IE[ 8 ] * cz + IE[ 12 ], fcy = IE[ 1 ] * cx + IE[ 5 ] * cy + IE[ 9 ] * cz + IE[ 13 ], fcz = IE[ 2 ] * cx + IE[ 6 ] * cy + IE[ 10 ] * cz + IE[ 14 ];
+		// (only for the walker's eye, which marks the pool each step it takes: a TV camera's or a cameraman's
+		// eye among the people is theirs, and they stay put)
+		const walking = !! this.walkerSeen;
+		this.walkerSeen = false;
 		// ---- end FW6
 
 		for ( const t of this.troupes ) {
@@ -3168,7 +3183,7 @@ class Pool {
 				{
 
 					const ex = x - fcx, ez = z - fcz, e2 = ex * ex + ez * ez, up = fcy - y;
-					const near = e2 < 1.44 && up > 0.4 && up < 2.4;
+					const near = walking && e2 < 1.44 && up > 0.4 && up < 2.4;
 					if ( near || p._ax ) {
 
 						const e = Math.sqrt( e2 ) || 1;
