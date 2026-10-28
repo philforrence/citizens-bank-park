@@ -33,14 +33,21 @@ export class Drips {
 	s.emissive = mat.color * smoothstep( 0.2, 0.8, frame.night ) * 0.25;
 ` } );
 		this.mat.underwaterLighting = 'none';
-		this.pond = standard( { name: 'dugout-roof-water', color: new Color( 0.05, 0.055, 0.06 ), roughness: 0.03, transparent: true, depthWrite: false, modules: [ commonModule ],
+		// CB-5 (gauntlet r1): in the photos of the 27th both roofs read clean white in the rain, a wet sheen
+		// at most and the lettering crisp (Getty 84081873, luidude 2981634108); dark noise puddles over a
+		// third of the roof read as grey camouflage from the TV high camera. So the standing water is a
+		// reflection, not a stain: the roof's own white, glassy, faint, and only in a few thin pools along
+		// the back edge where the roof meets the stands (t, the metres back from its front, past 2.2)
+		this.pond = standard( { name: 'dugout-roof-water', color: new Color( 0.72, 0.73, 0.74 ), roughness: 0.03, transparent: true, depthWrite: false, modules: [ commonModule ],
 			uniforms: { rain: [ 'f32', 0 ] },
 			surface: /* wgsl */`
-	// the roof's low spots: shallow puddles, their edges feathered
-	let n = mx_noise_float2( in.uv * 0.8 ) * 0.5 + 0.5 + 0.15 * mx_noise_float2( in.uv * 4.0 );
-	let pud = smoothstep( 0.72 - 0.25 * mat.rain, 0.8 - 0.25 * mat.rain, n ) * step( 0.05, mat.rain );
-	s.alpha = pud * 0.75;
+	// the roof's low spots along the back: thin pools, their edges feathered
+	let n = mx_noise_float2( in.uv * vec2f( 0.5, 1.6 ) ) * 0.5 + 0.5 + 0.15 * mx_noise_float2( in.uv * 4.0 );
+	let back = smoothstep( 2.2, 2.55, in.uv.y );
+	let pud = smoothstep( 0.6 - 0.15 * mat.rain, 0.68 - 0.15 * mat.rain, n ) * back * step( 0.05, mat.rain );
+	s.alpha = pud * 0.22;
 	s.albedo = mat.color;
+	s.roughness = 0.03;
 ` } );
 		this.pond.underwaterLighting = 'none';
 		const dq = { pos: [], nrm: [], uv: [], index: [] }, pq = { pos: [], nrm: [], uv: [], index: [] };
@@ -92,10 +99,10 @@ export class Drips {
 
 		const rain = S.first ? S.rain : 0;
 		this.mat.uniforms.rain.value = rain;
-		// the roofs hold a little water into the 29th (the 28th was wet too)
-		this.pond.uniforms.rain.value = S.first ? S.wet : 0.15;
+		// (CB-5: none on the 29th: the roofs were squeegeed for the resumption)
+		this.pond.uniforms.rain.value = S.first ? S.wet : 0;
 		this.meshes[ 0 ].visible = rain > 0.01;
-		this.meshes[ 1 ].visible = true;
+		this.meshes[ 1 ].visible = this.pond.uniforms.rain.value > 0.05;
 
 	}
 
