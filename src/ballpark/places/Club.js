@@ -625,7 +625,7 @@ export default class Club {
 		// the Wall of Balls
 		if ( abs( hit.x - ${ f( this.balls.s ) } ) < ${ f( this.balls.len / 2 ) } && hit.y > 0.45 && hit.y < 3.05 ) {
 			let q = fract( hit.xy / 0.078 ) - 0.5;
-			room = mix( vec3f( 0.04 ), vec3f( 0.7, 0.66, 0.58 ), 0.72 ) * ( 0.95 + 0.1 * step( length( q ), 0.4 ) );
+			room = mix( vec3f( 0.2, 0.025, 0.032 ), vec3f( 0.7, 0.66, 0.58 ), 0.55 ) /* ---- FI3 (C2I-13): on maroon */ * ( 0.95 + 0.1 * step( length( q ), 0.4 ) );
 		}
 		// the bars: the counter's front, the lit shelves and their bottles, the name over them
 		for ( var k = 0; k < ${ this.bars.length }; k ++ ) {

@@ -362,13 +362,42 @@ export default class Suites {
 		// the base: cherry, doors on it, the granite top
 		b.use( 'cherry' ).box( P, xc, 0.46, z - 0.3, w, 0.8, 0.6, [ 'front', 'back' ] );
 		b.use( 'cherry' ).box( P, xc, 0.05, z - 0.27, w, 0.1, 0.54, [ 'back' ] );
-		b.use( 'cherry' ).panel4( P( x0, 0.1, z - 0.6 ), P( x1, 0.1, z - 0.6 ), P( x1, 0.86, z - 0.6 ), P( x0, 0.86, z - 0.6 ), nF, 0.5, ( p ) => [ p[ 0 ] * 0.7 + p[ 2 ] * 0.7, p[ 1 ] ] );
-		for ( let s = x0 + 0.5; s < x1 - 0.1; s += 0.5 ) b.use( 'black' ).box( P, s, 0.48, z - 0.602, 0.012, 0.7, 0.004 );
-		for ( let s = x0 + 0.25; s < x1; s += 0.5 ) b.use( 'chrome' ).box( P, s + 0.15, 0.74, z - 0.615, 0.02, 0.1, 0.025 );
-		// the drinks fridge at one end: its glass door lit
-		const fx = R.buffetLeft ? x0 + 0.33 : x1 - 0.33;
-		b.use( 'stainless' ).box( P, fx, 0.43, z - 0.605, 0.6, 0.78, 0.02 );
-		b.use( R.lit ? 'fridge' : 'glass' ).box( P, fx, 0.45, z - 0.617, 0.48, 0.6, 0.005 );
+		// (---- FI3 (C2I-8): the front's cherry round the fridge's opening; the uppers' fronts in panels, so the
+		// cans' light on them is smooth: one quad each made a stair-step of it)
+		const fx = R.buffetLeft ? x0 + 0.33 : x1 - 0.33, fa = fx - 0.3, fb = fx + 0.3;
+		const front = ( a, c, h0, h1 ) => {
+
+			if ( c - a > 0.01 ) b.use( 'cherry' ).panel4( P( a, h0, z - 0.6 ), P( c, h0, z - 0.6 ), P( c, h1, z - 0.6 ), P( a, h1, z - 0.6 ), nF, 0.3, ( p ) => [ p[ 0 ] * 0.7 + p[ 2 ] * 0.7, p[ 1 ] ] );
+
+		};
+		front( x0, fa, 0.1, 0.86 ); front( fb, x1, 0.1, 0.86 ); front( fa, fb, 0.1, 0.14 ); front( fa, fb, 0.8, 0.86 );
+		for ( let s = x0 + 0.5; s < x1 - 0.1; s += 0.5 ) if ( s < fa - 0.02 || s > fb + 0.02 ) b.use( 'black' ).box( P, s, 0.48, z - 0.602, 0.012, 0.7, 0.004 );
+		for ( let s = x0 + 0.25; s < x1; s += 0.5 ) if ( s + 0.15 < fa || s + 0.15 > fb ) b.use( 'chrome' ).box( P, s + 0.15, 0.74, z - 0.615, 0.02, 0.1, 0.025 );
+		// the drinks fridge in it: its stainless door frame, and through the glass the lit back, its walls,
+		// three wire shelves of cans and bottles (it was a glowing white panel)
+		for ( const [ x, y, sx, sy ] of [ [ fx, 0.12, 0.6, 0.04 ], [ fx, 0.8, 0.6, 0.04 ], [ fa + 0.02, 0.46, 0.04, 0.72 ], [ fb - 0.02, 0.46, 0.04, 0.72 ] ] ) b.use( 'stainless' ).box( P, x, y, z - 0.61, sx, sy, 0.02, [ 'back' ] );
+		b.use( R.lit ? 'fridgeBack' : 'black' ).quad( P( fa, 0.14, z - 0.1 ), P( fb, 0.14, z - 0.1 ), P( fb, 0.8, z - 0.1 ), P( fa, 0.8, z - 0.1 ), nF );
+		b.use( 'white' ).quad( P( fa + 0.04, 0.14, z - 0.6 ), P( fa + 0.04, 0.14, z - 0.1 ), P( fa + 0.04, 0.8, z - 0.1 ), P( fa + 0.04, 0.8, z - 0.6 ), P.dir( 1, 0, 0 ) );
+		b.use( 'white' ).quad( P( fb - 0.04, 0.14, z - 0.1 ), P( fb - 0.04, 0.14, z - 0.6 ), P( fb - 0.04, 0.8, z - 0.6 ), P( fb - 0.04, 0.8, z - 0.1 ), P.dir( - 1, 0, 0 ) );
+		b.use( 'white' ).quad( P( fa, 0.79, z - 0.6 ), P( fb, 0.79, z - 0.6 ), P( fb, 0.79, z - 0.1 ), P( fa, 0.79, z - 0.1 ), [ 0, - 1, 0 ] );
+		b.use( 'steel' ).quad( P( fa, 0.15, z - 0.6 ), P( fb, 0.15, z - 0.6 ), P( fb, 0.15, z - 0.1 ), P( fa, 0.15, z - 0.1 ), [ 0, 1, 0 ] );
+		const cr = rnd( R.num * 17 + 3 );
+		for ( const sh of [ 0.15, 0.36, 0.57 ] ) {
+
+			b.use( 'steel' ).box( P, fx, sh, z - 0.35, 0.5, 0.008, 0.45 );
+			if ( R.lit || cr() < 0.5 ) for ( let k = 0; k < 7; k ++ ) for ( const dz of [ - 0.12, 0.1 ] ) {
+
+				const c = cr(), bottle = c > 0.72;
+				b.use( c < 0.3 ? 'canRed' : c < 0.55 ? 'canSilver' : c < 0.72 ? 'canBlue' : c < 0.86 ? 'glassBrown' : 'glassGreen' ).cyl( P, fx - 0.21 + k * 0.07, z - 0.35 + dz, sh + 0.005, sh + ( bottle ? 0.13 : 0.12 ), 0.031, 0.03, 7, ! bottle );
+				if ( bottle ) b.cyl( P, fx - 0.21 + k * 0.07, z - 0.35 + dz, sh + 0.13, sh + 0.19, 0.03, 0.012, 7, true );
+
+			}
+
+		}
+
+		// (a glint down the door's glass)
+		b.use( 'chrome' ).box( P, fb - 0.12, 0.47, z - 0.615, 0.015, 0.4, 0.004 );
+		// ---- end FI3
 		b.use( 'granite' ).box( P, xc, 0.88, z - 0.31, w + 0.04, 0.04, 0.64 );
 		// the lit glass behind the counter, under the uppers
 		b.use( R.lit ? 'backsplash' : 'cream' ).quad( P( x0, 0.9, z - 0.004 ), P( x1, 0.9, z - 0.004 ), P( x1, 1.42, z - 0.004 ), P( x0, 1.42, z - 0.004 ), nF );
@@ -377,22 +406,43 @@ export default class Suites {
 		for ( const [ a, c ] of [ [ x0, tv - 0.45 ], [ tv + 0.45, x1 ] ] ) {
 
 			if ( c - a < 0.2 ) continue;
-			b.use( 'cherry' ).box( P, ( a + c ) / 2, ( 1.42 + RH ) / 2, z - 0.18, c - a, RH - 1.42, 0.36, [ 'front' ] );
+			b.use( 'cherry' ).box( P, ( a + c ) / 2, ( 1.42 + RH ) / 2, z - 0.18, c - a, RH - 1.42, 0.36, [ 'front', 'back' ] );
+			b.use( 'cherry' ).panel4( P( a, 1.42, z - 0.36 ), P( c, 1.42, z - 0.36 ), P( c, RH, z - 0.36 ), P( a, RH, z - 0.36 ), nF, 0.3 ); // ---- FI3
 			for ( let s = a + 0.45; s < c - 0.1; s += 0.45 ) b.use( 'black' ).box( P, s, ( 1.42 + RH ) / 2, z - 0.362, 0.01, RH - 1.5, 0.004 );
 
 		}
 
-		b.use( 'cherry' ).box( P, tv, ( 2.0 + RH ) / 2, z - 0.18, 0.9, RH - 2.0, 0.36, [ 'front' ] );
+		b.use( 'cherry' ).box( P, tv, ( 2.0 + RH ) / 2, z - 0.18, 0.9, RH - 2.0, 0.36, [ 'front', 'back' ] );
+		b.use( 'cherry' ).panel4( P( tv - 0.45, 2.0, z - 0.36 ), P( tv + 0.45, 2.0, z - 0.36 ), P( tv + 0.45, RH, z - 0.36 ), P( tv - 0.45, RH, z - 0.36 ), nF, 0.3 ); // ---- FI3
 		b.use( 'cherry' ).box( P, tv, 1.44, z - 0.18, 0.9, 0.04, 0.36 );
 		// the TV: a tube in a dark grey case, the game on it
 		b.use( 'plastic' ).box( P, tv, 1.7, z - 0.25, 0.64, 0.48, 0.46 );
 		this._screen( b, P( tv - 0.25, 1.52, z - 0.481 ), P( tv + 0.25, 1.52, z - 0.481 ), P( tv + 0.25, 1.88, z - 0.481 ), P( tv - 0.25, 1.88, z - 0.481 ), nF, R.lit );
 		// on the counter: the ice bucket and its beers, the cans, the paper plates
 		const ib = R.buffetLeft ? x1 - 0.5 : x0 + 0.5;
-		b.use( 'stainless' ).cyl( P, ib, z - 0.32, 0.9, 1.12, 0.14, 0.17, 10, false );
-		b.use( 'white' ).cyl( P, ib, z - 0.32, 1.06, 1.1, 0.15, 0.16, 10, true );
-		for ( let j = 0; j < 4; j ++ ) b.use( 'food' ).cyl( P, ib + Math.cos( j * 1.6 ) * 0.07, z - 0.32 + Math.sin( j * 1.6 ) * 0.07, 1.08, 1.2, 0.025, 0.02, 6, true );
-		for ( let j = 0; j < 3; j ++ ) b.use( j === 1 ? 'white' : 'redVinyl' ).cyl( P, xc + 0.6 + j * 0.09, z - 0.4, 0.9, 1.02, 0.033, 0.033, 8, true );
+		// ---- FI3 (C2I-8): the galvanized bucket heaped with ice, the necks of brown and green bottles and the
+		// tops of silver cans standing out of it (it was a matte octagon of four wooden pegs); a few Coke cans,
+		// the clear cups (Ernst & Young's suite, Apr 2009; jrab, Aug 2008)
+		b.use( 'galvanized' ).cyl( P, ib, z - 0.32, 0.9, 1.12, 0.14, 0.18, 12, false );
+		b.use( 'galvanized' ).cyl( P, ib, z - 0.32, 1.11, 1.125, 0.185, 0.185, 12, false );
+		b.use( 'ice' ).cyl( P, ib, z - 0.32, 1.06, 1.115, 0.175, 0.13, 12, true );
+		const br = rnd( R.num * 13 + 1 );
+		for ( let j = 0; j < 7; j ++ ) {
+
+			const a = j * 0.9 + br(), rr = 0.03 + br() * 0.09, bx = ib + Math.cos( a ) * rr, bz = z - 0.32 + Math.sin( a ) * rr, c = br();
+			if ( c < 0.6 ) {
+
+				b.use( c < 0.4 ? 'glassBrown' : 'glassGreen' ).cyl( P, bx, bz, 1.08, 1.15, 0.03, 0.03, 7, false );
+				b.cyl( P, bx, bz, 1.15, 1.21, 0.03, 0.012, 7, false );
+				b.use( 'canSilver' ).cyl( P, bx, bz, 1.21, 1.22, 0.014, 0.014, 6, true );
+
+			} else b.use( c < 0.8 ? 'canSilver' : 'canRed' ).cyl( P, bx, bz, 1.07, 1.16, 0.032, 0.032, 8, true );
+
+		}
+
+		for ( let j = 0; j < 3; j ++ ) b.use( j === 1 ? 'canSilver' : 'canRed' ).cyl( P, xc + 0.6 + j * 0.09, z - 0.4, 0.9, 1.02, 0.033, 0.033, 8, true );
+		for ( let j = 0; j < 4; j ++ ) b.use( 'glass' ).cyl( P, xc + 0.25 + j * 0.08, z - 0.22, 0.9, 1.0, 0.03, 0.042, 8, false );
+		// ---- end FI3
 		b.use( 'white' ).cyl( P, xc - 0.7, z - 0.35, 0.9, 0.95, 0.12, 0.12, 12, true );
 
 	}
@@ -406,25 +456,75 @@ export default class Suites {
 		b.use( 'cherry' ).box( W, c, 0.05, 0.3, L - 0.04, 0.1, 0.55, [ 'back' ] );
 		b.use( 'granite' ).box( W, c, 0.86, 0.32, L + 0.04, 0.04, 0.66 );
 		for ( let s = z0 + 0.55; s < z1; s += 0.55 ) b.use( 'black' ).box( W, s, 0.44, 0.612, 0.012, 0.7, 0.004 );
-		// the chafing dishes, their domed lids; the plates, the napkins
+		// ---- FI3 (C2I-8): the chafing dishes as in Ernst & Young's suite (Apr 2009): stainless roll-tops on
+		// wire stands, a sterno's blue flame under each, the pan's rim; the open ones show the food (chicken
+		// fingers, meatballs in their sauce, hot dogs in a row with the rolls beside), a serving spoon in it;
+		// the stack of plates, the napkins. (They were white trays each holding a tan slab, under cones.)
 		const n = Math.max( 2, Math.floor( L / 0.7 ) );
+		const r = rnd( R.num * 31 + 7 );
 		for ( let j = 0; j < n; j ++ ) {
 
 			const s = z0 + ( j + 0.5 ) * L / n;
-			// the stand, the pan (its lid on, or off and the food showing), the burner's glow under it
-			b.use( 'black' ).box( W, s, 0.93, 0.32, 0.46, 0.08, 0.28 );
-			b.use( 'stainless' ).box( W, s, 0.99, 0.32, 0.52, 0.05, 0.34 );
-			if ( R.lit && j % 2 === 0 ) {
+			// the stand: a wire frame, four legs, the sterno can and its flame
+			for ( const [ dx, dz ] of [ [ - 0.24, - 0.14 ], [ 0.24, - 0.14 ], [ - 0.24, 0.14 ], [ 0.24, 0.14 ] ] ) b.use( 'black' ).box( W, s + dx, 0.93, 0.32 + dz, 0.012, 0.1, 0.012 );
+			b.use( 'black' ).box( W, s, 0.975, 0.32, 0.5, 0.01, 0.3, [ 'bottom' ] );
+			b.use( 'redPaint' ).cyl( W, s, 0.32, 0.88, 0.93, 0.035, 0.035, 8, true );
+			if ( R.lit ) b.use( 'flame' ).cyl( W, s, 0.32, 0.93, 0.96, 0.025, 0.005, 6, false );
+			// the pan: its body, the rim
+			b.use( 'stainless' ).box( W, s, 1.0, 0.32, 0.5, 0.05, 0.3, [ 'top' ] );
+			b.use( 'stainless' ).box( W, s, 1.027, 0.32, 0.54, 0.008, 0.34, [ 'bottom' ] );
+			const open = R.lit && ( j + R.num ) % 3 !== 0;
+			if ( ! open ) this._rollTop( b, W, s, 0.32, 1.03, 0.5, 0.15 );
+			else {
 
-				b.use( 'stainless' ).cyl( W, s, 0.32, 1.015, 1.06, 0.17, 0.12, 12, false );
-				b.use( 'stainless' ).cyl( W, s, 0.32, 1.06, 1.09, 0.12, 0.03, 12, true );
+				const kind = ( j + R.num ) % 3;
+				b.use( kind === 1 ? 'sauce' : 'stainless' ).box( W, s, 1.02, 0.32, 0.48, 0.01, 0.28 );
+				for ( let k = 0; k < 14; k ++ ) {
 
-			} else b.use( 'food' ).box( W, s, 1.017, 0.32, 0.46, 0.01, 0.28 );
+					const fx = s - 0.2 + r() * 0.4, fz = 0.32 - 0.11 + r() * 0.22;
+					if ( kind === 1 ) b.use( 'meat' ).cyl( W, fx, fz, 1.025, 1.06, 0.022, 0.016, 6, true );
+					else if ( kind === 2 ) {
+
+						if ( k < 7 ) {
+
+							b.use( 'meat' ).box( W, s - 0.2 + k * 0.065, 1.04, 0.28, 0.025, 0.024, 0.16 );
+							b.use( 'bun' ).box( W, s - 0.2 + k * 0.065, 1.035, 0.38, 0.045, 0.03, 0.15 );
+
+						}
+
+					} else b.use( 'golden' ).box( W, fx, 1.03 + r() * 0.012, fz, 0.025 + r() * 0.01, 0.018, 0.08 + r() * 0.03 );
+
+				}
+
+				// a serving spoon, its handle over the rim
+				b.use( 'stainless' ).box( W, s + 0.12, 1.06, 0.2, 0.03, 0.01, 0.24 );
+
+			}
 
 		}
 
 		b.use( 'white' ).cyl( W, z1 + 0.25, 0.3, 0.88, 0.99, 0.13, 0.13, 12, true );
+		for ( let k = 0; k < 6; k ++ ) b.use( 'white' ).cyl( W, z1 + 0.25, 0.3, 0.99 + k * 0.006, 0.994 + k * 0.006, 0.135, 0.135, 12, false );
 		b.use( 'redVinyl' ).box( W, z1 + 0.25, 0.9, 0.52, 0.18, 0.03, 0.14 );
+		// ---- end FI3
+
+	}
+
+	// ---- FI3 (C2I-8): a chafer's roll-top lid: half a cylinder lying along the pan (W's x), radius r, its
+	// axis at ( x, y, z ); the ends closed, a handle on its crown
+	_rollTop( b, W, x, z, y, L, r ) {
+
+		const k = 8, at = ( sx, a ) => W( x + sx * L / 2, y + Math.sin( a ) * r * 0.75, z + Math.cos( a ) * r );
+		b.use( 'stainless' );
+		for ( let i = 0; i < k; i ++ ) {
+
+			const a0 = i / k * Math.PI, a1 = ( i + 1 ) / k * Math.PI, am = ( a0 + a1 ) / 2;
+			b.quad( at( - 1, a0 ), at( 1, a0 ), at( 1, a1 ), at( - 1, a1 ), W.dir( 0, Math.sin( am ), Math.cos( am ) ) );
+
+		}
+
+		for ( const sx of [ - 1, 1 ] ) for ( let i = 0; i < k; i ++ ) b.tri( W( x + sx * L / 2, y, z ), at( sx, i / k * Math.PI ), at( sx, ( i + 1 ) / k * Math.PI ), W.dir( sx, 0, 0 ), W.dir( sx, 0, 0 ), W.dir( sx, 0, 0 ) );
+		b.use( 'black' ).box( W, x, y + r * 0.75 + 0.02, z, 0.12, 0.025, 0.025 );
 
 	}
 

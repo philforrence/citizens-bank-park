@@ -26,7 +26,7 @@ import { Builder } from '../home/Build.js';
 // [ linear albedo, roughness, metalness, glow (a lamp: lit by itself), pattern ]
 const P_PLAIN = 0, P_CARPET = 1, P_BLOCKS = 2, P_STRIPES = 3, P_GRAIN = 4, P_TILE = 5, P_SPECKLE = 6, P_TERRAZZO = 7, P_ATLAS = 8,
 	P_BALLS = 9, P_CMU = 10, P_TURF = 11, P_NET = 12, P_SCREEN = 13, P_RIBS = 14,
-	P_PLANKS = 15, P_SLAT = 16, P_PIN = 17; // ---- FI3
+	P_PLANKS = 15, P_SLAT = 16, P_PIN = 17, P_STEEL = 18, P_ICE = 19; // ---- FI3
 export const PAL = {
 	// floors
 	carpet: [ [ 0.03, 0.035, 0.055 ], 0.95, 0, 0, P_CARPET ], // a suite's: dark blue-grey, a small figure in it (Ernst & Young's suite, 2009)
@@ -53,8 +53,10 @@ export const PAL = {
 	cherry: [ [ 0.2, 0.075, 0.03 ], 0.4, 0, 0, P_GRAIN ], // the cabinets, the doors
 	oak: [ [ 0.45, 0.3, 0.14 ], 0.45, 0, 0, P_GRAIN ], // the Diamond Club's blond oak
 	granite: [ [ 0.05, 0.045, 0.04 ], 0.2, 0, 0, P_SPECKLE ],
-	stainless: [ [ 0.55, 0.56, 0.57 ], 0.3, 0.9, 0, P_PLAIN ],
-	chrome: [ [ 0.7, 0.7, 0.72 ], 0.15, 1, 0, P_PLAIN ],
+	// (---- FI3 (C2I-8): stainless and chrome mirror the room, faked (P_STEEL): the ceiling and its cans over
+	// them, the dark floor under; they were metals mirroring the sky probe, so matte white indoors)
+	stainless: [ [ 0.55, 0.56, 0.57 ], 0.3, 0, 0, P_STEEL ],
+	chrome: [ [ 0.7, 0.7, 0.72 ], 0.15, 0, 0, P_STEEL ],
 	brass: [ [ 0.55, 0.38, 0.12 ], 0.3, 0.9, 0, P_PLAIN ],
 	gilt: [ [ 0.5, 0.36, 0.1 ], 0.35, 0.8, 0, P_PLAIN ],
 	bronze: [ [ 0.03, 0.025, 0.02 ], 0.45, 0.5, 0, P_PLAIN ], // the window frames
@@ -110,6 +112,23 @@ export const PAL = {
 	signYellow: [ [ 0.78, 0.55, 0.02 ], 0.4, 0, 0.5, P_PLAIN ], // the World Series signs' frames
 	paper: [ [ 0.8, 0.79, 0.74 ], 0.8, 0, 0, P_PLAIN ],
 	navyFrame: [ [ 0.016, 0.024, 0.062 ], 0.4, 0.35, 0, P_PLAIN ], // (C2I-9) the suites' mullions
+	// (C2I-8) the suite's buffet: chicken fingers, meatballs in their sauce, hot dogs and their rolls; the
+	// galvanized bucket's ice, brown and green bottles, the cans; the sterno's flame
+	golden: [ [ 0.55, 0.33, 0.1 ], 0.6, 0, 0, P_SPECKLE ],
+	meat: [ [ 0.16, 0.05, 0.025 ], 0.45, 0, 0, P_SPECKLE ],
+	sauce: [ [ 0.3, 0.04, 0.02 ], 0.3, 0, 0, P_PLAIN ],
+	bun: [ [ 0.62, 0.42, 0.2 ], 0.8, 0, 0, P_PLAIN ],
+	galvanized: [ [ 0.38, 0.39, 0.4 ], 0.5, 0, 0, P_STEEL ],
+	ice: [ [ 0.7, 0.74, 0.76 ], 0.15, 0, 0, P_ICE ],
+	glassBrown: [ [ 0.12, 0.05, 0.012 ], 0.1, 0, 0, P_STEEL ],
+	glassGreen: [ [ 0.02, 0.12, 0.04 ], 0.1, 0, 0, P_STEEL ],
+	canSilver: [ [ 0.6, 0.62, 0.65 ], 0.25, 0, 0, P_STEEL ],
+	canRed: [ [ 0.5, 0.02, 0.03 ], 0.3, 0, 0, P_STEEL ],
+	canBlue: [ [ 0.04, 0.1, 0.45 ], 0.3, 0, 0, P_STEEL ],
+	flame: [ [ 0.3, 0.4, 0.9 ], 0.5, 0, 2.5, P_PLAIN ],
+	fridgeBack: [ [ 0.7, 0.74, 0.78 ], 0.4, 0, 0.9, P_PLAIN ],
+	helmetRed: [ [ 0.34, 0.015, 0.025 ], 0.12, 0, 0, P_STEEL ], // (C2I-11) a batting helmet's gloss
+	helmetNavy: [ [ 0.02, 0.03, 0.11 ], 0.12, 0, 0, P_STEEL ],
 	// ---- end FI3
 };
 export const PAL_KEYS = Object.keys( PAL );
@@ -724,17 +743,28 @@ export function insideMaterial( name, { glowNight = 1, net = false, local = true
 		c = atl;
 	} else if ( pat == ${ P_BALLS }u ) {
 		// the Wall of Balls: rows of baseballs, each row offset half a ball; their red stitches
+		// ---- FI3 (C2I-13): as erglantz (Apr 2008) and greenheaps (Aug 2008) have it: the balls in rows on a
+		// deep maroon board, a maroon shelf under every sixth row; each ball a shaded sphere (lit from above,
+		// a glint on its shoulder, its stitches curving round it) standing proud, its shadow on the board
+		// round it; far off, the mix of maroon and cream (it was a flat dotted wallpaper going cream)
 		let q2 = uv / 0.078;
 		let row = floor( q2.y );
-		let f = fract( vec2f( q2.x + 0.5 * ( row - 2.0 * floor( row * 0.5 ) ), q2.y ) ) - 0.5;
+		let shelfRow = row - 7.0 * floor( row / 7.0 ) > 5.5;
+		let f = fract( q2 ) - 0.5;
 		let rr = length( f );
-		var cb = vec3f( 0.04, 0.035, 0.03 );
-		if ( rr < 0.46 ) {
-			cb = c * ( 1.05 - 0.6 * rr * rr );
+		let maroon = vec3f( 0.2, 0.025, 0.032 );
+		var cb = maroon * ( 0.45 + 0.55 * smoothstep( 0.42, 0.62, rr ) );
+		if ( shelfRow ) {
+			cb = maroon * select( 0.75, 1.25, f.y > 0.3 );
+		} else if ( rr < 0.44 ) {
+			let n = vec3f( f / 0.44, sqrt( max( 0.0, 1.0 - rr * rr / ( 0.44 * 0.44 ) ) ) );
+			let lit = 0.42 + 0.58 * max( dot( n, normalize( vec3f( - 0.25, 0.75, 0.6 ) ) ), 0.0 );
+			cb = c * lit;
 			let se = min( abs( length( f - vec2f( 0.55, 0.0 ) ) - 0.4 ), abs( length( f + vec2f( 0.55, 0.0 ) ) - 0.4 ) );
-			if ( se < 0.035 ) { cb = vec3f( 0.45, 0.04, 0.03 ); }
+			if ( se < 0.03 ) { cb = vec3f( 0.45, 0.04, 0.03 ) * lit; }
+			glow = glow + 2.0 * ( 1.0 - smoothstep( 0.03, 0.08, length( f - vec2f( - 0.12, 0.17 ) ) ) ) * clamp( 1.0 - fw / 0.078 * 2.0, 0.0, 1.0 );
 		}
-		c = mix( cb, c * 0.72, clamp( fw / 0.078 * 1.5 - 0.3, 0.0, 1.0 ) );
+		c = mix( cb, mix( maroon, c, 0.55 ) * 0.85, clamp( fw / 0.078 * 1.5 - 0.3, 0.0, 1.0 ) );
 	} else if ( pat == ${ P_CMU }u ) {
 		let q2 = uv / vec2f( 0.4, 0.2 );
 		let row = floor( q2.y );
@@ -777,6 +807,20 @@ export function insideMaterial( name, { glowNight = 1, net = false, local = true
 	} else if ( pat == ${ P_PIN }u ) {
 		let pn = 1.0 - smoothstep( 0.0, 0.08, abs( fract( uv.x / 0.022 ) - 0.5 ) );
 		c = mix( c, vec3f( 0.42, 0.04, 0.05 ), pn * 0.8 * clamp( 1.0 - fw * 45.0, 0.0, 1.0 ) + 0.12 * clamp( fw * 45.0, 0.0, 1.0 ) );
+	} else if ( pat == ${ P_STEEL }u ) {
+		// (C2I-8) polished metal and glass mirroring the room, faked: the view mirrored in the surface, the
+		// white ceiling and its row of cans over it, the walls' warm middle, the dark floor under; a glint
+		let Vw = normalize( frame.cameraPos - in.P );
+		let Rw = reflect( - Vw, normalize( in.N ) );
+		let env = mix( mix( vec3f( 0.06, 0.05, 0.045 ), vec3f( 0.45, 0.38, 0.3 ), smoothstep( - 0.35, 0.05, Rw.y ) ), vec3f( 0.9, 0.88, 0.84 ), smoothstep( 0.25, 0.6, Rw.y ) );
+		let cg = fract( Rw.xz * 2.2 + 0.5 ) - 0.5;
+		let can = ( 1.0 - smoothstep( 0.04, 0.12, length( cg ) ) ) * smoothstep( 0.6, 0.85, Rw.y );
+		c = c * mix( env, vec3f( 1.0 ), 0.25 ) * 1.3;
+		glow = glow + can * 1.6 * ( 1.0 - rough );
+	} else if ( pat == ${ P_ICE }u ) {
+		// cubed ice: lumps catching the light
+		let hi = fract( sin( dot( floor( in.P.xz * 28.0 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+		c *= 0.7 + 0.5 * hi;
 	// ---- end FI3
 	}
 	s.albedo = c;
@@ -1133,12 +1177,16 @@ export function clearGlass( name, near, band, { reflect = null, colors = false, 
 	let fres = pow( 1.0 - clamp( abs( dot( N, V ) ), 0.0, 1.0 ), 4.0 );
 	let nk = smoothstep( 0.1, 0.7, frame.night );
 	s.albedo = vec3f( 0.018, 0.03, 0.028 );
-	s.alpha = select( 0.1, mix( ${ day.toFixed( 2 ) }, 0.12, nk ), in.front ) + 0.45 * fres;
+	// (which side we see it from, by the quad's own normal (outward, toward the field): in.N is turned to
+	// the viewer by front_facing, which can't be trusted to say which side that is here)
+	let Nq = select( - N, N, in.front );
+	let outside = dot( Nq, V ) > 0.0;
+	s.alpha = select( 0.1, mix( ${ day.toFixed( 2 ) }, 0.12, nk ), outside ) + 0.45 * fres;
 	s.roughness = 0.04 + 0.08 * smoothstep( 0.6, 0.9, mx_noise_float2( in.P.xz * 3.0 + in.P.y * 2.0 ) ) * step( in.uv.y, 1.4 );
 ${ reflect ? /* wgsl */`
-	if ( ! in.front && nk > 0.05 ) {
+	if ( ! outside && nk > 0.05 ) {
 		// the glass's outward normal (the front face's), the view ray mirrored back into the room
-		let No = normalize( vec3f( - N.x, 0.0, - N.z ) );
+		let No = normalize( vec3f( Nq.x, 0.0, Nq.z ) );
 		let Tg = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), No ) );
 		let Vd = - V;
 		let ro = vec3f( in.uv.x, in.uv.y, 0.0 );
@@ -1151,6 +1199,34 @@ ${ reflect ? /* wgsl */`
 ` : '' }` } );
 	m.underwaterLighting = 'none';
 	m.setDefine( 'DRY', 1 );
+	return m;
+
+}
+
+// ---- FI3 (C2I-14): batting-cage netting on the late pass (clearGlassMesh), uv in metres: a 5 cm mesh of
+// 3 mm twine. Each strand drawn with its own coverage of the pixel (filtered), so near it's twine and
+// far it fades to its average, an eighth: a soft dark veil, no moiré, nothing cut away
+export function netMaterial() {
+
+	const m = standard( { name: 'under-nets', roughness: 0.9, transparent: true, depthWrite: false, side: 'double',
+		surface: /* wgsl */`
+	let cell = 0.05;
+	let g = abs( fract( in.uv / cell ) - 0.5 );
+	let fwn = max( max( fwidth( in.uv.x ), fwidth( in.uv.y ) ) / cell, 0.0005 );
+	let hw = 0.03;
+	// each axis's strand: its share of the pixel, from the distance to it (in cells) and the pixel's size
+	let ax = clamp( ( hw - ( 0.5 - g.x ) ) / fwn + 0.5, 0.0, 1.0 ) * min( 1.0, 2.0 * hw / fwn );
+	let ay = clamp( ( hw - ( 0.5 - g.y ) ) / fwn + 0.5, 0.0, 1.0 ) * min( 1.0, 2.0 * hw / fwn );
+	let line = 1.0 - ( 1.0 - ax ) * ( 1.0 - ay );
+	let avg = 1.0 - ( 1.0 - 2.0 * hw ) * ( 1.0 - 2.0 * hw );
+	let far = clamp( fwn * 1.5 - 0.3, 0.0, 1.0 );
+	s.alpha = mix( line, avg, far ) * 0.9;
+	s.albedo = vec3f( 0.03, 0.034, 0.03 );
+	s.roughness = 0.9;
+` } );
+	m.underwaterLighting = 'none';
+	m.setDefine( 'DRY', 1 );
+	m.setDefine( 'NO_LOCAL_LIGHTS', 1 );
 	return m;
 
 }

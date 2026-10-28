@@ -5,7 +5,7 @@ import { DUGOUT_DEPTH, DUGOUT_WIDTH } from '../Field.js';
 import { Cast, PROP, TOP, COLOR, HAT, seat } from './Cast.js';
 import { GESTURE, dress, sizeOf } from './Concourse3BKit.js';
 import { Tempo } from './Tempo.js';
-import { Inside, insideMaterial, frame, Reach, cellUV, rnd, clearGlass, clearGlassMesh, Screens, yawOf } from './inside/Kit.js';
+import { Inside, insideMaterial, frame, Reach, cellUV, rnd, clearGlass, clearGlassMesh, Screens, yawOf, netMaterial } from './inside/Kit.js';
 
 // FI2 (gauntlet CI-14): what's under the field level's seats round home plate, where there was a hollow
 // with the risers' undersides for a ceiling. Behind home, under sections 119-128, the Diamond Club's
@@ -104,9 +104,18 @@ export default class Under {
 		{
 
 			const b = new Inside();
+			// ---- FI3 (C2I-14): the netting in a mesh of its own on the late (transparent) pass, a veil: its
+			// twine drawn where it's wider than a pixel, its coverage (an eighth) as a dark grey tint where it
+			// isn't (puckfiend 2005: everything in the cages seen through it). It was cut out of the cages'
+			// opaque material, a pixel-wide black lattice that crawled with moiré, and its discard turned off
+			// the hidden-surface removal for the whole room (SP1); the room's material has none now
+			this.nets = new Inside();
 			this._cages( b, this.segs[ 0 ] );
-			// (---- SP1: their own material, the only one with the netting's cut-outs: Kit.js insideMaterial)
-			add( b, 'under-cages', mid( this.segs[ 0 ] ), 16, insideMaterial( 'under-cages', { net: true, local: false } ) );
+			add( b, 'under-cages', mid( this.segs[ 0 ] ), 16 );
+			const nm = clearGlassMesh( this.nets, netMaterial(), 'under-nets' );
+			this.group.add( nm );
+			this.reach.add( nm, mid( this.segs[ 0 ] ), 16 );
+			// ---- end FI3
 
 		}
 
@@ -366,8 +375,7 @@ export default class Under {
 			const zc = ( z0 + z1 ) / 2, x0 = 1.2, x1 = len - 1.6, top = CL - 0.25;
 			const net = ( a, bb, c, d, n ) => {
 
-				b.use( 'net' ).quad( a, bb, c, d, n );
-				b.use( 'net' ).quad( a, d, c, bb, n.map( ( v ) => - v ) );
+				this.nets.quad( a, bb, c, d, n ); // ---- FI3 (C2I-14): into the netting's own see-through mesh
 
 			};
 			for ( const z of [ z0, z1 ] ) net( P( x0, 0, z ), P( x1, 0, z ), P( x1, top, z ), P( x0, top, z ), nIn );
@@ -387,7 +395,7 @@ export default class Under {
 			b.use( 'black' ).box( P, xm + 1.6, 1.0, zc - 0.6, 0.05, 2.0, 0.05 );
 			b.use( 'black' ).box( P, xm + 1.6, 2.0, zc, 0.05, 0.05, 1.25 );
 			b.use( 'black' ).box( P, xm + 1.6, 1.0, zc - 0.15, 0.05, 0.05, 0.9 );
-			b.use( 'net' ).quad( P( xm + 1.6, 0, zc - 0.6 ), P( xm + 1.6, 0, zc + 0.6 ), P( xm + 1.6, 2.0, zc + 0.6 ), P( xm + 1.6, 2.0, zc - 0.6 ), [ sg.u[ 0 ], 0, sg.u[ 1 ] ] );
+			this.nets.quad( P( xm + 1.6, 0, zc - 0.6 ), P( xm + 1.6, 0, zc + 0.6 ), P( xm + 1.6, 2.0, zc + 0.6 ), P( xm + 1.6, 2.0, zc - 0.6 ), [ sg.u[ 0 ], 0, sg.u[ 1 ] ] );
 			// a ball cart: a wire basket of balls on legs and wheels
 			for ( const [ x, z ] of [ [ xm + 2.4, zc + 1.2 ], [ xh - 1.6, zc - 1.3 ] ] ) {
 
@@ -516,30 +524,59 @@ export default class Under {
 		// the steel door at the dugout's end of it (on the dugout's back wall), the door at the far end
 		b.use( 'maroon' ).box( P, 0, - Dd + 1.05, t0 + 0.03, 1.0, 2.1, 0.05 );
 		b.use( 'steel' ).box( P, 0.35, - Dd + 1.0, t0 + 0.07, 0.12, 0.03, 0.04 );
-		// the bat rack: cubbies on the wall, a bat in each; the helmets on their shelf
+		// ---- FI3 (C2I-11): the bat rack: a dark frame on the wall, its rails and slots, the bats standing in it
+		// knob up, their barrels down in the tray (ash, maple, black); the batting helmets on the shelf over it,
+		// glossy domes with one ear flap and a short bill to the front, as they're left, a few turned bill-in.
+		// (The rack was a row of honey slabs, a wooden comb; the helmets bowler hats: a brim all round.)
 		const r = rnd( side === 'first' ? 11 : 13 );
 		const sd = side === 'first' ? 1 : - 1, xw = sd * ( w / 2 - 0.2 );
+		const rk0 = t0 + 0.75, rk1 = t0 + 0.75 + 14 * 0.12, fr = floor( ( rk0 + rk1 ) / 2 );
+		for ( const [ y, h ] of [ [ 0.06, 0.12 ], [ 0.62, 0.05 ], [ 0.95, 0.04 ] ] ) b.use( 'black' ).box( P, xw, fr + y, ( rk0 + rk1 ) / 2, 0.34, h, rk1 - rk0 );
+		for ( let k = 0; k <= 14; k ++ ) b.use( 'black' ).box( P, xw, fr + 0.5, rk0 + k * 0.12, 0.3, 1.0, 0.012 );
 		for ( let k = 0; k < 14; k ++ ) {
 
-			const t = t0 + 0.8 + k * 0.12, f = floor( t );
-			b.use( 'honey' ).box( P, xw, f + 0.6, t, 0.36, 1.2, 0.02 );
-			b.use( r() < 0.75 ? 'honey' : 'black' ).cyl( P, xw + sd * 0.02, t + 0.06, f + 0.08, f + 0.92, 0.022, 0.033, 6, true );
+			if ( r() < 0.12 ) continue; // (a bat out: in the dugout)
+			const t = rk0 + 0.06 + k * 0.12, c = r();
+			const pal = c < 0.5 ? 'honey' : c < 0.78 ? 'black' : 'oak';
+			b.use( pal ).cyl( P, xw + sd * 0.02, t, fr + 0.12, fr + 0.62, 0.033, 0.03, 7, false );
+			b.cyl( P, xw + sd * 0.02, t, fr + 0.62, fr + 0.95, 0.03, 0.013, 7, false );
+			b.cyl( P, xw + sd * 0.02, t, fr + 0.95, fr + 0.97, 0.022, 0.022, 7, true );
+			b.use( 'black' ).box( P, xw + sd * 0.02, fr + 0.88, t, 0.03, 0.05, 0.03 ); // (the grip's tape)
 
 		}
 
-		b.use( 'honey' ).box( P, xw, floor( t0 + 1.6 ) + 1.3, t0 + 1.62, 0.36, 0.03, 1.7 );
-		// (a helmet: a shell, its brim, the ear flap)
+		const shelf = floor( t0 + 1.6 ) + 1.3;
+		b.use( 'black' ).box( P, xw, shelf, t0 + 1.62, 0.36, 0.03, 1.7 );
 		for ( let k = 0; k < 6; k ++ ) {
 
-			const t = t0 + 0.95 + k * 0.27, f = floor( t0 + 1.6 ) + 1.315;
-			b.use( side === 'first' ? 'redPaint' : 'navyVinyl' ).cyl( P, xw, t, f, f + 0.1, 0.11, 0.09, 10, false );
-			b.cyl( P, xw, t, f + 0.1, f + 0.15, 0.09, 0.04, 10, true );
-			b.box( P, xw - sd * 0.1, f + 0.01, t, 0.08, 0.012, 0.16 );
+			const t = t0 + 0.95 + k * 0.27, fwd = P.dir( - sd, 0, 0 ), bk = r() < 0.25;
+			// (the helmet's own frame: its bill to + z, out into the tunnel or back to the wall)
+			const f2 = bk ? [ - fwd[ 0 ], - fwd[ 2 ] ] : [ fwd[ 0 ], fwd[ 2 ] ];
+			const H = frame( P( xw, shelf + 0.015, t ), [ f2[ 1 ], - f2[ 0 ] ], f2 );
+			this._helmet( b, H, side === 'first' ? 'helmetRed' : 'helmetNavy', r() < 0.5 );
 
 		}
+		// ---- end FI3
 		// where it meets the room behind: a doorway in the room's front wall
 		this[ side + 'Tunnel' ] = { P, t1, w };
 		return [ ...P( 0, 0, ( t0 + t1 ) / 2 ) ].map( ( v, i ) => i === 1 ? 0.5 : v );
+
+	}
+
+	// ---- FI3 (C2I-11): a batting helmet sitting on its rim (H: its frame, the bill to + z): the dome in
+	// bands, rounder than a head and dropping lower at the back, the ear flap on one side (left or right
+	// handed), the short bill, the vent holes on the crown
+	_helmet( b, H, pal, left ) {
+
+		const bands = [ [ 0, 0.035, 0.122, 0.124 ], [ 0.035, 0.075, 0.124, 0.115 ], [ 0.075, 0.105, 0.115, 0.093 ], [ 0.105, 0.125, 0.093, 0.062 ], [ 0.125, 0.137, 0.062, 0.02 ] ];
+		b.use( pal );
+		for ( const [ y0, y1, r0, r1 ] of bands ) b.cyl( H, 0, - 0.01, y0, y1, r0, r1, 12, y1 > 0.13 );
+		// the back, down over the neck; the ear flap; the bill
+		b.box( H, 0, - 0.012, - 0.095, 0.16, 0.05, 0.05, [ 'top' ] );
+		b.box( H, left ? - 0.11 : 0.11, - 0.035, 0.02, 0.03, 0.08, 0.12 );
+		b.box( H, 0, 0.012, 0.135, 0.17, 0.012, 0.07 );
+		b.use( 'black' ).box( H, 0, 0.02, 0.115, 0.17, 0.02, 0.012 );
+		for ( const x of [ - 0.035, 0.035 ] ) b.use( 'black' ).box( H, x, 0.133, 0.0, 0.012, 0.01, 0.035 );
 
 	}
 
