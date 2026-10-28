@@ -1,7 +1,7 @@
 import { Group } from '../../engine/index.js';
 import { tarpState } from '../game/TarpPlan.js';
 import { ANNOUNCE } from '../game/Suspension.js';
-import { CEL, LAP_SPEED, lapAt, trophyHold, rubberHold, flagHold, RUBBER } from '../game/Celebration.js';
+import { CEL, LAP_SPEED, lapAt, trophyHold, rubberHold, flagHold, RUBBER, mvpHold } from '../game/Celebration.js';
 import { Roll } from './rituals/Roll.js';
 import { Seats } from './rituals/Seats.js';
 import { Press } from './rituals/Press.js';
@@ -12,6 +12,8 @@ import { Stage } from './rituals/Stage.js';
 import { Party } from './rituals/Party.js';
 import { Flag } from './rituals/Flag.js';
 import { Song } from './rituals/Song.js';
+import { Leis } from './rituals/Leis.js'; // ---- FR1
+import { Streamers } from './rituals/Streamers.js'; // ---- FR1
 
 // The night's rituals and the celebration, on the replay's timeline. The people on the field (the
 // grounds crew, the umpires, the players, the coaches) are the players' rig, posed by the Director from
@@ -54,6 +56,10 @@ export default class Rituals {
 		this.party = new Party( { group: this.group } );
 		this.flag = new Flag( this.group );
 		this.song = new Song( { group: this.group, bowl } );
+		// ---- FR1: the purple orchid leis on the rig's men, the streamers on the grass
+		this.leis = new Leis( this.group, app );
+		this.streamers = new Streamers( this.group );
+		// ---- end FR1
 		this._lastT = null;
 		// the lap's lead bike: the one parked nearest the lap's route, and how far along the route it is
 		const i = MOTORS.length - 1, park = trackPoint( MOTORS[ i ].deg, 2.6 );
@@ -85,11 +91,14 @@ export default class Rituals {
 		this.song.update( N, stretch );
 		// the presentation's party (and whether one of them has the trophy), then the stage and the trophy
 		const held = this.party.update( cel );
-		this.stage.update( cel, cel != null ? ( trophyHold( director, cel ) || held ) : null );
+		// (---- FR1: and the MVP trophy: Selig's, then Hamels's)
+		this.stage.update( cel, cel != null ? ( trophyHold( director, cel ) || held ) : null, cel != null ? ( mvpHold( director, cel ) || this.party.mvpHeld ) : null );
 		this.flag.update( cel != null ? flagHold( director, cel ) : null, cel != null ? rubberHold( director, cel ) : null, RUBBER, t );
 		// the cameras: after their men, and some after Harry once he sings
 		this.press.update( cel, director.actors, jumped ? 0 : dt, this.party.kalasAt );
 		this.fireworks.update( cel );
+		this.leis.update( cel, director ); // ---- FR1
+		this.streamers.update( cel ); // ---- FR1
 		// (the sound's made once the app has it: it's built after the places)
 		if ( ! this.fwSound && this.app?.sound ) this.fwSound = new FireworksSound( { sound: this.app.sound, field: this.field, plan: this.fireworks.plan } );
 		this.fwSound?.update( cel, director.playing && ! jumped, this.app?.camera?.position );

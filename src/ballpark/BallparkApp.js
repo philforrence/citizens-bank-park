@@ -781,22 +781,25 @@ export class BallparkApp {
 
 			const stage = STAGE.point( 0, 0 );
 			const on = [ stage[ 0 ], 2.2, stage[ 1 ] ];
-			// (the men on the stage from the center field camera: as the rituals have it, they face out to
-			// right-center, so from high first and high home it's their backs)
-			const man = ( id, half ) => fit( 'center', actor( id, 1.25 ), half );
+			// ---- FR1: the men on the stage face out of its front to the plate and the stands now (they
+			// faced right-center): their faces from the high home camera, 16 degrees off their line (FOX's
+			// interview frames and Getty 83570999 from in front); the stage from high third between
+			const face = 'high';
+			const man = ( id, half ) => fit( face, actor( id, 1.25 ), half );
 			// Howard up the steps with the others, then the trophy over his head, tight
 			if ( lt >= C.up + 5 ) {
 
 				const tr = trophyHold( this.director, lt );
-				return ( tr && fit( 'center', [ tr.x, tr.y - 0.45, tr.z ], 1.25 ) ) || man( 429667, 1.2 ) || fit( 'center', on, 3.2 );
+				return ( tr && fit( face, [ tr.x, tr.y - 0.45, tr.z ], 1.25 ) ) || man( 429667, 1.2 ) || fit( face, on, 3.2 );
 
 			}
 
-			if ( lt >= C.up - 1 ) return fit( 'center', on, 3.2 );
-			if ( lt >= C.mvp[ 0 ] && lt < C.mvp[ 1 ] ) return man( 430935, 1.5 ) || fit( 'center', on, 3.2 );
-			if ( lt >= C.manuel[ 0 ] && lt < C.manuel[ 1 ] ) return man( 'r:manuel', 1.0 ) || fit( 'center', on, 3.2 );
+			if ( lt >= C.up - 1 ) return fit( face, on, 3.2 );
+			if ( lt >= C.mvp[ 0 ] && lt < C.mvp[ 1 ] ) return man( 430935, 1.5 ) || fit( face, on, 3.2 );
+			if ( lt >= C.manuel[ 0 ] && lt < C.manuel[ 1 ] ) return man( 'r:manuel', 1.0 ) || fit( face, on, 3.2 );
 			if ( lt >= C.moyer[ 0 ] + 6 && lt < C.moyer[ 1 ] ) return fit( 'high1', actor( 'r:moyer', 0.7 ), 1.3 ) || fit( 'high1', on, 3.2 );
-			return Math.floor( lt / 8 ) % 2 ? fit( 'center', on, 3.2 ) : fit( 'high', on, 4.2 );
+			return Math.floor( lt / 8 ) % 2 ? fit( 'high3', on, 3.6 ) : fit( face, on, 4.2 );
+			// ---- end FR1
 
 		}
 

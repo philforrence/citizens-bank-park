@@ -38,7 +38,30 @@ export const STAGE = {
 	// a point in the stage's own frame (x along its front, z out of its front) in the field frame
 	point: ( lx, lz ) => [ 17 + lx * Math.cos( STAGE_YAW ) + lz * Math.sin( STAGE_YAW ), - 31 - lx * Math.sin( STAGE_YAW ) + lz * Math.cos( STAGE_YAW ) ],
 	W: 6.4, D: 3.2, H: 0.95,
+	// ---- FR1: the way the men on it face: out of its front, to the plate and the stands (+lz; a man's yaw
+	// faces -z turned by it, so the stage's own yaw would have them looking out to right-center with their
+	// backs to everyone: Getty 83570999 and 83486403, ronniebruce 2988347232, FOX's interview frames, all
+	// faces and the trophy held up to the stands)
+	face: STAGE_YAW + Math.PI,
+	// the stairs at the stage's left-hand end as you face it, by the trophy's pedestal (ronniebruce
+	// 2988347232 from above and Getty 83570999 from in front: the steps and their handrails off the left end,
+	// the far end railed and the red Camaro beside it): the foot of them out in front, the top step
+	stairs: { foot: [ - 3.7, 2.2 ], step: [ - 3.7, 0.3 ] },
+	// ---- end FR1
 };
+// ---- FR1: the MVP presented on the clay in front of the red Camaro, not on the stage (Getty 83486314:
+// Selig with the silver MVP trophy, Hamels, FOX's Chris Myers with the microphone and Chevrolet's man in
+// black, the car behind them; FOX US 1yP3u4ik2gs, the Chevy MVP presentation): the four in a row facing
+// the plate, left to right as you look at them; and the trophy on the car's hood till Selig takes it up
+const _mvpC = STAGE.point( 8.8, 5.3 ), _mvpYaw = yawTo( _mvpC, [ - 2, 4 ] );
+const _mvpAt = ( k ) => [ _mvpC[ 0 ] + Math.cos( _mvpYaw ) * k, _mvpC[ 1 ] - Math.sin( _mvpYaw ) * k ];
+export const MVP = {
+	yaw: _mvpYaw, selig: _mvpAt( 1.0 ), hamels: _mvpAt( 0.25 ), cmyers: _mvpAt( - 0.55 ), chevy: _mvpAt( - 1.4 ),
+	// when Selig hands it over (his words first), and where it waits: on the hood, nose out
+	hand: CEL.mvp[ 0 ] + 5,
+	hood: [ STAGE.car[ 0 ] - Math.sin( STAGE.carYaw ) * 1.55, 0.97, STAGE.car[ 1 ] - Math.cos( STAGE.carYaw ) * 1.55 ],
+};
+// ---- end FR1
 // the lap (ronniebruce 2987488477, 2988346732: the players in their grey tees behind the big red flag, a
 // motor officer out front, round the warning track from the right field corner toward left)
 export const LAP = [ [ 30, - 26 ], [ 50, - 46 ], [ 64, - 64 ], [ 58, - 84 ], [ 44, - 104 ], [ 24, - 116 ], [ 0, - 120 ], [ - 24, - 115 ], [ - 44, - 102 ] ];
@@ -367,6 +390,7 @@ function presentation( L, def ) {
 	const S = STAGE, front = S.D / 2;
 	let n = 0;
 	const onStage = [ 429667, 430935, 400058, 276519, 400284, 434563 ];
+	const ON_STAGE_AT = [ [ 0.3, 0.95 ], [ - 1.0, 0.85 ], [ 1.5, 0.9 ], [ - 0.4, 0.3 ], [ 0.9, 0.3 ], [ - 1.8, 0.25 ] ];
 	for ( const [ id, info ] of L ) {
 
 		const st = info.steps;
@@ -384,10 +408,14 @@ function presentation( L, def ) {
 		// Manuel up for his interview
 		if ( id === 'r:manuel' ) {
 
-			const top = S.point( 0.4, front - 0.9 );
+			// (FR1: right of Zelasko as you face the stage, Montgomery and the trophy on its pedestal to their
+			// right: Getty 83570999; back to the rail when the players come up)
+			const top = S.point( 0.9, front - 0.85 ), back = S.point( 1.8, - 0.75 );
 			const t = climb( st, p, top, CEL.manuel[ 0 ] - 5, S );
-			st.push( { t0: t, t1: CEL.manuel[ 1 ], kind: 'hold', p: top, yaw: S.yaw, y: S.H, pose: ( tau ) => manuelPose( tau ) } );
-			st.push( { t0: CEL.manuel[ 1 ], t1: CEL.manuel[ 1 ] + 400, kind: 'hold', p: top, yaw: S.yaw, y: S.H, pose: ( tau ) => R.applaud( tau, 3 ) } );
+			st.push( { t0: t, t1: CEL.manuel[ 1 ], kind: 'hold', p: top, yaw: S.face, y: S.H, pose: ( tau ) => manuelPose( tau ) } );
+			st.push( { t0: CEL.manuel[ 1 ], t1: CEL.up - 2, kind: 'hold', p: top, yaw: S.face, y: S.H, pose: ( tau ) => R.applaud( tau, 3 ) } );
+			st.push( { t0: CEL.up - 2, t1: CEL.up - 0.5, kind: 'go', a: top, b: back, gait: 'walk', y: S.H } );
+			st.push( { t0: CEL.up - 0.5, t1: CEL.up + 400, kind: 'hold', p: back, yaw: S.face, y: S.H, pose: ( tau ) => R.applaud( tau, 3 ) } );
 
 		}
 
@@ -404,14 +432,26 @@ function presentation( L, def ) {
 
 		}
 
+		// ---- FR1: Hamels out to the car for the MVP (Getty 83486314), the trophy his from Selig's hands on
+		if ( id === 430935 ) {
+
+			const t0h = CEL.mvp[ 0 ] - 7, t1h = t0h + dist( p, MVP.hamels ) / 1.5;
+			st.push( { t0: t0h, t1: t1h, kind: 'go', a: p, b: MVP.hamels, gait: 'walk' } );
+			st.push( { t0: t1h, t1: CEL.mvp[ 1 ] + 1, kind: 'hold', p: MVP.hamels, yaw: MVP.yaw, y: 0, pose: ( tau ) => mvpPose( tau + t1h ) } );
+			p = MVP.hamels;
+
+		}
+		// ---- end FR1
+
 		// the players up after the MVP; Howard with it over his head
 		const k = onStage.indexOf( id );
 		if ( k >= 0 ) {
 
-			const top = S.point( - 2.2 + k * 0.85, front - 1.1 - ( k % 2 ) * 0.5 );
+			// (FR1: Howard in the middle at the front with it, the others round him: ronniebruce 2987489493)
+			const top = S.point( ...ON_STAGE_AT[ k ] );
 			const tt = climb( st, p, top, CEL.up + k * 1.2, S );
 			const howard = id === 429667;
-			st.push( { t0: tt, t1: CEL.lap[ 0 ] - 3, kind: 'hold', p: top, yaw: S.yaw, y: S.H, pose: ( tau ) => ( howard && tau > 2 ? R.holdHigh( tau, 1 ) : R.fist( tau, hash( k ) ) ) } );
+			st.push( { t0: tt, t1: CEL.lap[ 0 ] - 3, kind: 'hold', p: top, yaw: S.face, y: S.H, pose: ( tau ) => ( howard && tau > 2 ? R.holdHigh( tau, 1 ) : R.fist( tau, hash( k ) ) ) } );
 			p = top;
 
 		}
@@ -426,7 +466,7 @@ function presentation( L, def ) {
 			if ( k >= 0 ) {
 
 				t2 = Math.max( t2, descend( st, p, CEL.lap[ 0 ] - 3, S ) );
-				p = S.point( S.W / 2 + 0.5, S.D / 2 + 0.6 );
+				p = S.point( ...S.stairs.foot );
 
 			}
 
@@ -445,7 +485,7 @@ function presentation( L, def ) {
 // up the stage's stairs from p to the top spot: returns when he's there
 function climb( st, p, top, t0, S ) {
 
-	const foot = S.point( S.W / 2 + 0.5, S.D / 2 + 0.6 ), step = S.point( S.W / 2 + 0.5, S.D / 2 - 1.3 );
+	const foot = S.point( ...S.stairs.foot ), step = S.point( ...S.stairs.step );
 	const t1 = t0 + dist( p, foot ) / 1.6, t2 = t1 + 1.6, t3 = t2 + dist( step, top ) / 1.4;
 	st.push( { t0, t1, kind: 'go', a: p, b: foot, gait: 'walk' } );
 	st.push( { t0: t1, t1: t2, kind: 'stairs', a: foot, b: step, y0: 0, y1: S.H } );
@@ -457,7 +497,7 @@ function climb( st, p, top, t0, S ) {
 // down the stairs from the stage's top spot p to their foot: returns when he's there
 function descend( st, p, t0, S ) {
 
-	const foot = S.point( S.W / 2 + 0.5, S.D / 2 + 0.6 ), step = S.point( S.W / 2 + 0.5, S.D / 2 - 1.3 );
+	const foot = S.point( ...S.stairs.foot ), step = S.point( ...S.stairs.step );
 	const t1 = t0 + dist( p, step ) / 1.4, t2 = t1 + 1.6;
 	st.push( { t0, t1, kind: 'go', a: p, b: step, gait: 'walk', y: S.H } );
 	st.push( { t0: t1, t1: t2, kind: 'stairs', a: step, b: foot, y0: S.H, y1: 0 } );
@@ -477,6 +517,35 @@ function crowdPose( t, n ) {
 	return p;
 
 }
+
+// ---- FR1: the MVP by the car: listening to Selig, a glance along to him; then the trophy at his chest
+// in both hands, and up in his right for the cameras a moment (the FOX frames)
+function mvpPose( t ) {
+
+	if ( t < MVP.hand ) {
+
+		const p = M.stand( t );
+		p.head = [ 0.05, - 0.5 ];
+		p.glove = false;
+		return p;
+
+	}
+
+	const u = t - MVP.hand;
+	if ( u > 6 && u < 9 ) {
+
+		const p = R.fist( u, 0.3 );
+		p.handR = [ 0.2, 1.95, - 0.12 ];
+		return p;
+
+	}
+
+	const p = R.holdChest( t );
+	p.head = [ 0.0, u > 9 ? - 0.35 : 0.1 ];
+	return p;
+
+}
+// ---- end FR1
 
 // Manuel with FOX's microphone (Getty 83570999: talking, then the finger up at the crowd)
 function manuelPose( tau ) {
@@ -624,6 +693,22 @@ export function trophyHold( d, lt ) {
 	return { x: a.x + lx * c + lz * sn, y: ( a.y || 0 ) + ly - 0.05, z: a.z - lx * sn + lz * c, yaw: a.yaw };
 
 }
+
+// ---- FR1: the MVP trophy once Hamels has it (from MVP.hand): in both hands at his chest, else in his
+// right hand, wherever he goes (the stage, the lap); null before (Selig has it, or it's on the hood)
+export function mvpHold( d, lt ) {
+
+	if ( lt < MVP.hand ) return null;
+	const id = 430935, a = d.actors?.get( id ), pz = a?.pose;
+	if ( ! pz || ! pz.handR ) return null;
+	const h = d._height ? d._height( id ) : 1;
+	const both = Math.abs( pz.handL[ 1 ] - pz.handR[ 1 ] ) < 0.12 && Math.hypot( pz.handL[ 0 ] - pz.handR[ 0 ], pz.handL[ 2 ] - pz.handR[ 2 ] ) < 0.32;
+	const hx = both ? ( pz.handL[ 0 ] + pz.handR[ 0 ] ) / 2 : pz.handR[ 0 ], hy = both ? ( pz.handL[ 1 ] + pz.handR[ 1 ] ) / 2 : pz.handR[ 1 ], hz = both ? ( pz.handL[ 2 ] + pz.handR[ 2 ] ) / 2 : pz.handR[ 2 ];
+	const c = Math.cos( a.yaw ), sn = Math.sin( a.yaw ), lx = hx * h, lz = hz * h;
+	return { x: a.x + lx * c + lz * sn, y: ( a.y || 0 ) + hy * h - 0.16, z: a.z - lx * sn + lz * c, yaw: a.yaw };
+
+}
+// ---- end FR1
 
 // the rubber: in the ground until Moyer has it out (null), then in his hands ({ x, y, z, yaw })
 export function rubberHold( d, lt ) {
