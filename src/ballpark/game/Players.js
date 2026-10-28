@@ -1430,7 +1430,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 					let dt = normalize( ( Mt * vec4f( sx * 0.052, -0.383, -0.007, 0.0 ) ).xyz );
 					let ds = normalize( ( Ms * vec4f( sx * 0.051, -0.481, 0.019, 0.0 ) ).xyz );
 					let bend = clamp( 1.0 - dot( dt, ds ), 0.0, 1.0 );
-					fh += sin( leg * 200.0 + 5.0 * mx_noise_float3( L * 30.0 + seed ) ) * 0.0032 * ( 0.15 + bend * 2.0 ) * ( 1.0 - smoothstep( 0.03, 0.15, abs( leg - 0.39 ) ) );
+					// (a few irregular folds, mostly behind the knee: a regular ripple read as corrugated cloth)
+					let behind = mix( 0.35, 1.0, smoothstep( -0.2, 0.4, Nb.z ) );
+					fh += sin( leg * 150.0 + 9.0 * mx_noise_float3( L * vec3f( 25.0, 12.0, 25.0 ) + seed ) ) * 0.0022 * min( 0.1 + bend * 1.6, 1.0 ) * behind * ( 1.0 - smoothstep( 0.02, 0.09, abs( leg - 0.39 ) ) );
 				}
 			} else {
 				// (one field over the trunk and the sleeves: two fields made a seam of dashes where they met)
