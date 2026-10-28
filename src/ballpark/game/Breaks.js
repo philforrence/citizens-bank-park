@@ -21,11 +21,12 @@ const hash = ( n ) => {
 };
 
 // when a fielder gets to his position (as Director._runOut: out of the dugout with the delay, at a jog)
-function arrival( id, pos, team, delay ) {
+// (---- FX2: or later, for a man who was left on base and jogged in first: wait)
+function arrival( id, pos, team, delay, wait ) {
 
 	const from = DUGOUT[ team ];
 	const to = pos === 'P' ? MOUND : POSITIONS[ pos ];
-	return delay + hash( id ) * 3 + dist( from, to ) / JOG;
+	return Math.max( delay + hash( id ) * 3, wait?.get( id ) ?? 0 ) + dist( from, to ) / JOG;
 
 }
 
@@ -36,12 +37,12 @@ function arc( a, b, h, k ) {
 
 }
 
-export function showWarmups( d, seg, lt, delay = 4 ) {
+export function showWarmups( d, seg, lt, delay = 4, wait = null ) {
 
 	const s = seg.snap, def = s.defense, team = s.fielding, P = d.game.players;
 	if ( ! def ) return;
 	const at = ( pos ) => pos === 'P' ? MOUND : POSITIONS[ pos ];
-	const arr = ( pos ) => def[ pos ] ? arrival( def[ pos ], pos, team, delay ) : 1e9;
+	const arr = ( pos ) => def[ pos ] ? arrival( def[ pos ], pos, team, delay, wait ) : 1e9;
 	const hand = ( id, pose ) => P[ id ]?.throws === 'L' ? M.mirror( pose ) : pose;
 	const end = seg.dur - 2.2; // the throw down to second
 	const act = ( pos, pose, face, extra = {} ) => {
@@ -92,6 +93,16 @@ export function showWarmups( d, seg, lt, delay = 4 ) {
 	}
 
 	// ---- the throw down: the catcher up and to second, the shortstop covering; round the horn
+	// ---- FX2: the shortstop trots over to cover the bag for it (he was at his place, and on the bag the
+	// next frame: 10 m)
+	if ( lt >= end - 1.6 && lt < end && def.SS && def.C && arr( 'SS' ) < end - 1.6 && arr( 'C' ) < end ) {
+
+		const from = at( 'SS' ), bag = [ - 0.8, - 38.2 ], k = Math.min( 1, ( lt - end + 1.6 ) / 1.3 );
+		const p = [ from[ 0 ] + ( bag[ 0 ] - from[ 0 ] ) * k, from[ 1 ] + ( bag[ 1 ] - from[ 1 ] ) * k ];
+		d.act( def.SS, p[ 0 ], p[ 1 ], k < 1 ? yawTo( from, bag ) : yawTo( bag, [ 0, 0 ] ), k < 1 ? M.run( lt * 1.4, 0.3 ) : M.ready( lt ) );
+
+	}
+	// ---- end FX2
 	if ( lt >= end && def.C && arr( 'C' ) < end ) {
 
 		const u = lt - end;

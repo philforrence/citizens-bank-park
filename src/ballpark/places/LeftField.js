@@ -73,7 +73,7 @@ export default class LeftField {
 			const [ cx, cz ] = this.F.field( - 2, - 8 );
 			this.cast.bounds = new Sphere( new Vector3( cx, 12, cz ), 32 );
 			this.people = new HarrysPeople( this, this.cast, this.harrys, this.F );
-			if ( this.plaza ) this.people.plaza( this.plaza.carts );
+			if ( this.plaza ) this.people.plaza( this.plaza.carts, this.plaza.tables ); // (FX2: and the square's tables)
 			// the troupe's bounds take in the plaza and the corner
 			this.cast.bounds = new Sphere( new Vector3( ...( ( [ x, z ] ) => [ x, 12, z ] )( this.F.field( 0, 2 ) ) ), 44 );
 

@@ -189,9 +189,23 @@ export class HarrysPeople {
 
 	// the corner's portables and the plaza (Plaza.js): a vendor at each cart and a short line at its front,
 	// and people crossing the corner: in from the Left Field Gate, round to the Alley, down to the concourse
-	plaza( carts ) {
+	plaza( carts, tables = [] ) {
 
 		const r = this.r;
+		// ---- FX2 (C4R-7): two or three standing at each of the square's umbrella tables (Plaza.js), facing in
+		for ( const tb of tables ) {
+
+			const n = 2 + Math.floor( r() * 2 ), a0 = r() * Math.PI * 2;
+			for ( let k = 0; k < n; k ++ ) {
+
+				const a = a0 + k * Math.PI * 2 / n + ( r() - 0.5 ) * 0.5, d = 0.72 + r() * 0.12;
+				const x = tb.x + Math.cos( a ) * d, z = tb.z + Math.sin( a ) * d;
+				this.add( 'stand', { x, z, y: tb.y }, Math.atan2( - ( tb.x - x ), - ( tb.z - z ) ), { covered: false } );
+
+			}
+
+		}
+		// ---- end FX2
 		const staff = () => Object.assign( dress( r, { age: 0 } ), { top: TOP.staff, color: COLOR.red, sleeves: COLOR.black, chest: CHEST.staff, back: 0, hat: r() < 0.6 ? HAT.capBlack : HAT.visor, poncho: 0, scarf: 0, pants: 3, shoes: 1 } );
 		for ( const c of carts ) {
 

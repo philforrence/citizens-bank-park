@@ -484,10 +484,16 @@ function presentation( L, def ) {
 		const spot = S.point( - 3.6 + col * 0.95 + ( row % 2 ) * 0.45 + ( hash( n ) - 0.5 ) * 0.3, front + 1.4 + row * 0.95 + hash( n * 3 ) * 0.3 );
 		const face = S.point( ( hash( n * 5 ) - 0.5 ) * 2, 0 );
 		const t0 = CEL.gather + hash( n * 1.9 ) * 6, t1 = t0 + dist( from, spot ) / 1.5;
-		st.push( { t0, t1, kind: 'go', a: from, b: spot, gait: 'walk' } );
+		// ---- FX2: Moyer doesn't join the crowd in front of the stage: he goes for the rubber from where he
+		// is. (His walk to a place in the crowd ended at 142 s, after his walk to the mound had begun at 128
+		// on the plan, and the steps run in order: at 142 he was by the stage and on the rubber the next
+		// frame, 19 m)
+		const moyer = id === MOYER.id;
+		if ( ! moyer ) st.push( { t0, t1, kind: 'go', a: from, b: spot, gait: 'walk' } );
 		const nn = n;
-		st.push( { t0: t1, t1: t1 + 400, kind: 'hold', p: spot, yaw: yawTo( spot, face ), y: 0, pose: ( tau ) => crowdPose( tau + t1, nn ) } );
-		let p = spot;
+		if ( ! moyer ) st.push( { t0: t1, t1: t1 + 400, kind: 'hold', p: spot, yaw: yawTo( spot, face ), y: 0, pose: ( tau ) => crowdPose( tau + t1, nn ) } );
+		let p = moyer ? from : spot;
+		// ---- end FX2
 		// Manuel up for his interview
 		if ( id === 'r:manuel' ) {
 
@@ -659,6 +665,15 @@ export function lapAt( d ) {
 }
 export const LAP_SPEED = 1.35;
 
+// ---- FX2: the side of the lap's line at d, its direction taken across 3 m of it (so it turns smoothly)
+function lapSide( d ) {
+
+	const a = lapAt( Math.max( 0, d - 1.5 ) ).p, b = lapAt( d + 1.5 ).p, yaw = yawTo( a, b );
+	return [ Math.cos( yaw ), - Math.sin( yaw ) ];
+
+}
+// ---- end FX2
+
 // ---------------------------------------------------------------- showing it
 
 // a step at time t -> { x, z, yaw, pose, y, tilt } (or null: not on the field)
@@ -695,7 +710,7 @@ function evalSteps( steps, t, info ) {
 	if ( s.kind === 'lap' ) {
 
 		// out to the start of the lap, then round behind the flag at a walk, waving to the stands
-		const start = LAP[ 0 ];
+		const side0 = lapSide( 0 ), start = [ LAP[ 0 ][ 0 ] + side0[ 0 ] * s.off[ 0 ], LAP[ 0 ][ 1 ] + side0[ 1 ] * s.off[ 0 ] ]; // (FX2: to his place)
 		const lead = dist( s.from, start );
 		const tau2 = tau * LAP_SPEED - lead;
 		if ( tau2 < 0 ) {
@@ -705,8 +720,11 @@ function evalSteps( steps, t, info ) {
 
 		}
 
-		const w = lapAt( Math.max( 0, tau2 - s.off[ 1 ] ) );
-		const side = [ Math.cos( w.yaw ), - Math.sin( w.yaw ) ];
+		// ---- FX2: his place beside the flag's line turns with the line over 3 m of the walk, not at the
+		// corner (1.3 m sideways in a frame at the lap's turns); and he walked out to it, not to the line
+		const dl = Math.max( 0, tau2 - s.off[ 1 ] ), w = lapAt( dl );
+		const side = lapSide( dl );
+		// ---- end FX2
 		const x = w.p[ 0 ] + side[ 0 ] * s.off[ 0 ], z = w.p[ 1 ] + side[ 1 ] * s.off[ 0 ];
 		const pose = w.end ? M.stand( t ) : R.walk( tau2 / ( 2.3 * sl ) + ph );
 		// Myers with the flag held up on its pole, Howard with the trophy, the rest now and then waving
