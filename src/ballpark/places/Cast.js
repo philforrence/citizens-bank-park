@@ -686,7 +686,7 @@ export function figureGeometry( lod = 0 ) {
 	// in front than the waist, which comes in under it, the jacket easing out again over the hips. The
 	// sleeve's head is the deltoid that rounds the shoulder off below the trunk's slope)
 	loft( B.spine, PART.torso, fine ? [
-		[ 0.805, 0.166, 0.112, 0.012, 2.35 ], [ 0.83, 0.174, 0.12, 0.012, 2.35 ], [ 0.9, 0.174, 0.116, 0.011, 2.3 ], [ 0.98, 0.166, 0.11, 0.009, 2.2 ],
+		[ 0.805, 0.166, 0.112, 0.012, 2.45 ], [ 0.83, 0.174, 0.12, 0.012, 2.5 ], [ 0.9, 0.174, 0.117, 0.011, 2.45 ], [ 0.98, 0.166, 0.11, 0.009, 2.25 ],
 		[ 1.06, 0.155, 0.108, 0.008, 2.1 ], [ 1.14, 0.162, 0.113, 0.006, 2.15 ], [ 1.22, 0.172, 0.119, 0.006, 2.25 ], [ 1.3, 0.179, 0.118, 0.011, 2.2 ],
 		[ 1.35, 0.184, 0.111, 0.018, 2.05 ], [ 1.385, 0.181, 0.1, 0.023 ], [ 1.41, 0.171, 0.09, 0.026 ], [ 1.43, 0.152, 0.081, 0.028 ],
 		[ 1.452, 0.12, 0.07, 0.029 ], [ 1.472, 0.086, 0.062, 0.03 ],
@@ -904,7 +904,7 @@ export function figureGeometry( lod = 0 ) {
 			// (FW6: the thigh's top inside the jacket's hips, and the jacket fuller over them at its front
 			// corners, as a jacket hangs over the hips: the thighs' fronts came through the jacket's elliptical
 			// skirt, a patch of trousers either side of a flap of jacket)
-			limb( B.thigh[ L ], PART.pants, add( hp, [ 0, 0.02, 0 ] ), kn, [ [ 0, 0.07, 0.078 ], [ 0.3, 0.076, 0.078 ], [ 0.6, 0.073, 0.075 ], [ 1, 0.062, 0.064 ] ] );
+			limb( B.thigh[ L ], PART.pants, add( hp, [ 0, 0.02, 0 ] ), kn, [ [ 0, 0.068, 0.074 ], [ 0.3, 0.075, 0.075 ], [ 0.6, 0.073, 0.074 ], [ 1, 0.062, 0.064 ] ] );
 			ellipsoid( B.shin[ L ], PART.pants, kn, [ 0.06, 0.058, 0.061 ], F( 10, 8 ), F( 5, 4 ) );
 			limb( B.shin[ L ], PART.pants, kn, add( an, [ 0, 0.02, 0 ] ), [ [ 0, 0.06, 0.062 ], [ 0.32, 0.057, 0.06 ], [ 0.82, 0.049, 0.051 ], [ 1, 0.054, 0.056 ] ] );
 			// the shoe: a last swept from the heel to the toe (the heel's round, the instep up to the ankle,
@@ -950,8 +950,8 @@ export function figureGeometry( lod = 0 ) {
 	fine ? F( 18, 12 ) : tiny ? 5 : 8, false, false, fine );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
 	// (FW6: square at its corners over the jacket's skirt, which is now)
-	if ( ! tiny ) loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0, 2.4 ], [ 0.8, 0.184, 0.129, 0.006, 2.45 ], [ 1.02, 0.176, 0.124, 0.006, 2.3 ] ], fine ? F( 12, 9 ) : 7, false, false );
-	loft( B.spine, PART.vest, [ [ 0.98, 0.172, 0.122, 0.01 ], [ 1.17, 0.177, 0.125, 0.006, 2.15 ], [ 1.3, 0.193, 0.129, 0.012, 2.2 ], [ 1.4, 0.192, 0.106, 0.024, 2.05 ] ], fine ? F( 12, 9 ) : tiny ? 5 : 7, false, false );
+	if ( ! tiny ) loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0, 2.5 ], [ 0.8, 0.184, 0.13, 0.006, 2.6 ], [ 1.02, 0.176, 0.124, 0.006, 2.4 ] ], fine ? F( 12, 9 ) : 7, false, false );
+	loft( B.spine, PART.vest, [ [ 0.98, 0.174, 0.122, 0.01, 2.3 ], [ 1.17, 0.177, 0.125, 0.006, 2.2 ], [ 1.3, 0.193, 0.129, 0.012, 2.2 ], [ 1.4, 0.192, 0.106, 0.024, 2.05 ] ], fine ? F( 12, 9 ) : tiny ? 5 : 7, false, false );
 
 	// ---- P0: worn gear (GEAR), on the trunk
 	if ( ! tiny ) {
@@ -1688,7 +1688,10 @@ function castMaterial( pool ) {
 			let a = atan2( q.x, q.z - 0.015 );
 			let yk = 1.04 - ( 1.485 - q.y ) / 0.785 * 0.56;
 			let fl = smoothstep( 0.92, 0.5, yk );
-			q = vec3f( sin( a ) * ( 0.172 + 0.024 * fl ), yk, cos( a ) * ( 0.118 + 0.016 * fl ) + 0.015 );
+			// (square at its front corners, as the jacket's skirt under it is)
+			let sa = sign( sin( a ) ) * pow( abs( sin( a ) ), 0.8 );
+			let ca = sign( cos( a ) ) * pow( abs( cos( a ) ), 0.8 );
+			q = vec3f( sa * ( 0.184 + 0.02 * fl ), yk, ca * ( 0.134 + 0.014 * fl ) + 0.015 );
 			n = normalize( vec3f( sin( a ) / 0.18, 0.04, cos( a ) / 0.125 ) );
 		}
 		// ---- end FW6
