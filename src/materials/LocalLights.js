@@ -90,17 +90,22 @@ fn hookLocalLights( s: Surface, P: vec3f, N: vec3f, V: vec3f, acc: ptr<function,
 			if ( under > 0.0 ) { Tw = exp( -( frame.waterAbsorption + frame.waterScattering ) * ( r * under ) ); }
 			// the + 0.15 m^2 softens the near field of a lamp's finite size (no hot spot on the post)
 			let lightColor = c.xyz * Tw * ( win * win * spot / ( d2 + 0.15 ) );
-			let irradiance = max( dot( N, L ), 0.0 ) * lightColor;
+			let nl = dot( N, L );
+			// (SP1: a surface turned away from the light gets nothing from it, so the BRDF isn't evaluated:
+			// half the lights at half the pixels, the far side of every fan and seat from each bank)
+			if ( nl > 0.0 ) {
+				let irradiance = nl * lightColor;
 #if LOCAL_LIGHTS_CHEAP
-			// foliage (heavy overdraw): Lambert only
-			( *acc ).directDiffuse += irradiance * diffuseColor * INV_PI;
+				// foliage (heavy overdraw): Lambert only
+				( *acc ).directDiffuse += irradiance * diffuseColor * INV_PI;
 #else
-			( *acc ).directDiffuse += irradiance * diffuseColor * INV_PI;
-			( *acc ).directSpecular += irradiance * BRDF_GGX( L, V, N, specF0, specF90, rough );
+				( *acc ).directDiffuse += irradiance * diffuseColor * INV_PI;
+				( *acc ).directSpecular += irradiance * BRDF_GGX( L, V, N, specF0, specF90, rough );
 #if SHEEN
-			( *acc ).directSpecular += irradiance * BRDF_Sheen( L, V, N, s.sheenColor, max( s.sheenRoughness, 0.07 ) );
+				( *acc ).directSpecular += irradiance * BRDF_Sheen( L, V, N, s.sheenColor, max( s.sheenRoughness, 0.07 ) );
 #endif
 #endif
+			}
 		}
 	}
 #endif

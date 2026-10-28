@@ -409,24 +409,36 @@ function drawAtlas( ctx ) {
 
 // ---------------------------------------------------------------- the material
 
-export function insideMaterial( name, { glowNight = 1 } = {} ) {
+// ---- SP1 (speed): the palette is a uniform array (it was two arrays of 58 built in every pixel's
+// registers and indexed there: ~9 ms with a room filling the screen), and the netting's cut-outs (a
+// discard) are compiled only into the material that has netting (`net: true`, Under.js's cages): a
+// discard anywhere in a shader stops this GPU (tile-based, hidden surface removal) from skipping the
+// hidden pixels of everything drawn with it, so every wall, table and chair behind another was shaded
+export function insideMaterial( name, { glowNight = 1, net = false } = {} ) {
 
-	const cols = PAL_KEYS.map( ( k ) => f3( PAL[ k ][ 0 ] ) ).join( ', ' );
-	const prm = PAL_KEYS.map( ( k ) => `vec4f( ${ PAL[ k ][ 1 ].toFixed( 3 ) }, ${ PAL[ k ][ 2 ].toFixed( 3 ) }, ${ PAL[ k ][ 3 ].toFixed( 3 ) }, ${ PAL[ k ][ 4 ].toFixed( 1 ) } )` ).join( ', ' );
+	const pal = new Float32Array( PAL_KEYS.length * 8 );
+	PAL_KEYS.forEach( ( k, i ) => {
+
+		const [ c, rough, metal, glow, pat ] = PAL[ k ];
+		pal.set( [ c[ 0 ], c[ 1 ], c[ 2 ], 0 ], i * 4 );
+		pal.set( [ rough, metal, glow, pat ], ( PAL_KEYS.length + i ) * 4 );
+
+	} );
+	const N = PAL_KEYS.length;
 	const mat = standard( {
 		name, roughness: 0.7, side: 'front', vertexColors: true, modules: [ commonModule ],
 		textures: { inAtlas: insideAtlas() },
+		uniforms: { inPal: [ `vec4f[${ N * 2 }]`, pal ] },
+		defines: { INSIDE_NET: net ? 1 : 0 },
 		surface: /* wgsl */`
-	var COLS = array<vec3f, ${ PAL_KEYS.length }>( ${ cols } );
-	var PRM = array<vec4f, ${ PAL_KEYS.length }>( ${ prm } );
-	let k = u32( clamp( in.color.a + 0.5, 0.0, ${ PAL_KEYS.length - 1 }.0 ) );
-	let q = PRM[ k ];
+	let k = u32( clamp( in.color.a + 0.5, 0.0, ${ N - 1 }.0 ) );
+	let q = mat.inPal[ ${ N }u + k ];
 	let pat = u32( q.w + 0.5 );
 	let uv = in.uv;
 	let fw = max( fwidth( uv.x ), fwidth( uv.y ) );
 	// (sampled before any branch: a texture's mip needs uniform control flow)
 	let atl = textureSample( inAtlas, smpAnisoClamp, uv ).rgb;
-	var c = COLS[ k ];
+	var c = mat.inPal[ k ].rgb;
 	var rough = q.x;
 	var glow = q.z;
 	let h2 = fract( sin( dot( floor( uv * 37.0 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
@@ -500,6 +512,7 @@ export function insideMaterial( name, { glowNight = 1 } = {} ) {
 		c *= ( 1.0 - 0.25 * mort * clamp( 1.0 - fw * 15.0, 0.0, 1.0 ) ) * ( 0.94 + 0.06 * h2 );
 	} else if ( pat == ${ P_TURF }u ) {
 		c *= 0.8 + 0.3 * mx_noise_float2( in.P.xz * 2.0 ) + 0.1 * h2;
+#if INSIDE_NET
 	} else if ( pat == ${ P_NET }u ) {
 		// the cages' netting: the strands, the rest cut away (sparser with distance, as the eye sees it)
 		let g = abs( fract( uv / 0.05 ) - 0.5 );
@@ -507,6 +520,7 @@ export function insideMaterial( name, { glowNight = 1 } = {} ) {
 		let keep = max( g.x, g.y ) > 0.5 - 0.032 - fwn * 0.5;
 		let hs = fract( sin( dot( in.pixel, vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
 		if ( ! keep || ( fwn > 0.4 && hs > 0.35 / fwn ) ) { discard; }
+#endif
 	} else if ( pat == ${ P_SCREEN }u ) {
 		// an old tube showing the game: the field's green, the crowd's band, the score bug; it flickers
 		let t = frame.time;
