@@ -51,6 +51,20 @@ const FOOD = {
 	schmitter: { name: 'THE SCHMITTER', tag: 'FROM McNALLY\'S TAVERN  ·  CHESTNUT HILL', bg: '#151414', fg: '#dc2a30', accent: '#efe4cc', serif: true, kitchen: 0,
 		menu: [ [ 'THE SCHMITTER', [ [ 'THE SCHMITTER', '8.00' ], [ 'BEEF · SALAMI · CHEESE', '' ], [ 'FRIED ONIONS · TOMATO', '' ], [ 'SPECIAL SAUCE · KAISER', '' ] ] ],
 			[ 'ALSO', [ [ 'CHEESESTEAK', '8.00' ], [ 'FRENCH FRIES', '3.75' ], [ 'CHEESE FRIES', '4.50' ], [ 'HOT DOG', '3.50' ] ] ], DRINKS ] },
+	// ---- FW3 (C2W-7): the Terrace Level's own (the October 2008 guide): Fairmount Fries (behind 208 and 319:
+	// "Boardwalk Fries"), the High & Inside Pub behind home plate ("a full service bar and Bull's BBQ"), the
+	// Phanatic Kid's Corner (318: "portions just the right size")
+	fries: { name: 'FAIRMOUNT FRIES', tag: 'BOARDWALK FRIES  ·  CHEESE FRIES', bg: '#f2c14e', fg: '#7b1d12', accent: '#7b1d12', serif: true, kitchen: 0,
+		menu: [ [ 'BOARDWALK FRIES', [ [ 'REGULAR', '3.75' ], [ 'BUCKET', '6.50' ], [ 'CHEESE FRIES', '4.50' ], [ 'MALT VINEGAR', '' ] ] ],
+			[ 'ALSO', [ [ 'CHICKEN TENDERS', '7.25' ], [ 'SOFT PRETZEL', '3.25' ], [ 'NACHOS', '4.25' ], [ 'HOT DOG', '3.50' ] ] ], DRINKS ] },
+	pub: { name: 'HIGH & INSIDE PUB', tag: 'FULL SERVICE BAR  ·  BULL\'S BBQ', bg: '#14271c', fg: '#e9dcb5', accent: '#b3121b', serif: true, kitchen: 4,
+		menu: [ [ 'ON DRAFT', [ [ 'YUENGLING LAGER', '5.00' ], [ 'YARDS PHILLY PALE', '6.00' ], [ 'BUD LIGHT', '5.00' ], [ 'GUINNESS', '6.50' ] ] ],
+			[ 'BULL\'S BBQ', [ [ 'PULLED PORK', '8.50' ], [ 'BEEF BRISKET', '9.00' ], [ 'TURKEY LEG', '8.50' ], [ 'BAKED BEANS', '3.00' ] ] ],
+			[ 'BAR', [ [ 'MIXED DRINK', '7.50' ], [ 'WINE', '7.00' ], [ 'HOT TODDY', '7.50' ], [ 'IRISH COFFEE', '7.50' ] ] ] ] },
+	kids: { name: 'PHANATIC KID\'S CORNER', tag: 'KIDS\' MEALS  ·  JUST THE RIGHT SIZE', bg: '#1c8a3c', fg: '#ffffff', accent: '#c8102e', kitchen: 1,
+		menu: [ [ 'KIDS\' MEALS', [ [ 'HOT DOG & JUICE', '4.50' ], [ 'PB&J & JUICE', '4.00' ], [ 'CHICKEN FINGERS', '5.00' ], [ 'WITH A PRIZE', '' ] ] ],
+			[ 'SNACKS', [ [ 'COTTON CANDY', '3.50' ], [ 'POPCORN', '4.00' ], [ 'APPLE SLICES', '2.50' ], [ 'CRACKER JACK', '3.00' ] ] ], DRINKS ] },
+	// ---- end FW3
 };
 const BRANDS = Object.keys( FOOD );
 // ---- FI1 (CI-7): the stands hung out over the walkway on arms (docindigo76, NLCS 2009: Hatfield's oval and
@@ -63,8 +77,9 @@ const NAME_PX = 184, SIGN_H = NAME_PX * 7.62 / 1024;
 const PLAQUES = [ 'men', 'women', 'family' ];
 // the stands' walls: red ground-face block (0.4 x 0.2 m, its aggregate showing) over a dark base course,
 // bonded along whichever wall it is (world position: y is the height above the concourse); the roofs a
-// dark membrane, what faces down painted
-const BLOCK_WGSL = /* wgsl */`
+// dark membrane, what faces down painted. (---- FW3: lift, the height of the floor they stand on over the
+// main concourse's, world y: the Terrace's stands and the upper concourses' have their own materials)
+const blockWGSL = ( lift = 0 ) => /* wgsl */`
 	if ( in.N.y > 0.5 ) {
 		s.albedo = vec3f( 0.06, 0.06, 0.065 );
 		s.roughness = 0.85;
@@ -74,7 +89,7 @@ const BLOCK_WGSL = /* wgsl */`
 	} else {
 		let nh = normalize( in.N.xz + vec2f( 1e-4, 0.0 ) );
 		let u = in.P.x * ( - nh.y ) + in.P.z * nh.x;
-		let v = in.P.y;
+		let v = in.P.y - ${ lift.toFixed( 3 ) };
 		let row = floor( v / 0.2 );
 		let bu = u / 0.4 + 0.5 * ( row % 2.0 );
 		let fr = clamp( fwidth( v ) / 0.2 * 1.5 - 0.25, 0.0, 1.0 );
@@ -89,14 +104,33 @@ const BLOCK_WGSL = /* wgsl */`
 		s.roughness = 0.75;
 	}
 `;
+// ---- FW3: the stands' block and bays for a floor `lift` m over the main concourse's (world y)
+const _standMats = new Map();
+function standMaterials( lift ) {
+
+	const key = lift.toFixed( 2 );
+	if ( ! _standMats.has( key ) ) {
+
+		const tag = lift ? '-' + key : '';
+		const precast = standard( { name: 'concession-body' + tag, color: new Color( 0.25, 0.07, 0.045 ), roughness: 0.8, side: 'double', modules: [ commonModule ], surface: blockWGSL( lift ) } );
+		const bayMat = standard( { name: 'concession-bays' + tag, color: new Color( 0.7, 0.69, 0.66 ), roughness: 0.4, side: 'double', surface: tileWGSL( lift ) } );
+		for ( const m of [ precast, bayMat ] ) m.underwaterLighting = 'none';
+		_standMats.set( key, { precast, bayMat } );
+
+	}
+
+	return _standMats.get( key );
+
+}
+// ---- end FW3
 // the stands' bays behind the counters: white glazed tile, 15 cm, stainless below the counter
-const TILE_WGSL = /* wgsl */`
+const tileWGSL = ( lift = 0 ) => /* wgsl */`
 	let tg = abs( fract( vec2f( in.P.x + in.P.z, in.P.y ) / 0.15 ) - 0.5 );
 	let fw = fwidth( in.P.y ) / 0.15;
 	let grout = step( 0.45, max( tg.x, tg.y ) ) * ( 1.0 - clamp( fw * 3.0, 0.0, 1.0 ) );
 	s.albedo = vec3f( 0.72, 0.71, 0.68 ) * ( 1.0 - 0.25 * grout );
 	s.roughness = 0.25;
-	if ( in.P.y < 1.0 ) { s.albedo = vec3f( 0.5, 0.51, 0.52 ); s.metalness = 0.8; s.roughness = 0.35; }
+	if ( in.P.y - ${ lift.toFixed( 3 ) } < 1.0 ) { s.albedo = vec3f( 0.5, 0.51, 0.52 ); s.metalness = 0.8; s.roughness = 0.35; }
 	s.emissive = s.albedo * 0.12 * smoothstep( 0.1, 0.7, frame.night );
 `;
 // ---- end FI1
@@ -193,9 +227,9 @@ class Props extends Quads {
 
 // A frame on the ground plane of the field frame: origin o ([ x, z ]), a the right, n the forward (both unit
 // [ x, z ]); P( x, y, z ) is right x, up y (above the concourse), forward z
-function frame( o, a, n ) {
+function frame( o, a, n, y0 = STREET ) {
 
-	return ( x, y, z ) => [ o[ 0 ] + a[ 0 ] * x + n[ 0 ] * z, STREET + y, o[ 1 ] + a[ 1 ] * x + n[ 1 ] * z ];
+	return ( x, y, z ) => [ o[ 0 ] + a[ 0 ] * x + n[ 0 ] * z, y0 + y, o[ 1 ] + a[ 1 ] * x + n[ 1 ] * z ];
 
 }
 
@@ -235,6 +269,28 @@ export function sectionAt( x, z ) {
 	return Math.min( 148, Math.round( 140 + ( - a - 134 ) / 30 * 8 ) );
 
 }
+
+// ---- FW3 (C2W-7): the Terrace's sections: 319-322 behind home plate (the 2009 seating chart), 312 at The
+// Break in right, 333 at the left field pole; from the angle round home plate (field frame)
+export function terraceSection( x, z ) {
+
+	const a = Math.atan2( x, z ) * 180 / Math.PI;
+	return 320.5 - a * 0.112;
+
+}
+
+// what the October 2008 guides put behind which Terrace section, in the order they claim the nearest free
+// bay along its back (as PLAN): Brewerytown (323, 329), Fairmount Fries (319), the High & Inside Pub
+// (behind home plate), Old City Creamery (322, 330), the Phanatic Kid's Corner (318), the South Philadelphia
+// Market (318, 321, 323, 329, 330), Guest Services (318), the NewsStand (323), the family restrooms (319,
+// 322, 329); the men's and women's where the guide doesn't say. The bays left over stay open to the back
+// rail (the view out: the lots, the Linc and the arenas from first base's side)
+const TERRACE_PLAN = [
+	[ 'pub', 320.5 ], [ [ 'women', 'family' ], 319 ], [ [ 'family', 'men' ], 322 ], [ [ 'women', 'family' ], 329 ], [ 'brewerytown', 323 ], [ 'brewerytown', 329 ],
+	[ 'fries', 319 ], [ 'creamery', 322 ], [ 'creamery', 330 ], [ 'kids', 318 ], [ [ 'guest', 'news' ], 318 ], [ 'market', 321 ], [ 'market', 329 ],
+	[ [ 'men', 'women' ], 314 ], [ [ 'women', 'men' ], 332 ],
+];
+// ---- end FW3
 
 // a colour a little darker (k < 1) or lighter
 function shade( hex, k ) {
@@ -328,8 +384,9 @@ function dieCut( ctx, key, cx, cy, w, h, blade = false ) {
 	ctx.save();
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
-	const sw = blade ? w : { hatfield: 560, brewerytown: 520, creamery: 600, pizza: 640, market: w, cobblestone: 760, schmitter: 640 }[ key ];
-	const sh = blade ? h : { hatfield: h, brewerytown: h, creamery: h * 0.78, pizza: h * 0.76, market: h * 0.62, cobblestone: h * 0.86, schmitter: h * 0.7 }[ key ];
+	// (---- FW3: the Terrace's three, painted boards)
+	const sw = blade ? w : { hatfield: 560, brewerytown: 520, creamery: 600, pizza: 640, market: w, cobblestone: 760, schmitter: 640, fries: 700, pub: 780, kids: w }[ key ];
+	const sh = blade ? h : { hatfield: h, brewerytown: h, creamery: h * 0.78, pizza: h * 0.76, market: h * 0.62, cobblestone: h * 0.86, schmitter: h * 0.7, fries: h * 0.72, pub: h * 0.8, kids: h * 0.62 }[ key ];
 	const x0 = cx - sw / 2, y0 = cy - sh / 2;
 	const round = ( x, y, ww, hh, r ) => {
 
@@ -1179,35 +1236,12 @@ export class Concourse {
 		this.standSpots = [];
 		this.doors = [];
 		this.units = units;
-		for ( const U of units ) {
-
-			const P = frame( U.mid, U.a, U.n );
-			const W = UNIT / 2;
-			// the box: sides, back and roof in the concourse's precast
-			fwd( body, P, U.n.map( ( v ) => - v ), W, - W, 0, H, - DEPTH );
-			for ( const s of [ - 1, 1 ] ) {
-
-				const X = [ U.a[ 0 ] * s, 0, U.a[ 1 ] * s ];
-				body.add( P( s * W, 0, 0 ), P( s * W, 0, - DEPTH ), P( s * W, H, - DEPTH ), P( s * W, H, 0 ), X );
-
-			}
-
-			body.add( P( - W, H, 0 ), P( W, H, 0 ), P( W, H, - DEPTH ), P( - W, H, - DEPTH ), [ 0, 1, 0 ] );
-			// a dark coping along the top of the front
-			lbox( props.use( 'grey' ), P, U.a, U.n, 0, H + 0.04, 0.02, UNIT + 0.1, 0.08, 0.16 );
-			if ( typeof U.what === 'string' ) this._foodUnit( U, P, FOOD[ U.what ], L, { body, face, glow, kick, lights, props, bay } );
-			else this._pairUnit( U, P, L, { body, face, glow, lights, props } );
-			// can't walk through it
-			const [ cx, , cz ] = P( 0, 0, - DEPTH / 2 + 0.2 ), w = this.field.toWorld( cx, cz );
-			this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + H / 2, w.z ), new Vector3( UNIT / 2 + 0.3, H / 2, DEPTH / 2 + 0.3 ), this.field.group.rotation.y - Math.atan2( U.a[ 1 ], U.a[ 0 ] ), { tag: 'concession' } );
-
-		}
+		for ( const U of units ) this._unit( U, frame( U.mid, U.a, U.n ), STREET, L, { body, face, glow, kick, lights, props, bay } ); // ---- FW3: one unit, at a level
 
 		// ---- FI1 (CI-7): the stands are openings in walls of red ground-face block over a dark base course
 		// (pompomflipflop, June 2008: the block beside a restroom door; visitphilly, Apr 2008: the 9th St.
 		// Market's front), not grey precast boxes; their bays white tile and stainless
-		const precast = standard( { name: 'concession-body', color: new Color( 0.25, 0.07, 0.045 ), roughness: 0.8, side: 'double', modules: [ commonModule ], surface: BLOCK_WGSL } );
-		const bayMat = standard( { name: 'concession-bays', color: new Color( 0.7, 0.69, 0.66 ), roughness: 0.4, side: 'double', surface: TILE_WGSL } );
+		const precast = standMaterials( 0 ).precast, bayMat = standMaterials( 0 ).bayMat; // ---- FW3: by level
 		// the signs: a die-cut sign's cut-away (alpha under a half) isn't drawn, and what's painted rather than
 		// lit (alpha under 1: the plaques, the bronze) doesn't glow
 		const signMat = standard( { name: 'concession-signs', roughness: 0.4, textures: { bpStand: signs },
@@ -1231,6 +1265,7 @@ export class Concourse {
 
 		}
 
+		this.standMats = { precast, bayMat, signMat, kickMat, lightMat, propMat, kitchen }; // ---- FW3: the Terrace's stands share them
 		this.props = props;
 		this.count = units.length;
 		this.signLayout = L; // ---- FI1
@@ -1258,18 +1293,33 @@ export class Concourse {
 
 		} );
 		const brick = new Quads(), props = new Props(), face = new Quads();
-		const yTop = LEVELS.clubConcourse - 0.6 - STREET, W = 3.2, DEP = 4.2, OH = 2.25;
-		for ( const bank of banks ) {
+		this._cores( banks.map( ( b ) => b.stops[ 0 ] ), STREET, () => LEVELS.clubConcourse - 0.6 - STREET, { brick, props, face } );
+		for ( const [ q, m, name ] of [ [ brick, this.steel.brickMaterial, 'elevator-cores' ], [ props, this.propMaterial, 'elevator-doors' ], [ face, this.signMaterial, 'elevator-signs' ] ] ) {
 
-			const st = bank.stops[ 0 ];
+			const mesh = new Mesh( q.geometry(), m );
+			mesh.name = name;
+			mesh.receiveShadow = true;
+			this.group.add( mesh );
+
+		}
+
+	}
+
+	// ---- FW3: the cores at a level's stops (y0 its floor; yTop( P ) how high the core goes over it)
+	_cores( stops, y0, yTop, { brick, props, face } ) {
+
+		const W = 3.2, DEP = 4.2, OH = 2.25;
+		for ( const st of stops ) {
+
 			const n = st.face, a = [ n[ 1 ], - n[ 0 ] ]; // the viewer's right, facing the doors
-			const P = frame( [ st.x - n[ 0 ] * 1.8, st.z - n[ 1 ] * 1.8 ], a, n );
+			const P = frame( [ st.x - n[ 0 ] * 1.8, st.z - n[ 1 ] * 1.8 ], a, n, y0 );
+			const yT = yTop( P );
 			// the brick round the two doors, the core's sides and back
-			const piece = ( x0, x1, y0, y1 ) => fwd( brick, P, n, x0, x1, y0, y1, 0, [ x0, STREET + y1, x1, STREET + y0 ] );
-			piece( - W, - 1.98, 0, yTop ); piece( - 0.82, 0.82, 0, yTop ); piece( 1.98, W, 0, yTop );
-			piece( - 1.98, - 0.82, OH, yTop ); piece( 0.82, 1.98, OH, yTop );
-			for ( const s of [ - 1, 1 ] ) brick.add( P( s * W, 0, 0 ), P( s * W, 0, - DEP ), P( s * W, yTop, - DEP ), P( s * W, yTop, 0 ), [ a[ 0 ] * s, 0, a[ 1 ] * s ], 0, DEP );
-			fwd( brick, P, n.map( ( v ) => - v ), W, - W, 0, yTop, - DEP, [ W, STREET + yTop, - W, STREET ] );
+			const piece = ( x0, x1, ya, yb ) => fwd( brick, P, n, x0, x1, ya, yb, 0, [ x0, y0 + yb, x1, y0 + ya ] );
+			piece( - W, - 1.98, 0, yT ); piece( - 0.82, 0.82, 0, yT ); piece( 1.98, W, 0, yT );
+			piece( - 1.98, - 0.82, OH, yT ); piece( 0.82, 1.98, OH, yT );
+			for ( const s of [ - 1, 1 ] ) brick.add( P( s * W, 0, 0 ), P( s * W, 0, - DEP ), P( s * W, yT, - DEP ), P( s * W, yT, 0 ), [ a[ 0 ] * s, 0, a[ 1 ] * s ], 0, DEP );
+			fwd( brick, P, n.map( ( v ) => - v ), W, - W, 0, yT, - DEP, [ W, y0 + yT, - W, y0 ] );
 			for ( const cx of [ - 1.4, 1.4 ] ) {
 
 				// the frame, the two leaves (a dark line where they meet), the sill
@@ -1292,21 +1342,262 @@ export class Concourse {
 			const S = this.signLayout.half[ HALVES.indexOf( 'elevators' ) ];
 			fwd( face, P, n, - 1.7, 1.7, 2.8, 3.5, 0.03, [ S[ 0 ], S[ 1 ], S[ 2 ], S[ 3 ] ] );
 			const [ cx, , cz ] = P( 0, 0, - DEP / 2 ), w = this.field.toWorld( cx, cz );
-			this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + 2, w.z ), new Vector3( W + 0.1, 2, DEP / 2 + 0.1 ), this.field.group.rotation.y - Math.atan2( a[ 1 ], a[ 0 ] ), { tag: 'elevator-core' } );
-
-		}
-
-		for ( const [ q, m, name ] of [ [ brick, this.steel.brickMaterial, 'elevator-cores' ], [ props, this.propMaterial, 'elevator-doors' ], [ face, this.signMaterial, 'elevator-signs' ] ] ) {
-
-			const mesh = new Mesh( q.geometry(), m );
-			mesh.name = name;
-			mesh.receiveShadow = true;
-			this.group.add( mesh );
+			this.colliders.addBox( new Vector3( w.x, this.field.y0 + y0 + 2, w.z ), new Vector3( W + 0.1, 2, DEP / 2 + 0.1 ), this.field.group.rotation.y - Math.atan2( a[ 1 ], a[ 0 ] ), { tag: 'elevator-core' } );
 
 		}
 
 	}
 	// ---- end FI1
+
+	// ---- FW3: one unit at a level: its box (sides, back and roof in the block, a dark coping along the
+	// front), the stand or the pair of halves in its front, and a collider round it
+	_unit( U, P, y0, L, Q ) {
+
+		const W = UNIT / 2, { body, props } = Q;
+		fwd( body, P, U.n.map( ( v ) => - v ), W, - W, 0, H, - DEPTH );
+		for ( const s of [ - 1, 1 ] ) {
+
+			const X = [ U.a[ 0 ] * s, 0, U.a[ 1 ] * s ];
+			body.add( P( s * W, 0, 0 ), P( s * W, 0, - DEPTH ), P( s * W, H, - DEPTH ), P( s * W, H, 0 ), X );
+
+		}
+
+		body.add( P( - W, H, 0 ), P( W, H, 0 ), P( W, H, - DEPTH ), P( - W, H, - DEPTH ), [ 0, 1, 0 ] );
+		lbox( props.use( 'grey' ), P, U.a, U.n, 0, H + 0.04, 0.02, UNIT + 0.1, 0.08, 0.16 );
+		if ( typeof U.what === 'string' ) this._foodUnit( U, P, FOOD[ U.what ], L, Q );
+		else this._pairUnit( U, P, L, Q );
+		// can't walk through it
+		const [ cx, , cz ] = P( 0, 0, - DEPTH / 2 + 0.2 ), w = this.field.toWorld( cx, cz );
+		this.colliders.addBox( new Vector3( w.x, this.field.y0 + y0 + H / 2, w.z ), new Vector3( UNIT / 2 + 0.3, H / 2, DEPTH / 2 + 0.3 ), this.field.group.rotation.y - Math.atan2( U.a[ 1 ], U.a[ 0 ] ), { tag: 'concession' } );
+
+	}
+
+	// ---- FW3 (C2W-7): the Terrace concourse's built-in stands, restrooms and services along its back under
+	// the 400s, each where the October 2008 guide put it by section (TERRACE_PLAN), the bays between them left
+	// open to the rail at the back (the view out over the lots and the city); the elevators' cores at their
+	// Terrace stops. Into `group` (places/Terrace.js's: drawn only from up there), kept out of the static
+	// batching, in two halves (first base's side, third's) so the half out of view isn't drawn. Returns the
+	// units, the open bays, the stands' spots and the restroom doors (field frame, at `y`).
+	terrace( bowl, group ) {
+
+		const y = LEVELS.terraceConcourse, D = bowl.D, main = bowl.path.slice( 2 );
+		const front = offsetPolyline( main, D.t400Back - 0.4 - 0.3 - DEPTH, [ 0, - 40 ] );
+		const stops = ( bowl.elevators || [] ).map( ( b ) => b.stops[ 3 ] ).filter( Boolean );
+		const slots = [];
+		for ( let i = 0; i < front.length - 1; i ++ ) {
+
+			const [ ax, az ] = front[ i ], [ bx, bz ] = front[ i + 1 ];
+			const len = Math.hypot( bx - ax, bz - az );
+			const n = Math.floor( ( len - GAP ) / ( UNIT + GAP ) );
+			if ( n < 1 ) continue;
+			const pad = ( len - n * ( UNIT + GAP ) + GAP ) / 2;
+			const ux = ( bx - ax ) / len, uz = ( bz - az ) / len;
+			let nx = - uz, nz = ux;
+			if ( nx * ( - ax ) + nz * ( - 40 - az ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			const a = ( ux * nz - uz * nx ) > 0 ? [ ux, uz ] : [ - ux, - uz ];
+			for ( let j = 0; j < n; j ++ ) {
+
+				const s = pad + j * ( UNIT + GAP ) + UNIT / 2;
+				const mid = [ ax + ux * s, az + uz * s ];
+				slots.push( { mid, n: [ nx, nz ], a, sec: terraceSection( mid[ 0 ], mid[ 1 ] ), lift: stops.some( ( c ) => Math.hypot( c.x - mid[ 0 ], c.z - mid[ 1 ] ) < 8.5 ) } );
+
+			}
+
+		}
+
+		for ( const [ what, sec ] of TERRACE_PLAN ) {
+
+			let best = null;
+			for ( const U of slots ) if ( ! U.what && ! U.lift && Math.abs( U.sec - sec ) <= 2.5 && ( ! best || Math.abs( U.sec - sec ) < Math.abs( best.sec - sec ) ) ) best = U;
+			if ( best ) best.what = what;
+
+		}
+
+		const units = slots.filter( ( U ) => U.what );
+		const L = this.signLayout, M = this.standMats;
+		const keep = [ this.standSpots, this.doors ];
+		this.standSpots = [];
+		this.doors = [];
+		// the halves: by the side of home plate (field x)
+		const halves = [ 0, 1 ].map( () => ( { body: new Quads(), face: new Quads(), glow: new Quads(), kick: new Quads(), lights: new Quads(), props: new Props(), bay: new Quads(), brick: new Quads() } ) );
+		for ( const U of units ) this._unit( U, frame( U.mid, U.a, U.n, y ), y, L, halves[ U.mid[ 0 ] < 0 ? 1 : 0 ] );
+		const spots = this.standSpots, doors = this.doors;
+		[ this.standSpots, this.doors ] = keep;
+		// the elevators: each stop's core up to the 400s' underside over its front (their doors toward the
+		// field, Bowl._elevators); the bowl's bare door slabs there hidden
+		const t400 = bowl.upper.find( ( t ) => t.name === 'terrace-400' );
+		const rake = ( t400.rows - 1 ) * t400.rise / ( t400.rows * t400.depth );
+		bowl.group.traverse( ( o ) => {
+
+			if ( o.isMesh && o.material?.name === 'elevator-door' && o.parent && Math.abs( o.parent.position.y - y ) < 0.5 ) o.visible = false;
+
+		} );
+		for ( const st of stops ) {
+
+			// (its face 8.6 m back of the 400s' front: Bowl._elevators' Terrace stop, 8 m back, and its 0.6)
+			this._cores( [ st ], y, () => t400.y0 - t400.soffit + 8.6 * rake - y - 0.05, halves[ st.x < 0 ? 1 : 0 ] );
+
+		}
+
+		const meshes = [], TM = standMaterials( y - STREET );
+		halves.forEach( ( Q, h ) => {
+
+			for ( const [ q, m, name ] of [ [ Q.body, TM.precast, 'concession-stands' ], [ Q.bay, TM.bayMat, 'concession-bays' ], [ Q.face, M.signMat, 'concession-signs' ], [ Q.kick, M.kickMat, 'concession-kicks' ],
+				[ Q.lights, M.lightMat, 'concession-lights' ], [ Q.glow, M.kitchen, 'concession-rooms' ], [ Q.props, M.propMat, 'concourse-props' ], [ Q.brick, this.steel.brickMaterial, 'elevator-cores' ] ] ) {
+
+				if ( ! q.count ) continue;
+				const mesh = new Mesh( q.geometry(), m );
+				mesh.name = 'terrace-' + name + ( h ? '-3b' : '-1b' );
+				mesh.castShadow = m === TM.precast;
+				mesh.receiveShadow = true;
+				mesh.userData.dynamic = true;
+				group.add( mesh );
+				meshes.push( mesh );
+
+			}
+
+		} );
+		return { units, open: slots.filter( ( U ) => ! U.what && ! U.lift ), spots, doors, meshes, y };
+
+	}
+
+	// ---- FW3 (CI-18): the Pavilion's and the Arcade's walkways behind their top rows. Their back walls were
+	// a painted strip of stands for being seen across the field (bands of colour, stick figures), and up close
+	// a child's drawing. Now the main concourse's units built into them, stand by stand where the October 2008
+	// guide puts them (the Pavilion: Brewerytown 204 and 209, Fairmount Fries 208, Hatfield 209, the Creamery
+	// 205, the Market 206, family restrooms 205 and 208; the Arcade: the Market 233, a family restroom 234),
+	// the other bays the same block with a service door, all their fronts on the wall's line (the painted
+	// strip hidden). Fronts only (a stand's bay and kitchen go in behind the wall): nothing to see from below.
+	// Into `group`, batched with the rest (they show from across the field too). Returns the stands' spots.
+	galleries( bowl, group ) {
+
+		const plans = {
+			pavilion: [ [ 'brewerytown', 204 ], [ 'brewerytown', 209 ], [ 'fries', 208 ], [ 'hatfield', 209 ], [ 'creamery', 205 ], [ 'market', 206 ], [ [ 'family', 'women' ], 205 ], [ [ 'men', 'family' ], 208 ], [ [ 'women', 'men' ], 202 ], [ 'market', 210 ] ],
+			arcade: [ [ 'market', 233 ], [ [ 'family', 'men' ], 234 ], [ [ 'women', 'men' ], 236 ], [ 'brewerytown', 235 ] ],
+		};
+		const first = { pavilion: 201, arcade: 233 }, count = { pavilion: 11, arcade: 5 };
+		const L = this.signLayout, keep = [ this.standSpots, this.doors ];
+		const spots = [];
+		// the painted strips go
+		bowl.group.traverse( ( o ) => {
+
+			if ( o.isMesh && o.name === 'concourse-opening' ) o.visible = false;
+
+		} );
+		for ( const name of [ 'pavilion', 'arcade' ] ) {
+
+			const t = bowl.upper?.find( ( u ) => u.name === name );
+			if ( ! t ) continue;
+			const yTop = t.y0 + ( t.rows - 1 ) * t.rise, y = yTop + 0.25, hW = 4.35;
+			const G = offsetPolyline( t.front, t.rows * t.depth + 4 - 0.03, [ 0, - 40 ] );
+			let total = 0;
+			for ( let i = 0; i < G.length - 1; i ++ ) total += Math.hypot( G[ i + 1 ][ 0 ] - G[ i ][ 0 ], G[ i + 1 ][ 1 ] - G[ i ][ 1 ] );
+			const slots = [], walls = [];
+			let s0 = 0;
+			for ( let i = 0; i < G.length - 1; i ++ ) {
+
+				const [ ax, az ] = G[ i ], [ bx, bz ] = G[ i + 1 ];
+				const len = Math.hypot( bx - ax, bz - az );
+				if ( len < 0.05 ) continue;
+				const ux = ( bx - ax ) / len, uz = ( bz - az ) / len;
+				let nx = - uz, nz = ux;
+				if ( nx * ( - ax ) + nz * ( - 40 - az ) < 0 ) {
+
+					nx = - nx; nz = - nz;
+
+				}
+
+				const a = ( ux * nz - uz * nx ) > 0 ? [ ux, uz ] : [ - ux, - uz ];
+				const n = Math.max( 0, Math.floor( ( len - GAP ) / ( UNIT + GAP ) ) );
+				const pad = ( len - n * ( UNIT + GAP ) + GAP ) / 2;
+				// the wall's pieces between the units (and the whole segment if none fits)
+				let w0 = 0;
+				for ( let j = 0; j < n; j ++ ) {
+
+					const s = pad + j * ( UNIT + GAP ) + UNIT / 2;
+					const mid = [ ax + ux * s, az + uz * s ];
+					slots.push( { mid, n: [ nx, nz ], a, sec: Math.min( first[ name ] + count[ name ] - 1, first[ name ] + Math.floor( ( s0 + s ) / total * count[ name ] ) ) } );
+					walls.push( { ax, az, ux, uz, nx, nz, t0: w0, t1: s - UNIT / 2 } );
+					w0 = s + UNIT / 2;
+
+				}
+
+				walls.push( { ax, az, ux, uz, nx, nz, t0: w0, t1: len } );
+				s0 += len;
+
+			}
+
+			for ( const [ what, sec ] of plans[ name ] ) {
+
+				let best = null;
+				for ( const U of slots ) if ( ! U.what && ( ! best || Math.abs( U.sec - sec ) < Math.abs( best.sec - sec ) ) ) best = U;
+				if ( best ) best.what = what;
+
+			}
+
+			const TM = standMaterials( y - STREET ), M = this.standMats;
+			const Q = { body: new Quads(), face: new Quads(), glow: new Quads(), kick: new Quads(), lights: new Quads(), props: new Props(), bay: new Quads() };
+			this.standSpots = [];
+			this.doors = [];
+			for ( const U of slots ) {
+
+				const P = frame( U.mid, U.a, U.n, y );
+				if ( U.what ) {
+
+					if ( typeof U.what === 'string' ) this._foodUnit( U, P, FOOD[ U.what ], L, Q );
+					else this._pairUnit( U, P, L, Q );
+
+				} else {
+
+					// a plain bay: the block, a steel service door, a poster frame
+					fwd( Q.body, P, U.n, - UNIT / 2, - 0.6, 0, H, 0 );
+					fwd( Q.body, P, U.n, 0.6, UNIT / 2, 0, H, 0 );
+					fwd( Q.body, P, U.n, - 0.6, 0.6, 2.2, H, 0 );
+					lbox( Q.props.use( 'grey' ), P, U.a, U.n, 0, 1.1, - 0.02, 1.2, 2.2, 0.04 );
+					lbox( Q.props.use( 'steel' ), P, U.a, U.n, 0.42, 1.05, 0.01, 0.12, 0.03, 0.04 );
+					lbox( Q.props.use( 'black' ), P, U.a, U.n, - 2.2, 1.7, 0.02, 1.0, 1.4, 0.03 );
+
+				}
+
+				// the wall over it up to the deck's precast, a dark coping
+				fwd( Q.body, P, U.n, - UNIT / 2, UNIT / 2, H, hW, 0 );
+				lbox( Q.props.use( 'grey' ), P, U.a, U.n, 0, H + 0.04, 0.02, UNIT + 0.1, 0.08, 0.16 );
+
+			}
+
+			// the block between them, floor to the precast
+			for ( const w of walls ) {
+
+				if ( w.t1 - w.t0 < 0.02 ) continue;
+				const A0 = [ w.ax + w.ux * w.t0, y, w.az + w.uz * w.t0 ], A1 = [ w.ax + w.ux * w.t1, y, w.az + w.uz * w.t1 ];
+				Q.body.add( A0, A1, [ A1[ 0 ], y + hW, A1[ 2 ] ], [ A0[ 0 ], y + hW, A0[ 2 ] ], [ w.nx, 0, w.nz ] );
+
+			}
+
+			spots.push( ...this.standSpots.map( ( st ) => ( { ...st, y, tier: name } ) ) );
+			for ( const [ q, m, nm ] of [ [ Q.body, TM.precast, 'concession-stands' ], [ Q.bay, TM.bayMat, 'concession-bays' ], [ Q.face, M.signMat, 'concession-signs' ], [ Q.kick, M.kickMat, 'concession-kicks' ],
+				[ Q.lights, M.lightMat, 'concession-lights' ], [ Q.glow, M.kitchen, 'concession-rooms' ], [ Q.props, M.propMat, 'concourse-props' ] ] ) {
+
+				if ( ! q.count ) continue;
+				const mesh = new Mesh( q.geometry(), m );
+				mesh.name = name + '-' + nm;
+				mesh.receiveShadow = true;
+				group.add( mesh );
+
+			}
+
+		}
+
+		[ this.standSpots, this.doors ] = keep;
+		return { spots };
+
+	}
+	// ---- end FW3
 
 	// A stand: pillars either side of the service window, the menu board over it on a lit lip, the name
 	// across the top; the window over a stainless counter on a kick panel in the stand's colours, two

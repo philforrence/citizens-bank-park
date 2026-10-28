@@ -23,6 +23,7 @@ import Suites from './Suites.js'; // ---- FI2: the insides (gauntlet CI-5, CI-6,
 import Club from './Club.js'; // ---- FI2
 import Under from './Under.js'; // ---- FI2
 import Entrance from './Entrance.js'; // ---- FI2 (CI-17)
+import Terrace from './Terrace.js'; // ---- FW3 (C2W-7): the Terrace concourse
 
 export const PLACES = [
 	[ 'rail', FieldRail ],
@@ -39,4 +40,5 @@ export const PLACES = [
 	[ 'club', Club ], // ---- FI2
 	[ 'under', Under ], // ---- FI2
 	[ 'entrance', Entrance ], // ---- FI2
+	[ 'terrace', Terrace ], // ---- FW3
 ];
