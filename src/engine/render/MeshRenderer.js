@@ -47,6 +47,28 @@ function cuts( m ) {
 }
 // ---- end SP2
 
+// ---- SP3: two matrices the same (an object that hasn't moved since the last frame)
+function sameMatrix( a, b ) {
+
+	for ( let i = 0; i < 16; i ++ ) if ( a[ i ] !== b[ i ] ) return false;
+	return true;
+
+}
+
+// a material whose motion vectors are only its object's motion (Material.stillMotion; by default when
+// its vertex hook doesn't touch prevWorldPos, worldOffset or useWorld), once per material version
+function stillMotion( m ) {
+
+	if ( m.stillMotion !== null && m.stillMotion !== undefined ) return m.stillMotion;
+	const c = m.__still;
+	if ( c && c.v === m.version ) return c.still;
+	const still = ! /prevWorld|worldOffset|useWorld|prevModel/.test( m.vertex || '' );
+	m.__still = { v: m.version, still };
+	return still;
+
+}
+// ---- end SP3
+
 export class MeshRenderer {
 
 	constructor() {
@@ -71,6 +93,7 @@ export class MeshRenderer {
 		this.occlusionEnabled = typeof location === 'undefined' || ! /[?&]noOcclusion\b/.test( location.search );
 		this.cutLast = true; // ---- SP2: alpha-tested / discarding materials last in the opaque layer (collect())
 		this.leanVaryings = true; // ---- SP3: only the varyings that vary (MeshShader.js); false for the old shaders
+		this.stillMotion = true; // ---- SP3: still objects without last frame's position as a varying (drawItems)
 
 	}
 
@@ -121,6 +144,8 @@ export class MeshRenderer {
 		const e = obj.matrixWorld.elements;
 		if ( g.has && ! obj.resetVelocity ) g.prev.set( g.cur );
 		else g.prev.set( e );
+		// ---- SP3: still (its matrix as last frame's), for the pipeline without last frame's position
+		g.still = !! obj.staticVelocity || ! obj.resetVelocity && g.has && sameMatrix( g.prev, e );
 		g.cur.set( e );
 		g.has = true;
 		obj.resetVelocity = false;
@@ -551,6 +576,8 @@ export class MeshRenderer {
 			frameBlock: FrameUniforms, layerMask: 0xffffffff, leanVaryings: this.leanVaryings, ...pass, // ---- SP3: leanVaryings
 		};
 		pass.passKey = `${ pass.kind }.${ pass.late ? 1 : 0 }.${ pass.colorFormats.join( ',' ) }.${ pass.depthFormat }.${ pass.depthCompare }.${ pass.cullOverride || '' }.${ pass.defines ? JSON.stringify( pass.defines ) : '' }.${ pass.leanVaryings ? 1 : 0 }${ pass.pixelMotion ? 1 : 0 }`; // ---- SP3
+		// ---- SP3: the same pass for still objects (drawItems)
+		if ( pass.kind === 'main' && pass.leanVaryings && this.stillMotion ) pass.stillPass = { ...pass, stillMotion: true, passKey: pass.passKey + '.still' };
 		// occlusion culling: only a main pass with a camera and a depth buffer, collected here
 		let occ = null;
 		if ( pass.occlusion && this.occlusionEnabled && ! this.precompiling && ! pass.items && pass.camera && pass.depthView ) {
@@ -621,8 +648,25 @@ export class MeshRenderer {
 			}
 
 			vl = this._cachedLayout( o, geo, material );
-			p = this._pipeline( material, vl, pass );
-			const pipeline = p.handle.pipeline || ( this.syncPipelines ? GPU.ready( p.handle ) : null );
+			// ---- SP3 (speed): an object that hasn't moved, of a material whose motion is only its object's,
+			// has last frame's clip position worked out per pixel from where it is (MeshShader STILL_MOTION:
+			// one varying fewer); the pipeline with it as a varying when that one isn't compiled yet
+			const slot = this._slot( o );
+			let pipeline = null;
+			if ( pass.stillPass && o.__draw.still && stillMotion( material ) ) {
+
+				p = this._pipeline( material, vl, pass.stillPass );
+				pipeline = p.handle.pipeline || ( this.syncPipelines ? GPU.ready( p.handle ) : null );
+
+			}
+
+			if ( ! pipeline ) {
+
+				p = this._pipeline( material, vl, pass );
+				pipeline = p.handle.pipeline || ( this.syncPipelines ? GPU.ready( p.handle ) : null );
+
+			}
+			// ---- end SP3
 			if ( ! pipeline ) continue; // still compiling
 			if ( p !== lastPipeline ) {
 
@@ -639,7 +683,7 @@ export class MeshRenderer {
 
 			}
 
-			rp.setBindGroup( 2, this.drawBindGroup, [ this._slot( o ) * DRAW_STRIDE ] );
+			rp.setBindGroup( 2, this.drawBindGroup, [ slot * DRAW_STRIDE ] );
 			for ( let i = 0; i < vl.buffers.length; i ++ ) rp.setVertexBuffer( i, this._attributeBuffer( geo, vl.buffers[ i ].attr ) );
 			const instances = o.isInstancedMesh ? o.count : geo.instanceCount ?? 1;
 			if ( instances === 0 ) continue;

@@ -702,7 +702,9 @@ ${ SOFFIT_WGSL }
 	// navy seats; per-instance colour carries a little fading
 	// each seat shades itself: the lower part of the row in the shadow of the row in front, a bright
 	// top edge on the back, a sheen on the plastic; so rows stay readable far off
-	const seat = standard( { name: 'seats', color: new Color( 1, 1, 1 ), roughness: 0.38, side: 'double', vertexColors: true,
+	// (---- SP3: worldFromDepth: 45,000 seats of a few pixels each, their world position from the pixel's
+	// depth rather than a varying per vertex: engine MeshShader WORLD_FROM_DEPTH)
+	const seat = standard( { name: 'seats', color: new Color( 1, 1, 1 ), roughness: 0.38, side: 'double', vertexColors: true, worldFromDepth: true,
 		varyings: { vSeatY: 'f32' },
 		vertex: 'o.vSeatY = v.position.y;',
 		surface: /* wgsl */`
