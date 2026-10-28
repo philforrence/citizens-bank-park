@@ -56,6 +56,7 @@ import { PLACES } from './places/index.js';
 import { tarpState } from './game/TarpPlan.js';
 // ---- end R
 import { Night, nightAirModule, BEAM } from './Night.js'; // ---- L: light and night
+import { when as gameClock } from './places/alley/Night.js'; // the replay's wall clock (the Alley's)
 
 const _up = new Vector3( 0, 1, 0 );
 
@@ -66,6 +67,22 @@ const LATITUDE = 39.9;
 // (see layout.js). You start in the plaza at Pattison Avenue and Citizens Bank Way, looking at the Third
 // Base Gate (field frame [ x, z ] and the point you face).
 const START = { at: [ - 112, 78 ], look: GATES[ 0 ].at };
+
+// Eastern Daylight Time (October 2008: the clocks went back on November 2) to local solar time in South
+// Philadelphia: an hour back for daylight saving, the equation of time (+16 min at the end of
+// October), and 75.17° W against the zone's 75° meridian (-0.7 min). 8:38 pm is 19.9 solar.
+const EDT_TO_SOLAR = - 1 + 16.2 / 60 - 0.7 / 60;
+
+// what the mode label and the toast call each camera (C steps through them)
+export const CAMERA_NAMES = { walk: 'Walking', tv: 'FOX broadcast', center: 'Center field camera', high: 'High home camera', follow: 'Following the ball' };
+
+// a repeatable 0..1 from a number (which close-up a pitch gets)
+const hashT = ( n ) => {
+
+	const s = Math.sin( n * 12.9898 ) * 43758.5453;
+	return s - Math.floor( s );
+
+};
 
 // the sun's declination on a date (degrees): where the sun really is in the sky today
 function solarDeclination( date = new Date() ) {
@@ -83,7 +100,10 @@ export class BallparkApp {
 	constructor() {
 
 		this.settings = {
-			timeOfDay: 16.0, // local solar time, hours
+			// local solar time, hours. Both nights were night games (first pitch 8:38 pm on the 27th, the
+			// last out at 9:58 on the 29th), so it follows the replay's clock (gameClock, _gameHour()); 20
+			// until the replay is there. (It was 16, Tidewater's afternoon, from step 1.)
+			timeOfDay: 20.0,
 			sunAzimuth: 0, // degrees: turns the sun's daily path about the vertical
 			timeSpeed: 0, // hours per real second
 			exposure: 0.55,
@@ -91,8 +111,15 @@ export class BallparkApp {
 		};
 		this.skyGlow = 0.006; // the urban sky glow at night (see _weather)
 		this.qs = new URLSearchParams( location.search );
-		// ?hour=21 sets the time of day (the game started at 8:37 pm)
-		if ( this.qs.has( 'hour' ) ) this.settings.timeOfDay = Number( this.qs.get( 'hour' ) ) || this.settings.timeOfDay;
+		// the light follows the game's clock until you set the hour yourself
+		this.gameClock = true;
+		// ?hour=21 sets the time of day (local solar time) and holds it there
+		if ( this.qs.has( 'hour' ) ) {
+
+			this.settings.timeOfDay = Number( this.qs.get( 'hour' ) ) || this.settings.timeOfDay;
+			this.gameClock = false;
+
+		}
 		this.declination = solarDeclination();
 
 	}
@@ -288,6 +315,8 @@ export class BallparkApp {
 		const start = { position: at, yaw: Math.atan2( - ( look.x - at.x ), - ( look.z - at.z ) ) };
 		this.walker = new Walker( { camera, input: this.input, ground: this.terrain, colliders: this.colliders, start } );
 		this._addElevators();
+		// the seated crowd is in the walker's way (CY-15: you used to walk up the rows through them)
+		this.walker.blocked = ( p, r ) => this._pushFromFans( p, r );
 		this.freeCam = qs.has( 'fly' );
 
 		// ---------------------------------------------------------------- post
@@ -399,22 +428,116 @@ export class BallparkApp {
 
 	}
 
-	// C: walk around, or watch from the TV cameras: center field (behind the pitcher), high behind home
-	// plate, or following the ball
+	// The seated fans as obstacles for the walker: a grid (1 m cells, world x / z) of their seats from the
+	// crowd's instances, built the first time you walk near the stands; a fan pushes you out to 0.55 m
+	// from his seat (your radius and his knees), at his height. The aisles have no seats, so they're the
+	// way up and down; a row's front is too tight to walk along, as it is in a full house.
+	_pushFromFans( p, radius ) {
+
+		if ( this._fanGrid === undefined ) {
+
+			this._fanGrid = null;
+			const crowd = this.bowl?.crowd;
+			if ( crowd?.chunks?.length ) {
+
+				const grid = new Map(), v = new Vector3();
+				for ( const ch of crowd.chunks ) {
+
+					const m = ch.near, a = m.instanceMatrix.array;
+					m.updateMatrixWorld?.();
+					for ( let i = 0; i < m.count; i ++ ) {
+
+						v.set( a[ i * 16 + 12 ], a[ i * 16 + 13 ], a[ i * 16 + 14 ] ).applyMatrix4( m.matrixWorld );
+						const key = Math.floor( v.x ) * 4096 + Math.floor( v.z );
+						let cell = grid.get( key );
+						if ( ! cell ) grid.set( key, cell = [] );
+						cell.push( v.x, v.y, v.z );
+
+					}
+
+				}
+
+				this._fanGrid = grid;
+
+			}
+
+		}
+
+		const grid = this._fanGrid;
+		if ( ! grid ) return;
+		const R = radius + 0.25;
+		const cx = Math.floor( p.x ), cz = Math.floor( p.z );
+		for ( let i = - 1; i <= 1; i ++ ) for ( let j = - 1; j <= 1; j ++ ) {
+
+			const cell = grid.get( ( cx + i ) * 4096 + cz + j );
+			if ( ! cell ) continue;
+			for ( let k = 0; k < cell.length; k += 3 ) {
+
+				// his seat at about your feet's height (the row you're on, or the next up or down)
+				const dy = cell[ k + 1 ] - p.y;
+				if ( dy < - 0.7 || dy > 0.7 ) continue;
+				const dx = p.x - cell[ k ], dz = p.z - cell[ k + 2 ], d = Math.hypot( dx, dz );
+				if ( d >= R || d < 1e-4 ) continue;
+				p.x += dx / d * ( R - d );
+				p.z += dz / d * ( R - d );
+
+			}
+
+		}
+
+	}
+
+	// C: walk around, or watch the game on TV: FOX's broadcast (it cuts between the cameras as FOX did),
+	// or one camera held: center field (behind the pitcher), high behind home plate, following the ball
 	cycleCamera( mode = null ) {
 
-		const modes = [ 'walk', 'center', 'high', 'follow' ];
+		const modes = [ 'walk', 'tv', 'center', 'high', 'follow' ];
 		this.camMode = mode || modes[ ( modes.indexOf( this.camMode || 'walk' ) + 1 ) % modes.length ];
 		this.post?.cut();
 		if ( this.post ) this.post.params.dof.value = 0;
 		this._lastEye = null;
+		this._tvShot = null;
 		if ( this.camMode === 'walk' ) {
 
 			this.camera.fov = this._walkFov || 62;
 			this.camera.updateProjectionMatrix();
 
 		} else if ( ! this._walkFov ) this._walkFov = this.camera.fov;
-		if ( this.ui ) this.ui.ui.toast( { walk: 'Walking', center: 'Center field camera', high: 'High home camera', follow: 'Following the ball' }[ this.camMode ] );
+		if ( this.ui ) this.ui.ui.toast( CAMERA_NAMES[ this.camMode ] );
+
+	}
+
+	// FOX's cameras (Bowl._tvCameras: [ x, y, z ] in the field frame, the lens's height): 0 and 1 center
+	// field, 2 high home, 3 high third, 4 high first; and the low ones in the camera wells at the
+	// dugouts' far ends (the rail's Wells.js), for the close-ups
+	_foxCamera( name ) {
+
+		const B = this.bowl.cameraSpots;
+		// (in left-center: Bowl's platform for it is there)
+		if ( name === 'center' ) return [ - 9, 9.5, - 128 ];
+		if ( name === 'high' ) return B ? B[ 2 ] : [ 0, 26, 44 ];
+		if ( name === 'high3' || name === 'high1' ) {
+
+			// the club level's platform hangs 1.2 m out from its front, with a rail round it: the lens
+			// pokes out over the rail (0.4 m past it) and a little higher, so the rail and its posts are
+			// behind it, not across the bottom of the picture
+			const c = this._clubCams ||= {};
+			if ( ! c[ name ] ) {
+
+				const s = B ? B[ name === 'high3' ? 3 : 4 ] : this._clubCameraSpot( name === 'high3' ? - 30 : 30, - 2 );
+				const dx = 0 - s[ 0 ], dz = - 12 - s[ 2 ], l = Math.hypot( dx, dz );
+				c[ name ] = [ s[ 0 ] + dx / l * 1.6, s[ 1 ] + 0.25, s[ 2 ] + dz / l * 1.6 ];
+
+			}
+
+			return c[ name ];
+
+		}
+
+		// the low first / third base cameras in the wells, a little in front of their lenses
+		const want = name === 'low1' ? 'low 1B' : 'low 3B';
+		const w = this.places.find( ( p ) => p.wells )?.wells?.cams?.find( ( q ) => q.name === want );
+		return w ? [ w.x - Math.sin( w.face ) * 0.8, w.y + 1.55, w.z - Math.cos( w.face ) * 0.8 ] : name === 'low1' ? [ 30, 0.85, - 9 ] : [ - 30, 0.85, - 9 ];
 
 	}
 
@@ -444,10 +567,81 @@ export class BallparkApp {
 
 	}
 
+	// What FOX would have on air now, in the TV mode: the director's cut. The center field camera for
+	// every pitch; the close-ups between pitches (the batter from the low camera on his open side, the
+	// pitcher from his); the high home camera the moment a ground ball is put in play, the high third
+	// camera following anything in the air; the batter after a hit or a walk, the pitcher after an out;
+	// the high home for the breaks. Returns { cam, aim, fov } (aim: [ x, y, z ] or 'ball' / 'follow').
+	_directorCut( seg, lt ) {
+
+		const d = this.director, s = seg.snap || {};
+		const P = GAME.players;
+		const actor = ( id, y = 1.35 ) => {
+
+			const a = id != null && d.actors.get( id );
+			return a ? [ a.x, ( a.y || 0 ) + y, a.z ] : null;
+
+		};
+		// a close-up: head to knees, from the low camera on his open side
+		const close = ( id, cam, y = 1.35 ) => {
+
+			const at = actor( id, y );
+			if ( ! at ) return null;
+			const e = this._foxCamera( cam );
+			const dd = Math.hypot( at[ 0 ] - e[ 0 ], at[ 1 ] - e[ 1 ], at[ 2 ] - e[ 2 ] );
+			return { cam, aim: at, fov: MathUtils.radToDeg( 2 * Math.atan( 1.25 / dd ) ), close: true };
+
+		};
+		const batterClose = () => close( s.batter, s.bats === 'L' ? 'low3' : 'low1' );
+		const pitcherClose = () => close( s.pitcher ?? s.defense?.P, P[ s.pitcher ]?.throws === 'L' ? 'low1' : 'low3', 1.6 );
+		const center = { cam: 'center' };
+		const high = { cam: 'high' };
+		const follow = { cam: 'high3', aim: 'follow' };
+		switch ( seg.kind ) {
+
+			case 'walkup': return lt < 1 ? high : batterClose() || high;
+			case 'pitch': {
+
+				const e = seg.ev, tb = lt - 3.0 - Motions.REL;
+				// before the set, a close-up (the batter, or every so often the pitcher); after a pitch that
+				// doesn't end it, the batter stepping out
+				if ( lt < 1.7 ) return ( hashT( seg.t0 ) < 0.6 ? batterClose() : pitcherClose() ) || center;
+				const ends = e.count[ 0 ] >= 4 || e.count[ 1 ] >= 3;
+				if ( ! e.inPlay && tb > seg.path.toCatcher + 1.4 ) return ( ends ? pitcherClose() : batterClose() ) || center;
+				return center;
+
+			}
+
+			case 'inplay': {
+
+				const plan = seg.plan;
+				if ( lt < 0.35 ) return center;
+				if ( plan.hr ) return lt < plan.bb.time + 1.5 ? follow : high;
+				return plan.bb.ground ? high : follow;
+
+			}
+
+			case 'result': {
+
+				const onBase = ( s.bases || [] ).includes( s.batter );
+				return ( onBase ? close( s.batter, 'low1' ) : pitcherClose() ) || high;
+
+			}
+
+			// a pitching change: the old pitcher walking off, the new one coming in from the pen, then a close
+			// look at him on the mound
+			case 'change': return lt < 8 && actor( s.oldPitcher ) ? { cam: 'high3', aim: actor( s.oldPitcher ) } : lt < seg.dur - 4 ? { cam: 'high3', aim: actor( s.pitcher ) || [ 0, 1, - 18 ] } : pitcherClose() || high;
+			case 'celebrate': return lt < 5 ? { cam: 'center', aim: [ 0, 1.2, - 18 ], fov: 9 } : lt < 40 ? { cam: 'high1', aim: [ 0, 1, - 18 ], fov: 14 } : high;
+			default: return high;
+
+		}
+
+	}
+
 	_broadcastCamera( dt ) {
 
 		const F = this.field, d = this.director;
-		const ball = d.ballAt;
+		const ball = d.ballFocus ?? d.ballAt;
 		const at = ( x, y, z ) => {
 
 			const w = F.toWorld( x, z );
@@ -455,57 +649,74 @@ export class BallparkApp {
 
 		};
 
-		let eye, target, fov;
-		const seg = d.segmentAt( d.t );
-		if ( this.camMode === 'center' ) {
+		let eye, target, fov, close = false;
+		const seg = d.segmentAt( d.t ), lt = d.t - seg.t0;
+		let shot = this.camMode === 'tv' ? this._directorCut( seg, lt ) : { cam: { center: 'center', high: 'high', follow: 'high3' }[ this.camMode ], aim: this.camMode === 'follow' ? 'follow' : null };
+		if ( shot.cam === 'center' ) {
 
-			// the classic shot: from center field over the pitcher's shoulder, a long lens
-			const lefty = GAME.players[ seg.snap.pitcher ]?.throws === 'L';
-			eye = at( lefty ? 1.8 : - 1.8, 9.5, - 128 );
-			target = at( 0, 1.0, 0.2 );
-			fov = 5.2;
-			if ( seg.kind === 'inplay' || seg.kind === 'celebrate' || seg.kind === 'switch' || seg.kind === 'intro' ) {
+			// FOX's center field camera, in left-center for every pitcher, so the pitcher stands about a
+			// body's width left of the batter and catcher, righty or lefty (t13150s Romero, t16310s Lidge);
+			// a very long lens: the pitcher full length in the lower left, his feet near the bottom; the
+			// batter, catcher and umpire in the upper middle, then the backstop and a strip of the crowd.
+			// Sharp from the mound back: a broadcast lens focused at 125 m is (no depth of field).
+			eye = at( ...this._foxCamera( 'center' ) );
+			target = at( 0.4, 0.75, 0 );
+			fov = 2.7;
+			if ( this.camMode === 'center' && ( seg.kind === 'inplay' || seg.kind === 'celebrate' || seg.kind === 'switch' || seg.kind === 'intro' ) ) {
 
-				target = ball ? at( ball[ 0 ] * 0.6, Math.max( 1, ball[ 1 ] * 0.6 ), ball[ 2 ] * 0.6 ) : at( 0, 1, - 20 );
+				// held on the one camera: it follows the ball in play (not into the night sky: it stays on
+				// the field below the upper deck's front)
+				target = ball && ! seg.plan?.hr ? at( ball[ 0 ] * 0.6, Math.min( 12, Math.max( 1, ball[ 1 ] * 0.6 ) ), ball[ 2 ] * 0.6 ) : at( 0, 1, - 20 );
 				fov = seg.kind === 'celebrate' ? 9 : 22;
 
 			}
 
-		} else if ( this.camMode === 'high' ) {
+		} else if ( shot.cam === 'high' ) {
 
-			// the high home camera on the press box's roof (Bowl._tvCameras)
-			eye = this.bowl.cameraSpots ? at( ...this.bowl.cameraSpots[ 2 ] ) : at( 0, 30, 44 );
-			target = at( 0, 0, - 38 );
-			fov = 48;
+			// the high home camera on the press box's roof: FOX's framing, home plate near the bottom edge
+			// and the diamond and the outfield filling the picture, little of the side stands (t13290s)
+			eye = at( ...this._foxCamera( 'high' ) );
+			target = at( 0, 0, - 36 );
+			fov = 32;
 
 		} else {
 
-			// following: the high-third camera, on a platform just out from the front of the Hall of Fame
-			// Club (the 200 level) behind the third base dugout, turning to the ball
-			if ( ! this._followEye ) this._followEye = this._clubCameraSpot( - 30, - 2 );
-			eye = at( ...this._followEye );
-			const aim = ball ? [ ball[ 0 ], ball[ 1 ], ball[ 2 ] ] : [ 0, 1, - 12 ];
-			if ( seg.kind === 'celebrate' ) aim.splice( 0, 3, 0, 1, - 18 );
-			target = at( aim[ 0 ], aim[ 1 ], aim[ 2 ] );
-			const dd = eye.distanceTo( target );
-			fov = Math.max( 10, Math.min( 45, 2400 / dd ) );
+			// a camera on a platform out from the Hall of Fame Club (the 200 level): high third behind the
+			// third base dugout, following the ball, or high first; tight on the play, as FOX's were
+			eye = at( ...this._foxCamera( shot.cam ) );
+			if ( shot.aim && shot.aim !== 'follow' ) target = at( ...shot.aim );
+			else {
+
+				const aim = ball ? [ ball[ 0 ], ball[ 1 ], ball[ 2 ] ] : [ 0, 1, - 12 ];
+				if ( seg.kind === 'celebrate' ) aim.splice( 0, 3, 0, 1, - 18 );
+				target = at( aim[ 0 ], aim[ 1 ], aim[ 2 ] );
+
+			}
+
+			fov = Math.max( 4, Math.min( 30, 650 / eye.distanceTo( target ) ) );
 
 		}
 
-		// the long lens from center field: in focus on the plate, the stands behind soft (the other
-		// cameras' wider lenses keep everything sharp)
+		if ( shot.fov ) fov = shot.fov;
+		if ( shot.close ) close = true;
+		if ( shot.aim && Array.isArray( shot.aim ) && shot.cam !== 'high3' && shot.cam !== 'high1' ) target = at( ...shot.aim );
+
+		// no depth of field from the long lens in center field (sharp crowd behind home, as in every FOX
+		// frame); a close-up from the low cameras does soften the crowd behind
 		const P = this.post.params;
-		const dofOn = this.camMode === 'center' && fov < 12;
-		P.dof.value += ( ( dofOn ? 1 : 0 ) - P.dof.value ) * Math.min( 1, dt * 4 );
+		P.dof.value += ( ( close ? 1 : 0 ) - P.dof.value ) * Math.min( 1, dt * 4 );
 		P.dofFocus.value = eye.distanceTo( this._camAim || target );
-		P.dofScale.value = 2.6;
+		P.dofScale.value = 1.4;
 
 		// a cut (another camera, or a jump in the replay): start clean, on the new camera's framing
-		const cut = ! this._lastEye || this._lastEye.distanceTo( eye ) > 3;
+		const key = shot.cam + ( close ? ':close' : '' );
+		const cut = ! this._lastEye || this._lastEye.distanceTo( eye ) > 3 || ( this.camMode === 'tv' && key !== this._tvShot );
+		this._tvShot = key;
 		if ( cut ) {
 
 			this._camAim = null;
 			this.post?.cut();
+			if ( close ) P.dof.value = 1;
 
 		}
 
@@ -740,6 +951,33 @@ export class BallparkApp {
 
 	}
 
+	// The light on the replay's own clock (the Alley's when(): 8:38 pm at the first pitch on the 27th to
+	// 10:40 at the suspension and on into the delay, then 8:37 to 9:58 on the 29th and the celebration
+	// after), as local solar time. It lets go for good once the hour is set some other way (?hour=, the
+	// Sky panel's slider, T, a QA shot's hour); the Sky panel's "Game clock" picks it up again.
+	_gameHour() {
+
+		const s = this.settings;
+		if ( ! this.gameClock || ! this.director ) return;
+		if ( s.timeSpeed !== 0 || ( this._autoHour != null && Math.abs( s.timeOfDay - this._autoHour ) > 1e-6 ) ) {
+
+			this.gameClock = false;
+			this._autoHour = null;
+			if ( this.ui ) {
+
+				this.ui.s.gameClock = false;
+				this.ui.ui.refresh?.();
+
+			}
+
+			return;
+
+		}
+
+		s.timeOfDay = this._autoHour = ( ( gameClock( this.director ).clock + EDT_TO_SOLAR ) % 24 + 24 ) % 24;
+
+	}
+
 	// T: let the day run (about 8 minutes per day) or stop it
 	toggleTime() {
 
@@ -852,6 +1090,7 @@ export class BallparkApp {
 
 		}
 
+		this._gameHour();
 		if ( this.input.hit( 'KeyC' ) && this.director ) this.cycleCamera();
 		if ( this.camMode && this.camMode !== 'walk' ) this._broadcastCamera( dt );
 		else if ( this.freeCam ) this.fly.update( dt );
@@ -893,7 +1132,7 @@ export class BallparkApp {
 		this.landmarks?.update( dt, this.director, this.sound );
 		// FOX's cameras pan with the play (the one you're looking through isn't drawn)
 		const cf = this.field.toField( this.camera.position.x, this.camera.position.z );
-		this.bowl.updateCameras( this.director ? this.director.ballAt : null, dt, [ cf[ 0 ], this.camera.position.y - this.field.y0, cf[ 1 ] ] );
+		this.bowl.updateCameras( this.director ? ( this.director.ballFocus ?? this.director.ballAt ) : null, dt, [ cf[ 0 ], this.camera.position.y - this.field.y0, cf[ 1 ] ] );
 		this.details?.update( dt, this.director );
 		for ( const p of this.places ) p.update?.( dt, this.director, this.camera );
 

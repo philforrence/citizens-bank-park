@@ -5,13 +5,25 @@ import { ordinal } from './Director.js';
 // over the whole game with the innings marked, and switches for the radio call and the ballpark sound.
 //
 // Keys (when the mouse isn't captured, or any time): K play / pause, , and . previous / next batter,
-// - and = slower / faster, B radio on / off, G hide the panel; C (or the camera button) steps through
-// the TV cameras.
+// - and = slower / faster, B radio on / off, J hide the panel (G is the walker's double speed); C (or
+// the camera button) steps through the TV cameras. Watching on TV the panel shrinks to a corner (FOX's
+// 2008 bug was a small box in the bottom left), and the play line and transport come back on hover.
+//
+// The moments: the night's big plays, marked on the slider and in a list to jump to.
 
 const CSS = `
 .gm-hud { position: fixed; left: 50%; bottom: 14px; transform: translateX( -50% ); width: min( 760px, calc( 100vw - 32px ) );
 	z-index: 40; font: 500 13px/1.35 Inter, system-ui, sans-serif; color: #eef3f8; user-select: none; }
-.gm-hud[hidden] { display: none; }
+.gm-hud[hidden], .gm-hud.gm-photo { display: none; }
+.gm-hud.gm-tv { left: 16px; transform: none; width: auto; max-width: min( 470px, calc( 100vw - 32px ) ); }
+.gm-hud.gm-tv .gm-card { padding: 7px 9px; }
+.gm-hud.gm-tv .gm-match { flex-basis: 100%; min-width: 0; font-size: 12px; }
+.gm-hud.gm-tv:not( :hover ) .gm-desc, .gm-hud.gm-tv:not( :hover ) .gm-bar { display: none; }
+.gm-desc small, .gm-match small { opacity: 0.65; }
+.gm-moments { background: rgba( 255, 255, 255, 0.09 ); color: #eef3f8; border: 0; border-radius: 7px; padding: 5px 6px; font: inherit; font-size: 12px; max-width: 120px; cursor: pointer; }
+.gm-moments option { background: #101820; }
+.gm-marks { position: absolute; left: 0; right: 0; top: 0; height: 6px; pointer-events: none; }
+.gm-marks i { position: absolute; top: 0; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #ffd24a; opacity: 0.85; }
 .gm-card { background: rgba( 10, 16, 24, 0.72 ); backdrop-filter: blur( 10px ); -webkit-backdrop-filter: blur( 10px );
 	border: 1px solid rgba( 255, 255, 255, 0.08 ); border-radius: 12px; padding: 10px 12px; }
 .gm-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -72,9 +84,10 @@ export class GameHUD {
 					<button data-a="play" title="Play / pause ( K )">⏸</button>
 					<button data-a="next" title="Next batter ( . )">⏭</button>
 					<button data-a="speed" title="Speed ( - / = )">1×</button>
-					<div class="gm-track"><input type="range" min="0" step="0.1" data-k="slider"><div class="gm-ticks" data-k="ticks"></div></div>
+					<div class="gm-track"><div class="gm-marks" data-k="marks"></div><input type="range" min="0" step="0.1" data-k="slider"><div class="gm-ticks" data-k="ticks"></div></div>
 					<div class="gm-time" data-k="time"></div>
-					<button data-a="camera" title="Camera: walk, center field, high home, follow the ball ( C )">🎥</button>
+					<select class="gm-moments" data-k="moments" title="Jump to a moment"><option value="">Moments</option></select>
+					<button data-a="camera" title="Camera: walk, FOX broadcast, center field, high home, follow the ball ( C )">🎥</button>
 					<button data-a="radio" title="Radio call on / off ( B )">📻</button>
 					<button data-a="sound" title="Ballpark sound on / off">🔊</button>
 				</div>
@@ -105,6 +118,36 @@ export class GameHUD {
 
 		}
 
+		// the moments: on the slider and in the list
+		const marks = this.$( 'marks' ), list = this.$( 'moments' );
+		for ( const m of moments( director, game ) ) {
+
+			const i = document.createElement( 'i' );
+			i.style.left = ( m.t / director.duration * 100 ) + '%';
+			marks.appendChild( i );
+			const o = document.createElement( 'option' );
+			o.value = m.t;
+			o.textContent = m.name;
+			list.appendChild( o );
+
+		}
+
+		list.addEventListener( 'change', () => {
+
+			if ( list.value !== '' ) {
+
+				director.seek( Number( list.value ) );
+				this.radio?.stop();
+
+			}
+
+			list.value = '';
+			list.blur();
+			this.refresh( true );
+
+		} );
+		list.addEventListener( 'keydown', ( e ) => e.stopPropagation() );
+
 		el.querySelectorAll( 'button' ).forEach( ( b ) => b.addEventListener( 'click', ( e ) => {
 
 			this.action( b.dataset.a );
@@ -117,8 +160,10 @@ export class GameHUD {
 		el.addEventListener( 'click', ( e ) => e.stopPropagation() );
 		window.addEventListener( 'keydown', ( e ) => {
 
-			if ( e.target && e.target.tagName === 'INPUT' && e.target.type !== 'range' ) return;
-			const map = { KeyK: 'play', Comma: 'prev', Period: 'next', Minus: 'slower', Equal: 'faster', KeyB: 'radio', KeyG: 'hide' };
+			if ( e.target && ( ( e.target.tagName === 'INPUT' && e.target.type !== 'range' ) || e.target.tagName === 'SELECT' ) ) return;
+			if ( e.ctrlKey || e.metaKey || e.altKey ) return;
+			// (J: G is the walker's double speed)
+			const map = { KeyK: 'play', Comma: 'prev', Period: 'next', Minus: 'slower', Equal: 'faster', KeyB: 'radio', KeyJ: 'hide' };
 			if ( map[ e.code ] ) this.action( map[ e.code ] );
 
 		} );
@@ -180,7 +225,9 @@ export class GameHUD {
 		const pit = P[ s.pitcher ], bat = P[ s.batter ];
 		const pitch = n.pitch && n.pitch.speed ? `<small> · ${ Math.round( n.pitch.speed ) } mph ${ n.pitch.typeName || '' }</small>` : '';
 		this.$( 'match' ).innerHTML = bat && pit ? `${ pit.last } <small>pitching to</small> ${ bat.name } <small>#${ bat.num }</small>${ pitch }` : '';
-		this.$( 'desc' ).textContent = n.seg.kind === 'celebrate' ? 'The Phillies are World Series champions!' : ( s.desc || `${ g.title } — ${ g.teams.away.club } at ${ g.teams.home.club }` );
+		this.$( 'desc' ).innerHTML = this._playLine( n, s );
+		// on TV the panel is a corner bug
+		this.el.classList.toggle( 'gm-tv', !! this.app?.camMode && this.app.camMode !== 'walk' );
 		const slider = this.$( 'slider' );
 		if ( document.activeElement !== slider ) slider.value = d.t;
 		const bt = this.el.querySelector( '[data-a="play"]' );
@@ -193,6 +240,56 @@ export class GameHUD {
 		this.$( 'time' ).textContent = `${ inn } · ${ fmt( d.t ) }`;
 
 	}
+
+	// The line under the score bug: the last play, labelled as such, while it's this half-inning's;
+	// from the change of sides, whose half it is and who leads off (it used to go on showing the other
+	// team's last play, unlabelled, into the next half)
+	_playLine( n, s ) {
+
+		const g = this.g, seg = n.seg;
+		if ( seg.kind === 'celebrate' ) return 'The Phillies are World Series champions!';
+		const pi = seg.pi ?? 0;
+		const last = seg.kind === 'result' ? g.plays[ pi ] : g.plays[ pi - 1 ];
+		if ( s.desc && last && last.inning === s.inning && last.half === s.half && seg.kind !== 'switch' && seg.kind !== 'intro' ) return `<small>Last play:</small> ${ esc( s.desc ) }`;
+		if ( seg.kind === 'intro' ) return esc( `${ g.title }: ${ g.teams.away.club } at ${ g.teams.home.club }` );
+		const team = g.teams[ s.batting || ( s.half === 'top' ? 'away' : 'home' ) ];
+		const bat = g.players[ s.batter ];
+		return `<small>${ s.half === 'top' ? 'Top' : 'Bottom' } of the ${ ordinal( s.inning ) }:</small> ${ esc( team.club ) } batting${ bat ? `, ${ esc( bat.name ) } leads off` : '' }`;
+
+	}
+
+}
+
+const esc = ( t ) => String( t ).replace( /[&<>]/g, ( c ) => ( { '&': '&amp;', '<': '&lt;', '>': '&gt;' } )[ c ] );
+
+// The night's big plays (the slider's marks and the Moments list): the pitch that was hit, a few
+// seconds before it; the suspension's break; the last pitch
+function moments( d, g ) {
+
+	const out = [];
+	const at = ( pi, name ) => {
+
+		if ( ! g.plays[ pi ] ) return;
+		const segs = d.segments.filter( ( s ) => s.pi === pi && s.kind === 'pitch' );
+		const s = segs[ segs.length - 1 ];
+		if ( s ) out.push( { t: Math.max( 0, s.t0 - 1 ), name } );
+
+	};
+	const find = ( re ) => g.plays.findIndex( ( p ) => re.test( p.result.desc ) );
+	out.push( { t: d.timeOfPlay( 0 ), name: 'First pitch, Oct 27' } );
+	at( find( /Victorino singles.*Werth scores/ ), 'Victorino\'s 2-run single' );
+	at( find( /Longoria singles.*Pena scores/ ), 'Longoria\'s RBI single' );
+	at( find( /Pena singles.*Upton scores/ ), 'Peña ties it in the rain' );
+	if ( d.suspension ) out.push( { t: d.suspension.t0, name: 'The tarp; suspended' } );
+	if ( d.night ) out.push( { t: d.night( 0 ).split, name: 'Oct 29: the return' } );
+	at( find( /Jenkins doubles/ ), 'Jenkins\'s double' );
+	at( find( /Werth singles.*Jenkins scores/ ), 'Werth\'s go-ahead single' );
+	at( find( /Baldelli homers/ ), 'Baldelli\'s home run' );
+	at( find( /Bartlett out at home/ ), 'Utley\'s play at the plate' );
+	at( find( /Burrell doubles/ ), 'Burrell\'s double' );
+	at( find( /Feliz singles.*Bruntlett scores/ ), 'Feliz\'s winning single' );
+	at( g.plays.length - 1, 'The last pitch' );
+	return out.filter( ( m ) => Number.isFinite( m.t ) ).sort( ( a, b ) => a.t - b.t );
 
 }
 
