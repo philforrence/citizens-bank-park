@@ -682,7 +682,9 @@ const _x = new Vector3(), _y = new Vector3(), _z = new Vector3(), _p = new Vecto
 // position and heading in the field frame, scaled by his height over the mesh's 6'2") in `pose` into
 // out[ offset .. ]. `girth` (1 the mesh's athlete) makes the trunk and limbs broader or slighter; the
 // head grows only a third as much as the body, a bat is a bat.
-const _g = new Matrix4(), _hs = new Matrix4(), _pm = new Matrix4();
+// (FB2, C2B-2: a big man is big through the chest and shoulders first; his hips and thighs take a little
+// over half of it, or every heavy man is a pear. The shoulder joints go out with the trunk they're in.)
+const _g = new Matrix4(), _gp = new Matrix4(), _hs = new Matrix4(), _pm = new Matrix4();
 export function solvePose( root, pose, out, offset, gloveHand = 'L', girth = 1 ) {
 
 	const D = DIM, B = BONES;
@@ -690,9 +692,11 @@ export function solvePose( root, pose, out, offset, gloveHand = 'L', girth = 1 )
 	const g = girth;
 	const put = ( b, m ) => m.toArray( out, offset + b * 16 );
 	_g.makeScale( g, 1, g );
+	const gp = 1 + ( g - 1 ) * 0.55;
+	_gp.makeScale( gp, 1, g );
 	// pelvis
 	const pelvis = new Matrix4().copy( root ).multiply( _m.compose( _t.set( pose.pelvisX || 0, pose.pelvisY, pose.pelvisZ || 0 ), _q.setFromEuler( _e.set( pose.pelvis[ 0 ], pose.pelvis[ 1 ], pose.pelvis[ 2 ] ) ), _v.set( 1, 1, 1 ) ) );
-	put( B.pelvis, _pm.copy( pelvis ).multiply( _g ) );
+	put( B.pelvis, _pm.copy( pelvis ).multiply( _gp ) );
 	// torso and head
 	const torso = new Matrix4().copy( pelvis ).multiply( _m.compose( _t.set( 0, D.waist, 0 ), _q.setFromEuler( _e.set( pose.torso[ 0 ], pose.torso[ 1 ], pose.torso[ 2 ] ) ), _v.set( 1, 1, 1 ) ) );
 	put( B.torso, _pm.copy( torso ).multiply( _g ) );
@@ -704,16 +708,16 @@ export function solvePose( root, pose, out, offset, gloveHand = 'L', girth = 1 )
 	const tgt = ( a, v ) => v.set( a[ 0 ], a[ 1 ], a[ 2 ] ).applyMatrix4( root );
 	// the player's forward (-z) and right (+x) in the field frame, for the poles
 	const fwd = _p.set( 0, 0, - 1 ).transformDirection( root ).clone(), right = new Vector3( 1, 0, 0 ).transformDirection( root );
-	const gs = g * s;
+	const gs = g * s, gl = ( 1 + ( g - 1 ) * 0.65 ) * s;
 
 	// legs: hips from the pelvis, knees bend forward
 	for ( const [ side, th, sh, ft, foot, yaw ] of [ [ - 1, B.thighL, B.shinL, B.footL, pose.footL, pose.footYawL ], [ 1, B.thighR, B.shinR, B.footR, pose.footR, pose.footYawR ] ] ) {
 
-		const hip = new Vector3( side * D.hipWidth * g, - 0.04, 0 ).applyMatrix4( pelvis );
+		const hip = new Vector3( side * D.hipWidth * gp, - 0.04, 0 ).applyMatrix4( pelvis );
 		const target = tgt( foot, new Vector3() );
 		const [ knee, end ] = twoBone( hip, target, D.thigh * s, D.shin * s, poleOf( side < 0 ? pose.kneeL : pose.kneeR, fwd.clone().addScaledVector( right, side * 0.15 ), root ) );
-		put( th, boneMatrix( hip, knee, fwd, gs, s ) );
-		put( sh, boneMatrix( knee, end, fwd, gs, s ) );
+		put( th, boneMatrix( hip, knee, fwd, gl, s ) );
+		put( sh, boneMatrix( knee, end, fwd, gl, s ) );
 		// the foot: flat on its yaw, at the ankle
 		const fy = new Vector3( 0, 1, 0 );
 		const ff = fwd.clone().applyAxisAngle( fy, yaw || 0 );
@@ -723,7 +727,7 @@ export function solvePose( root, pose, out, offset, gloveHand = 'L', girth = 1 )
 
 	// arms: shoulders from the torso, elbows bend down and back
 	const handPos = {};
-	const gw = 1 + ( g - 1 ) * 0.7;
+	const gw = g;
 	for ( const [ side, ua, fa, hd, hand ] of [ [ - 1, B.upperArmL, B.forearmL, B.handL, pose.handL ], [ 1, B.upperArmR, B.forearmR, B.handR, pose.handR ] ] ) {
 
 		const sh = new Vector3( side * D.shoulder * gw, D.shoulderY, 0 ).applyMatrix4( torso );

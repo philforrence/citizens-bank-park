@@ -383,28 +383,76 @@ function playerMaterial( bones, info, atlas, costume = false ) {
 			lp3 += v.normal * 0.013;
 		}
 		if ( ( style & 1u ) == 0u && leg > 0.5 ) { lp3 += v.normal * 0.016 * smoothstep( 0.55, 0.84, leg ); }
-		// ---- FY2 (CY-6): the 2008 cut hangs off him, not a bodysuit: the jersey falls from the shoulder
-		// blades and blouses over the belt, its short sleeves stand off the arm, the pants are full
-		// through the seat and the thighs (Getty 83485455, 83912834; FOX's close-up of Burrell)
+		// ---- FB2 (C2B-2): the 2008 cut hangs from the shoulders. (FY2's drape pushed the cloth out along
+		// the body's normals, which rounded a round trunk into a barrel and the seat and thighs into a
+		// pear: C2B's TV close-ups.) The jersey falls straight from the chest at the armpits to the belt,
+		// an elliptical hull the chest's size that the waist is filled out to (the belly of a big man
+		// stays his own, outside it), narrowing a little to the belt, a little bloused at the back over it;
+		// the shoulders squared under the yoke, so the jersey hangs off something; the hips a little in;
+		// the pants straight from the hip to the knee, the outer thigh's bulge taken in and the
+		// hollow above the knee filled (Getty 83485455: Jenkins's broad back, the jersey loose from the
+		// shoulders and the pants straight; 83486198: Hinske's back; 83485884: the pants falling straight)
 		if ( ! phan && ( role & ${ R.jacket }u ) == 0u ) {
 			let back = smoothstep( -0.02, 0.1, lp3.z );
+			let ax = abs( lp3.x );
+			let sx = sign( lp3.x );
+			// the yoke: the shoulder line squared out to the deltoid (the trapezius' slope bridged)
+			let yoke = smoothstep( 0.08, 0.16, ax ) * smoothstep( 1.45, 1.54, lp3.y ) * ( 1.0 - smoothstep( 1.62, 1.66, lp3.y ) ) * select( 1.0, 0.0, arm > -0.5 );
 			if ( arm < -0.5 && leg < -0.5 && lp3.y < ${ f( U.collar ) } ) {
 				if ( lp3.y > ${ f( U.belt[ 1 ] ) } ) {
-					let blouse = smoothstep( 1.4, 1.16, lp3.y ) * smoothstep( ${ f( U.belt[ 1 ] ) }, ${ f( U.belt[ 1 ] + 0.03 ) }, lp3.y );
-					let top = smoothstep( ${ f( U.collar - 0.01 ) }, ${ f( U.collar - 0.1 ) }, lp3.y );
-					// (less in front, where the belly is already the body's)
-					let front = smoothstep( 0.0, -0.08, lp3.z );
-					lp3 += v.normal * top * ( 0.006 + 0.022 * blouse * ( 1.0 - 0.65 * front ) + 0.016 * back * smoothstep( 1.48, 1.25, lp3.y ) );
+					let below = smoothstep( 1.45, 1.33, lp3.y );
+					let toBelt = smoothstep( 1.33, ${ f( U.belt[ 1 ] ) }, lp3.y );
+					let zc = -0.01;
+					let hx = 0.21 - 0.03 * toBelt;
+					let hz = select( 0.14, 0.136, lp3.z > zc ) - 0.01 * toBelt;
+					let r = length( vec2f( lp3.x / hx, ( lp3.z - zc ) / hz ) );
+					if ( r < 1.0 && r > 0.05 ) {
+						let s = mix( 1.0, 1.0 / r, below );
+						lp3 = vec3f( lp3.x * s, lp3.y, zc + ( lp3.z - zc ) * s );
+					}
+					lp3 += v.normal * ( 0.006 + 0.012 * back * smoothstep( ${ f( U.belt[ 1 ] + 0.1 ) }, ${ f( U.belt[ 1 ] + 0.02 ) }, lp3.y ) );
 				} else if ( lp3.y < ${ f( U.belt[ 0 ] ) } ) {
-					lp3 += v.normal * ( 0.008 + 0.01 * back );
+					// the seat: the pants' cloth over it, not a bubble; the hips a little in
+					lp3 = vec3f( lp3.x * ( 1.0 - 0.05 * smoothstep( 0.11, 0.18, ax ) ), lp3.y, lp3.z );
+					lp3 += v.normal * 0.006;
 				} else {
 					lp3 += v.normal * 0.008;
 				}
 			}
-			if ( arm > -0.5 && arm < ${ f( U.sleeve ) } ) { lp3 += v.normal * 0.012 * smoothstep( 0.0, 0.08, arm ); }
-			if ( leg > -0.5 && leg < 0.62 ) { lp3 += v.normal * ( 0.008 * ( 1.0 - smoothstep( 0.5, 0.62, leg ) ) + 0.009 * ( 1.0 - smoothstep( 0.3, 0.6, leg ) ) ); }
+			lp3 += vec3f( sx * 0.006, 0.012, 0.0 ) * yoke;
+			// the sleeves stand off the arm, hanging from the shoulder's point; the cap of the shoulder
+			// pressed a little flat under the cloth (the arm lowered from the mesh's A pose pops it up into a
+			// ball, like a shoulder pad)
+			if ( arm > -0.5 && arm < ${ f( U.sleeve ) } ) { lp3 += v.normal * ( 0.012 * smoothstep( 0.04, 0.1, arm ) - 0.01 * ( 1.0 - smoothstep( 0.0, 0.09, arm ) ) * smoothstep( 0.2, 0.75, v.normal.y ) ); }
+			// the pants: from the hip to the knee about a straight cone round the thigh's bone
+			if ( leg > -0.5 && leg < 0.62 ) {
+				let hp = vec3f( sx * ${ f( J.hipR[ 0 ] ) }, ${ f( J.hipR[ 1 ] ) }, ${ f( J.hipR[ 2 ] ) } );
+				let kn = vec3f( sx * ${ f( J.kneeR[ 0 ] ) }, ${ f( J.kneeR[ 1 ] ) }, ${ f( J.kneeR[ 2 ] ) } );
+				let ta = normalize( kn - hp );
+				let d = lp3 - hp;
+				let along = dot( d, ta );
+				let tk = clamp( along / ${ f( Math.hypot( J.kneeR[ 0 ] - J.hipR[ 0 ], J.kneeR[ 1 ] - J.hipR[ 1 ], J.kneeR[ 2 ] - J.hipR[ 2 ] ) ) }, 0.0, 1.0 );
+				let rv = d - ta * along;
+				let r = length( rv );
+				// (from the top of the thigh to just above the knee; the knee and the calf as they were)
+				let w = 1.0 - smoothstep( 0.82, 1.05, tk );
+				if ( r > 1e-4 && w > 0.0 ) {
+					let rh = mix( 0.108, 0.088, tk );
+					// (the outer side taken in more: the hip's bulge, the jodhpurs)
+					let outer = smoothstep( 0.0, 0.6, dot( rv / r, vec3f( sx, 0.0, 0.0 ) ) );
+					let rt = select( rh + ( r - rh ) * ( 0.55 - 0.25 * outer ), rh, r < rh );
+					lp3 += rv / r * ( rt - r ) * w;
+				}
+				lp3 += v.normal * 0.008 * ( 1.0 - smoothstep( 0.5, 0.62, leg ) );
+			}
 		}
-		// ---- end FY2
+		// under a cap the crown of the scalp stays under it (from above, in the high cameras' close-ups of
+		// the pitcher, it came through the top of the cap as a brown patch)
+		if ( arm < -0.5 && leg < -0.5 && lp3.y > ${ f( F.eyeR[ 1 ] + 0.05 ) } && ! helmet && ! phan && ( role & ${ R.ccap | R.nocap | R.hood }u ) == 0u ) {
+			let cc = vec3f( 0.0, ${ f( F.top[ 1 ] - 0.1 ) }, ${ f( ( F.skull.z0 + F.skull.z1 ) / 2 ) } );
+			lp3 = cc + ( lp3 - cc ) * ( 1.0 - 0.08 * smoothstep( ${ f( F.eyeR[ 1 ] + 0.05 ) }, ${ f( F.eyeR[ 1 ] + 0.085 ) }, lp3.y ) );
+		}
+		// ---- end FB2
 		// ---- A (Phanatic): the rain slicker's sleeves stand off the fur (its body: the costume's, below)
 		if ( phan && ( role & ${ R.slicker }u ) != 0u ) {
 			if ( arm > -0.5 && arm < ${ f( U.wrist - 0.03 ) } ) { lp3 += v.normal * 0.028; }
@@ -637,6 +685,18 @@ function playerMaterial( bones, info, atlas, costume = false ) {
 		c = c * ( 1.0 - 0.14 * zone * smoothstep( 0.15, 0.75, fold ) );
 	}
 	// ---- end FY2
+	// ---- FB2 (C2B-15): the umpires' October jacket: black with a powder-blue stripe on each side from the
+	// collar over the shoulder down to the armpit, front and back, along the raglan seam (FOX t13820s,
+	// umpire 8 from behind; Getty 83485455 and 84081866, the plate umpire from in front)
+	if ( ump && part == ${ P.jersey } && arm < -0.5 && L.y > 1.3 ) {
+		let q = vec2f( abs( L.x ), L.y ) - vec2f( 0.072, 1.61 );
+		let e = vec2f( 0.205, 1.36 ) - vec2f( 0.072, 1.61 );
+		let tt = clamp( dot( q, e ) / dot( e, e ), 0.0, 1.0 );
+		let dl = length( q - e * tt );
+		let fwq = max( fwidth( dl ), 1e-4 );
+		c = mix( c, vec3f( 0.26, 0.45, 0.7 ), clamp( ( 0.018 - dl ) / fwq + 0.5, 0.0, 1.0 ) );
+	}
+	// ---- end FB2
 	// ---- R (rituals): the grey champions tee: heather cotton, its short sleeves over the red undershirt's,
 	// the print on the chest (the P in its red roundel over WORLD SERIES CHAMPIONS 2008); nothing on the back
 	if ( tee && part == ${ P.jersey } && ! jacket ) {
