@@ -1011,6 +1011,13 @@ const armSeg = ( a, b, morph ) => `( ${ armJoint( b, morph ) } - ${ armJoint( a,
 const crowdModule = new ShaderModule( {
 	name: 'crowd',
 	code: /* wgsl */`
+// ---- FW6 (C4W-2): where a knit hat comes down to on the head (d on its unit sphere): two fingers over the
+// brows in front (0.3; the eyes 0.1), the ears' tops at the sides, the nape behind (as the Cast's)
+fn cwKnitEdge( d: vec3f ) -> f32 {
+	let fr = - d.z / max( length( d.xz ), 0.001 );
+	return mix( - 0.15, 0.0, smoothstep( - 1.0, 0.0, fr ) ) + 0.39 * smoothstep( 0.0, 0.95, fr );
+}
+// ---- end FW6
 // ---- FC4 (C4R-3): a tube's ring frame on a segment, as fanGeometry's ring() lays it (across, along,
 // toward the back)
 fn cwRingFrame( d: vec3f ) -> mat3x3f {
@@ -1185,7 +1192,13 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 				p = headC + q;
 			} else if ( ( flags & ( 1u << 13u ) ) != 0u ) {
 				// a knit hat: a rounded dome over the hair (CP-7: it was a gnome's cone)
-				p = headC + local * ( 1.0 + 0.06 * smoothstep( 0.1, 0.5, d.y ) ) + vec3f( 0.0, 0.018 * smoothstep( 0.7, 1.0, d.y ), 0.0 );
+				// ---- FW6 (C4W-2): sat on the head from its edge (cwKnitEdge: over the brows in front, the
+				// ears' tops at the sides, the nape behind), the cuff a step out and the crown a finger out
+				// hugging the skull, a little higher and slouched back (it came down to the eyes: a can)
+				let kr = d.y - cwKnitEdge( d );
+				let ko = smoothstep( - 0.035, 0.005, kr ) * ( 0.0105 + 0.0065 * smoothstep( 0.15, 0.12, kr ) );
+				p = headC + local + normalize( local ) * ko + vec3f( 0.0, 0.007 * smoothstep( 0.55, 1.0, d.y ), 0.009 * smoothstep( 0.45, 0.95, d.y ) * smoothstep( - 0.5, 0.4, d.z ) );
+				// ---- end FW6
 			} else if ( ( flags & 16u ) != 0u && lod > 0u ) {
 				// a cap, where it hasn't its own crown: the head fuller above the band and taller
 				let front = - d.z / max( length( d.xz ), 0.001 );
@@ -1518,12 +1531,16 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		}
 		// a knit hat (a folded cuff, ribs, a pom-pom; the Phillies' red one with its navy cuff and the
 		// white P on the front, Getty 83893023)
-		if ( ( hat == 3u || hat == 7u ) && ( d.y > 0.14 || piece ) ) {
+		// ---- FW6 (C4W-2): from its edge on the forehead (cwKnitEdge), the cuff 0.13 over it; it came down
+		// to d.y 0.14, over the brows to the eyes
+		let kRel = d.y - cwKnitEdge( d );
+		if ( ( hat == 3u || hat == 7u ) && ( kRel > 0.0 || piece ) ) {
 			let knit = cwLookBuf[ k + 5u ].rgb;
 			c = knit * ( 0.9 + 0.1 * sin( atan2( d.x, d.z ) * 36.0 ) );
-			if ( d.y < 0.34 ) { c = select( knit * 0.8, vec3f( 0.012, 0.016, 0.05 ), hat == 3u ); }
+			if ( kRel < 0.13 ) { c = select( knit * 0.8, vec3f( 0.012, 0.016, 0.05 ), hat == 3u ); }
+			c *= 1.0 - 0.25 * smoothstep( 0.025, 0.0, abs( kRel - 0.13 ) );
 			if ( hat == 3u && d.z < - 0.6 ) {
-				let lp = vec2f( - d.x / 0.22, ( d.y - 0.6 ) / 0.22 );
+				let lp = vec2f( - d.x / 0.22, ( kRel - 0.3 ) / 0.15 );
 				let pP = ( abs( lp.x + 0.25 ) < 0.16 && abs( lp.y ) < 0.75 ) || ( abs( length( ( lp - vec2f( 0.05, 0.3 ) ) * vec2f( 1.0, 1.3 ) ) - 0.32 ) < 0.14 && lp.x > - 0.25 );
 				if ( pP ) { c = vec3f( 0.62, 0.6, 0.55 ); }
 			}
