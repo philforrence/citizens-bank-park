@@ -35,6 +35,10 @@ import { beam } from './geo.js';
 //                               section, `rows` rows deep from row `row`, `width` wide
 // }
 export const SEAT_W = 0.5;
+// ---- FW3 (C2W-22): what the stands' concrete is told by a face's uv: a tread (uv.x - TREAD_UV: how far
+// from its section's end, the aisle the first 0.6 m; uv.y: back from its front edge), a riser, a step light
+const TREAD_UV = 2000, RISER_UV = 1000, STEPLIGHT_UV = 3000;
+// ---- end FW3
 
 export function rowHeights( tier ) {
 
@@ -181,10 +185,24 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			const [ f0, f1 ] = ends( d0 ), [ b0, b1 ] = ends( d1 );
 			if ( f1 - f0 < 0.05 && b1 - b0 < 0.05 ) continue;
 			// tread
-			const A0 = at( f0, d0 ), A1 = at( f1, d0 ), B1 = at( b1, d1 ), B0 = at( b0, d1 );
-			q.add( [ A0[ 0 ], y, A0[ 1 ] ], [ A1[ 0 ], y, A1[ 1 ] ], [ B1[ 0 ], y, B1[ 1 ] ], [ B0[ 0 ], y, B0[ 1 ] ], [ 0, 1, 0 ] );
+			const A0 = at( f0, d0 ), A1 = at( f1, d0 );
+			// ---- FW3 (C2W-22): the tread in three pieces, its uv saying where on it a point is (TREAD_UV: the
+			// distance from the section's end, so the aisle's first 0.6 m, and back from its front edge), for
+			// the concrete's painted nosings and worn edges; the riser flagged, for its shade
+			const w = Math.min( A / 2 + 0.6, ( f1 - f0 ) / 2 ), wb = Math.min( A / 2 + 0.6, ( b1 - b0 ) / 2 );
+			const F = [ f0, f0 + w, f1 - w, f1 ].map( ( s ) => at( s, d0 ) ), Bq = [ b0, b0 + wb, b1 - wb, b1 ].map( ( s ) => at( s, d1 ) );
+			const ua = [ 0, w, w, 0 ], ub = [ 0, wb, wb, 0 ];
+			for ( let j = 0; j < 3; j ++ ) {
+
+				const a = [ F[ j ][ 0 ], y, F[ j ][ 1 ] ], b = [ F[ j + 1 ][ 0 ], y, F[ j + 1 ][ 1 ] ], c = [ Bq[ j + 1 ][ 0 ], y, Bq[ j + 1 ][ 1 ] ], dd = [ Bq[ j ][ 0 ], y, Bq[ j ][ 1 ] ];
+				q.tri( a, b, c, [ 0, 1, 0 ], [ TREAD_UV + ua[ j ], 0 ], [ TREAD_UV + ua[ j + 1 ], 0 ], [ TREAD_UV + ub[ j + 1 ], D ] );
+				q.tri( a, c, dd, [ 0, 1, 0 ], [ TREAD_UV + ua[ j ], 0 ], [ TREAD_UV + ub[ j + 1 ], D ], [ TREAD_UV + ub[ j ], D ] );
+
+			}
+
 			// riser in front of it
-			q.add( [ A0[ 0 ], yPrev, A0[ 1 ] ], [ A1[ 0 ], yPrev, A1[ 1 ] ], [ A1[ 0 ], y, A1[ 1 ] ], [ A0[ 0 ], y, A0[ 1 ] ], [ - nx, 0, - nz ] );
+			q.add( [ A0[ 0 ], yPrev, A0[ 1 ] ], [ A1[ 0 ], yPrev, A1[ 1 ] ], [ A1[ 0 ], y, A1[ 1 ] ], [ A0[ 0 ], y, A0[ 1 ] ], [ - nx, 0, - nz ], RISER_UV, RISER_UV );
+			// ---- end FW3
 
 			// walkable: an oriented box under the tread (world frame)
 			if ( colliders ) {
@@ -225,6 +243,55 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		}
 
 	}
+
+	// ---- FW3 (C2W-22): the aisles' steps. Where a row rises more than a comfortable step (the upper decks:
+	// 46-62 cm a row), the aisle has a step half way up each row, a box over the tread's back half the
+	// aisle's width (both halves meet on the sections' bisector); every fourth row a step light in its riser.
+	// The field level's rows rise 10-22 cm: one step a row, as built
+	for ( let k = 0; k < secs.length - 1; k ++ ) {
+
+		const S = secs[ k ], T = secs[ k + 1 ];
+		if ( ! S.seats && ! T.seats ) continue;
+		const first = Math.max( S.skipRows || 0, T.skipRows || 0 );
+		for ( let r = first; r < tier.rows - 1; r ++ ) {
+
+			for ( const [ X, end ] of [ [ S, true ], [ T, false ] ] ) {
+
+				const y = rowY( X, r ), h = ( rowY( X, r + 1 ) - y ) / 2;
+				if ( h < 0.15 ) continue;
+				const dm = S0 + ( r + 0.5 ) * D, d1 = S0 + ( r + 1 ) * D;
+				const at = ( s, d ) => [ X.a[ 0 ] + X.ux * s + X.nx * d, X.a[ 1 ] + X.uz * s + X.nz * d ];
+				// the aisle's half in this section at depth d: from its mitred end A/2 in
+				const span = ( d ) => end ? [ X.len - X.m1 * d - A / 2, X.len - X.m1 * d ] : [ X.m0 * d, X.m0 * d + A / 2 ];
+				const [ m0, m1 ] = span( dm ), [ e0, e1 ] = span( d1 );
+				const P = ( s, d, yy ) => {
+
+					const p = at( s, d );
+					return [ p[ 0 ], yy, p[ 1 ] ];
+
+				};
+				const yt = y + h;
+				// the top (a tread: its nosing painted like the rest), the riser, the side toward the seats
+				q.tri( P( m0, dm, yt ), P( m1, dm, yt ), P( e1, d1, yt ), [ 0, 1, 0 ], [ TREAD_UV + ( end ? A / 2 : 0 ), 0 ], [ TREAD_UV + ( end ? 0 : A / 2 ), 0 ], [ TREAD_UV + ( end ? 0 : A / 2 ), D / 2 ] );
+				q.tri( P( m0, dm, yt ), P( e1, d1, yt ), P( e0, d1, yt ), [ 0, 1, 0 ], [ TREAD_UV + ( end ? A / 2 : 0 ), 0 ], [ TREAD_UV + ( end ? 0 : A / 2 ), D / 2 ], [ TREAD_UV + ( end ? A / 2 : 0 ), D / 2 ] );
+				q.add( P( m0, dm, y ), P( m1, dm, y ), P( m1, dm, yt ), P( m0, dm, yt ), [ - X.nx, 0, - X.nz ], RISER_UV, RISER_UV );
+				const sIn = end ? m0 : m1, sIn1 = end ? e0 : e1, sg = end ? - 1 : 1;
+				q.add( P( sIn, dm, y ), P( sIn1, d1, y ), P( sIn1, d1, yt ), P( sIn, dm, yt ), [ X.ux * sg, 0, X.uz * sg ], RISER_UV, RISER_UV );
+				// the step light: a small lens low in the riser, toward the aisle's middle
+				if ( r % 4 === 1 ) {
+
+					const sl = end ? m1 - 0.22 : m0 + 0.22, o = - 0.006;
+					const L0 = P( sl - 0.07, dm + o, y + h * 0.3 ), L1 = P( sl + 0.07, dm + o, y + h * 0.3 );
+					q.add( L0, L1, [ L1[ 0 ], y + h * 0.3 + 0.05, L1[ 2 ] ], [ L0[ 0 ], y + h * 0.3 + 0.05, L0[ 2 ] ], [ - X.nx, 0, - X.nz ], STEPLIGHT_UV, STEPLIGHT_UV );
+
+				}
+
+			}
+
+		}
+
+	}
+	// ---- end FW3
 
 	// an upper deck's underside, parallel to the rake, and its two stepped end profiles
 	if ( tier.soffit ) {
@@ -583,7 +650,26 @@ export function standsMaterials() {
 	const concrete = standard( { name: 'stands-concrete', color: new Color( 0.32, 0.31, 0.29 ), roughness: 0.85, side: 'double',
 		surface: /* wgsl */`
 	let nk = smoothstep( 0.15, 0.7, frame.night );
-	s.emissive = s.albedo * nk * ( 0.06 + 0.06 * max( in.N.y, 0.0 ) );
+	// ---- FW3 (C2W-22): the steps read as steps (Getty 83458502, 27 Oct 2008: every tread's edge a line).
+	// A tread: its front edge worn paler, a dark line of grime where the riser behind meets it, and in the
+	// aisle the nosing painted a dull safety yellow; a riser in the tread's shade; a step light lit
+	var lens = 0.0;
+	if ( in.uv.x > ${ STEPLIGHT_UV - 1 }.0 ) {
+		lens = 1.0;
+		s.albedo = vec3f( 0.6, 0.58, 0.5 );
+	} else if ( in.uv.x > ${ TREAD_UV - 1 }.0 && in.N.y > 0.6 ) {
+		let ad = in.uv.x - ${ TREAD_UV }.0;
+		let fv = fwidth( in.uv.y ) + 0.002;
+		let nose = 1.0 - smoothstep( 0.05, 0.05 + fv, in.uv.y );
+		let back = smoothstep( 0.6, 0.8, in.uv.y ) * ( 1.0 - clamp( fv * 6.0, 0.0, 1.0 ) );
+		let aisle = 1.0 - smoothstep( 0.58, 0.64, ad );
+		s.albedo = s.albedo * ( 1.0 + 0.18 * nose * ( 1.0 - aisle ) ) * ( 1.0 - 0.22 * back );
+		s.albedo = mix( s.albedo, vec3f( 0.42, 0.34, 0.08 ), nose * aisle * 0.85 * ( 1.0 - clamp( fv * 3.0, 0.0, 0.6 ) ) );
+	} else if ( in.uv.x > ${ RISER_UV - 1 }.0 && in.uv.x < ${ TREAD_UV - 1 }.0 && abs( in.N.y ) < 0.5 ) {
+		s.albedo = s.albedo * 0.68;
+	}
+	// ---- end FW3
+	s.emissive = s.albedo * nk * ( 0.06 + 0.06 * max( in.N.y, 0.0 ) ) + vec3f( 1.0, 0.86, 0.6 ) * lens * mix( 0.4, 2.2, nk );
 	if ( in.N.y < - 0.6 ) {
 ${ SOFFIT_WGSL }
 	}
