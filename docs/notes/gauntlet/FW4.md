@@ -11,7 +11,6 @@ The light is the replay's clock throughout.
 
 ## Per ticket
 
-(filled in below)
 ### C3W-2: the Cast up close read as mannequins (done)
 - **The shoulders.** Every sleeve had an ellipsoid on its shoulder joint standing ~5 cm proud of the trunk's shoulder line (Cast.js's "shoulder's round"), and the trunk stopped short at 0.18 m: a pad over every sleeve. Now the trunk carries the shoulder out to the point of the shoulder (to 0.21 m at 1.40 m), square across the top in plan (the loft takes a squareness per ring, a rounded box, not an ellipse with a point at each side), and the sleeve has its own head: its sweep starts 3 cm above the joint, rounding over the top of the arm under the trunk's shoulder and filling out over the deltoid below it, one surface down the arm. The hi-vis vest's top ring widened to stay over it.
 - **The arms.** The bind pose's elbow, wrist and hand came in (x 0.235 / 0.245 / 0.245 to 0.221 / 0.218 / 0.214: the hand was 5 cm wider than the shoulder), and an arm let hang (pitched under ~0.4) gives up most of the ~0.06 roll the places' standing poses hold it out with (`c3Hang` in the shader: less on a belly, nothing for an arm raised or reaching). Concourse3BKit's `armIK` reads `J`, so the poses solved to a point (a beer at the rail, a cup at the mouth) land where they did.
@@ -51,3 +50,45 @@ The light is the replay's clock throughout.
 ### SP2's Cast wins (done: the middle figure; the distant one trimmed instead of a fifth)
 - **The middle figure** (C3W-2 above): for 112-250 px (SP2's numbers), so the near figure's new detail is paid only within a few metres, and FOX's long lens, which saw ~123 Cast people as near in TV center, mostly draws them at 3,704 triangles, not 4,600 (and not the near figure's new 6,017).
 - **The distant figure** (under 32 px: SP2's 737 of them from the 400s seat) leaves out what's under a pixel at that size: the hands (two boxes, 48 vertices), the scarf, the pom-pom, long hair; its shoes a wedge, not a box. 383 vertices / 386 triangles → 261 / 306. Rather than a fifth level for under ~12 px: this one is what's left of a speck already, and every one of the 737 gets it.
+
+### Also fixed on the way (Cast.js)
+- **A cap turned round** (`HAT.capBack`) came down over the eyes: FP2's turn puts the crown's low back edge over the forehead, and the paint followed it. It sits up on the forehead now, its band over the brows (the crown's front ring and the paint's rim lifted to the brow line). `final/line-faces2.jpg` (the man on the left) against `before/line-faces2.jpg`.
+- **The hi-vis vest's** sides showed the trunk's corners through them at the armpits (a few black slashes before; more with the squarer shoulders): squared as the trunk under it is, and a vest wearer's hanging arms held clear of it.
+
+## What the merger must know
+- **Cast.js** (mine): `PART.ear` (21); `figureGeometry( 3 )` is the middle figure; the pool has four meshes (`pool.meshes[ 3 ]`, `cast.meshMid`, named `cast-mid`), the order buffer five stretches (`cap * 5`), `FULL_FRAC` (0.31); `__cast.stats.mid`; `J.elbow`, `J.wrist`, `J.hand` moved in (anything that hard-codes where a Cast hand is at rest should read `J`, as Concourse3BKit's `armIK` does); the shader's `c3Hang()`; an exported `filmModule` (the crumpled film), which Crowd.js imports. `Concourse1B.js` and `BehindHome.js` set a bounding sphere on `mesh`, `meshFar` and `meshTiny`: the middle mesh draws with `frustumCulled = false` like the others, so it doesn't need one.
+- **Crowd.js** (mine): the close level's head is 16 × 11; the materials take `filmModule`; the clear poncho's look; the beard.
+- **People.js**, **home/Dress.js** (mine): the poncho mixes; the throng's rail stand-ins.
+- **Not mine, one marked block each:** `places/gate3b/Celebration.js` (FW5's folder: the `FW4 (C3W-7)` block in the celebrants' own `custom` hook, after they've arrived; nothing else in the file touched), `places/Concourse3BStories.js` (the guard's wave, three lines). Nothing in `lighting.js`: `WET_FABRIC` wasn't the cause (C3W-4).
+- No invented people, no textures or photos shipped (CAST.md, CREDITS.md unchanged).
+
+## Counts
+
+`__app.engine.meshRenderer.stats` (with `__cast.stats` and the throng's `throngShown()`), 1280 × 800, the full park, read in the shot's own `js` after 6 frames in its view (`__stats()`): `before/` at 750ab93 and `final/`:
+
+| View | Before | After |
+|---|---|---|
+| Walking, the 3B concourse (PERF.md's, play 60) | 808 draws, 3,130,576 triangles; Cast near 1, far 94, distant 880 | 808 draws, 3,059,280; Cast middle 1, far 94, distant 880 |
+| The 400s seat behind home (eye 0, 34.69, 58.92 → 0, 0, -30, fov 60, play 60) | 1,119 draws, 5,824,559; Cast far 37, distant 741 | 1,119 draws, 5,868,819; Cast far 37, distant 741 |
+| The lineup (6 near Cast figures, the seats' close fans below) | 458 draws, 1,957,384 | 458 draws, 2,037,806 |
+| TV center (play 20) | (C3W's at a0f5aaf, before SP2's crowd pieces: 496 draws, 3,635,774) | 493 draws, 3,318,646; Cast middle 123, near 0 |
+
+- **The 3B concourse** is 71k triangles lighter: its 880 distant figures are 80 triangles each lighter.
+- **The 400s seat** is 44k heavier: the seated crowd's close level round the seat (~680 fans there) has a 16 × 11 head and a 7-point nose (+154 triangles a fan, +103k), less the 741 distant Cast figures' trim (-59k).
+- **TV center:** FOX's long lens had 123 Cast people as near; they're all middle figures now (3,704 triangles, not 4,600: -110k).
+- Per figure (vertices / triangles, folded props included): the Cast's near 3,858 / 4,600 → 4,608 / 6,017 (only above 250 px), middle 3,291 / 3,704 (new, 112-250 px), far 1,342 / 1,271, distant 383 / 386 → 261 / 306; the crowd's close level +106 vertices and +154 triangles a fan (the others as they were).
+
+## Frame rate
+
+Not profiled (the coordinator does). What it costs and where:
+- **The walking views:** the near figure's new detail (+1,400 triangles and +750 vertices, rigged twice) only for people taller than 250 px of 800, a handful at a time (the lineup's 6 at 1-3 m); between 112 and 250 px they're 900 triangles lighter than before. The crumpled film (two octaves of value noise, 16 hashes a pixel) runs only on the ponchos' and hoods' pixels of the near and middle Cast figures and the crowd's close and near levels, and fades to nothing where a fold is under ~2 px.
+- **The 400s seat (31.9 ms, SP2's):** +44k triangles net, all of it close-level fans round the seat (big on screen, not the sub-pixel triangles SP2 found costly). I'd watch it: if it's over, the close level's head could go back to 12 × 8 off the face's side (the sculpt only needs the front).
+- **TV center and the TV high views:** lighter (the middle figure). On the 27th the crowd's near level (FOX's backdrop) shades its ponchos' film: a few dozen ALU and 16 hashes on those pixels.
+- **The CPU:** none per frame (the celebrants' block is a few multiplies on the ~150 who are out after the last out, on the place's own update).
+
+## Noticed elsewhere
+- **The 3B rail at 129-130** (C3W's `j2-06`): the people standing a metre back from the rail with nobody at it are the 3B place's standing rows behind home (`Concourse3BPeople._standing()`, rows from 31.35 m, the rail at 30.1), which stay up when the rail's spots empty: FW5's file. When the rail is taken they lean on it (`a3/j2-06`, the probe in `final/`: `lean` 0.24-0.4, `railArms`).
+- **The man beside the guard at the 3B gate** with his arm held straight out (C3W's `j1-06`) is another place's figure (the gate's staff), not the guard.
+- **Concourse3BKit's `dress()`** still gives white ponchos to one in ten of the 3B Cast and red to a quarter (`L.poncho = pick( { 1: 60, 2: 25, 3: 10, 4: 5 } )`): the photos have more yellow and few white.
+- **The seated crowd's close arms** (C3W's `j2-14`, "thick red sausages, thumbs-up mitts") I didn't get to.
+- The crowd's FP1 crinkle term on a clear poncho (`sin( dot( L, ( 61, 23, 47 ) ) … )`) runs in the trunk's parametric `L.y` and shows as faint horizontal bands on the close fans' film.
