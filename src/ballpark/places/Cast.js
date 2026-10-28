@@ -1699,7 +1699,8 @@ function castMaterial( pool ) {
 		let ponchoHood = poncho > 0u && fract( f32( lk.w & 65535u ) / 65536.0 * 13.1 ) > 0.35;
 		if ( ( hat == ${ HAT.hood }u || ponchoHood ) && part == ${ PART.head }u ) {
 			let face = smoothstep( - 0.55, - 0.85, d.z ) * smoothstep( 0.75, 0.45, length( d.xy - vec2f( 0.0, - 0.05 ) ) );
-			var hq = ( q - headC ) * mix( select( 1.14, 1.17, ponchoHood ), 1.0, face );
+			// (FW6, C4W-4: a poncho's hood closer over the head, 13% not 17%: it was a ball for a head)
+			var hq = ( q - headC ) * mix( select( 1.14, 1.13, ponchoHood ), 1.0, face );
 			hq += vec3f( 0.0, 0.01, - 0.026 ) * smoothstep( - 0.1, - 0.6, d.z ) * smoothstep( 0.35, 0.8, d.y ) * ( 1.0 - face );
 			hq += vec3f( 0.0, - 0.03, 0.03 ) * smoothstep( 0.1, 0.7, d.z ) * smoothstep( 0.1, - 0.6, d.y );
 			q = headC + hq;
