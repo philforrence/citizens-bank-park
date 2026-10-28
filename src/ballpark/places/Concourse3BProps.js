@@ -27,6 +27,9 @@ export const PALETTE = [
 	[ 'beer', [ 0.55, 0.33, 0.04 ], 0.1, 0 ], [ 'foam', [ 0.75, 0.72, 0.62 ], 0.9, 0 ], [ 'white', [ 0.72, 0.71, 0.68 ], 0.7, 0 ],
 	[ 'redPlastic', [ 0.4, 0.02, 0.03 ], 0.45, 0 ], [ 'paper', [ 0.66, 0.64, 0.58 ], 0.95, 0 ], [ 'darkWet', [ 0.05, 0.05, 0.05 ], 0.15, 0 ],
 	[ 'sage', [ 0.2, 0.28, 0.17 ], 0.75, 0 ], [ 'postYellow', [ 0.7, 0.52, 0.04 ], 0.45, 0.2 ],
+	// ---- FI1 (CI-1): the HID domes' prismatic globe, glowing all over, and the lamp's lens under it
+	[ 'domeGlow', [ 0.72, 0.72, 0.7 ], 0.3, 0, [ 1.0, 0.95, 0.86 ] ], [ 'hid', [ 0.9, 0.9, 0.86 ], 0.3, 0, [ 5.6, 5.4, 4.8 ] ],
+	// ---- end FI1
 ];
 export const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
 const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;
@@ -157,12 +160,12 @@ function drawAtlas() {
 
 		};
 
-		cartSign( 'waterIce', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd23f' ], 'WATER ICE', 'CHERRY  ·  LEMON  ·  BLUE RASPBERRY   $4.00', serif, true );
-		cartSign( 'cottonCandy', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd6e8' ], 'COTTON CANDY', 'LEMONADE  ·  POPCORN   $4.50', serif, true );
+		cartSign( 'waterIce', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd23f' ], 'WATER ICE', 'CHERRY  ·  LEMON  ·  BLUE RASPBERRY   $3.50', serif, true );
+		cartSign( 'cottonCandy', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd6e8' ], 'COTTON CANDY', 'LEMONADE  ·  POPCORN   $4.00', serif, true );
 		cartSign( 'cocoaCart', [ '#3b2314', '#24150b' ], [ '#f2d7a0', '#e8b04a' ], 'HOT CHOCOLATE', 'COFFEE  ·  TEA  ·  HOT CHOCOLATE   $3.00', serif );
-		cartSign( 'nachos', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd23f' ], 'NACHOS', 'NACHOS $4.75  ·  WITH JALAPEÑOS  ·  BOTTLED WATER', sans );
+		cartSign( 'nachos', [ '#c8102e', '#8e0b1f' ], [ '#ffffff', '#ffd23f' ], 'NACHOS', 'NACHOS $4.25  ·  WITH JALAPEÑOS  ·  BOTTLED WATER', sans );
 		cartSign( 'programs', [ '#0b2a5b', '#071a3a' ], [ '#ffffff', '#e8b04a' ], 'PROGRAMS', 'OFFICIAL 2008 WORLD SERIES PROGRAM   $15', sans );
-		cartSign( 'beerCart', [ '#1f3d2a', '#122518' ], [ '#efe2bf', '#c9a45a' ], 'COLD BEER', 'YUENGLING  ·  BUD LIGHT  ·  MILLER LITE   $7.00', serif );
+		cartSign( 'beerCart', [ '#1f3d2a', '#122518' ], [ '#efe2bf', '#c9a45a' ], 'COLD BEER', 'YUENGLING  ·  BUD LIGHT  ·  MILLER LITE   $5.00', serif );
 		// the 2008 World Series program's cover (the photos from Game 4 and Game 5): black, Utley (26) on the
 		// left and Longoria on the right, the Fall Classic logo, PHILADELPHIA PHILLIES VS. TAMPA BAY
 		// RAYS, $15 printed on it
@@ -480,13 +483,19 @@ export function condiments( K, P, x, z, r ) {
 
 // A white dome pendant light (the 2008 photos: about 50 cm across, hung from the trusses), its cord up
 // to the deck overhead
+// ---- FI1 (CI-1): an HID high-bay as the 2008 photos show them (auds, 27 Oct 2008; docindigo76, NLCS 2009):
+// a conduit stem, the ballast box, a prismatic dome that glows all over and blazes at the lens (it was a
+// small enamel shade with a dim disc); the domes are local lights too (ConcourseSteel.domeLights)
 export function pendant( K, P, x, z, y, top ) {
 
-	K.use( 'grey' ).cyl( P, x, z, y + 0.3, top, 0.008, 0.008, 4, { top: false } );
-	K.use( 'enamel' ).cyl( P, x, z, y + 0.12, y + 0.3, 0.26, 0.05, 12 );
-	K.use( 'lamp' ).cyl( P, x, z, y + 0.08, y + 0.12, 0.25, 0.25, 12, { top: false, bottom: true } );
+	K.use( 'grey' ).cyl( P, x, z, y + 0.62, top, 0.022, 0.022, 5, { top: false } );
+	K.use( 'lid' ).box( P, x, y + 0.62, z, 0.24, 0.2, 0.24 );
+	K.use( 'domeGlow' ).cyl( P, x, z, y + 0.05, y + 0.36, 0.3, 0.16, 12, { top: false } );
+	K.use( 'domeGlow' ).cyl( P, x, z, y + 0.36, y + 0.52, 0.16, 0.06, 10 );
+	K.use( 'hid' ).cyl( P, x, z, y, y + 0.05, 0.27, 0.3, 12, { top: false, bottom: true } );
 
 }
+// ---- end FI1
 
 // A red push cart, the vendor's side at -z, the customers' at +z: a red body on four wheels, a steel
 // top, a lit sign on two poles over it, and what it sells on the top: water ice in a freezer chest, the

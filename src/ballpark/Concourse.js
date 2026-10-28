@@ -6,6 +6,7 @@ import { canvasTexture, box, beam } from './geo.js';
 import { offsetPolyline } from './Bowl.js';
 import { LEVELS, fencePoint } from './layout.js';
 import { GATES } from './Exterior.js';
+import { ConcourseSteel } from './ConcourseSteel.js'; // ---- FI1
 
 // The main concourse round the infield, as the Phillies' guides had it in 2008 (the concessions guide as
 // archived on 6 October 2008, the 2007 Convenience Guide): along its outer side, just inside the columns
@@ -20,36 +21,85 @@ import { GATES } from './Exterior.js';
 const STREET = LEVELS.mainConcourse;
 const DEPTH = 4.5, H = 4.2, UNIT = 7.5, GAP = 1.2;
 
-const DRINKS = [ 'COCA-COLA', [ [ 'SOFT DRINK', '3.75' ], [ 'SOUVENIR CUP', '5.75' ], [ 'BOTTLED WATER', '3.75' ], [ 'HOT CHOCOLATE', '3.00' ] ] ];
+// ---- FI1 (CI-21): 2008 prices (Team Marketing Report's Fan Cost Index, April 2008, the Phillies: a 21 oz
+// draft $5.00, a soft drink $3.25, a hot dog $3.50; the rest scaled to them). They were 2010s prices
+const DRINKS = [ 'COCA-COLA', [ [ 'SOFT DRINK', '3.25' ], [ 'SOUVENIR CUP', '5.00' ], [ 'BOTTLED WATER', '3.25' ], [ 'HOT CHOCOLATE', '3.00' ] ] ];
 
 // The stands: name, a line under it, its colours (sign, letters, accent), serif or not, the kitchen's kind
 // (0 grill, 1 market, 2 pizza ovens, 3 soft serve, 4 taps), the menu board's three panels (2008 prices)
 const FOOD = {
 	cobblestone: { name: 'COBBLESTONE GRILL', tag: 'CHEESESTEAKS  ·  FRIES  ·  CHICKEN TENDERS', bg: '#1f3d2a', fg: '#efe2bf', accent: '#c9a45a', serif: true, kitchen: 0,
-		menu: [ [ 'STEAKS', [ [ 'CHEESESTEAK', '8.75' ], [ 'CHICKEN STEAK', '8.75' ], [ 'PIZZA STEAK', '9.00' ], [ 'WIT OR WITOUT', '' ] ] ],
-			[ 'SIDES', [ [ 'FRENCH FRIES', '4.25' ], [ 'CHEESE FRIES', '5.25' ], [ 'CHICKEN TENDERS', '8.25' ], [ 'WITH FRIES', '+1.50' ] ] ], DRINKS ] },
+		menu: [ [ 'STEAKS', [ [ 'CHEESESTEAK', '8.00' ], [ 'CHICKEN STEAK', '7.75' ], [ 'PIZZA STEAK', '8.00' ], [ 'WIT OR WITOUT', '' ] ] ],
+			[ 'SIDES', [ [ 'FRENCH FRIES', '3.75' ], [ 'CHEESE FRIES', '4.50' ], [ 'CHICKEN TENDERS', '7.25' ], [ 'WITH FRIES', '+1.50' ] ] ], DRINKS ] },
 	hatfield: { name: 'HATFIELD GRILL', tag: 'SAUSAGE  ·  HOT DOGS  ·  BURGERS  ·  BRATS', bg: '#ad1119', fg: '#ffffff', accent: '#0b2a5b', serif: true, italic: true, kitchen: 0,
-		menu: [ [ 'FROM THE GRILL', [ [ 'HOT DOG', '3.75' ], [ 'FOOT LONG', '5.50' ], [ 'ITALIAN SAUSAGE', '6.00' ], [ 'BRATWURST', '6.00' ] ] ],
-			[ 'SANDWICHES', [ [ 'CHEESEBURGER', '6.75' ], [ 'CHICKEN SANDWICH', '7.50' ], [ 'FRENCH FRIES', '4.25' ], [ 'PEPPERS & ONIONS', '.50' ] ] ], DRINKS ] },
+		menu: [ [ 'FROM THE GRILL', [ [ 'HOT DOG', '3.50' ], [ 'FOOT LONG', '4.75' ], [ 'ITALIAN SAUSAGE', '5.25' ], [ 'BRATWURST', '5.25' ] ] ],
+			[ 'SANDWICHES', [ [ 'CHEESEBURGER', '6.00' ], [ 'CHICKEN SANDWICH', '6.50' ], [ 'FRENCH FRIES', '3.75' ], [ 'PEPPERS & ONIONS', '.50' ] ] ], DRINKS ] },
 	market: { name: 'SOUTH PHILADELPHIA MARKET', tag: 'HOT DOGS  ·  POPCORN  ·  PEANUTS  ·  CRACKER JACK', bg: '#13294f', fg: '#f1e6c8', accent: '#c8102e', kitchen: 1,
-		menu: [ [ 'HOT DOGS', [ [ 'HOT DOG', '3.75' ], [ 'JUMBO DOG', '5.00' ], [ 'SOFT PRETZEL', '3.75' ], [ 'NACHOS', '4.75' ] ] ],
-			[ 'SNACKS', [ [ 'POPCORN', '4.50' ], [ 'PEANUTS', '4.50' ], [ 'CRACKER JACK', '3.50' ], [ 'CANDY', '3.25' ] ] ], DRINKS ] },
+		menu: [ [ 'HOT DOGS', [ [ 'HOT DOG', '3.50' ], [ 'JUMBO DOG', '4.50' ], [ 'SOFT PRETZEL', '3.25' ], [ 'NACHOS', '4.25' ] ] ],
+			[ 'SNACKS', [ [ 'POPCORN', '4.00' ], [ 'PEANUTS', '4.00' ], [ 'CRACKER JACK', '3.00' ], [ 'CANDY', '2.75' ] ] ], DRINKS ] },
 	pizza: { name: 'NEIGHBORHOOD PIZZA', tag: 'SEASONS PIZZA  ·  CLASSIC CAESAR', bg: '#7b2016', fg: '#fff4dc', accent: '#f0b429', serif: true, kitchen: 2,
-		menu: [ [ 'SEASONS PIZZA', [ [ 'CHEESE SLICE', '5.25' ], [ 'PEPPERONI SLICE', '5.75' ], [ 'WHITE PIZZA', '5.75' ], [ 'WHOLE PIE', '24.00' ] ] ],
-			[ 'SALADS', [ [ 'CAESAR SALAD', '6.50' ], [ 'CHICKEN CAESAR', '8.00' ], [ 'GARLIC KNOTS', '3.50' ], [ 'SOFT PRETZEL', '3.75' ] ] ], DRINKS ] },
+		menu: [ [ 'SEASONS PIZZA', [ [ 'CHEESE SLICE', '4.50' ], [ 'PEPPERONI SLICE', '5.00' ], [ 'WHITE PIZZA', '5.00' ], [ 'WHOLE PIE', '21.00' ] ] ],
+			[ 'SALADS', [ [ 'CAESAR SALAD', '5.75' ], [ 'CHICKEN CAESAR', '7.00' ], [ 'GARLIC KNOTS', '3.00' ], [ 'SOFT PRETZEL', '3.25' ] ] ], DRINKS ] },
 	creamery: { name: 'OLD CITY CREAMERY', tag: 'TURKEY HILL SOFT SERVE', bg: '#eee0c0', fg: '#5a3218', accent: '#2b5ea8', serif: true, kitchen: 3,
-		menu: [ [ 'SOFT SERVE', [ [ 'CONE', '3.75' ], [ 'WAFFLE CONE', '4.75' ], [ 'HELMET SUNDAE', '5.50' ], [ 'TWIST', '3.75' ] ] ],
+		menu: [ [ 'SOFT SERVE', [ [ 'CONE', '3.25' ], [ 'WAFFLE CONE', '4.25' ], [ 'HELMET SUNDAE', '4.75' ], [ 'TWIST', '3.25' ] ] ],
 			[ 'TOPPINGS', [ [ 'HOT FUDGE', '.75' ], [ 'CARAMEL', '.75' ], [ 'SPRINKLES', '.50' ], [ 'WHIPPED CREAM', '.50' ] ] ],
-			[ 'HOT DRINKS', [ [ 'COFFEE', '2.75' ], [ 'HOT CHOCOLATE', '3.00' ], [ 'TEA', '2.50' ], [ 'BOTTLED WATER', '3.75' ] ] ] ] },
+			[ 'HOT DRINKS', [ [ 'COFFEE', '2.50' ], [ 'HOT CHOCOLATE', '3.00' ], [ 'TEA', '2.25' ], [ 'BOTTLED WATER', '3.25' ] ] ] ] },
 	brewerytown: { name: 'BREWERYTOWN', tag: 'LOCAL  ·  DOMESTIC  ·  IMPORT', bg: '#3b2314', fg: '#f2c14e', accent: '#9b6a2f', serif: true, kitchen: 4,
-		menu: [ [ 'ON DRAFT', [ [ 'YUENGLING LAGER', '6.75' ], [ 'BUD LIGHT', '6.75' ], [ 'MILLER LITE', '6.75' ], [ 'COORS LIGHT', '6.75' ] ] ],
-			[ 'CRAFT & IMPORT', [ [ 'YARDS PHILLY PALE', '7.75' ], [ 'VICTORY HOPDEVIL', '7.75' ], [ 'BLUE MOON', '7.75' ], [ 'HEINEKEN', '7.75' ] ] ],
-			[ 'MUST BE 21', [ [ 'BREWERYTOWN SANDWICH', '8.50' ], [ 'SOFT PRETZEL', '3.75' ], [ 'PEANUTS', '4.50' ], [ 'ID REQUIRED', '' ] ] ] ] },
+		menu: [ [ 'ON DRAFT', [ [ 'YUENGLING LAGER', '5.00' ], [ 'BUD LIGHT', '5.00' ], [ 'MILLER LITE', '5.00' ], [ 'COORS LIGHT', '5.00' ] ] ],
+			[ 'CRAFT & IMPORT', [ [ 'YARDS PHILLY PALE', '6.00' ], [ 'VICTORY HOPDEVIL', '6.00' ], [ 'BLUE MOON', '6.00' ], [ 'HEINEKEN', '6.00' ] ] ],
+			[ 'MUST BE 21', [ [ 'BREWERYTOWN SANDWICH', '7.50' ], [ 'SOFT PRETZEL', '3.25' ], [ 'PEANUTS', '4.00' ], [ 'ID REQUIRED', '' ] ] ] ] },
 	schmitter: { name: 'THE SCHMITTER', tag: 'FROM McNALLY\'S TAVERN  ·  CHESTNUT HILL', bg: '#151414', fg: '#dc2a30', accent: '#efe4cc', serif: true, kitchen: 0,
-		menu: [ [ 'THE SCHMITTER', [ [ 'THE SCHMITTER', '8.50' ], [ 'BEEF · SALAMI · CHEESE', '' ], [ 'FRIED ONIONS · TOMATO', '' ], [ 'SPECIAL SAUCE · KAISER', '' ] ] ],
-			[ 'ALSO', [ [ 'CHEESESTEAK', '8.75' ], [ 'FRENCH FRIES', '4.25' ], [ 'CHEESE FRIES', '5.25' ], [ 'HOT DOG', '3.75' ] ] ], DRINKS ] },
+		menu: [ [ 'THE SCHMITTER', [ [ 'THE SCHMITTER', '8.00' ], [ 'BEEF · SALAMI · CHEESE', '' ], [ 'FRIED ONIONS · TOMATO', '' ], [ 'SPECIAL SAUCE · KAISER', '' ] ] ],
+			[ 'ALSO', [ [ 'CHEESESTEAK', '8.00' ], [ 'FRENCH FRIES', '3.75' ], [ 'CHEESE FRIES', '4.50' ], [ 'HOT DOG', '3.50' ] ] ], DRINKS ] },
 };
 const BRANDS = Object.keys( FOOD );
+// ---- FI1 (CI-7): the stands hung out over the walkway on arms (docindigo76, NLCS 2009: Hatfield's oval and
+// Brewerytown's arch, read from along the concourse)
+FOOD.hatfield.blade = true;
+FOOD.brewerytown.blade = true;
+// the die-cut signs over the menu boards: their atlas band (px) and their height (m), 7.4 mm a pixel
+const NAME_PX = 184, SIGN_H = NAME_PX * 7.62 / 1024;
+// the restroom plaques' cells, after the blades'
+const PLAQUES = [ 'men', 'women', 'family' ];
+// the stands' walls: red ground-face block (0.4 x 0.2 m, its aggregate showing) over a dark base course,
+// bonded along whichever wall it is (world position: y is the height above the concourse); the roofs a
+// dark membrane, what faces down painted
+const BLOCK_WGSL = /* wgsl */`
+	if ( in.N.y > 0.5 ) {
+		s.albedo = vec3f( 0.06, 0.06, 0.065 );
+		s.roughness = 0.85;
+	} else if ( in.N.y < - 0.5 ) {
+		s.albedo = vec3f( 0.3, 0.29, 0.27 );
+		s.roughness = 0.8;
+	} else {
+		let nh = normalize( in.N.xz + vec2f( 1e-4, 0.0 ) );
+		let u = in.P.x * ( - nh.y ) + in.P.z * nh.x;
+		let v = in.P.y;
+		let row = floor( v / 0.2 );
+		let bu = u / 0.4 + 0.5 * ( row % 2.0 );
+		let fr = clamp( fwidth( v ) / 0.2 * 1.5 - 0.25, 0.0, 1.0 );
+		let fb = clamp( fwidth( bu ) * 1.5 - 0.25, 0.0, 1.0 );
+		let mortar = clamp( mix( step( 0.94, fract( v / 0.2 ) ), 0.06, fr ) + mix( step( 0.97, fract( bu ) ), 0.03, max( fb, fr ) ), 0.0, 1.0 );
+		let id = fract( sin( dot( vec2f( floor( bu ), row ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+		// the ground face: speckled with aggregate
+		let grit = mx_noise_float2( vec2f( u, v ) * 60.0 );
+		var c = select( vec3f( 0.25, 0.075, 0.05 ), vec3f( 0.07, 0.065, 0.065 ), v < 0.6 );
+		c = c * ( 0.86 + 0.22 * id ) * ( 0.85 + 0.3 * smoothstep( 0.2, 0.8, grit ) * ( 1.0 - max( fr, fb ) ) );
+		s.albedo = mix( c, vec3f( 0.38, 0.36, 0.33 ), mortar * 0.7 );
+		s.roughness = 0.75;
+	}
+`;
+// the stands' bays behind the counters: white glazed tile, 15 cm, stainless below the counter
+const TILE_WGSL = /* wgsl */`
+	let tg = abs( fract( vec2f( in.P.x + in.P.z, in.P.y ) / 0.15 ) - 0.5 );
+	let fw = fwidth( in.P.y ) / 0.15;
+	let grout = step( 0.45, max( tg.x, tg.y ) ) * ( 1.0 - clamp( fw * 3.0, 0.0, 1.0 ) );
+	s.albedo = vec3f( 0.72, 0.71, 0.68 ) * ( 1.0 - 0.25 * grout );
+	s.roughness = 0.25;
+	if ( in.P.y < 1.0 ) { s.albedo = vec3f( 0.5, 0.51, 0.52 ); s.metalness = 0.8; s.roughness = 0.35; }
+	s.emissive = s.albedo * 0.12 * smoothstep( 0.1, 0.7, frame.night );
+`;
+// ---- end FI1
 
 // The half units, two to a unit: a door (a restroom), a window (a service counter) or a shop front; its
 // sign (words, colours); the room behind (5 restroom, 6 office, 7 team store, 8 first aid, 9 newsstand)
@@ -63,6 +113,13 @@ const HALF = {
 	merch: { type: 'shop', room: 7, sign: [ 'PHILLIES', '#b3121b', '#ffffff' ] },
 	news: { type: 'shop', room: 9, sign: [ 'NEWSSTAND', '#0b2a5b', '#ffffff' ] },
 	phanatic: { type: 'shop', room: 7, sign: [ 'MAKE YOUR OWN PHANATIC', '#1c8a3c', '#ffffff' ] },
+	// ---- FI1 (CI-23): McFadden's inside door behind 127 (the 2008 guide: 'Guests enter from outside (Third
+	// Base Gate) or inside the park (behind Section 127)'), its bar seen through it; the Majestic Clubhouse
+	// Store's inside entrance behind 134 beside the Home Stand
+	mcfaddens: { type: 'shop', room: 4, sign: [ 'McFADDEN\'S', '#173b26', '#f2c14e' ] },
+	clubhouse: { type: 'shop', room: 7, sign: [ 'MAJESTIC CLUBHOUSE STORE', '#0b2a5b', '#ffffff' ] },
+	// ---- FI1 (CI-9): the sign over the elevators' doors (no unit of its own): cream, red letters
+	elevators: { type: 'sign', sign: [ 'ELEVATORS', '#efe4c4', '#9e1b2a' ] },
 };
 const HALVES = Object.keys( HALF );
 
@@ -72,10 +129,12 @@ const PLAN = [
 	[ 'cobblestone', 108 ], [ 'cobblestone', 125 ], [ 'hatfield', 120 ], [ 'hatfield', 135 ], [ 'schmitter', 139 ],
 	[ [ 'guest', 'tickets' ], 122 ], [ [ 'firstaid', 'family' ], 105 ], [ 'brewerytown', 113 ], [ 'brewerytown', 139 ],
 	[ [ 'women', 'men' ], 117 ], [ [ 'men', 'women' ], 128 ], [ 'pizza', 109 ], [ 'pizza', 136 ], [ 'creamery', 110 ], [ 'creamery', 126 ],
-	[ [ 'merch', 'news' ], 121 ], [ [ 'merch', 'phanatic' ], 134 ], [ 'market', 116 ], [ 'market', 130 ], [ 'market', 127 ], [ 'market', 106 ],
+	[ [ 'merch', 'news' ], 121 ], [ [ 'merch', 'clubhouse' ], 134 ], [ 'market', 116 ], [ 'market', 130 ], [ [ 'mcfaddens', 'mcfaddens' ], 127 ], [ 'market', 106 ], // ---- FI1 (CI-23)
 	[ [ 'women', 'family' ], 137 ], [ [ 'family', 'men' ], 112 ], [ 'creamery', 136 ], [ 'market', 138 ],
 	// right field, behind 101-104 under the Pavilion
 	[ 'hatfield', 101 ], [ [ 'men', 'women' ], 102 ], [ 'market', 103 ], [ [ 'women', 'men' ], 104 ],
+	// ---- FI1 (CI-23): Make Your Own Phanatic, moved along for the Clubhouse Store's door
+	[ [ 'phanatic', 'news' ], 136 ],
 ];
 const FILL = [ [ 'women', 'men' ], 'market', [ 'men', 'women' ], 'brewerytown' ];
 
@@ -238,6 +297,248 @@ function pictogram( ctx, k, x, y, fg, bg ) {
 
 }
 
+// ---- FI1 (CI-7, CI-11, CI-13): the signs as they were, drawn on transparent ground (what's left clear
+// isn't drawn: the brick shows round them)
+const SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif', SERIF = 'Georgia, "Times New Roman", serif', SCRIPT = '"Brush Script MT", "Snell Roundhand", Georgia, serif';
+
+// a region painted rather than lit (its alpha under 1: the signs' shader doesn't light it)
+function unlit( ctx, x, y, w, h ) {
+
+	const id = ctx.getImageData( x, y, w, h );
+	for ( let i = 3; i < id.data.length; i += 4 ) if ( id.data[ i ] > 128 ) id.data[ i ] = 225;
+	ctx.putImageData( id, x, y );
+
+}
+
+// text fitted to a width
+function fit( ctx, text, x, y, maxW, font ) {
+
+	ctx.font = font;
+	ctx.fillText( text, x, y, maxW );
+
+}
+
+// A stand's die-cut sign fitted in w x h round ( cx, cy ) (a blade: the shape for a square-ish board):
+// Hatfield's cream oval with its red script, Brewerytown's arch with the sunburst and the beer, the
+// Creamery's cream board and cone, Neighborhood Pizza's red board and slice, the Market's long painted
+// header, Cobblestone's arched green board, the Schmitter's black one
+function dieCut( ctx, key, cx, cy, w, h, blade = false ) {
+
+	const F = FOOD[ key ];
+	ctx.save();
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	const sw = blade ? w : { hatfield: 560, brewerytown: 520, creamery: 600, pizza: 640, market: w, cobblestone: 760, schmitter: 640 }[ key ];
+	const sh = blade ? h : { hatfield: h, brewerytown: h, creamery: h * 0.78, pizza: h * 0.76, market: h * 0.62, cobblestone: h * 0.86, schmitter: h * 0.7 }[ key ];
+	const x0 = cx - sw / 2, y0 = cy - sh / 2;
+	const round = ( x, y, ww, hh, r ) => {
+
+		ctx.beginPath();
+		ctx.moveTo( x + r, y ); ctx.arcTo( x + ww, y, x + ww, y + hh, r ); ctx.arcTo( x + ww, y + hh, x, y + hh, r ); ctx.arcTo( x, y + hh, x, y, r ); ctx.arcTo( x, y, x + ww, y, r );
+		ctx.closePath();
+
+	};
+
+	const arch = ( x, y, ww, hh ) => {
+
+		ctx.beginPath();
+		ctx.moveTo( x, y + hh );
+		ctx.lineTo( x, y + hh * 0.45 );
+		ctx.ellipse( x + ww / 2, y + hh * 0.45, ww / 2, hh * 0.45, 0, Math.PI, 0 );
+		ctx.lineTo( x + ww, y + hh );
+		ctx.closePath();
+
+	};
+
+	if ( key === 'hatfield' ) {
+
+		ctx.beginPath(); ctx.ellipse( cx, cy, sw / 2, sh / 2, 0, 0, Math.PI * 2 );
+		ctx.fillStyle = '#9e1b22'; ctx.fill();
+		ctx.beginPath(); ctx.ellipse( cx, cy, sw / 2 - 7, sh / 2 - 7, 0, 0, Math.PI * 2 );
+		ctx.fillStyle = '#f4e8c8'; ctx.fill();
+		ctx.lineWidth = 2; ctx.strokeStyle = '#0b2a5b'; ctx.stroke();
+		ctx.fillStyle = '#b3121b';
+		fit( ctx, 'Hatfield', cx, cy - sh * 0.1, sw * 0.8, `italic 700 ${ Math.round( sh * 0.44 ) }px ${ SCRIPT }` );
+		ctx.fillStyle = '#0b2a5b';
+		fit( ctx, 'G R I L L', cx, cy + sh * 0.27, sw * 0.4, `800 ${ Math.round( sh * 0.17 ) }px ${ SANS }` );
+		ctx.fillRect( cx - sw * 0.33, cy + sh * 0.27, sw * 0.1, 3 ); ctx.fillRect( cx + sw * 0.23, cy + sh * 0.27, sw * 0.1, 3 );
+
+	} else if ( key === 'brewerytown' ) {
+
+		arch( x0, y0, sw, sh );
+		ctx.fillStyle = '#3b2314'; ctx.fill();
+		ctx.save();
+		arch( x0 + 6, y0 + 6, sw - 12, sh - 12 );
+		ctx.clip();
+		// the sunburst from the foot
+		for ( let k = 0; k < 18; k ++ ) {
+
+			const a0 = Math.PI + k * Math.PI / 18, a1 = a0 + Math.PI / 18;
+			ctx.beginPath(); ctx.moveTo( cx, y0 + sh ); ctx.arc( cx, y0 + sh, sw, a0, a1 ); ctx.closePath();
+			ctx.fillStyle = k % 2 ? '#f2b733' : '#e8892b'; ctx.fill();
+
+		}
+
+		ctx.restore();
+		// the banner across it
+		ctx.fillStyle = '#9e1b22';
+		ctx.fillRect( x0 + 2, cy - sh * 0.16, sw - 4, sh * 0.3 );
+		ctx.fillStyle = '#f6e7c1';
+		fit( ctx, 'BREWERYTOWN', cx, cy - sh * 0.01, sw * 0.86, `900 ${ Math.round( sh * 0.24 ) }px ${ SERIF }` );
+		// the beer: a pint, its head
+		ctx.fillStyle = '#c98a1c'; ctx.fillRect( cx - sh * 0.08, y0 + sh * 0.7, sh * 0.16, sh * 0.25 );
+		ctx.fillStyle = '#fbf3df'; ctx.fillRect( cx - sh * 0.09, y0 + sh * 0.66, sh * 0.18, sh * 0.06 );
+
+	} else if ( key === 'creamery' ) {
+
+		round( x0, y0, sw, sh, sh * 0.3 );
+		ctx.fillStyle = '#5a3218'; ctx.fill();
+		round( x0 + 6, y0 + 6, sw - 12, sh - 12, sh * 0.26 );
+		ctx.fillStyle = '#efe2c2'; ctx.fill();
+		ctx.fillStyle = '#5a3218';
+		fit( ctx, 'Old City', cx, cy - sh * 0.17, sw * 0.6, `italic 700 ${ Math.round( sh * 0.36 ) }px ${ SERIF }` );
+		fit( ctx, 'C R E A M E R Y', cx, cy + sh * 0.25, sw * 0.6, `800 ${ Math.round( sh * 0.2 ) }px ${ SANS }` );
+		// a cone each side
+		for ( const s of [ - 1, 1 ] ) {
+
+			const x = cx + s * sw * 0.38;
+			ctx.fillStyle = '#c9954f';
+			ctx.beginPath(); ctx.moveTo( x - sh * 0.12, cy - sh * 0.02 ); ctx.lineTo( x + sh * 0.12, cy - sh * 0.02 ); ctx.lineTo( x, cy + sh * 0.36 ); ctx.fill();
+			ctx.fillStyle = '#f1d9e4'; ctx.beginPath(); ctx.arc( x, cy - sh * 0.1, sh * 0.13, 0, Math.PI * 2 ); ctx.fill();
+
+		}
+
+	} else if ( key === 'pizza' ) {
+
+		round( x0, y0, sw, sh, 10 );
+		ctx.fillStyle = '#f0b429'; ctx.fill();
+		round( x0 + 5, y0 + 5, sw - 10, sh - 10, 8 );
+		ctx.fillStyle = '#7b2016'; ctx.fill();
+		// the slice
+		const px = x0 + sh * 0.55;
+		ctx.fillStyle = '#e9b44c'; ctx.beginPath(); ctx.moveTo( px - sh * 0.3, cy - sh * 0.3 ); ctx.lineTo( px + sh * 0.3, cy - sh * 0.3 ); ctx.lineTo( px, cy + sh * 0.35 ); ctx.fill();
+		ctx.fillStyle = '#b5311b';
+		for ( const [ dx, dy ] of [ [ - 0.1, - 0.15 ], [ 0.1, - 0.12 ], [ 0, 0.05 ] ] ) {
+
+			ctx.beginPath(); ctx.arc( px + dx * sh, cy + dy * sh, sh * 0.05, 0, Math.PI * 2 ); ctx.fill();
+
+		}
+
+		ctx.fillStyle = '#fff4dc';
+		fit( ctx, 'NEIGHBORHOOD', cx + sh * 0.3, cy - sh * 0.2, sw * 0.6, `700 ${ Math.round( sh * 0.2 ) }px ${ SERIF }` );
+		ctx.fillStyle = '#f0b429';
+		fit( ctx, 'PIZZA', cx + sh * 0.3, cy + sh * 0.17, sw * 0.6, `900 ${ Math.round( sh * 0.4 ) }px ${ SERIF }` );
+
+	} else if ( key === 'cobblestone' ) {
+
+		arch( x0, y0, sw, sh );
+		ctx.fillStyle = '#c9a45a'; ctx.fill();
+		arch( x0 + 5, y0 + 5, sw - 10, sh - 10 );
+		ctx.fillStyle = '#1f3d2a'; ctx.fill();
+		ctx.fillStyle = '#efe2bf';
+		fit( ctx, 'COBBLESTONE GRILL', cx, cy + sh * 0.08, sw * 0.82, `700 ${ Math.round( sh * 0.3 ) }px ${ SERIF }` );
+		ctx.fillStyle = '#c9a45a';
+		fit( ctx, 'of Elfreth\'s Alley', cx, cy + sh * 0.34, sw * 0.5, `italic 600 ${ Math.round( sh * 0.15 ) }px ${ SERIF }` );
+
+	} else {
+
+		// a long painted board: the Market, the Schmitter
+		round( x0, y0, sw, sh, 6 );
+		ctx.fillStyle = F.accent; ctx.fill();
+		round( x0 + 5, y0 + 5, sw - 10, sh - 10, 4 );
+		ctx.fillStyle = F.bg; ctx.fill();
+		ctx.fillStyle = F.fg;
+		fit( ctx, F.name, cx, cy - ( key === 'schmitter' ? sh * 0.1 : 0 ), sw - 60, `${ F.italic ? 'italic ' : '' }700 ${ Math.round( sh * 0.5 ) }px ${ SERIF }` );
+		if ( key === 'schmitter' ) {
+
+			ctx.fillStyle = F.accent;
+			fit( ctx, 'McNALLY\'S TAVERN', cx, cy + sh * 0.3, sw * 0.5, `600 ${ Math.round( sh * 0.15 ) }px ${ SANS }` );
+
+		}
+
+	}
+
+	ctx.restore();
+
+}
+
+// The restroom's plaque: home plate, point down, cream inside a red line and a navy edge, the figures in
+// navy with red caps, the word in navy capitals, the braille under it (pompomflipflop, 5 June 2008)
+function plaque( ctx, k, cx, cy, w, h ) {
+
+	const plate = ( m ) => {
+
+		const x0 = cx - w / 2 + m, x1 = cx + w / 2 - m, y0 = cy - h / 2 + m, y1 = cy + h / 2 - m * 1.4;
+		ctx.beginPath();
+		ctx.moveTo( x0, y0 ); ctx.lineTo( x1, y0 ); ctx.lineTo( x1, y0 + ( y1 - y0 ) * 0.52 ); ctx.lineTo( cx, y1 ); ctx.lineTo( x0, y0 + ( y1 - y0 ) * 0.52 );
+		ctx.closePath();
+
+	};
+
+	ctx.save();
+	plate( 0 ); ctx.fillStyle = '#1d2f82'; ctx.fill();
+	plate( 5 ); ctx.fillStyle = '#c8102e'; ctx.fill();
+	plate( 8 ); ctx.fillStyle = '#efe6b8'; ctx.fill();
+	// the figures, navy, red caps
+	const navy = '#22359a', red = '#c8102e';
+	const figure = ( x, y, s, dress ) => {
+
+		ctx.fillStyle = navy;
+		ctx.beginPath(); ctx.arc( x, y, 7 * s, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = red; ctx.fillRect( x - 8 * s, y - 8 * s, 16 * s, 4 * s );
+		ctx.fillStyle = navy;
+		if ( dress ) {
+
+			ctx.beginPath(); ctx.moveTo( x - 6 * s, y + 9 * s ); ctx.lineTo( x + 6 * s, y + 9 * s ); ctx.lineTo( x + 13 * s, y + 32 * s ); ctx.lineTo( x - 13 * s, y + 32 * s ); ctx.fill();
+
+		} else ctx.fillRect( x - 9 * s, y + 9 * s, 18 * s, 23 * s );
+
+		ctx.fillRect( x - 6 * s, y + 31 * s, 5 * s, 17 * s ); ctx.fillRect( x + 1 * s, y + 31 * s, 5 * s, 17 * s );
+
+	};
+
+	const fy = cy - h * 0.3;
+	if ( k === 'men' ) figure( cx, fy, 1.1, false );
+	else if ( k === 'women' ) figure( cx, fy, 1.1, true );
+	else {
+
+		figure( cx - 22, fy, 0.95, false ); figure( cx + 22, fy, 0.95, true ); figure( cx, fy + 12, 0.55, false );
+
+	}
+
+	ctx.fillStyle = navy;
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	const words = k === 'family' ? [ 'FAMILY', 'RESTROOM' ] : [ k === 'men' ? 'MEN' : 'WOMEN' ];
+	words.forEach( ( t, i ) => fit( ctx, t, cx, cy + h * ( 0.1 + i * 0.12 ) - ( words.length - 1 ) * 4, w * 0.7, `700 ${ words.length > 1 ? 15 : 20 }px ${ SANS }` ) );
+	ctx.fillStyle = '#b9b08a';
+	for ( let i = 0; i < 9; i ++ ) ctx.fillRect( cx - 20 + i * 5, cy + h * 0.31, 2, 2 );
+	ctx.restore();
+	unlit( ctx, Math.round( cx - w / 2 ), Math.round( cy - h / 2 ), Math.round( w ), Math.round( h ) );
+
+}
+
+// The Home Stand's plaque: dark bronze, its letters raised in gold, painted on the brick
+function bronze( ctx, cx, cy, w, h ) {
+
+	ctx.save();
+	const g = ctx.createLinearGradient( 0, cy - h / 2, 0, cy + h / 2 );
+	g.addColorStop( 0, '#4a3824' ); g.addColorStop( 1, '#2a1f14' );
+	ctx.fillStyle = g;
+	ctx.fillRect( cx - w / 2, cy - h / 2, w, h );
+	ctx.strokeStyle = '#a8864e'; ctx.lineWidth = 3;
+	ctx.strokeRect( cx - w / 2 + 4, cy - h / 2 + 4, w - 8, h - 8 );
+	ctx.fillStyle = '#d4b06a';
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	fit( ctx, 'HOME STAND', cx, cy - h * 0.14, w * 0.7, `700 ${ Math.round( h * 0.48 ) }px ${ SERIF }` );
+	fit( ctx, '★★  OFFICIAL PHILLIES MERCHANDISE  ★★', cx, cy + h * 0.3, w * 0.8, `600 ${ Math.round( h * 0.2 ) }px ${ SANS }` );
+	ctx.restore();
+	unlit( ctx, Math.round( cx - w / 2 ), Math.round( cy - h / 2 ), Math.round( w ), Math.round( h ) );
+
+}
+// ---- end FI1
+
 // The rooms behind the openings, traced from the view ray (a box behind the opening's quad: its back
 // wall, floor, ceiling and sides) so they have depth without geometry. uv.x = code * 20 + metres from the
 // opening's left edge (code = room * 4 + width class: 1.6, 2.2, 3.0 or 6.8 m), uv.y = height above the
@@ -337,8 +638,11 @@ const ROOMS_WGSL = /* wgsl */`
 				let sh = fract( ( hy - 1.05 ) / 0.37 );
 				col = vec3f( 0.3 );
 				if ( sh > 0.08 && sh < 0.8 && fract( hx / 0.25 ) > 0.1 ) {
-					col = select( select( vec3f( 0.5, 0.35, 0.18 ), vec3f( 0.7, 0.05, 0.05 ), rnd > 0.4 ), vec3f( 0.1, 0.2, 0.55 ), rnd > 0.8 );
-					if ( rnd > 0.4 && rnd <= 0.8 && fract( hy / 0.06 ) > 0.5 ) { col = vec3f( 0.85 ); }
+					// ---- FI1 (CI-20): what's on them, mixed (peanut bags, Cracker Jack, candy, chips): it was red and
+					// white stripes over blue, an American flag from across the concourse
+					var pal = array<vec3f, 6>( vec3f( 0.55, 0.38, 0.18 ), vec3f( 0.7, 0.05, 0.05 ), vec3f( 0.1, 0.2, 0.55 ), vec3f( 0.8, 0.62, 0.1 ), vec3f( 0.75, 0.3, 0.05 ), vec3f( 0.82, 0.8, 0.74 ) );
+					col = pal[ u32( rnd * 5.99 ) ] * ( 0.75 + 0.25 * hsh.y );
+					if ( fract( hy / 0.11 + rnd ) > 0.85 ) { col *= 0.6; }
 				}
 			}
 		} else if ( room == 2 ) {
@@ -470,6 +774,10 @@ export class Concourse {
 		this._stands( bowl );
 		this._monitors( bowl );
 		this._sectionSigns();
+		// ---- FI1 (CI-1, CI-8): the steel overhead, the columns, the domes (ConcourseSteel.js)
+		this.steel = new ConcourseSteel( { group: this.group, bowl, field, colliders } );
+		this._elevatorCores( bowl );
+		// ---- end FI1
 
 	}
 
@@ -582,7 +890,7 @@ export class Concourse {
 		const tier = bowl.tiers[ 0 ];
 		const secs = tierSections( tier );
 		const d = this.backEdge + 0.1, y0 = STREET;
-		const q = new Quads(), shelf = new Quads();
+		const q = new Quads(), shelf = new Quads(), apron = new Quads(); // ---- FI1 (CI-19): the apron
 		this.railSpots = [];
 		const worldYaw = this.field.group.rotation.y;
 		for ( const S of secs ) {
@@ -610,6 +918,13 @@ export class Concourse {
 			shelf.add( [ a0x, yt - 0.03, a0z ], [ a1x, yt - 0.03, a1z ], [ b1x, yt - 0.03, b1z ], [ b0x, yt - 0.03, b0z ], [ 0, - 1, 0 ] );
 			shelf.add( [ a1x, yt - 0.05, a1z ], [ b1x, yt - 0.05, b1z ], [ b1x, yt, b1z ], [ a1x, yt, a1z ], [ S.nx, 0, S.nz ] );
 			shelf.add( [ b0x, yt - 0.03, b0z ], [ a0x, yt - 0.03, a0z ], [ a0x, yt, a0z ], [ b0x, yt, b0z ], [ - S.nx, 0, - S.nz ] );
+			// ---- FI1 (CI-19): under the shelf's edge a red-painted steel apron the length of the rail, both
+			// sides (dottcom, NLCS 2008: the strongest line of colour along the concourse's edge)
+			const [ c0x, c0z ] = at( s0 - 0.1, 0.25 ), [ c1x, c1z ] = at( s1 + 0.1, 0.25 ), [ e0x, e0z ] = at( s0 - 0.1, - 0.05 ), [ e1x, e1z ] = at( s1 + 0.1, - 0.05 );
+			apron.add( [ c0x, yt - 0.3, c0z ], [ c1x, yt - 0.3, c1z ], [ c1x, yt - 0.04, c1z ], [ c0x, yt - 0.04, c0z ], [ S.nx, 0, S.nz ] );
+			apron.add( [ e1x, yt - 0.3, e1z ], [ e0x, yt - 0.3, e0z ], [ e0x, yt - 0.04, e0z ], [ e1x, yt - 0.04, e1z ], [ - S.nx, 0, - S.nz ] );
+			apron.add( [ c0x, yt - 0.3, c0z ], [ e0x, yt - 0.3, e0z ], [ e1x, yt - 0.3, e1z ], [ c1x, yt - 0.3, c1z ], [ 0, - 1, 0 ] );
+			// ---- end FI1
 			// a place to lean every 0.75 m
 			for ( let s = s0 + 0.4; s < s1 - 0.3; s += 0.75 ) {
 
@@ -633,7 +948,8 @@ export class Concourse {
 		s.albedo = s.albedo * ( 0.8 + 0.08 * mx_noise_float2( in.P.xz * 1.3 ) );
 	}
 ` } );
-		for ( const [ geo, m, name ] of [ [ q, galv, 'drink-rail' ], [ shelf, alu, 'drink-shelf' ] ] ) {
+		const red = standard( { name: 'drink-apron', color: new Color( 0.42, 0.025, 0.03 ), roughness: 0.4 } ); // ---- FI1
+		for ( const [ geo, m, name ] of [ [ q, galv, 'drink-rail' ], [ shelf, alu, 'drink-shelf' ], [ apron, red, 'drink-apron' ] ] ) {
 
 			m.underwaterLighting = 'none';
 			const mesh = new Mesh( geo.geometry(), m );
@@ -797,10 +1113,12 @@ export class Concourse {
 				const mid = [ ax + ux * s, az + uz * s ];
 				if ( clear.some( ( c ) => Math.hypot( c.x - mid[ 0 ], c.z - mid[ 1 ] ) < 7 ) ) continue;
 				if ( skip && skip( mid[ 0 ], mid[ 1 ] ) ) continue;
-				// nor the way in from each gate
+				// nor the way in from each gate (---- FI1 (CI-4): the Suite & Club Entrance behind home plate is no
+				// way in to the concourse: its lobby is the suites' own, behind the brick. Clearing for it left the
+				// concourse behind 120-125 without a stand for 25 m)
 				if ( GATES.some( ( g ) => {
 
-					if ( ! g.edge ) return false;
+					if ( ! g.edge || g.suite ) return false;
 					const dx = mid[ 0 ] - g.at[ 0 ], dz = mid[ 1 ] - g.at[ 1 ];
 					const across = Math.abs( dx * g.edge.ux + dz * g.edge.uz ), inward = - ( dx * g.edge.nx + dz * g.edge.nz );
 					return inward > - 2 && inward < 40 && across < g.width / 2 + UNIT / 2 + 2;
@@ -826,7 +1144,7 @@ export class Concourse {
 
 		const L = this._signLayout();
 		const signs = this._signs( L );
-		const body = new Quads(), face = new Quads(), glow = new Quads(), kick = new Quads(), lights = new Quads(), props = new Props();
+		const body = new Quads(), face = new Quads(), glow = new Quads(), kick = new Quads(), lights = new Quads(), props = new Props(), bay = new Quads();
 		this.standSpots = [];
 		this.doors = [];
 		this.units = units;
@@ -846,7 +1164,7 @@ export class Concourse {
 			body.add( P( - W, H, 0 ), P( W, H, 0 ), P( W, H, - DEPTH ), P( - W, H, - DEPTH ), [ 0, 1, 0 ] );
 			// a dark coping along the top of the front
 			lbox( props.use( 'grey' ), P, U.a, U.n, 0, H + 0.04, 0.02, UNIT + 0.1, 0.08, 0.16 );
-			if ( typeof U.what === 'string' ) this._foodUnit( U, P, FOOD[ U.what ], L, { body, face, glow, kick, lights, props } );
+			if ( typeof U.what === 'string' ) this._foodUnit( U, P, FOOD[ U.what ], L, { body, face, glow, kick, lights, props, bay } );
 			else this._pairUnit( U, P, L, { body, face, glow, lights, props } );
 			// can't walk through it
 			const [ cx, , cz ] = P( 0, 0, - DEPTH / 2 + 0.2 ), w = this.field.toWorld( cx, cz );
@@ -854,17 +1172,24 @@ export class Concourse {
 
 		}
 
-		const precast = standard( { name: 'concession-body', color: new Color( 0.5, 0.47, 0.42 ), roughness: 0.75, side: 'double' } );
+		// ---- FI1 (CI-7): the stands are openings in walls of red ground-face block over a dark base course
+		// (pompomflipflop, June 2008: the block beside a restroom door; visitphilly, Apr 2008: the 9th St.
+		// Market's front), not grey precast boxes; their bays white tile and stainless
+		const precast = standard( { name: 'concession-body', color: new Color( 0.25, 0.07, 0.045 ), roughness: 0.8, side: 'double', modules: [ commonModule ], surface: BLOCK_WGSL } );
+		const bayMat = standard( { name: 'concession-bays', color: new Color( 0.7, 0.69, 0.66 ), roughness: 0.4, side: 'double', surface: TILE_WGSL } );
+		// the signs: a die-cut sign's cut-away (alpha under a half) isn't drawn, and what's painted rather than
+		// lit (alpha under 1: the plaques, the bronze) doesn't glow
 		const signMat = standard( { name: 'concession-signs', roughness: 0.4, textures: { bpStand: signs },
-			surface: 'let t = textureSample( bpStand, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.45; s.emissive = t * mix( 0.3, 0.75, smoothstep( 0.1, 0.7, frame.night ) );' } );
+			surface: 'let ta = textureSample( bpStand, smpAnisoClamp, in.uv ); if ( ta.a < 0.5 ) { discard; } let t = ta.rgb; let lit = select( 0.12, 1.0, ta.a > 0.97 ); s.albedo = t * mix( 0.8, 0.45, lit ); s.emissive = t * lit * mix( 0.3, 0.75, smoothstep( 0.1, 0.7, frame.night ) );' } );
+		// ---- end FI1
 		const kickMat = standard( { name: 'concession-kick', roughness: 0.45, metalness: 0.2, textures: { bpStand: signs },
 			surface: 'let t = textureSample( bpStand, smpAnisoClamp, in.uv ).rgb; s.albedo = t * 0.8;' } );
 		const lightMat = standard( { name: 'concession-lights', color: new Color( 0.9, 0.9, 0.88 ), roughness: 0.5,
 			surface: 's.emissive = vec3f( 1.0, 0.93, 0.8 ) * mix( 1.5, 4.0, smoothstep( 0.1, 0.7, frame.night ) );' } );
 		const propMat = standard( { name: 'concourse-props', roughness: 0.5, surface: PROPS_WGSL } );
 		const kitchen = standard( { name: 'concession-rooms', color: new Color( 0.06, 0.055, 0.05 ), roughness: 0.5, surface: ROOMS_WGSL } );
-		for ( const m of [ precast, signMat, kickMat, lightMat, propMat, kitchen ] ) m.underwaterLighting = 'none';
-		for ( const [ q, m, name ] of [ [ body, precast, 'concession-stands' ], [ face, signMat, 'concession-signs' ], [ kick, kickMat, 'concession-kicks' ],
+		for ( const m of [ precast, signMat, kickMat, lightMat, propMat, kitchen, bayMat ] ) m.underwaterLighting = 'none';
+		for ( const [ q, m, name ] of [ [ body, precast, 'concession-stands' ], [ bay, bayMat, 'concession-bays' ], [ face, signMat, 'concession-signs' ], [ kick, kickMat, 'concession-kicks' ],
 			[ lights, lightMat, 'concession-lights' ], [ glow, kitchen, 'concession-rooms' ], [ props, propMat, 'concourse-props' ] ] ) {
 
 			const mesh = new Mesh( q.geometry(), m );
@@ -877,14 +1202,86 @@ export class Concourse {
 
 		this.props = props;
 		this.count = units.length;
+		this.signLayout = L; // ---- FI1
+		this.signMaterial = signMat; // ---- FI1
+		this.propMaterial = propMat; // ---- FI1
 
 	}
+
+	// ---- FI1 (CI-9): the elevators on the main concourse as the photos and common sense have them: each bank
+	// a brick core rising to the deck, two cars in it behind brushed stainless doors in a stainless frame, the
+	// call plate between them lit, the floor shown over each door, ELEVATORS over them in the 2008 colours
+	// (ZoeR, Apr 2008: the cream sign with the red band by the Home Stand's brick). They were a grey slab
+	// standing loose on the concourse under a mint-green bar that glowed 50 m off (Bowl._elevators: its bars
+	// are hidden at every level, its doors on this one; the stops the walker rides from are unchanged)
+	_elevatorCores( bowl ) {
+
+		const banks = bowl.elevators || [];
+		if ( ! banks.length || ! this.signLayout ) return;
+		bowl.group.traverse( ( o ) => {
+
+			if ( ! o.isMesh ) return;
+			const name = o.material?.name;
+			if ( name === 'elevator-sign' ) o.visible = false;
+			if ( name === 'elevator-door' && o.parent && Math.abs( o.parent.position.y - STREET ) < 0.5 ) o.visible = false;
+
+		} );
+		const brick = new Quads(), props = new Props(), face = new Quads();
+		const yTop = LEVELS.clubConcourse - 0.6 - STREET, W = 3.2, DEP = 4.2, OH = 2.25;
+		for ( const bank of banks ) {
+
+			const st = bank.stops[ 0 ];
+			const n = st.face, a = [ n[ 1 ], - n[ 0 ] ]; // the viewer's right, facing the doors
+			const P = frame( [ st.x - n[ 0 ] * 1.8, st.z - n[ 1 ] * 1.8 ], a, n );
+			// the brick round the two doors, the core's sides and back
+			const piece = ( x0, x1, y0, y1 ) => fwd( brick, P, n, x0, x1, y0, y1, 0, [ x0, STREET + y1, x1, STREET + y0 ] );
+			piece( - W, - 1.98, 0, yTop ); piece( - 0.82, 0.82, 0, yTop ); piece( 1.98, W, 0, yTop );
+			piece( - 1.98, - 0.82, OH, yTop ); piece( 0.82, 1.98, OH, yTop );
+			for ( const s of [ - 1, 1 ] ) brick.add( P( s * W, 0, 0 ), P( s * W, 0, - DEP ), P( s * W, yTop, - DEP ), P( s * W, yTop, 0 ), [ a[ 0 ] * s, 0, a[ 1 ] * s ], 0, DEP );
+			fwd( brick, P, n.map( ( v ) => - v ), W, - W, 0, yTop, - DEP, [ W, STREET + yTop, - W, STREET ] );
+			for ( const cx of [ - 1.4, 1.4 ] ) {
+
+				// the frame, the two leaves (a dark line where they meet), the sill
+				for ( const s of [ - 1, 1 ] ) lbox( props.use( 'steel' ), P, a, n, cx + s * 0.6, OH / 2, 0, 0.06, OH + 0.06, 0.16 );
+				lbox( props.use( 'steel' ), P, a, n, cx, OH + 0.03, 0, 1.26, 0.06, 0.16 );
+				for ( const s of [ - 1, 1 ] ) lbox( props.use( 'steel' ), P, a, n, cx + s * 0.2875, OH / 2, - 0.1, 0.565, OH, 0.03 );
+				lbox( props.use( 'black' ), P, a, n, cx, OH / 2, - 0.112, 0.012, OH, 0.01 );
+				lbox( props.use( 'grey' ), P, a, n, cx, 0.01, 0, 1.16, 0.02, 0.3 );
+				// over it the floor it's at, and which way it's going
+				lbox( props.use( 'black' ), P, a, n, cx, OH + 0.27, 0.02, 0.5, 0.15, 0.03 );
+				lbox( props.use( 'redlamp' ), P, a, n, cx - 0.08, OH + 0.27, 0.04, 0.07, 0.09, 0.01 );
+				lbox( props.use( 'lamp' ), P, a, n, cx + 0.1, OH + 0.27, 0.04, 0.05, 0.06, 0.01 );
+
+			}
+
+			// the call plate, up and down lit
+			lbox( props.use( 'steel' ), P, a, n, 0, 1.1, 0.02, 0.13, 0.28, 0.02 );
+			for ( const y of [ 1.04, 1.16 ] ) lbox( props.use( 'lamp' ), P, a, n, 0, y, 0.035, 0.045, 0.045, 0.01 );
+			// the sign
+			const S = this.signLayout.half[ HALVES.indexOf( 'elevators' ) ];
+			fwd( face, P, n, - 1.7, 1.7, 2.8, 3.5, 0.03, [ S[ 0 ], S[ 1 ], S[ 2 ], S[ 3 ] ] );
+			const [ cx, , cz ] = P( 0, 0, - DEP / 2 ), w = this.field.toWorld( cx, cz );
+			this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + 2, w.z ), new Vector3( W + 0.1, 2, DEP / 2 + 0.1 ), this.field.group.rotation.y - Math.atan2( a[ 1 ], a[ 0 ] ), { tag: 'elevator-core' } );
+
+		}
+
+		for ( const [ q, m, name ] of [ [ brick, this.steel.brickMaterial, 'elevator-cores' ], [ props, this.propMaterial, 'elevator-doors' ], [ face, this.signMaterial, 'elevator-signs' ] ] ) {
+
+			const mesh = new Mesh( q.geometry(), m );
+			mesh.name = name;
+			mesh.receiveShadow = true;
+			this.group.add( mesh );
+
+		}
+
+	}
+	// ---- end FI1
 
 	// A stand: pillars either side of the service window, the menu board over it on a lit lip, the name
 	// across the top; the window over a stainless counter on a kick panel in the stand's colours, two
 	// registers, napkins and straws at the ends; behind the counter the staff's bay (lit from its ceiling)
 	// and the kitchen traced into depth beyond it; queue stanchions with belts out front
-	_foodUnit( U, P, F, L, { body, face, glow, kick, lights, props } ) {
+	_foodUnit( U, P, F, L, { body, face, glow, kick, lights, props, bay } ) {
 
 		const W = UNIT / 2, n = U.n, a = U.a, b = BRANDS.indexOf( U.what );
 		const R = L.food[ b ];
@@ -894,13 +1291,29 @@ export class Concourse {
 		fwd( body, P, n, - W, W, OT, OT + 0.05, 0 );
 		// the menu board and the name
 		fwd( face, P, n, - W, W, OT + 0.05, 3.3, 0.02, [ 0, R.menu[ 0 ], 1, R.menu[ 1 ] ] );
-		fwd( face, P, n, - W - 0.03, W + 0.03, 3.32, H, 0.05, [ 0, R.name[ 0 ], 1, R.name[ 1 ] ] );
+		// ---- FI1 (CI-7): the stand's own die-cut sign mounted on the brick over the menu board, standing up
+		// past the roofline where it's tall (Hatfield's oval, Brewerytown's arch: docindigo76, NLCS 2009; auds,
+		// 27 Oct 2008); it was a lit band in the stand's colour across the top
+		fwd( body, P, n, - W, W, 3.3, H, 0 );
+		fwd( face, P, n, - W - 0.03, W + 0.03, 3.32, 3.32 + SIGN_H, 0.08, [ 0, R.name[ 0 ], 1, R.name[ 1 ] ] );
+		// and out over the walkway on an arm at the stand's end, read from along the concourse
+		if ( F.blade ) {
+
+			const B = L.cells[ BRANDS.indexOf( U.what ) ], x = W - 0.15, z0 = 0.35, z1 = 1.75, y0 = 3.05, y1 = 4.1;
+			face.tri( P( x, y0, z0 ), P( x, y0, z1 ), P( x, y1, z1 ), [ a[ 0 ], 0, a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ] );
+			face.tri( P( x, y0, z0 ), P( x, y1, z1 ), P( x, y1, z0 ), [ a[ 0 ], 0, a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ], [ B[ 0 ], B[ 1 ] ] );
+			face.tri( P( x - 0.01, y0, z1 ), P( x - 0.01, y0, z0 ), P( x - 0.01, y1, z0 ), [ - a[ 0 ], 0, - a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ] );
+			face.tri( P( x - 0.01, y0, z1 ), P( x - 0.01, y1, z0 ), P( x - 0.01, y1, z1 ), [ - a[ 0 ], 0, - a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ], [ B[ 0 ], B[ 1 ] ] );
+			for ( const y of [ y1 + 0.04, y0 + 0.25 ] ) lbox( props.use( 'black' ), P, a, n, x, y, ( z0 + z1 ) / 2 - 0.15, 0.04, 0.04, z1 - z0 + 0.6 );
+
+		}
+		// ---- end FI1
 		// a lip under the menu board with a light strip under it, lighting the counter
 		lbox( props.use( 'black' ), P, a, n, 0, OT + 0.02, 0.2, UNIT - 0.2, 0.06, 0.4 );
 		lights.add( P( - OW + 0.2, OT - 0.015, 0.35 ), P( OW - 0.2, OT - 0.015, 0.35 ), P( OW - 0.2, OT - 0.015, 0.3 ), P( - OW + 0.2, OT - 0.015, 0.3 ), [ 0, - 1, 0 ] );
 		// the bay: its sides and ceiling, fluorescent tubes across it, the kitchen beyond
-		for ( const s of [ - 1, 1 ] ) body.add( P( s * OW, 0, 0 ), P( s * OW, 0, - BAY ), P( s * OW, OT, - BAY ), P( s * OW, OT, 0 ), [ - a[ 0 ] * s, 0, - a[ 1 ] * s ] );
-		body.add( P( - OW, OT, 0 ), P( OW, OT, 0 ), P( OW, OT, - BAY ), P( - OW, OT, - BAY ), [ 0, - 1, 0 ] );
+		for ( const s of [ - 1, 1 ] ) bay.add( P( s * OW, 0, 0 ), P( s * OW, 0, - BAY ), P( s * OW, OT, - BAY ), P( s * OW, OT, 0 ), [ - a[ 0 ] * s, 0, - a[ 1 ] * s ] );
+		bay.add( P( - OW, OT, 0 ), P( OW, OT, 0 ), P( OW, OT, - BAY ), P( - OW, OT, - BAY ), [ 0, - 1, 0 ] );
 		for ( const x of [ - 2.2, 0, 2.2 ] ) lights.add( P( x - 0.6, OT - 0.01, - 0.55 ), P( x + 0.6, OT - 0.01, - 0.55 ), P( x + 0.6, OT - 0.01, - 0.7 ), P( x - 0.6, OT - 0.01, - 0.7 ), [ 0, - 1, 0 ] );
 		const code = F.kitchen * 4 + 3;
 		fwd( glow, P, n, - OW, OW, 0, OT, - BAY, [ code * 20, OT, code * 20 + 2 * OW, 0 ] );
@@ -908,6 +1321,31 @@ export class Concourse {
 		lbox( props.use( 'steel' ), P, a, n, 0, 1.045, 0.05, 2 * OW, 0.05, 0.62 );
 		fwd( kick, P, n, - OW, OW, 0, 1.02, 0.35, [ 0, R.kick[ 0 ], 1, R.kick[ 1 ] ] );
 		for ( const s of [ - 1, 1 ] ) lbox( props.use( 'steel' ), P, a, n, s * ( OW - 0.02 ), 0.51, 0.05, 0.04, 1.02, 0.6 );
+		// ---- FI1 (CI-20): in the bay, in depth, what the 2008 photo of the 9th St. Market shows (visitphilly,
+		// Apr 2008): a stainless back counter, two pendant lamps over the service counter, and for the grills
+		// a glass warmer of foil-wrapped sandwiches under its heat lamp, a soft-serve machine at the Creamery
+		lbox( props.use( 'steel' ), P, a, n, 0, 0.45, - BAY + 0.32, 2 * OW - 0.1, 0.9, 0.6 );
+		for ( const x of [ - OW * 0.5, OW * 0.5 ] ) {
+
+			lbox( props.use( 'black' ), P, a, n, x, OT - 0.25, - 0.45, 0.012, 0.5, 0.012 );
+			lbox( props.use( 'lamp' ), P, a, n, x, OT - 0.55, - 0.45, 0.3, 0.1, 0.3 );
+
+		}
+
+		if ( F.kitchen === 0 ) {
+
+			lbox( props.use( 'steel' ), P, a, n, - OW + 0.7, 1.1, - 0.15, 1.0, 0.04, 0.4 );
+			lbox( props.use( 'glass' ), P, a, n, - OW + 0.7, 1.3, - 0.15, 0.96, 0.36, 0.36 );
+			for ( let i = 0; i < 6; i ++ ) lbox( props.use( 'foil' ), P, a, n, - OW + 0.33 + i * 0.15, 1.17, - 0.15 + ( i % 2 ) * 0.06, 0.12, 0.08, 0.14 );
+			lbox( props.use( 'redlamp' ), P, a, n, - OW + 0.7, 1.5, - 0.15, 0.9, 0.04, 0.12 );
+
+		} else if ( F.kitchen === 3 ) {
+
+			lbox( props.use( 'steel' ), P, a, n, - OW + 0.7, 1.55, - 0.7, 0.55, 1.0, 0.55 );
+			lbox( props.use( 'black' ), P, a, n, - OW + 0.7, 1.45, - 0.41, 0.3, 0.06, 0.04 );
+
+		}
+		// ---- end FI1
 		// registers where the staff stand, napkins and straws at the ends
 		for ( const x of [ - 1.6, 1.6 ] ) {
 
@@ -956,7 +1394,7 @@ export class Concourse {
 			const c = ( h - 0.5 ) * W, T = HALF[ k ].type;
 			if ( T === 'door' ) return { k, c, x0: c - 0.8, x1: c + 0.8, y0: 0, y1: 2.3, deep: 1.6, wc: 0 };
 			if ( T === 'window' ) return { k, c, x0: c - 1.1, x1: c + 1.1, y0: 0.95, y1: 2.2, deep: 0.3, wc: 1 };
-			return { k, c, x0: c - 1.5, x1: c + 1.5, y0: 0, y1: 2.5, deep: 0.6, wc: 2 };
+			return { k, c, x0: c - 1.5, x1: c + 1.5, y0: 0, y1: 2.5, deep: 2.4, wc: 2 }; // ---- FI1 (CI-13): a shop you can see into (was 0.6)
 
 		} );
 		// the front wall round the openings
@@ -990,7 +1428,17 @@ export class Concourse {
 			fwd( glow, P, n, o.x0, o.x1, o.y0, o.y1, - o.deep, [ code * 20, o.y1, code * 20 + ( o.x1 - o.x0 ), o.y0 ] );
 			// its sign
 			const S = L.half[ HALVES.indexOf( o.k ) ];
-			fwd( face, P, n, o.c - 1.7, o.c + 1.7, 2.62, 3.32, 0.04, [ S[ 0 ], S[ 1 ], S[ 2 ], S[ 3 ] ] );
+			if ( hk.type === 'door' ) {
+
+				// ---- FI1 (CI-11): a restroom's door is marked by the park's home-plate plaque on the block
+				// beside it (pompomflipflop, June 2008; mauradotcom, Aug 2004), and a painted sign over it,
+				// not a lit navy band
+				fwd( face, P, n, o.c - 1.1, o.c + 1.1, 2.68, 3.14, 0.03, [ S[ 0 ], S[ 1 ], S[ 2 ], S[ 3 ] ] );
+				const C = L.cells[ PLAQUES.indexOf( o.k ) + BRANDS.length ], px = o.c + ( o.c > 0 ? 1.15 : - 1.15 );
+				fwd( face, P, n, px - 0.27, px + 0.27, 1.32, 1.98, 0.02, [ C[ 0 ] + ( C[ 2 ] - C[ 0 ] ) * 0.25, C[ 1 ], C[ 2 ] - ( C[ 2 ] - C[ 0 ] ) * 0.25, C[ 3 ] ] );
+				// ---- end FI1
+
+			} else fwd( face, P, n, o.c - 1.7, o.c + 1.7, 2.62, 3.32, 0.04, [ S[ 0 ], S[ 1 ], S[ 2 ], S[ 3 ] ] );
 			if ( hk.type === 'window' ) {
 
 				// a ledge, a bell, a light over it
@@ -1001,10 +1449,40 @@ export class Concourse {
 			} else if ( hk.type === 'shop' ) {
 
 				lights.add( P( o.x0 + 0.2, o.y1 - 0.01, - 0.1 ), P( o.x1 - 0.2, o.y1 - 0.01, - 0.1 ), P( o.x1 - 0.2, o.y1 - 0.01, - 0.3 ), P( o.x0 + 0.2, o.y1 - 0.01, - 0.3 ), [ 0, - 1, 0 ] );
-				// a rack of T-shirts and a table of caps out front
-				lbox( props.use( 'black' ), P, a, n, o.c + 0.9, 0.55, 0.9, 0.9, 0.04, 0.5 );
-				for ( let i = 0; i < 5; i ++ ) lbox( props.use( i % 2 ? 'cartred' : 'white' ), P, a, n, o.c + 0.6 + i * 0.15, 0.62, 0.9, 0.12, 0.1, 0.22 );
-				for ( const s of [ - 1, 1 ] ) lbox( props.use( 'black' ), P, a, n, o.c + 0.9 + s * 0.42, 0.27, 0.9, 0.04, 0.54, 0.04 );
+				// ---- FI1 (CI-13): inside, two chrome racks of jerseys (home whites and the red alternates, the
+				// World Series patch on the sleeve: Getty, 20 Oct 2008) and the counter with its register (Getty,
+				// WS Game 3: racks packed, shoppers shoulder to shoulder)
+				if ( o.k === 'merch' ) {
+
+					for ( const [ rx, rz ] of [ [ o.c - 0.75, - 1.3 ], [ o.c + 0.55, - 1.75 ] ] ) {
+
+						lbox( props.use( 'chrome' ), P, a, n, rx, 0.7, rz, 0.03, 1.4, 0.03 );
+						lbox( props.use( 'chrome' ), P, a, n, rx, 1.38, rz, 1.0, 0.025, 0.025 );
+						lbox( props.use( 'chrome' ), P, a, n, rx, 0.02, rz, 0.7, 0.03, 0.5 );
+						for ( let j = 0; j < 9; j ++ ) {
+
+							const jx = rx - 0.42 + j * 0.105;
+							lbox( props.use( j % 3 === 1 ? 'cartred' : 'white' ), P, a, n, jx, 1.02, rz, 0.025, 0.66, 0.5 );
+							lbox( props.use( j % 3 === 1 ? 'cartred' : 'white' ), P, a, n, jx, 1.24, rz, 0.026, 0.16, 0.62 );
+
+						}
+
+					}
+
+					lbox( props.use( 'wood' ), P, a, n, o.c + 1.1, 0.5, - 0.75, 0.6, 1.0, 1.1 );
+					lbox( props.use( 'black' ), P, a, n, o.c + 1.1, 1.08, - 0.6, 0.32, 0.14, 0.26 );
+					lbox( props.use( 'screen' ), P, a, n, o.c + 1.1, 1.2, - 0.65, 0.24, 0.14, 0.03 );
+
+				}
+				// ---- end FI1
+				// a rack of T-shirts and a table of caps out front (---- FI1: not at McFadden's door)
+				if ( o.k !== 'mcfaddens' ) {
+
+					lbox( props.use( 'black' ), P, a, n, o.c + 0.9, 0.55, 0.9, 0.9, 0.04, 0.5 );
+					for ( let i = 0; i < 5; i ++ ) lbox( props.use( i % 2 ? 'cartred' : 'white' ), P, a, n, o.c + 0.6 + i * 0.15, 0.62, 0.9, 0.12, 0.1, 0.22 );
+					for ( const s of [ - 1, 1 ] ) lbox( props.use( 'black' ), P, a, n, o.c + 0.9 + s * 0.42, 0.27, 0.9, 0.04, 0.54, 0.04 );
+
+				}
 				this.standSpots.push( { mid: P( o.c, 0, 0 ).filter( ( v, i ) => i !== 1 ), n, u: a, inset: 0.3, staff: [ - 0.6 ], kind: 'shop', what: o.k, sec: U.sec } );
 
 			} else {
@@ -1030,9 +1508,10 @@ export class Concourse {
 	// units' signs two to a row
 	_signLayout() {
 
-		const W = 1024, NH = 112, MH = 224, KH = 48, HH = 112;
+		const W = 1024, NH = NAME_PX, MH = 224, KH = 48, HH = 112, CW = 256, CH = 192; // ---- FI1: NH, the cells
 		const per = NH + MH + KH;
-		const total = BRANDS.length * per + Math.ceil( HALVES.length / 2 ) * HH;
+		const nCells = BRANDS.length + PLAQUES.length;
+		const total = BRANDS.length * per + Math.ceil( HALVES.length / 2 ) * HH + Math.ceil( nCells / 4 ) * CH;
 		const food = BRANDS.map( ( b, i ) => ( {
 			y: i * per,
 			name: [ ( i * per ) / total, ( i * per + NH ) / total ],
@@ -1046,7 +1525,15 @@ export class Concourse {
 			return [ x + 0.002, y / total, x + 0.498, ( y + HH ) / total ];
 
 		} );
-		return { W, NH, MH, KH, HH, per, total, food, half, y0 };
+		// ---- FI1: the cells under the half signs, four to a row: the blades by brand, then the plaques
+		const yc = y0 + Math.ceil( HALVES.length / 2 ) * HH;
+		const cells = Array.from( { length: nCells }, ( _, i ) => {
+
+			const x = ( i % 4 ) * CW, y = yc + Math.floor( i / 4 ) * CH;
+			return [ ( x + 2 ) / W, y / total, ( x + CW - 2 ) / W, ( y + CH ) / total, x, y ];
+
+		} );
+		return { W, NH, MH, KH, HH, CW, CH, per, total, food, half, y0, cells };
 
 	}
 
@@ -1060,20 +1547,9 @@ export class Concourse {
 			BRANDS.forEach( ( key, i ) => {
 
 				const F = FOOD[ key ], y = L.food[ i ].y;
-				// the name band: its colour, fine rules in the accent, the name, the line under it
-				const g = ctx.createLinearGradient( 0, y, 0, y + NH );
-				g.addColorStop( 0, F.bg ); g.addColorStop( 1, shade( F.bg, 0.8 ) );
-				ctx.fillStyle = g;
-				ctx.fillRect( 0, y, W, NH );
-				ctx.fillStyle = F.accent;
-				ctx.fillRect( 0, y + 6, W, 3 ); ctx.fillRect( 0, y + NH - 9, W, 3 );
-				ctx.textAlign = 'center';
-				ctx.fillStyle = F.fg;
-				ctx.font = `${ F.italic ? 'italic ' : '' }${ F.serif ? '700' : '900' } 58px ${ F.serif ? serif : sans }`;
-				ctx.fillText( F.name, W / 2, y + 46, W - 70 );
-				ctx.font = `600 17px ${ sans }`;
-				ctx.fillStyle = F.accent;
-				ctx.fillText( F.tag, W / 2, y + 88, W - 200 );
+				// ---- FI1 (CI-7): the stand's die-cut sign, the band round it cut away (the brick shows)
+				dieCut( ctx, key, W / 2, y + NH / 2, W - 8, NH - 6 );
+				// ---- end FI1
 				// the menu board, drawn 1.6x wider than the canvas (the board is 7.5 x 0.9 m): three
 				// panels, black, a title in the accent, items in white with prices in yellow
 				const my = y + NH;
@@ -1130,6 +1606,14 @@ export class Concourse {
 
 				const [ word, bg, fg ] = HALF[ k ].sign;
 				const x = ( i % 2 ) * W / 2, y = L.y0 + Math.floor( i / 2 ) * HH, w = W / 2;
+				// ---- FI1 (CI-13): the Home Stand's dark bronze plaque on the brick (ZoeR, Apr 2008), painted, not lit
+				if ( k === 'merch' ) {
+
+					bronze( ctx, x + w / 2, y + HH / 2, w - 30, HH - 34 );
+					return;
+
+				}
+				// ---- end FI1
 				ctx.fillStyle = bg;
 				ctx.fillRect( x, y, w, HH );
 				ctx.strokeStyle = fg;
@@ -1155,7 +1639,25 @@ export class Concourse {
 
 				}
 
+				// ---- FI1 (CI-11): the restrooms' signs over their doors are painted, not lit
+				if ( HALF[ k ].type === 'door' || k === 'elevators' ) unlit( ctx, x, y, w, HH );
+
 			} );
+			// ---- FI1: the cells: the stands' blades, the restrooms' home-plate plaques
+			BRANDS.forEach( ( key, i ) => {
+
+				if ( ! FOOD[ key ].blade ) return;
+				const [ , , , , x, y ] = L.cells[ i ];
+				dieCut( ctx, key, x + L.CW / 2, y + L.CH / 2, L.CW - 12, L.CH - 12, true );
+
+			} );
+			PLAQUES.forEach( ( k, i ) => {
+
+				const [ , , , , x, y ] = L.cells[ BRANDS.length + i ];
+				plaque( ctx, k, x + L.CW / 2, y + L.CH / 2, L.CH * 0.62, L.CH - 8 );
+
+			} );
+			// ---- end FI1
 
 		}, 'concessions' );
 

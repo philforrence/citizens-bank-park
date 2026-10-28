@@ -11,6 +11,7 @@ import { Steam } from './Concourse3BSteam.js';
 import { G } from '../../core/Globals.js';
 import { Kit, trashCan, recycleBin, condiments, cart, programTable, pendant } from './Concourse3BProps.js';
 import { Tempo } from './Tempo.js'; // ---- H
+import { domeLights } from '../ConcourseSteel.js'; // ---- FI1
 
 // The main concourse from behind home plate round to the third base side (sections 123 to 135): the
 // walk in from the Third Base Gate to your seat, at street level, under the suite level and open to the
@@ -60,6 +61,7 @@ export default class Concourse3B {
 		this.cast.bounds = new Sphere( new Vector3( mid.x, STREET + 1, mid.z ), S_END * 0.6 + 20 );
 		this.people = new ConcoursePeople( { cast: this.cast, walkway: this.W, concourse, bowl, sEnd: S_END, obstacles: this.obstacles, carts: this.carts, seed: 1027 } );
 		this.stories = new Stories( this.people );
+		this.stories.gallery( concourse?.steel?.bridges ); // ---- FI1 (CI-3): the people up on the mezzanine
 		// ---- H: its people moved at the full rate only while some of them are seen (Tempo.js)
 		this._tempo = new Tempo( [ this.cast ] );
 		// ---- end H
@@ -307,7 +309,23 @@ export default class Concourse3B {
 
 		};
 
-		for ( const [ cell, s, d, y ] of [ [ 'rollins', 70.5, 47.2, 8.4 ], [ 'feliz', 76.5, 51.5, 7.6 ], [ 'kendrick', 81.5, 46.8, 8.6 ], [ 'dobbs', 47.6, 46.4, 8.5 ], [ 'burrell', 13, 46.4, 8.5 ] ] ) {
+		// ---- FI1 (CI-3): Pedro Feliz on the face of the bridge across the atrium's home end, as on Game 5
+		// night (hcwoodward, 27 Oct 2008), its foot at the bridge's girder; Rollins hangs in front of it
+		const bridge = ( this.concourse?.steel?.bridges || [] ).find( ( b ) => b.gate === 'THIRD BASE GATE' && b.side < 0 );
+		if ( bridge ) {
+
+			const W2 = bridge.width / 2 + 0.05;
+			const [ s, d ] = W.toSD( ( bridge.a[ 0 ] + bridge.b[ 0 ] ) / 2 + bridge.u[ 0 ] * W2, ( bridge.a[ 1 ] + bridge.b[ 1 ] ) / 2 + bridge.u[ 1 ] * W2 );
+			const P = frame( s, d );
+			const y = LEVELS.suites - STREET - 0.8 + 2.13;
+			K.sheet( P, 0, y, 0, 3.4, 4.25, 'feliz' );
+			K.use( 'navy' ).box( P, 0, y + 2.17, 0, 3.5, 0.08, 0.06 );
+			K.use( 'navy' ).box( P, 0, y - 2.17, 0, 3.5, 0.08, 0.06 );
+
+		}
+
+		for ( const [ cell, s, d, y ] of [ [ 'rollins', 70.5, 47.2, 8.4 ], ...( bridge ? [] : [ [ 'feliz', 76.5, 51.5, 7.6 ] ] ), [ 'kendrick', 81.5, 46.8, 8.6 ], [ 'dobbs', 47.6, 46.4, 8.5 ], [ 'burrell', 13, 46.4, 8.5 ] ] ) {
+		// ---- end FI1
 
 			const P = frame( s, d );
 			K.sheet( P, 0, y, 0, 3.4, 4.25, cell );
@@ -355,8 +373,7 @@ export default class Concourse3B {
 			const P = Kit.frame( U.mid, U.a, U.n );
 			if ( Array.isArray( U.what ) && U.what[ 0 ] === 'merch' ) {
 
-				K.sheet( P, 0, 4.72, 0.05, 2.6, 0.9, 'homeStand' );
-				K.use( 'lid' ).box( P, 0, 4.3, 0.0, 0.08, 0.2, 0.08 );
+				// ---- FI1 (CI-13): its sign is the bronze plaque on the brick now (Concourse.js)
 
 			}
 
@@ -425,6 +442,20 @@ export default class Concourse3B {
 
 	update( dt, director, camera ) {
 
+		// ---- FI1 (CI-1): the domes light the concourse for real, once the app has its local lights
+		if ( ! this._lit && this.app?.localLights ) {
+
+			this._lit = true;
+			domeLights( this.app, this.lamps.map( ( [ s, d ] ) => {
+
+				const w = this.W.at( s, d );
+				return [ w.x, STREET + 7.2, w.z ];
+
+			} ) );
+			this.concourse?.steel?.lightUp( this.app );
+
+		}
+		// ---- end FI1
 		const ns = nightState( director );
 		this.night = ns;
 		// on arriving (and after a jump in the replay) the concourse has been going a while: a minute of it
