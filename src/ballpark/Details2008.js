@@ -371,8 +371,8 @@ export class Details2008 {
 	// the folds open from the top: the second layer (back the way it came) shortens from the outfield
 	// side as the edge goes out, and the rest runs over the stack and out flat to the edge
 	let q = clamp( ( E - W ) * 0.5, 0.0, W );
-	var P = x; var h = 0.0; var flip = 1.0;
-	if ( x >= W && x < 2.0 * W - q ) { P = 2.0 * W - x; h = 0.035; flip = - 1.0; }
+	var P = x; var h = 0.0; var flip = 1.0; var l2 = 0.0;
+	if ( x >= W && x < 2.0 * W - q ) { P = 2.0 * W - x; h = 0.035; flip = - 1.0; l2 = 1.0; }
 	else if ( x >= W ) { P = x - 2.0 * W + 2.0 * q; h = 0.07 * ( 1.0 - smoothstep( W - 0.4, W + 0.3, P ) ) * ( 1.0 - smoothstep( W * 0.9, W, q ) ); }
 	let folded = 1.0 - smoothstep( 0.0, W * 0.5, q );
 	// still on the roll: gathered at its axis, inside it
@@ -392,18 +392,36 @@ export class Details2008 {
 	let edge = min( min( v.uv.x, 1.0 - v.uv.x ), min( v.uv.y, 1.0 - v.uv.y ) ) * S;
 	var y = mound + 0.05 + max( 0.0, fold ) * mix( min( 1.0, edge / 2.0 ), 0.5, folded ) + h;
 	y = y + folded * 0.06 * max( 0.0, mx_noise_float2( vec2f( P * 0.7, flz * 0.35 ) ) );
-	// the moving part billows (air under it), most in the middle of the run
-	let run = clamp( ( P - W ) / max( 0.5, E - W ), 0.0, 1.0 );
-	y = y + mat.billow * step( W, P ) * sin( 3.14159 * run ) * ( 0.16 + 0.14 * mx_noise_float2( vec2f( flz * 0.21, run * 3.0 ) ) );
-	// the last metres up in the crew's hands
-	let held = pow( smoothstep( S - 2.6, S, x ), 1.4 ) * step( 0.5, 1.0 - onRoll );
-	y = y + max( 0.0, mat.edgeY - 0.05 ) * held;
+	// ---- FB4 (C4B-5): the pulled part as Getty 83458151 has it from the first base side: the edge at the
+	// crew's hips in their hands, sagging a little between them, and the sheet behind it ballooning on the
+	// air under it, a metre up a few metres back, in long waves that run back from the edge as they walk,
+	// down to the stack behind; under the lifted edge the black underside shows. (FR2's lift was the last
+	// 2.6 m of vinyl sloping up to the edge, so from above it read as a thin black line on the grass with the
+	// top of the sheet behind it, and its billow 0.16-0.3 m.) dE: metres behind the free edge
+	let dE = max( 0.0, E - P );
+	let runL = max( 0.5, E - W );
+	let Hh = max( 0.0, mat.edgeY - 0.05 );
+	let top = step( W, x ) * ( 1.0 - l2 ) * step( 0.5, 1.0 - onRoll );
+	let sag = 0.09 * ( 0.5 - 0.5 * cos( flz * 2.856 ) ) * ( 1.0 - smoothstep( 0.0, 1.6, dE ) );
+	let Lb = min( 11.0, runL );
+	let wave = 1.0 + 0.3 * sin( dE * 0.85 - E * 1.1 + flz * 0.13 );
+	let amp = mat.billow * ( 0.42 + 0.32 * mx_noise_float2( vec2f( flz * 0.13, E * 0.08 ) ) ) * wave;
+	let rise = clamp( runL, 2.0, 8.0 );
+	let prof = Hh * ( 1.0 - smoothstep( 0.0, rise, dE ) ) - Hh * sag + amp * pow( sin( 3.14159 * clamp( dE / Lb, 0.0, 1.0 ) ), 0.75 );
+	// (its slope back from the edge, for the light: the same a quarter metre further back)
+	let dB = dE + 0.25;
+	let profB = Hh * ( 1.0 - smoothstep( 0.0, rise, dB ) ) + amp * pow( sin( 3.14159 * clamp( dB / Lb, 0.0, 1.0 ) ), 0.75 );
+	y = y + top * prof;
+	let held = top * ( 1.0 - smoothstep( 0.0, 2.6, dE ) );
+	// ---- end FB4
 	y = mix( y, mat.rollR * 0.7, onRoll );
 	let p = vec3f( px, y, pz );
 	v.useWorld = true;
 	v.worldPos = ( v.model * vec4f( p, 1.0 ) ).xyz;
 	// (the second layer lies upside down: its normal down, so its underside faces up)
-	let n = normalize( vec3f( v.normal.x, v.normal.y, v.normal.z ) + vec3f( - 0.6 * held * ${ r2.toFixed( 5 ) }, 0.0, - 0.6 * held * ${ r2.toFixed( 5 ) } ) * step( 0.1, mat.edgeY - 0.05 ) );
+	// (---- FB4: the pulled part's normal from its slope back from the edge, along -u)
+	let slope = top * ( profB - prof ) / 0.25;
+	let n = normalize( vec3f( v.normal.x, v.normal.y, v.normal.z ) + vec3f( slope * ${ r2.toFixed( 5 ) }, 0.0, slope * ${ r2.toFixed( 5 ) } ) );
 	v.worldNormal = normalize( ( v.model * vec4f( n * flip, 0.0 ) ).xyz );
 	v.prevWorldPos = v.worldPos;
 	// (to the surface: how folded up it is, in the colour's green)

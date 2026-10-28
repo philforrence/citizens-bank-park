@@ -56,7 +56,8 @@ import { Walker } from './Walker.js';
 import { Scope } from './Scope.js';
 import { PLACES } from './places/index.js';
 // ---- R (rituals)
-import { tarpState, rollAxis, tarpFocus, T27, T29 } from './game/TarpPlan.js'; // ---- FR2: tarpFocus, T27, T29
+import { tarpState, rollAxis, tarpFocus, T27, T29, TARP_ON_29 } from './game/TarpPlan.js'; // ---- FR2: tarpFocus, T27, T29 (FB4: TARP_ON_29)
+import { G29 } from './game/Suspension.js'; // ---- FB4 (C4B-7): God Bless America's time
 // ---- end R
 import { Night, nightAirModule, BEAM } from './Night.js'; // ---- L: light and night
 import { when as gameClock } from './places/alley/Night.js'; // the replay's wall clock (the Alley's)
@@ -887,6 +888,11 @@ export class BallparkApp {
 			// along behind second from high home (Getty 83477151's view); the crew strung out along the strip
 			// and pulling the edge in from high first (83458151's): on the plan's times (TarpPlan.T27)
 			const foc = tarpFocus( st );
+			// ---- FB4 (C4B-12): off the wall from across the field (the world feed's 2:52:30: high home or
+			// first): the high third camera sits over the roll's own stands, and its first 1.5-2 s were the
+			// fans in the field boxes with the roll a sliver along the wall under them
+			if ( u < 9.5 ) return roll ? ( fit( 'high', [ roll[ 0 ], 1.0, roll[ 2 ] ], 5, 'roll0' ) || fit( 'high1', [ roll[ 0 ], 1.0, roll[ 2 ] ], 5, 'roll0' ) || high ) : high;
+			// ---- end FB4
 			if ( u < T27.lay[ 0 ] + 6 ) return roll ? fit( 'high3', [ roll[ 0 ], 1.0, roll[ 2 ] ], 4.5, 'roll' ) : high;
 			if ( u < T27.spread[ 0 ] ) return roll ? fit( 'high', [ roll[ 0 ], 0.8, roll[ 2 ] ], 7, 'lay' ) : high;
 			if ( u < T27.pull[ 0 ] + 7 ) return foc ? fit( 'high', foc, 13, 'pull' ) : high;
@@ -902,16 +908,38 @@ export class BallparkApp {
 
 		// the 29th's part, from the split
 		const u = d.t - N.split;
-		// ---- FR2: the edge walked back and the roll wound back up to the line (TarpPlan.T29)
-		if ( u < 5 ) return fit( 'high1', [ - 40, 12, - 10 ], 22, 'bowl1' );
-		const foc29 = tarpFocus( st );
-		if ( u < T29.wind[ 0 ] ) return foc29 ? fit( 'high', foc29, 13, 'unpull' ) : high;
-		if ( u < T29.stow[ 1 ] ) return roll ? fit( 'high3', [ roll[ 0 ], 1.0, roll[ 2 ] ], 6, 'off' ) : high;
-		// ---- end FR2
-		if ( u < 27 ) return high;
-		if ( u < 36 ) return fit( 'low3', [ DUGOUT.home[ 0 ], 1.1, DUGOUT.home[ 1 ] ], 2.6, 'dugout' );
-		if ( u < 45 ) return fit( 'high', [ BULLPEN.home[ 0 ], 2.2, BULLPEN.home[ 1 ] - 1.5 ], 8, 'pens' );
+		if ( TARP_ON_29 ) {
+
+			// ---- FR2: the edge walked back and the roll wound back up to the line (TarpPlan.T29)
+			if ( u < 5 ) return fit( 'high1', [ - 40, 12, - 10 ], 22, 'bowl1' );
+			const foc29 = tarpFocus( st );
+			if ( u < T29.wind[ 0 ] ) return foc29 ? fit( 'high', foc29, 13, 'unpull' ) : high;
+			if ( u < T29.stow[ 1 ] ) return roll ? fit( 'high3', [ roll[ 0 ], 1.0, roll[ 2 ] ], 6, 'off' ) : high;
+			// ---- end FR2
+
+		} else {
+
+			// ---- FB4 (C4B-6): no tarp on the 29th (it was off before the gates opened): the bowl filling, the
+			// crew on the skin with the hoses (Getty 83824977, 83824985) from across the field, the infield
+			// being groomed from high home
+			if ( u < 6 ) return fit( 'high1', [ - 40, 12, - 10 ], 22, 'bowl1' );
+			if ( u < 14 ) return fit( 'high3', [ 11, 0.9, - 31 ], 5, 'hose' ) || fit( 'high', [ 11, 0.9, - 31 ], 6, 'hose' ) || high;
+			if ( u < 21 ) return fit( 'high', [ 0, 0.8, - 22 ], 15, 'skin' ) || high;
+			// ---- end FB4
+
+		}
+
+		// ---- FB4 (C4B-7): God Bless America: the park standing, then the singer behind the plate from center
+		// field, the flag behind the camera; the dugout after it (it was the Phillies' dugout through the song:
+		// two men leaning on the rail in their caps). FOX didn't air the song (it was before they came on);
+		// this is what their cameras had
+		const [ g0, g1 ] = G29.gba;
+		if ( u < g0 ) return high;
+		if ( u < g1 ) return u < g0 + 4.5 ? high : ( fit( 'center', [ 0.6, 1.45, 9.6 ], 1.6, 'singer' ) || high );
+		if ( u < g1 + 7 ) return fit( 'low3', [ DUGOUT.home[ 0 ], 1.1, DUGOUT.home[ 1 ] ], 2.6, 'dugout' );
+		if ( u < g1 + 13 ) return fit( 'high', [ BULLPEN.home[ 0 ], 2.2, BULLPEN.home[ 1 ] - 1.5 ], 8, 'pens' );
 		if ( u < 54 ) return fit( 'high3', [ 40, 12, - 6 ], 22, 'bowl2' );
+		// ---- end FB4
 		return null;
 
 	}

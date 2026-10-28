@@ -2,7 +2,7 @@ import * as M from './Motions.js';
 import * as R from './RitualMoves.js';
 import { ROLE } from './Players.js';
 import { POSITIONS, MOUND, DUGOUT, ON_DECK, polar, dist, lerp2, yawTo } from './Plays.js';
-import { tarpState, rollAxis, rollFrame, sheetPoint, tubeAt, PULL_DIR, LAY_DIR, R_CORE, SHEET, T27, T29, moundY } from './TarpPlan.js';
+import { tarpState, rollAxis, rollFrame, sheetPoint, tubeAt, PULL_DIR, LAY_DIR, R_CORE, SHEET, T27, T29, TARP_ON_29, moundY } from './TarpPlan.js';
 
 // The suspension, on the players' rig: the break after the top of the 6th, the 27th's part and then the
 // 29th's (Director.night(): the split at 0.55). A pure function of the time into the break, like the rest
@@ -144,15 +144,46 @@ function pusher( d, c, st, axis, role, t ) {
 // behind him, leaning into it), just ahead of the edge; on the 29th walking it back to the strip, the
 // folded edge carried in front of him. (---- FR2: they're at the edge already, strung out along the strip
 // from where the roll ran out: spread() below)
+// ---- FB4 (C4B-5): how far ahead of the edge a man walks: his arms' length back to the hem's handle
+// (they were 0.9 m ahead with their hands 0.65 m short of it: C4B's T27-u39-edge)
+const PULL_OFF = 0.42;
+// ---- end FB4
 function puller( d, c, st, axis, role, t ) {
 
 	const e = sheetPoint( st.u, c.v ), fwd = st.dir > 0;
-	const off = fwd ? 0.9 : 0.6;
+	const off = fwd ? PULL_OFF : 0.6;
 	const p = [ e[ 0 ] + PULL_DIR[ 0 ] * off, e[ 1 ] + PULL_DIR[ 1 ] * off ];
 	const walked = st.pull * SHEET.S;
-	const pose = st.speed > 0 ? ( fwd ? M.pullBehind( walked / 1.3 + c.seed ) : R.pushLiner( ( 1 - st.pull ) * SHEET.S / 2.1 + c.seed ) ) : R.tugEdge( t, c.seed );
+	let pose = st.speed > 0 ? ( fwd ? M.pullBehind( walked / 1.3 + c.seed ) : R.pushLiner( ( 1 - st.pull ) * SHEET.S / 2.1 + c.seed ) ) : R.tugEdge( t, c.seed );
 	const face = fwd ? PULL_DIR : [ - PULL_DIR[ 0 ], - PULL_DIR[ 1 ] ];
-	d.act( c.id, p[ 0 ], p[ 1 ], yawTo( p, [ p[ 0 ] + face[ 0 ], p[ 1 ] + face[ 1 ] ] ), pose, { who: c.who, role, y: moundY( p[ 0 ], p[ 1 ] ) } );
+	let yaw = yawTo( p, [ p[ 0 ] + face[ 0 ], p[ 1 ] + face[ 1 ] ] );
+	// ---- FB4 (C4B-5): hands back on the hem at its height, the arms straight behind, leaning into it,
+	// each man his own lean (Getty 83458151, 83458153); and turned round from facing the edge, where they
+	// held it up waiting, to walk it across, over the first 0.7 s (they'd stood with their backs to it)
+	if ( fwd && st.speed > 0 ) {
+
+		const hy = st.edgeY + 0.05, lean = 0.12 + 0.2 * c.seed;
+		pose.handL = [ - 0.2, hy, PULL_OFF + 0.02 ];
+		pose.handR = [ 0.21, hy + 0.03, PULL_OFF ];
+		pose.torso = [ pose.torso[ 0 ] - lean, pose.torso[ 1 ], pose.torso[ 2 ] ];
+		pose.head = [ ( pose.head?.[ 0 ] ?? 0 ) + 0.25 * lean, pose.head?.[ 1 ] ?? 0 ];
+
+	}
+
+	if ( fwd ) {
+
+		const k = ease( ( t - T27.pull[ 0 ] ) / 0.7 );
+		if ( k < 1 ) {
+
+			yaw += Math.PI * ( 1 - k ) * ( c.seed < 0.5 ? 1 : - 1 );
+			pose = M.blend( R.tugEdge( t, c.seed ), pose, k );
+
+		}
+
+	}
+
+	// ---- end FB4
+	d.act( c.id, p[ 0 ], p[ 1 ], yaw, pose, { who: c.who, role, y: moundY( p[ 0 ], p[ 1 ] ) } );
 
 }
 
@@ -201,7 +232,7 @@ const coreSpot = ( st, axis, ci ) => {
 const edgeStart = ( c ) => {
 
 	const e = sheetPoint( 0, c.v );
-	return [ e[ 0 ] + PULL_DIR[ 0 ] * 0.9, e[ 1 ] + PULL_DIR[ 1 ] * 0.9 ];
+	return [ e[ 0 ] + PULL_DIR[ 0 ] * PULL_OFF, e[ 1 ] + PULL_DIR[ 1 ] * PULL_OFF ]; // (---- FB4: at arm's length)
 
 };
 // ... and his place pushing the roll at an end of the strip ('end': behind second, where it runs out;
@@ -306,7 +337,8 @@ function night27( d, seg, lt, st, axis ) {
 
 		if ( lt < T.pull ) {
 
-			runTo( d, c, pushSpot( c, 'end', 1 ), edgeStart( c ), T.spread + c.seed * 0.5, T.pull - 0.5, lt, PULL_DIR, who, R.tugEdge( lt, c.seed ) );
+			// (---- FB4: facing the edge, holding it up: tugEdge's hands are in front of him)
+			runTo( d, c, pushSpot( c, 'end', 1 ), edgeStart( c ), T.spread + c.seed * 0.5, T.pull - 0.5, lt, [ - PULL_DIR[ 0 ], - PULL_DIR[ 1 ] ], who, R.tugEdge( lt, c.seed ) );
 			continue;
 
 		}
@@ -320,7 +352,7 @@ function night27( d, seg, lt, st, axis ) {
 
 		// the others take the edges from where they finished (the first base line's edge)
 		const e1 = sheetPoint( 1, c.v );
-		const end = [ e1[ 0 ] + PULL_DIR[ 0 ] * 0.9, e1[ 1 ] + PULL_DIR[ 1 ] * 0.9 ];
+		const end = [ e1[ 0 ] + PULL_DIR[ 0 ] * PULL_OFF, e1[ 1 ] + PULL_DIR[ 1 ] * PULL_OFF ]; // (---- FB4)
 
 		// the others take the edges: a hustle across to their spot, a few steps back tugging it square,
 		// then stand by
@@ -432,6 +464,18 @@ function night29( d, seg, l2real, st, axis, dur ) {
 	for ( const [ i, c ] of CREW.entries() ) {
 
 		const who = { who: c.who, role: 0 };
+		// ---- FB4 (C4B-6): no tarp on the 29th (TarpPlan.TARP_ON_29): ten of them at their jobs on the skin
+		// as the 29th's part opens, the hoses on the clay behind the bags, the rakes, the tampers and the
+		// drags (Getty 83824977, 83824985: the crew watering the infield with the crowd in), still for the
+		// song where they are, then in; the rest are in already
+		if ( ! TARP_ON_29 ) {
+
+			if ( i < 10 ) work( d, c, i, null, l2, who, 21 + hash( i * 3.7 ) * 4 );
+			continue;
+
+		}
+
+		// ---- end FB4
 		const ci = CORE_CREW.indexOf( i );
 		// (his place on the roll winding it: the three at the core and the near ones spread along it, the
 		// later ones near its infield end, where they're standing when it reaches them)
@@ -550,10 +594,13 @@ const JOBS = [
 	{ job: 'tamp', at: [ 0.3, - 16.6 ] },
 ];
 
-function work( d, c, i, from, tt, extra ) {
+function work( d, c, i, from, tt, extra, until = 0 ) {
 
 	const J = JOBS[ i ];
-	const t0 = hash( i * 5.3 ) * 1.5;
+	// (---- FB4: from null, already at it as the 29th's part opens (a step from his place), until `until`)
+	const there = from == null;
+	const t0 = there ? 0 : hash( i * 5.3 ) * 1.5;
+	if ( there && J ) from = J.at ? [ J.at[ 0 ] + ( hash( i * 2.2 ) - 0.5 ) * 0.6, J.at[ 1 ] + ( hash( i * 4.1 ) - 0.5 ) * 0.6 ] : [ Math.cos( - 2.35 - J.k * 0.12 ) * 26.5, - 18 + Math.sin( - 2.35 - J.k * 0.12 ) * 26.5 ];
 	if ( ! J ) {
 
 		// the rest go in through the gate by the tube
@@ -564,7 +611,7 @@ function work( d, c, i, from, tt, extra ) {
 
 	// (---- FR2: they come from the third base line now, where the roll was wound back: a few seconds at
 	// the job whatever the walk)
-	const done = Math.max( 12 + hash( i ) * 2.5, t0 + ( J.at ? dist( from, J.at ) / ( J.job === 'rake' ? 3.6 : 3.0 ) : 0 ) + 5 );
+	const done = Math.max( until, 12 + hash( i ) * 2.5, t0 + ( J.at ? dist( from, J.at ) / ( J.job === 'rake' ? 3.6 : 3.0 ) : 0 ) + 5 );
 	if ( J.job === 'drag' ) {
 
 		// round the arc of the infield's clay (95 ft from the mound's centre), from the third base side to
@@ -619,7 +666,7 @@ function work( d, c, i, from, tt, extra ) {
 const LINER = { id: 'r:liner', who: { side: 'crew', num: '', last: '' } };
 function liner( d, l2 ) {
 
-	const t0 = 25, a = [ - 1.25, - 1.25 ], b = [ - 12.5, - 12.5 ];
+	const t0 = TARP_ON_29 ? 25 : 4, a = [ - 1.25, - 1.25 ], b = [ - 12.5, - 12.5 ]; // (---- FB4: no tarp to wait for)
 	if ( l2 < t0 ) return;
 	const w = along( [ UMP_DOOR, [ - 2.6, 1.2 ], a ], t0, 2.4, l2 );
 	if ( ! w.done ) return d.act( LINER.id, w.p[ 0 ], w.p[ 1 ], w.yaw, R.walk( w.dist / 2.3 ), { who: LINER.who, role: 0 } );

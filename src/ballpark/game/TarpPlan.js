@@ -149,11 +149,22 @@ function tubeAt( f ) {
 const stowedAt = ( s ) => tubeAt( ( 1 - s ) * STRIP / TUBE );
 const startAt = ( s ) => sheetPoint( U0 * ( 1 - s ), V_START );
 
+// ---- FB4 (C4B-5): how high they hold the edge over the ground as they pull: at the hips (Getty
+// 83458151; the crew's hands, Suspension.js puller)
+export const EDGE_UP = 0.78;
+// ---- end FB4
 // The times (s into the suspension's break; the 29th's from its start, the split)
 export const T27 = { out: 1.5, lift: [ 7, 11.5 ], lay: [ 11.5, 26 ], spread: [ 26, 34 ], pull: [ 34, 51 ] };
 // (the 29th: it came off in the afternoon, before the gates opened at 5:30: the park still empty; all of
 // it before God Bless America, Suspension's G29.gba at 26 s)
 export const T29 = { unpull: [ 0.5, 9 ], wind: [ 11.5, 21.5 ], stow: [ 21.5, 25 ] };
+// ---- FB4 (C4B-6): but the replay's 29th opens at 7:43 pm before a full house, and by then it was long
+// off: the infield uncovered when the gates opened at 5:30 (garrettfield 2988061976), batting practice on
+// the dry skin at 6:50 (bub56 2994749367), the crew watering the skin with the crowd in (Getty 83824977,
+// 83824985), and neither FOX broadcast shows a tarp on the 29th. So it's stowed from the split; FR2's
+// T29 (it coming off) stays behind this switch
+export const TARP_ON_29 = false;
+// ---- end FB4
 
 // The tarp's state:
 //   phase: 'stowed' | 'lift' (off the wall to the strip's start) | 'lay' (the strip laid out behind it) |
@@ -219,7 +230,7 @@ export function tarpState( N ) {
 
 			// the edge lifted in their hands as the last of them get there
 			st.phase = 'spread';
-			st.edgeY = 0.05 + 0.7 * ease( ( lt - T.pull[ 0 ] + 1.4 ) / 1.2 );
+			st.edgeY = 0.05 + EDGE_UP * ease( ( lt - T.pull[ 0 ] + 1.4 ) / 1.2 );
 			return st;
 
 		}
@@ -228,14 +239,16 @@ export function tarpState( N ) {
 		pull( kp );
 		st.phase = kp < 1 ? 'pull' : 'on';
 		st.speed = kp > 0 && kp < 1 ? SHEET.S / ( T.pull[ 1 ] - T.pull[ 0 ] ) : 0;
-		// the edge held up in their hands while they walk it across, then laid down
-		st.edgeY = kp < 1 ? 0.75 : 0.05;
+		// the edge held up in their hands while they walk it across, then laid down (---- FB4: at the hips
+		// (Getty 83458151), and let down over the last metres, not dropped in a frame)
+		st.edgeY = 0.05 + EDGE_UP * Math.min( 1, ( 1 - kp ) * 14 );
 		st.billow = kp < 1 ? Math.min( 1, kp * 8 ) * Math.min( 1, ( 1 - kp ) * 6 ) : 0;
 		return st;
 
 	}
 
 	// the 29th
+	if ( ! TARP_ON_29 ) return st; // ---- FB4 (C4B-6): stowed all along
 	const T = T29, l2 = lt - s27;
 	st.stowed = false;
 	st.lift = 1;
@@ -255,7 +268,7 @@ export function tarpState( N ) {
 		const kp = 1 - steady( ( l2 - T.unpull[ 0 ] ) / ( T.unpull[ 1 ] - T.unpull[ 0 ] ) );
 		pull( kp );
 		st.phase = 'pull';
-		st.edgeY = 0.75;
+		st.edgeY = 0.05 + EDGE_UP;
 		st.billow = Math.min( 1, kp * 8 ) * Math.min( 1, ( 1 - kp ) * 6 ) * 0.6;
 		st.speed = SHEET.S / ( T.unpull[ 1 ] - T.unpull[ 0 ] );
 		return st;
