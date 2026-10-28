@@ -7,6 +7,7 @@ import { standard } from '../materials/Materials.js';
 import { SEAT_BACK } from './Stands.js';
 // ---- FW1 (CP-12): the backs' names and numbers come from the Cast's atlas (a blank one without it)
 import { castPool } from './places/Cast.js';
+import { signAtlas, SIGN, SIGN_GRID } from './places/home/Signs.js';
 import { canvasTexture } from './geo.js';
 let _blank = null;
 const BLANK = () => _blank ||= canvasTexture( 8, 8, ( ctx ) => { ctx.fillStyle = '#000'; ctx.fillRect( 0, 0, 8, 8 ); }, 'crowdBlank' );
@@ -78,8 +79,8 @@ const TRUNK = {
 // backdrop) the same shapes on fewer sides, the cap shaped from the head; then a middle one and a far
 // one for fans a few pixels tall
 const LODS = [
-	{ name: 'close', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 12, 8 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ] },
-	{ name: 'near', trunk: 6, rings: TRUNK.near, limb: 4, head: [ 8, 5 ], neck: false, hands: 4, joints: true, extras: false, hair: true, crown: null, bill: 4, shoes: false, nose: false, pom: null },
+	{ name: 'close', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 12, 8 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ], sign: true },
+	{ name: 'near', trunk: 6, rings: TRUNK.near, limb: 4, head: [ 8, 5 ], neck: false, hands: 4, joints: true, extras: false, hair: true, crown: null, bill: 4, shoes: false, nose: false, pom: null, sign: true },
 	{ name: 'mid', trunk: 6, rings: TRUNK.mid, limb: 3, head: [ 6, 4 ], neck: false, hands: 0, joints: true, extras: false, hair: true, crown: null, bill: 0, shoes: false, nose: false, pom: null },
 	{ name: 'far', trunk: 4, rings: TRUNK.far, limb: 3, head: [ 5, 3 ], neck: false, hands: 0, joints: false, extras: false, hair: false, crown: null, bill: 0, shoes: false, nose: false, pom: null },
 ];
@@ -514,9 +515,9 @@ export function fanGeometry( lod ) {
 	}
 
 	// the sign, in both hands: flat on the lap sitting, at the waist standing, over the head held up. u
-	// runs from his right (the viewer's left) to his left, v down it (close up only, with the blanket and
-	// what's in his hand: nobody has them yet)
-	if ( L.extras ) {
+	// runs from his right (the viewer's left) to his left, v down it (close up and near: FP2, CP-12, the
+	// TV's backdrop has them)
+	if ( L.extras || L.sign ) {
 
 		const at = ( k, u, v ) => {
 
@@ -739,8 +740,12 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwFanPose {
 	let jump = M.w * st;
 	// each arm raised or at the face (left, right), pumping when they're up
 	let pump = mix( 1.0, 0.88 + 0.12 * sin( t * 6.0 + h.w * 30.0 ), upAll );
-	let aUL = upAll * pump;
-	let aUR = upR * pump;
+	// ---- FP2 (CP-12): a sign's held up over the head now and then between pitches, whenever they cheer,
+	// with the towels when the stands are up (fewer in the rain: they get soaked)
+	let signOn = sg != 0u && ! ( rain > 0.35 && fract( h.x * 17.3 ) < 0.6 );
+	let sup = select( 0.0, max( cwWin( fract( t / ( 34.0 + h.y * 30.0 ) + h.z * 7.0 ), 0.0, 0.32 ) * ( 1.0 - 0.7 * rain ), smoothstep( 0.3, 0.6, M.z ) ), signOn );
+	let aUL = max( upAll, sup ) * pump;
+	let aUR = max( upR, sup ) * pump;
 	// the towel's turn, and its tip flapping held still
 	let th = t * ( 9.0 + 5.5 * fract( h.w * 17.0 ) ) + dot( seat.xz, vec2f( 0.31, 0.23 ) ) + h.x * 1.2;
 
@@ -765,7 +770,7 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwFanPose {
 	let towelOut = fract( h.y * 7.7 ) < 0.5 - 0.36 * rain && fract( h.z * 5.7 + h.w * 1.3 ) < 0.42 - 0.17 * rain && prop == 0u;
 	if ( towel == 1u && ! isRays && ( tw > 0.01 || towelOut ) ) { keep |= 1u << 5u; }
 	if ( prop != 0u ) { keep |= 1u << 8u; }
-	if ( sg != 0u ) { keep |= 1u << 9u; }
+	if ( signOn ) { keep |= 1u << 9u; }
 	if ( ( hairStyle == 1u || hairStyle == 3u ) && ! hood && ! capped ) { keep |= 1u << 10u; }
 	if ( blanket == 1u ) { keep |= 1u << 11u; }
 	// a seat given to someone else (Crowd.vacate): nobody here
@@ -1113,7 +1118,13 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 `,
 } );
 
-function crowdMaterial( lod, poseBuf, lookBuf ) {
+// ---- FP2 (CP-12): the seated crowd's signs, by night (the boards behind home's, home/Signs.js: twelve
+// each; a fan's sign picks one by its number)
+const SIGNS29 = ["28 YEARS... WHAT'S ANOTHER DAY?", 'IT ENDS TONIGHT', 'PHABULOUS PHILLIES PHINALE', 'RAYS RAYS GO AWAY', 'PHINALLY', 'WE BELIEVE', 'RED OCTOBER', 'LIGHTS OUT LIDGE', 'HARRY, CALL IT!', 'PHILS IN PHIVE', 'SUSPENDED... NOT DEFEATED', 'FOX 9 MORE OUTS'];
+const SIGNS27 = ["RAIN? WE'RE FROM PHILLY", 'PHILS IN PHIVE', 'PHINALLY', 'WE BELIEVE', 'RED OCTOBER', 'HI MOM IN BOCA!', "RAIN? WE'RE FROM PHILLY", 'PHILS IN PHIVE', 'WE BELIEVE', 'RED OCTOBER', 'PHINALLY', 'RAYS RAYS GO AWAY'];
+const signCells = ( names ) => names.map( ( n ) => SIGN[ n ] ?? 0 ).join( 'u, ' ) + 'u';
+
+function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 
 	const call = ( prev ) => `cwVertex( v.position, v.normal, v.aStand, v.aStandN, v.aSitUp, v.aStandUp, v.aSitFace, v.aStandFace, v.aInfo, fan, ${ prev }, ${ lod }u )`;
 	const mat = standard( {
@@ -1121,9 +1132,10 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 		name: 'crowd-' + [ 'near', 'near', 'mid', 'far' ][ lod ], roughness: 0.8, side: 'double',
 		modules: [ crowdModule ],
 		defines: { CROWD_LOD: lod },
-		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf },
-		// ---- FW1 (CP-12): the Cast's atlas, for the names and numbers on the backs
-		textures: { cwAtlas: () => castPool()?.atlas || BLANK() },
+		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf, cwIds: idsBuf },
+		// ---- FW1 (CP-12): the Cast's atlas, for the names and numbers on the backs; (FP2) the signs' boards
+		textures: { cwAtlas: () => castPool()?.atlas || BLANK(), cwSigns: () => signAtlas() },
+		uniforms: { cwNight: [ 'f32', 29 ], cwHome: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] },
 		attributes: { aStand: 'vec3f', aStandN: 'vec3f', aSitUp: 'vec3f', aStandUp: 'vec3f', aSitFace: 'vec3f', aStandFace: 'vec3f', aInfo: 'vec4f' },
 		varyings: { vPart: 'u32', vFan: 'u32', vLocal: 'vec3f' },
 		vertex: /* wgsl */`
@@ -1223,6 +1235,17 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 				let a = textureSample( cwAtlas, smpAnisoClamp, ( vec2f( f32( cell % 8u ), f32( cell / 8u ) ) + uv ) / vec2f( 8.0, 10.0 ) ).r;
 				c = mix( c, select( vec3f( 0.72, 0.71, 0.68 ), vec3f( 0.32, 0.018, 0.024 ), trim == 1u ), a );
 			}
+		}
+#endif
+#if CROWD_LOD <= 1
+		// ---- FP2 (CP-12): a credential on its lanyard for a few (the clubs' and the press's passes, a
+		// season ticket holder's: Getty 112873396, 83433888): the strap down from the collar either side to
+		// a white card on the chest, its band at the top
+		let lny = fract( seed * 23.17 + c1.w * 1.7 ) < 0.045 && age != 2u && ! poncho;
+		if ( lny && frontS && L.y > 0.5 ) {
+			let sx = mix( 0.014, 0.07, smoothstep( 0.72, 1.35, L.y ) );
+			if ( abs( abs( L.x ) - sx ) < 0.008 && L.y > 0.72 && L.y < 1.45 ) { c = select( vec3f( 0.02 ), vec3f( 0.32, 0.02, 0.03 ), seed > 0.5 ); rough = 0.6; }
+			if ( abs( L.x ) < 0.045 && L.y > 0.54 && L.y < 0.73 ) { c = select( vec3f( 0.78, 0.77, 0.74 ), vec3f( 0.04, 0.06, 0.22 ), L.y > 0.69 ); rough = 0.3; }
 		}
 #endif
 		// a hoodie's drawstrings, its hood up
@@ -1394,6 +1417,24 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 		let whirl = cwPoseBuf[ fan * ${ POSE_N * 2 }u + 1u ].y;
 		c = mix( c, mix( vec3f( 0.76, 0.75, 0.72 ), c, 0.45 ), whirl );
 	}
+#if CROWD_LOD <= 1
+	// ---- FP2 (CP-12): a homemade sign: poster board, its words in marker on the face toward the field
+	// (the boards behind home's atlas), the back plain; the night's own words
+	if ( part == 9u ) {
+		let sg = ( cwIds[ fan ].z >> 4u ) & 63u;
+		let si = ( sg + 11u ) % 12u;
+		var s29 = array<u32, 12>( ${ signCells( SIGNS29 ) } );
+		var s27 = array<u32, 12>( ${ signCells( SIGNS27 ) } );
+		let cell = select( s29[ si ], s27[ si ], mat.cwNight < 28.0 );
+		c = vec3f( 0.66, 0.65, 0.62 );
+		// (its printed face is the one toward the field: seen from the field's side of it)
+		if ( dot( in.V.xz, mat.cwHome.xz - in.P.xz ) > 0.0 ) {
+			let uv = vec2f( clamp( L.x, 0.0, 1.0 ), clamp( L.z, 0.0, 1.0 ) * ${ SIGN_GRID.aspect.toFixed( 4 ) } );
+			c = textureSample( cwSigns, smpAnisoClamp, ( vec2f( f32( cell % ${ SIGN_GRID.x }u ), f32( cell / ${ SIGN_GRID.x }u ) ) + uv ) / vec2f( ${ SIGN_GRID.x }.0, ${ SIGN_GRID.y }.0 ) ).rgb;
+		}
+		rough = mix( 0.75, 0.35, frame.wet );
+	}
+#endif
 	if ( part == 10u ) { c = hairC; rough = 0.7; }
 	// lit by the stands' fill after dark, as the seats are
 	s.albedo = c;
@@ -1487,6 +1528,11 @@ function randomFan( r ) {
 	// in his left hand (one in seven): a beer, the cold night's hot chocolate, a phone, a camera, a soda
 	if ( f.age !== 2 && d < 0.15 ) f.prop = d < 0.05 ? 1 : d < 0.1 ? 2 : d < 0.12 ? 3 : d < 0.14 ? 4 : 5;
 	else if ( f.age === 2 && d < 0.1 ) f.prop = 2;
+	// ---- FP2 (CP-12): a homemade sign for one in a hundred (a few hundred round the bowl, as in the
+	// 2008 frames: Getty 112873396, FOX's of the 29th), from his seed too; the night picks its words
+	const [ e, g ] = rand4( f.seed * 5 + 7919 );
+	if ( f.age !== 2 && e < 0.01 ) f.sign = 1 + Math.floor( g * 12 );
+	// ---- end FP2
 	return f;
 
 }
@@ -1520,7 +1566,7 @@ export class Crowd {
 			// the local reactions (focus()): where (world x, z) and how far, and how much (stand, arms up)
 			focus: [ 'vec4f[4]', new Float32Array( 16 ) ], focusMood: [ 'vec4f[4]', new Float32Array( 16 ) ],
 		} );
-		this.materials = LODS.map( ( _, k ) => crowdMaterial( k, this.poseBuf, this.lookBuf ) );
+		this.materials = LODS.map( ( _, k ) => crowdMaterial( k, this.poseBuf, this.lookBuf, this.idsBuf ) );
 		this.geometry = this.geometries[ 0 ];
 		this.material = this.materials[ 0 ];
 		this.chunks = [];
@@ -1555,6 +1601,7 @@ export class Crowd {
 
 			const f = randomFan( r );
 			f.towel = r() < 0.75 ? 1 : 0;
+			if ( f.sign ) f.towel = 0; // (FP2: both hands on the sign)
 			// the odd brave Rays fan (in Rays blue, most in a Rays cap; he sits out the Phillies' moments)
 			if ( r() < 0.004 ) {
 
@@ -1782,6 +1829,15 @@ export class Crowd {
 			this._flashes.visible = f.x > 0.005;
 
 		}
+
+		// ---- FP2 (CP-12): the night, for the words on the signs
+		const nt = d?.night ? d.night( d.t ).night : 29;
+		if ( nt !== this._night ) {
+
+			this._night = nt;
+			for ( const m of this.materials ) m.uniforms.cwNight.value = nt;
+
+		}
 		this._kernel.dispatch( Math.ceil( this.count / 64 ) );
 
 	}
@@ -1889,6 +1945,9 @@ export class Crowd {
 		this._seats = seats;
 		this.seatsBuf.write( seats );
 		this._writeIds();
+		// ---- FP2: where home plate is (the world's x, z), for which way the signs face
+		const hp = this.toWorld ? this.toWorld( 0, 0 ) : { x: 0, z: 0 };
+		for ( const mt of this.materials ) mt.uniforms.cwHome.value.set( hp.x, 0, hp.z, 0 );
 		this._flashBuild();
 		this._kernel = new ComputeKernel( {
 			label: 'crowd', modules: [ cwHashModule ], workgroupSize: [ 64, 1, 1 ],
