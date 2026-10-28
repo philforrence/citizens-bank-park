@@ -3,6 +3,7 @@ import { commonModule } from '../engine/render/wgsl/common.js';
 import { standard } from '../materials/Materials.js';
 import { Quads, SOFFIT_WGSL } from './Stands.js';
 import { offsetPolyline } from './Bowl.js';
+import { canvasTexture } from './geo.js';
 import { LEVELS, FOOTPRINT } from './layout.js';
 
 // FI1 (gauntlet CI-1, CI-8): the main concourse's sky, as the 2008 photos show it. Over the walkway and
@@ -308,6 +309,46 @@ const PICKETS_WGSL = /* wgsl */`
 	s.metalness = 0.6;
 `;
 
+// The mosaic (invented): square glazed tesserae, 2.5 cm, in a scene drawn at low resolution first and then
+// set tile by tile with a little variation in each, the grout between
+function mosaicTexture() {
+
+	const N = 96, M = 72;
+	const scene = new OffscreenCanvas( N, M ), g = scene.getContext( '2d', { willReadFrequently: true } );
+	// the sky at dusk over the skyline, the field, the plate, the batter in pinstripes, the frame
+	const sky = g.createLinearGradient( 0, 0, 0, M * 0.55 );
+	sky.addColorStop( 0, '#1d3f8a' ); sky.addColorStop( 1, '#e98a4a' );
+	g.fillStyle = sky; g.fillRect( 0, 0, N, M );
+	g.fillStyle = '#20263a';
+	for ( const [ x, w, h ] of [ [ 8, 6, 14 ], [ 15, 5, 20 ], [ 21, 7, 11 ], [ 30, 4, 26 ], [ 35, 6, 17 ], [ 60, 5, 22 ], [ 66, 7, 30 ], [ 74, 5, 15 ], [ 80, 6, 19 ] ] ) g.fillRect( x, M * 0.55 - h, w, h );
+	g.fillStyle = '#2f7a35'; g.fillRect( 0, M * 0.55, N, M );
+	g.fillStyle = '#b5824e'; g.beginPath(); g.ellipse( N / 2, M * 0.86, 30, 7, 0, 0, Math.PI * 2 ); g.fill();
+	g.fillStyle = '#f2f0e8'; g.beginPath(); g.moveTo( 44, 62 ); g.lineTo( 52, 62 ); g.lineTo( 52, 64 ); g.lineTo( 48, 66 ); g.lineTo( 44, 64 ); g.fill();
+	// the batter: pinstripes, red helmet, the bat back
+	g.fillStyle = '#f2f0e8'; g.fillRect( 40, 30, 8, 16 ); g.fillRect( 40, 46, 3, 13 ); g.fillRect( 45, 46, 3, 13 );
+	g.fillStyle = '#b3121b'; for ( let x = 41; x < 48; x += 2 ) g.fillRect( x, 31, 1, 26 );
+	g.fillStyle = '#c8102e'; g.fillRect( 41, 24, 6, 6 ); g.fillRect( 47, 27, 2, 2 );
+	g.fillStyle = '#e0b07a'; g.fillRect( 42, 29, 4, 2 );
+	g.strokeStyle = '#8a5a2b'; g.lineWidth = 2; g.beginPath(); g.moveTo( 49, 32 ); g.lineTo( 60, 18 ); g.stroke();
+	g.strokeStyle = '#b3121b'; g.lineWidth = 3; g.strokeRect( 1.5, 1.5, N - 3, M - 3 );
+	g.strokeStyle = '#0b2a5b'; g.lineWidth = 1; g.strokeRect( 4.5, 4.5, N - 9, M - 9 );
+	const px = g.getImageData( 0, 0, N, M ).data;
+	return canvasTexture( N * 8, M * 8, ( ctx ) => {
+
+		ctx.fillStyle = '#b8b2a4';
+		ctx.fillRect( 0, 0, N * 8, M * 8 );
+		for ( let j = 0; j < M; j ++ ) for ( let i = 0; i < N; i ++ ) {
+
+			const k = ( j * N + i ) * 4, v = 0.88 + ( ( i * 7919 + j * 104729 ) % 97 ) / 97 * 0.24;
+			ctx.fillStyle = `rgb( ${ Math.min( 255, px[ k ] * v ) | 0 }, ${ Math.min( 255, px[ k + 1 ] * v ) | 0 }, ${ Math.min( 255, px[ k + 2 ] * v ) | 0 } )`;
+			ctx.fillRect( i * 8 + 1, j * 8 + 1, 6.5, 6.5 );
+
+		}
+
+	}, 'mosaic' );
+
+}
+
 // how far from p along the unit direction n to the facade's brick (Infinity if it isn't hit)
 export function toFacade( p, n ) {
 
@@ -437,6 +478,28 @@ export class ConcourseSteel {
 			}
 
 		}
+
+		// ---- FI1 (CI-23): a tile mosaic on the brick by the Third Base Gate (the 2008 guide: 'Unique tile
+		// mosaics by local artist Jonathan Mandell are on the Main Concourse'; a 6 x 8 ft piece, a 2004 note;
+		// where and what they showed isn't on record: this design is invented, a batter in pinstripes at the
+		// plate under the city's skyline)
+		{
+
+			const sm = WL.nearest( OUT.at( this.closedS[ 1 ] - 2.2 ).x, OUT.at( this.closedS[ 1 ] - 2.2 ).z );
+			const c = WL.at( sm ), hw = 1.22, y0 = STREET + 1.35, y1 = y0 + 1.83;
+			const mq = new Quads(), o = 0.03;
+			const A = [ c.x - c.ux * hw + c.nx * o, c.z - c.uz * hw + c.nz * o ], B = [ c.x + c.ux * hw + c.nx * o, c.z + c.uz * hw + c.nz * o ];
+			mq.tri( [ A[ 0 ], y0, A[ 1 ] ], [ B[ 0 ], y0, B[ 1 ] ], [ B[ 0 ], y1, B[ 1 ] ], [ c.nx, 0, c.nz ], [ 1, 1 ], [ 0, 1 ], [ 0, 0 ] );
+			mq.tri( [ A[ 0 ], y0, A[ 1 ] ], [ B[ 0 ], y1, B[ 1 ] ], [ A[ 0 ], y1, A[ 1 ] ], [ c.nx, 0, c.nz ], [ 1, 1 ], [ 0, 0 ], [ 1, 0 ] );
+			const mm = standard( { name: 'concourse-mosaic', roughness: 0.3, textures: { fiMosaic: mosaicTexture() },
+				surface: 'let t = textureSample( fiMosaic, smpAnisoClamp, in.uv ).rgb; s.albedo = t; s.roughness = 0.28;' } );
+			mm.underwaterLighting = 'none';
+			const mesh = new Mesh( mq.geometry(), mm );
+			mesh.name = 'concourse-mosaic';
+			this.group.add( mesh );
+
+		}
+		// ---- end FI1
 
 		const m = standard( { name: 'concourse-brick', color: new Color( 0.25, 0.068, 0.04 ), roughness: 0.85, surface: brickWGSL( { base: STREET + 0.6 } ) } );
 		m.underwaterLighting = 'none';

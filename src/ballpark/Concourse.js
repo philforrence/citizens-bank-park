@@ -113,6 +113,11 @@ const HALF = {
 	merch: { type: 'shop', room: 7, sign: [ 'PHILLIES', '#b3121b', '#ffffff' ] },
 	news: { type: 'shop', room: 9, sign: [ 'NEWSSTAND', '#0b2a5b', '#ffffff' ] },
 	phanatic: { type: 'shop', room: 7, sign: [ 'MAKE YOUR OWN PHANATIC', '#1c8a3c', '#ffffff' ] },
+	// ---- FI1 (CI-23): McFadden's inside door behind 127 (the 2008 guide: 'Guests enter from outside (Third
+	// Base Gate) or inside the park (behind Section 127)'), its bar seen through it; the Majestic Clubhouse
+	// Store's inside entrance behind 134 beside the Home Stand
+	mcfaddens: { type: 'shop', room: 4, sign: [ 'McFADDEN\'S', '#173b26', '#f2c14e' ] },
+	clubhouse: { type: 'shop', room: 7, sign: [ 'MAJESTIC CLUBHOUSE STORE', '#0b2a5b', '#ffffff' ] },
 	// ---- FI1 (CI-9): the sign over the elevators' doors (no unit of its own): cream, red letters
 	elevators: { type: 'sign', sign: [ 'ELEVATORS', '#efe4c4', '#9e1b2a' ] },
 };
@@ -124,10 +129,12 @@ const PLAN = [
 	[ 'cobblestone', 108 ], [ 'cobblestone', 125 ], [ 'hatfield', 120 ], [ 'hatfield', 135 ], [ 'schmitter', 139 ],
 	[ [ 'guest', 'tickets' ], 122 ], [ [ 'firstaid', 'family' ], 105 ], [ 'brewerytown', 113 ], [ 'brewerytown', 139 ],
 	[ [ 'women', 'men' ], 117 ], [ [ 'men', 'women' ], 128 ], [ 'pizza', 109 ], [ 'pizza', 136 ], [ 'creamery', 110 ], [ 'creamery', 126 ],
-	[ [ 'merch', 'news' ], 121 ], [ [ 'merch', 'phanatic' ], 134 ], [ 'market', 116 ], [ 'market', 130 ], [ 'market', 127 ], [ 'market', 106 ],
+	[ [ 'merch', 'news' ], 121 ], [ [ 'merch', 'clubhouse' ], 134 ], [ 'market', 116 ], [ 'market', 130 ], [ [ 'mcfaddens', 'mcfaddens' ], 127 ], [ 'market', 106 ], // ---- FI1 (CI-23)
 	[ [ 'women', 'family' ], 137 ], [ [ 'family', 'men' ], 112 ], [ 'creamery', 136 ], [ 'market', 138 ],
 	// right field, behind 101-104 under the Pavilion
 	[ 'hatfield', 101 ], [ [ 'men', 'women' ], 102 ], [ 'market', 103 ], [ [ 'women', 'men' ], 104 ],
+	// ---- FI1 (CI-23): Make Your Own Phanatic, moved along for the Clubhouse Store's door
+	[ [ 'phanatic', 'news' ], 136 ],
 ];
 const FILL = [ [ 'women', 'men' ], 'market', [ 'men', 'women' ], 'brewerytown' ];
 
@@ -631,8 +638,11 @@ const ROOMS_WGSL = /* wgsl */`
 				let sh = fract( ( hy - 1.05 ) / 0.37 );
 				col = vec3f( 0.3 );
 				if ( sh > 0.08 && sh < 0.8 && fract( hx / 0.25 ) > 0.1 ) {
-					col = select( select( vec3f( 0.5, 0.35, 0.18 ), vec3f( 0.7, 0.05, 0.05 ), rnd > 0.4 ), vec3f( 0.1, 0.2, 0.55 ), rnd > 0.8 );
-					if ( rnd > 0.4 && rnd <= 0.8 && fract( hy / 0.06 ) > 0.5 ) { col = vec3f( 0.85 ); }
+					// ---- FI1 (CI-20): what's on them, mixed (peanut bags, Cracker Jack, candy, chips): it was red and
+					// white stripes over blue, an American flag from across the concourse
+					var pal = array<vec3f, 6>( vec3f( 0.55, 0.38, 0.18 ), vec3f( 0.7, 0.05, 0.05 ), vec3f( 0.1, 0.2, 0.55 ), vec3f( 0.8, 0.62, 0.1 ), vec3f( 0.75, 0.3, 0.05 ), vec3f( 0.82, 0.8, 0.74 ) );
+					col = pal[ u32( rnd * 5.99 ) ] * ( 0.75 + 0.25 * hsh.y );
+					if ( fract( hy / 0.11 + rnd ) > 0.85 ) { col *= 0.6; }
 				}
 			}
 		} else if ( room == 2 ) {
@@ -1311,6 +1321,31 @@ export class Concourse {
 		lbox( props.use( 'steel' ), P, a, n, 0, 1.045, 0.05, 2 * OW, 0.05, 0.62 );
 		fwd( kick, P, n, - OW, OW, 0, 1.02, 0.35, [ 0, R.kick[ 0 ], 1, R.kick[ 1 ] ] );
 		for ( const s of [ - 1, 1 ] ) lbox( props.use( 'steel' ), P, a, n, s * ( OW - 0.02 ), 0.51, 0.05, 0.04, 1.02, 0.6 );
+		// ---- FI1 (CI-20): in the bay, in depth, what the 2008 photo of the 9th St. Market shows (visitphilly,
+		// Apr 2008): a stainless back counter, two pendant lamps over the service counter, and for the grills
+		// a glass warmer of foil-wrapped sandwiches under its heat lamp, a soft-serve machine at the Creamery
+		lbox( props.use( 'steel' ), P, a, n, 0, 0.45, - BAY + 0.32, 2 * OW - 0.1, 0.9, 0.6 );
+		for ( const x of [ - OW * 0.5, OW * 0.5 ] ) {
+
+			lbox( props.use( 'black' ), P, a, n, x, OT - 0.25, - 0.45, 0.012, 0.5, 0.012 );
+			lbox( props.use( 'lamp' ), P, a, n, x, OT - 0.55, - 0.45, 0.3, 0.1, 0.3 );
+
+		}
+
+		if ( F.kitchen === 0 ) {
+
+			lbox( props.use( 'steel' ), P, a, n, - OW + 0.7, 1.1, - 0.15, 1.0, 0.04, 0.4 );
+			lbox( props.use( 'glass' ), P, a, n, - OW + 0.7, 1.3, - 0.15, 0.96, 0.36, 0.36 );
+			for ( let i = 0; i < 6; i ++ ) lbox( props.use( 'foil' ), P, a, n, - OW + 0.33 + i * 0.15, 1.17, - 0.15 + ( i % 2 ) * 0.06, 0.12, 0.08, 0.14 );
+			lbox( props.use( 'redlamp' ), P, a, n, - OW + 0.7, 1.5, - 0.15, 0.9, 0.04, 0.12 );
+
+		} else if ( F.kitchen === 3 ) {
+
+			lbox( props.use( 'steel' ), P, a, n, - OW + 0.7, 1.55, - 0.7, 0.55, 1.0, 0.55 );
+			lbox( props.use( 'black' ), P, a, n, - OW + 0.7, 1.45, - 0.41, 0.3, 0.06, 0.04 );
+
+		}
+		// ---- end FI1
 		// registers where the staff stand, napkins and straws at the ends
 		for ( const x of [ - 1.6, 1.6 ] ) {
 
@@ -1440,10 +1475,14 @@ export class Concourse {
 
 				}
 				// ---- end FI1
-				// a rack of T-shirts and a table of caps out front
-				lbox( props.use( 'black' ), P, a, n, o.c + 0.9, 0.55, 0.9, 0.9, 0.04, 0.5 );
-				for ( let i = 0; i < 5; i ++ ) lbox( props.use( i % 2 ? 'cartred' : 'white' ), P, a, n, o.c + 0.6 + i * 0.15, 0.62, 0.9, 0.12, 0.1, 0.22 );
-				for ( const s of [ - 1, 1 ] ) lbox( props.use( 'black' ), P, a, n, o.c + 0.9 + s * 0.42, 0.27, 0.9, 0.04, 0.54, 0.04 );
+				// a rack of T-shirts and a table of caps out front (---- FI1: not at McFadden's door)
+				if ( o.k !== 'mcfaddens' ) {
+
+					lbox( props.use( 'black' ), P, a, n, o.c + 0.9, 0.55, 0.9, 0.9, 0.04, 0.5 );
+					for ( let i = 0; i < 5; i ++ ) lbox( props.use( i % 2 ? 'cartred' : 'white' ), P, a, n, o.c + 0.6 + i * 0.15, 0.62, 0.9, 0.12, 0.1, 0.22 );
+					for ( const s of [ - 1, 1 ] ) lbox( props.use( 'black' ), P, a, n, o.c + 0.9 + s * 0.42, 0.27, 0.9, 0.04, 0.54, 0.04 );
+
+				}
 				this.standSpots.push( { mid: P( o.c, 0, 0 ).filter( ( v, i ) => i !== 1 ), n, u: a, inset: 0.3, staff: [ - 0.6 ], kind: 'shop', what: o.k, sec: U.sec } );
 
 			} else {
