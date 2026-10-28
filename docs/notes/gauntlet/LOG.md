@@ -66,3 +66,8 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 - **FR2, the field's and the rituals' leftovers** (launched 13:52): the tarp's route on the 27th, the pile's divers, the celebration cues on the strike, the on-deck figure, the stage crew, champagne, the tees.
 - **FW5, the walk's building, round 3** (notes [FW5.md](FW5.md)): C3W-1 (the Terrace seen from below: its steel, lit deck, rail and glass always drawn, painted far fronts, fans at the rails; the open steel over the 400s glazed), C3W-3 (the press box's booths, writers' room, monitors and people), 6, 8, 9, 10, 11 done; C3W-12 partly. Shots: `.claude/gauntlet/r3/FW5-shots/` (shots1 before, shots8 after).
 - **SP3, the third speed track** (launched 14:30): the 400s seat behind home and left field.
+- **FI3, the insides' polish** (notes [FI3.md](FI3.md)): C2I-3 (the Majestic Clubhouse Store: a real interior behind real glass, staff and shoppers), 9 (the suites' and club's glass tinted and reflecting), 5 (the home plate entrance), 8, 10, 11, 12, 13, 14, 15, 16 done; C2I-18 and 19 partly. Shots: `.claude/gauntlet/r2/FI3-shots/`.
+
+## Round 4
+
+- **C4R, random shots everywhere** (launched 14:51): the owner's own method, ~60 random views across the whole park and its surroundings, both nights.
