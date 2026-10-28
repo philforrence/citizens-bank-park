@@ -1662,8 +1662,7 @@ function castMaterial( pool ) {
 			let h1 = ( abs( a ) - 2.05 ) / 0.28;
 			let h2 = ( abs( a ) - 1.05 ) / 0.28;
 			let hollow = exp( - h1 * h1 ) + 0.7 * exp( - h2 * h2 );
-			// (FW6, C4W-4: closer still to the chest and the back, 2 cm off the jacket: film clings)
-			let hug = 1.0 - drape * ( 0.21 * ( 1.0 - sideK ) + 0.07 * hollow );
+			let hug = 1.0 - drape * ( 0.15 * ( 1.0 - sideK ) + 0.07 * hollow );
 			let fy = smoothstep( 1.34, 0.9, q.y ) * ( 0.6 + 0.4 * low );
 			let p1 = a * 7.0 + 0.6 + ps * 6.0;
 			let p2 = a * 12.0 + ps * 17.0;
