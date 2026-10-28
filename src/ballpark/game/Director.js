@@ -1851,7 +1851,6 @@ export class Director {
 
 // ---------------------------------------------------------------- helpers
 
-// a root tilt about the player's own x axis (a slide, a dive), or none
 // ---- FB2 (C2B-3): p ([ x, z ]) brought in to `margin` metres inside the outfield fence (OUTFIELD's
 // distances by angle from the center line, interpolated)
 function insideFence( p, margin ) {
@@ -1874,6 +1873,7 @@ function insideFence( p, margin ) {
 }
 // ---- end FB2
 
+// a root tilt about the player's own x axis (a slide, a dive), or none
 function tiltX( a ) {
 
 	return a ? new Quaternion().setFromEuler( new Euler( a, 0, 0 ) ) : null;
