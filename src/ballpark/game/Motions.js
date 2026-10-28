@@ -626,6 +626,15 @@ export function leanRail( t = 0, h = 1.12 ) {
 
 }
 
+// standing, the right hand held out in front at chest height (the manager with the ball for the
+// reliever); k 0..1 how far it's out
+export function handOut( t = 0, k = 1 ) {
+
+	const st = stand( t );
+	return P( { ...st, torso: [ - 0.06, 0, 0 ], head: [ 0.1, 0 ], handR: lerpA( st.handR, [ 0.12, 1.12, - 0.42 ], ease( clamp( k, 0, 1 ) ) ), glove: false } );
+
+}
+
 // standing with the arms folded
 export function armsFolded( t = 0 ) {
 

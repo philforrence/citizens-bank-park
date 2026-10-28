@@ -55,6 +55,16 @@ export const outBaseOf = ( r ) => r.outBase === 0 ? 4 : r.outBase;
 // with no base)
 const runTo = ( r, from ) => r.out ? ( outBaseOf( r ) ?? from + 1 ) : ( r.to ?? from );
 
+// the base coaches (first, third) and the managers, who aren't on the roster (Looks.js has their looks)
+const COACHES = {
+	home: [ { side: 'home', num: '', last: 'LOPES', look: 'lopes' }, { side: 'home', num: '', last: 'SMITH', look: 'smith' } ],
+	away: [ { side: 'away', num: '', last: 'HENDRICK', look: 'hendrick' }, { side: 'away', num: '', last: 'FOLEY', look: 'foley' } ],
+};
+const MANAGERS = {
+	home: { side: 'home', num: '', last: 'MANUEL', look: 'manuel' },
+	away: { side: 'away', num: '', last: 'MADDON', look: 'maddon' },
+};
+
 // Slides: [ the root's distance short of the bag when he goes down, where the root stops ] (m). Head
 // first the root is his trailing feet, so it stops a body's length short with his hands on the bag;
 // feet first it's under his seat, with the lead foot on the bag.
@@ -737,6 +747,7 @@ export class Director {
 		this[ 'show_' + seg.kind ]( seg, lt );
 		if ( this.ballFocus == null ) this.ballFocus = this.ballAt;
 		this._umpires( seg, lt );
+		this._coaches( seg, lt );
 		this._sync();
 
 	}
@@ -1094,6 +1105,9 @@ export class Director {
 	show_pitch( seg, lt ) {
 
 		const s = seg.snap, e = seg.ev;
+		// the manager on his way back from a pitching change just before
+		const prev = this.segmentAt( seg.t0 - 0.01 );
+		if ( prev.kind === 'change' && prev !== seg ) this._managerBack( s, lt + 1.7, [ MOUND[ 0 ] + ( s.fielding === 'home' ? 0.9 : - 0.9 ), MOUND[ 1 ] + 0.6 ] );
 		const d = lt - PACE.set;
 		const pid = s.defense.P;
 		const lefty = this.game.players[ pid ]?.throws === 'L';
@@ -1541,33 +1555,172 @@ export class Director {
 
 	}
 
+	// A pitching change as it went in 2008: the manager walks out to the mound (Charlie Manuel; Joe
+	// Maddon for the Rays) while the catcher and the infielders gather there; he takes the ball from the
+	// pitcher, who walks off; the reliever comes in from the pen and the manager hands it to him and
+	// walks back (on into the next pitch); the infielders go back to their places.
 	show_change( seg, lt ) {
 
 		const s = seg.snap;
-		this._fielders( s, lt );
-		this._catcher( s, lt );
+		const dur = seg.dur;
+		const dug = DUGOUT[ s.fielding ];
+		// the manager: out at a brisk walk, to the first base side of the rubber
+		const spot = [ MOUND[ 0 ] + ( s.fielding === 'home' ? 0.9 : - 0.9 ), MOUND[ 1 ] + 0.6 ];
+		const tOut = dist( dug, spot ) / 3.4, tTake = Math.min( tOut + 0.8, dur - 6 );
+		// the infield at the mound from 1 s, back out over the last 3, in a ring round it
+		const ring = [ 'C', '1B', '2B', 'SS', '3B' ];
+		const gather = ease01( ( lt - 1 ) / 3 ) * ( 1 - ease01( ( lt - ( dur - 3 ) ) / 2.5 ) );
+		for ( const pos of POS_ORDER ) {
+
+			const id = s.defense[ pos ];
+			if ( ! id || pos === 'P' ) continue;
+			const home = POSITIONS[ pos ];
+			const i = ring.indexOf( pos );
+			if ( i < 0 || gather <= 0 ) {
+
+				if ( pos === 'C' ) this._catcher( s, lt );
+				else this.act( id, home[ 0 ], home[ 1 ], yawTo( home, [ 0, - 5 ] ), M.stand( lt + hash( id ) * 5 ) );
+				continue;
+
+			}
+
+			// round the rubber, each from his own side
+			const a = Math.atan2( home[ 1 ] - MOUND[ 1 ], home[ 0 ] - MOUND[ 0 ] );
+			const at = [ MOUND[ 0 ] + Math.cos( a ) * 2.2, MOUND[ 1 ] + Math.sin( a ) * 2.2 ];
+			const p = lerp2( home, at, gather );
+			const moving = gather > 0.02 && gather < 0.98;
+			const going = lt < dur / 2;
+			this.act( id, p[ 0 ], p[ 1 ], moving ? ( going ? yawTo( home, at ) : yawTo( at, home ) ) : yawTo( p, MOUND ), moving ? M.walk( lt * 1.7 ) : M.stand( lt + hash( id ) * 5 ), { y: moundY( p ) } );
+
+		}
+
 		this._batter( s, M.stand( lt ) );
 		this._runners( s, lt );
-		// the old pitcher walks off, the new one jogs in from the bullpen
+		// the old pitcher waits for the manager on the mound, gives him the ball and walks off
 		if ( s.oldPitcher ) {
 
-			const to = DUGOUT[ s.fielding ];
-			const k = Math.min( 1, lt * WALK * 1.5 / dist( MOUND, to ) );
-			if ( k < 1 ) {
+			if ( lt < tTake ) this.act( s.oldPitcher, MOUND[ 0 ], MOUND[ 1 ] - 0.3, yawTo( MOUND, spot ), M.stand( lt ), { y: 0.25 } );
+			else {
 
-				const p = lerp2( MOUND, to, k );
-				this.act( s.oldPitcher, p[ 0 ], p[ 1 ], yawTo( MOUND, to ), M.run( lt * 0.8, 0 ) );
+				const k = Math.min( 1, ( lt - tTake ) * 3.4 / dist( MOUND, dug ) );
+				if ( k < 1 ) {
+
+					const p = lerp2( MOUND, dug, k );
+					this.act( s.oldPitcher, p[ 0 ], p[ 1 ], yawTo( MOUND, dug ), M.run( lt * 1.1, 0 ), { y: moundY( p ) } );
+
+				}
 
 			}
 
 		}
 
+		// the new one jogs in from the bullpen
 		const from = BULLPEN[ s.fielding ];
-		const d = dist( from, MOUND );
-		const k = Math.min( 1, lt * ( d / ( seg.dur - 3 ) ) / d );
+		const k = Math.min( 1, lt / ( dur - 3 ) );
 		const p = lerp2( from, MOUND, k );
-		this.act( s.pitcher, p[ 0 ], p[ 1 ], k < 1 ? yawTo( from, MOUND ) : Math.PI, k < 1 ? M.run( lt * 1.2, 0.3 ) : this._hand( s.pitcher, M.stand( lt ) ), { y: k >= 1 ? 0.25 : 0 } );
+		this.act( s.pitcher, p[ 0 ], p[ 1 ], k < 1 ? yawTo( from, MOUND ) : yawTo( MOUND, spot ), k < 1 ? M.run( lt * 1.2, 0.3 ) : this._hand( s.pitcher, M.stand( lt ) ), { y: moundY( p ) } );
 		this._onDeck( s, lt );
+		// the manager
+		const tGive = dur - 2.6;
+		if ( lt >= tGive + 0.9 ) return this._managerBack( s, lt - tGive - 0.9, spot );
+		let mp, my, mpose;
+		if ( lt < tOut ) {
+
+			mp = lerp2( dug, spot, lt / tOut );
+			my = yawTo( dug, spot );
+			mpose = M.run( lt * 1.1, 0 );
+
+		} else {
+
+			// facing the old pitcher, then the new one, the ball held out to him
+			mp = spot;
+			my = yawTo( spot, lt < tTake + 1 ? MOUND : p );
+			mpose = M.handOut( lt, ( lt - tGive + 0.4 ) / 0.4 );
+
+		}
+
+		this.act( `r:mgr:${ s.fielding }`, mp[ 0 ], mp[ 1 ], my, mpose, { who: MANAGERS[ s.fielding ], role: ROLE.jacket, y: moundY( mp ) } );
+
+	}
+
+	// the manager walking back to his dugout from the mound, t seconds after he started (from a pitching
+	// change, on into the first pitch after it)
+	_managerBack( s, t, spot ) {
+
+		const dug = DUGOUT[ s.fielding ];
+		const k = t * 2.4 / dist( spot, dug );
+		if ( k >= 1 || t < 0 ) return;
+		const p = lerp2( spot, dug, k );
+		this.act( `r:mgr:${ s.fielding }`, p[ 0 ], p[ 1 ], yawTo( spot, dug ), M.walk( t * 1.8 ), { who: MANAGERS[ s.fielding ], role: ROLE.jacket, y: moundY( p ) } );
+
+	}
+
+	// The batting team's base coaches in their boxes, helmets on (2008 was the first season they had to
+	// wear them) and jackets in the cold: Davey Lopes at first and Steve Smith at third for the Phillies,
+	// George Hendrick and Tom Foley for the Rays (Looks.js). Before each pitch the third base coach goes
+	// through his signs while the batter looks down at him, and both go hands on knees as the pitcher
+	// comes set; on a ball in play the third base coach waves a runner round (the windmill) or throws up
+	// both arms to stop him at third, and the first base coach claps a hitter in; between innings they
+	// come out from the dugout. Slots are 'r:' ids, given back between halves.
+	_coaches( seg, lt ) {
+
+		const s = seg.snap;
+		if ( ! s || ! s.batting || seg.kind === 'intro' || seg.kind === 'celebrate' ) return;
+		if ( seg.kind === 'switch' && ( seg === this.suspension || lt < 5 ) ) return;
+		const r2 = Math.SQRT1_2;
+		for ( const side of [ 1, - 1 ] ) {
+
+			// in the box (20 x 10 ft, 15 to 25 ft off the line), at its front near the bag
+			const box = [ side * ( 26.6 + 4.9 ) * r2, ( - 26.6 + 4.9 ) * r2 ];
+			let at = box, yaw = yawTo( box, [ 0, 0 ] ), pose = M.stand( lt + side );
+			if ( seg.kind === 'switch' ) {
+
+				const from = DUGOUT[ s.batting ], k = Math.min( 1, ( lt - 5 ) * JOG / dist( from, box ) );
+				if ( k < 1 ) {
+
+					at = lerp2( from, box, k );
+					yaw = yawTo( from, box );
+					pose = M.run( lt * 1.3, 0.1 );
+
+				}
+
+			} else if ( seg.kind === 'pitch' ) {
+
+				const d = lt - PACE.set;
+				if ( side < 0 && lt > 0.3 && lt < 2.1 ) pose = M.coachSigns( lt );
+				else if ( d > - 0.7 && d < M.REL + 1.4 ) pose = M.umpReady( lt + side );
+				if ( d > - 0.7 && d < M.REL + 1.4 ) yaw = yawTo( box, MOUND );
+
+			} else if ( seg.kind === 'inplay' ) {
+
+				for ( const r of seg.plan.runners ) {
+
+					if ( r.out && r.to <= 3 ) continue;
+					const T = Math.max( 0.1, r.tArrive - r.start ), S = Math.max( 0.1, r.len - r.lead );
+					// when he's at first, and at third
+					const at1 = r.start + T * Math.min( 1, Math.max( 0, 27.43 - r.lead ) / S );
+					const at3 = r.start + T * Math.min( 1, Math.max( 0, ( 3 - r.from ) * 27.43 - r.lead ) / S );
+					if ( side < 0 && r.from < 3 && r.to >= 4 && lt > at3 - 1.6 && lt < at3 + 0.6 ) {
+
+						pose = M.windmill( lt );
+						yaw = yawTo( box, BASES[ 2 ] );
+
+					} else if ( side < 0 && r.from < 3 && r.to === 3 && lt > at3 - 1.4 && lt < at3 + 1.2 ) {
+
+						pose = M.holdUp( lt );
+						yaw = yawTo( box, BASES[ 2 ] );
+
+					} else if ( side > 0 && r.from === 0 && ! r.out && lt > at1 - 0.8 && lt < at1 + 2.2 && s.batting === 'home' ) pose = M.clap( lt );
+
+				}
+
+			}
+
+			pose.glove = false;
+			const c = COACHES[ s.batting ][ side > 0 ? 0 : 1 ];
+			this.act( `r:coach:${ s.batting }:${ side > 0 ? 1 : 3 }`, at[ 0 ], at[ 1 ], yaw, pose, { who: c, role: ROLE.helmet | ROLE.jacket } );
+
+		}
 
 	}
 
