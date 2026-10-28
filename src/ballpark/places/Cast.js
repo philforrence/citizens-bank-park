@@ -1208,7 +1208,7 @@ function castMaterial( pool ) {
 	if ( part >= 32u ) {
 		gone = part - 32u != u32( select( a3.z, a3.w, right ) + 0.5 );
 	} else if ( part == ${ PART.brim }u ) { gone = !( ${ any( 'hat', brimHats ) } );
-	} else if ( part == ${ PART.pompom }u ) { gone = !( hat == ${ HAT.knitRed }u || hat == ${ HAT.knitGrey }u );
+	} else if ( part == ${ PART.pompom }u ) { gone = !( hat == ${ HAT.knitRed }u || hat == ${ HAT.knitGrey }u ) || ( hat == ${ HAT.knitRed }u && fract( f32( lk.w & 65535u ) / 65536.0 * 29.7 ) < 0.4 );
 	} else if ( part == ${ PART.hairCard }u ) { gone = hairStyle != 1u || hat == ${ HAT.hood }u || poncho > 0u;
 	} else if ( part == ${ PART.poncho }u ) { gone = poncho == 0u && ! longCoat;
 	} else if ( part == ${ PART.apron }u ) { gone = !( top == ${ TOP.staff }u || top == ${ TOP.cook }u || top == ${ TOP.seller }u || top == ${ TOP.vendor }u );
@@ -1338,12 +1338,37 @@ function castMaterial( pool ) {
 	}
 	// ---- end FP2
 	// ---- FP1 (CP-8): a towel's loose end flutters (its own pace and phase)
+	// ---- FP2 (C2B-16): and held up over the head it's twirled: whirled round the fist (the plane square
+	// to the arm, so over the head it's a tilted disc facing the field), the loose end trailing the turn and
+	// sagging, the cloth's width half along the turn and half along the arm, so it reads as a white blur
+	// from the front as in the photos (Getty 84082693, 112874141). Hanging off the raised arm it stood up
+	// in line with it, a red and white stick over every head behind the plate. (The paint keeps the cloth
+	// as it hangs: tRest)
+	var tRest = q;
+	var tUp = 0.0;
 	if ( part == 32u + ${ PROP.towel }u ) {
-		let k = clamp( ( ${ J.hand[ 1 ].toFixed( 3 ) } - q.y ) / 0.4, 0.0, 1.0 );
-		let ph = frame.time * 7.0 + f32( lk.w & 255u ) * 0.37 + k * 3.0;
-		q += vec3f( 0.045 * sin( ph ), 0.02 * sin( ph * 1.3 ), 0.03 * cos( ph * 0.8 ) ) * k * k;
+		let th0 = vec3f( select( - 1.0, 1.0, bone == 12u ) * ${ J.hand[ 0 ].toFixed( 3 ) }, ${ J.hand[ 1 ].toFixed( 3 ) }, ${ J.hand[ 2 ].toFixed( 3 ) } );
+		let tv = clamp( ( th0.y - q.y ) / 0.4, 0.0, 1.0 );
+		let ph = frame.time * 7.0 + f32( lk.w & 255u ) * 0.37 + tv * 3.0;
+		var tq = q + vec3f( 0.045 * sin( ph ), 0.02 * sin( ph * 1.3 ), 0.03 * cos( ph * 0.8 ) ) * tv * tv;
+		let up = smoothstep( 1.75, 2.3, c3Pose[ k + select( 4u, 5u, bone == 12u ) ].x );
+		if ( up > 0.0 ) {
+			let sd = f32( ( lk.w >> 4u ) & 255u ) / 255.0;
+			let dir = select( - 1.0, 1.0, sd > 0.4 );
+			let tu = clamp( ( q.z - th0.z ) / 0.286 + 0.769, 0.0, 1.0 ) * 2.0 - 1.0;
+			let a = dir * ( frame.time * ( 9.0 + 5.0 * sd ) + sd * 40.0 ) - dir * 1.7 * tv;
+			let R = vec3f( cos( a ), 0.0, sin( a ) );
+			let T = vec3f( - sin( a ), 0.0, cos( a ) ) * dir;
+			let w = 0.3 + 0.7 * tv;
+			let fl = sin( frame.time * 23.0 + sd * 9.0 + tv * 4.0 ) * 0.03 * tv;
+			let spin = th0 + R * ( 0.02 + 0.36 * tv ) + T * ( tu * 0.12 * w ) - vec3f( 0.0, tu * 0.06 * w - 0.05 * tv * tv + fl, 0.0 );
+			tq = mix( tq, spin, up );
+			n = normalize( mix( n, normalize( normalize( cross( R, T * 0.12 - vec3f( 0.0, 0.06, 0.0 ) ) ) * 0.4 - vec3f( 0.0, 1.0, 0.0 ) ), up ) );
+			tUp = up;
+		}
+		q = tq;
 	}
-	// ---- end FP1
+	// ---- end FP1, FP2
 	// this vertex's arm (the left's row or the right's)
 	let armRow = k + select( 4u, 5u, bone == 4u || bone == 6u || bone == 12u );
 	let at = c3Pose[ k ];
@@ -1372,12 +1397,12 @@ function castMaterial( pool ) {
 		let moved = at.xyz - c3Prev[ k ].xyz;
 		v.prevWorldPos = ( v.prevModel * vec4f( r0.p - moved, 1.0 ) ).xyz;
 	}
-	o.vLocal = q;
+	o.vLocal = select( q, tRest, part == 32u + ${ PROP.towel }u );
 	o.vPart = part;
 	o.vLook = lk;
 	// ( the mouth, the breath, the blink, an umbrella up over them )
 	o.vPose = vec4f( a3.y, a7.y, a7.z, select( 0.0, 1.0, u32( a3.w + 0.5 ) == ${ PROP.umbrella }u ) );
-	o.vVar = f32( select( vars >> 8u, vars & 255u, right ) );
+	o.vVar = select( f32( select( vars >> 8u, vars & 255u, right ) ), 300.0 + tUp * 99.0, part == 32u + ${ PROP.towel }u );
 `,
 		surface: /* wgsl */`
 #if C3_FLAT
@@ -1682,10 +1707,29 @@ function castMaterial( pool ) {
 		if ( hat == ${ HAT.visor }u && d.y > 0.18 && d.y < 0.34 ) { c = vec3f( 0.33, 0.015, 0.02 ); }
 		let knit = ${ any( 'hat', knitHats ) };
 		if ( knit && d.y > 0.12 - 0.1 * smoothstep( - 0.2, 0.6, d.z ) ) {
-			var kc = select( select( select( vec3f( 0.3, 0.29, 0.26 ), vec3f( 0.012 ), hat == ${ HAT.knitBlack }u ), vec3f( 0.32, 0.018, 0.025 ), hat == ${ HAT.knitRed }u ), mix( vec3f( 0.014, 0.02, 0.06 ), vec3f( 0.42, 0.4, 0.36 ), g.w ), hat == ${ HAT.knitPlain }u );
+			// ---- FP2 (C2B-16): the plain ones navy, cream, charcoal, a woman's pink (Getty 83485455), not a
+			// blend between navy and cream; the Phillies' red one in three kinds (kv), not one repeated row
+			// after row: the cuffed one with the white P on the cuff and no pom-pom, the white band and white
+			// pom-pom, the cuff striped white under a red pom-pom
+			let kp = fract( seed * 41.3 );
+			let kv = fract( seed * 29.7 );
+			let plain = select( select( select( vec3f( 0.014, 0.02, 0.06 ), vec3f( 0.5, 0.47, 0.4 ), kp > 0.45 ), vec3f( 0.06, 0.06, 0.065 ), kp > 0.75 ), vec3f( 0.62, 0.3, 0.4 ), kp > 0.86 && female );
+			var kc = select( select( select( vec3f( 0.3, 0.29, 0.26 ), vec3f( 0.012 ), hat == ${ HAT.knitBlack }u ), vec3f( 0.32, 0.018, 0.025 ), hat == ${ HAT.knitRed }u ), plain, hat == ${ HAT.knitPlain }u );
 			c = kc * ( 0.88 + 0.12 * sin( atan2( d.x, d.z ) * 40.0 ) );
 			if ( d.y < 0.34 ) { c = kc * 0.8; }
-			if ( hat == ${ HAT.knitRed }u && abs( d.y - 0.55 ) < 0.07 ) { c = vec3f( 0.62, 0.6, 0.55 ); }
+			if ( hat == ${ HAT.knitRed }u ) {
+				if ( kv < 0.4 ) {
+					// (the white P over a royal-blue cuff, Getty 83893023)
+					if ( d.y < 0.3 ) { c = vec3f( 0.025, 0.045, 0.2 ) * ( 0.88 + 0.12 * sin( atan2( d.x, d.z ) * 40.0 ) ); }
+					let lp = vec2f( d.x / 0.2, ( d.y - 0.52 ) / 0.14 );
+					let stem = abs( lp.x - 0.25 ) < 0.14 && abs( lp.y ) < 0.8;
+					let bowl = abs( length( ( lp - vec2f( - 0.05, 0.32 ) ) * vec2f( 1.0, 1.3 ) ) - 0.32 ) < 0.13 && lp.x < 0.25;
+					if ( d.z < - 0.6 && ( stem || bowl ) ) { c = vec3f( 0.62, 0.6, 0.55 ); }
+				} else if ( kv < 0.7 ) {
+					if ( abs( d.y - 0.55 ) < 0.07 ) { c = vec3f( 0.62, 0.6, 0.55 ); }
+				} else if ( abs( d.y - 0.15 ) < 0.035 || abs( d.y - 0.26 ) < 0.035 ) { c = vec3f( 0.62, 0.6, 0.55 ); }
+			}
+			// ---- end FP2
 			rough = 0.97;
 		}
 		if ( hat == ${ HAT.earmuffs }u && ax > 0.78 && abs( d.y ) < 0.35 && abs( d.z ) < 0.4 ) { c = vec3f( 0.3, 0.02, 0.03 ); rough = 1.0; }
@@ -1749,7 +1793,11 @@ function castMaterial( pool ) {
 		if ( in.N.y < - 0.25 && hat != ${ HAT.police }u && hat != ${ HAT.motor }u ) { c = mix( c * 0.5, vec3f( 0.06, 0.07, 0.06 ), 0.45 ); e = c * 0.25; }
 		// ---- end FP1
 	}
-	if ( part == ${ PART.pompom }u ) { c = select( vec3f( 0.32, 0.29, 0.26 ), vec3f( 0.62, 0.6, 0.56 ), hat == ${ HAT.knitRed }u ); rough = 1.0; }
+	if ( part == ${ PART.pompom }u ) {
+		c = select( vec3f( 0.32, 0.29, 0.26 ), vec3f( 0.62, 0.6, 0.56 ), hat == ${ HAT.knitRed }u ); rough = 1.0;
+		// ---- FP2: the striped one's pom-pom is red
+		if ( hat == ${ HAT.knitRed }u && fract( seed * 29.7 ) >= 0.7 ) { c = vec3f( 0.34, 0.02, 0.03 ); }
+	}
 	if ( part == ${ PART.apron }u ) {
 		// the concession staff's black apron (the cooks' white, stained; the street vendors' canvas)
 		c = select( vec3f( 0.014 ), vec3f( 0.6, 0.58, 0.54 ) * ( 0.85 + 0.15 * g.x ), top == ${ TOP.cook }u );
@@ -1856,10 +1904,21 @@ function castMaterial( pool ) {
 		}
 		if ( id == ${ PROP.glove }u ) { c = vec3f( 0.3, 0.14, 0.05 ); rough = 0.6; }
 		if ( id == ${ PROP.towel }u ) {
-			// the 2008 rally towel (the Game 4 photos): white terry, a big red square, the script in white
-			c = vec3f( 0.75, 0.74, 0.7 ); rough = 1.0;
-			let tq = vec2f( pl.z * 4.0, ( pl.y - 0.6 ) * 4.5 );
-			if ( abs( fract( tq.x + 0.5 ) - 0.5 ) < 0.3 && abs( fract( tq.y + 0.5 ) - 0.5 ) < 0.28 ) { c = vec3f( 0.36, 0.02, 0.03 ); if ( abs( fract( tq.y + 0.5 ) - 0.5 ) < 0.05 && abs( fract( tq.x + 0.5 ) - 0.5 ) < 0.22 ) { c = vec3f( 0.8 ); } }
+			// the 2008 rally towel (zackhample's from Game 4): white terry, one big red square over most of
+			// it with "Fightin' Phils" across it in white, the World Series mark under it. (FP2, C2B-16: the
+			// square was repeated down and across the cloth, so a towel read as red and white bars)
+			c = vec3f( 0.78, 0.77, 0.73 ); rough = 1.0;
+			let tv = ( ${ J.hand[ 1 ].toFixed( 3 ) } - pl.y ) / 0.4;
+			let tu = ( pl.z - ${ J.hand[ 2 ].toFixed( 3 ) } ) / ( 0.286 * ( 0.35 + 0.65 * min( 1.0, max( tv, 0.0 ) * 2.5 ) ) ) + 0.769;
+			if ( abs( tu - 0.5 ) < 0.36 && tv > 0.14 && tv < 0.72 ) {
+				c = vec3f( 0.4, 0.02, 0.03 );
+				let onLine = abs( tv - 0.3 ) < 0.055 || abs( tv - 0.5 ) < 0.065;
+				if ( onLine && abs( tu - 0.5 ) < 0.27 && fract( tu * 9.0 + tv * 2.0 ) < 0.62 ) { c = vec3f( 0.78, 0.77, 0.73 ); }
+			}
+			if ( abs( tv - 0.82 ) < 0.025 && abs( tu - 0.5 ) < 0.3 ) { c = vec3f( 0.04, 0.06, 0.22 ); }
+			// whirled, the square smears into the white: a pink and white blur (the photos), not a flag
+			let whirl = clamp( ( in.vs.vVar - 300.0 ) / 99.0, 0.0, 1.0 );
+			c = mix( c, mix( vec3f( 0.8, 0.79, 0.76 ), c, 0.3 ), whirl );
 		}
 		if ( id == ${ PROP.bag }u ) { c = select( vec3f( 0.72 ), vec3f( 0.35, 0.02, 0.03 ), g.w > 0.5 ); rough = 0.35; }
 		if ( id == ${ PROP.sandwich }u ) { c = vec3f( 0.7, 0.7, 0.72 ); metal = 0.9; rough = 0.35; }

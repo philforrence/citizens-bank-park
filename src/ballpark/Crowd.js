@@ -1,4 +1,4 @@
-import { InstancedMesh, BufferGeometry, InterleavedBuffer, InterleavedBufferAttribute, Vector3, Vector4, Sphere, Box3, Matrix4 } from '../engine/index.js';
+import { InstancedMesh, BufferGeometry, InterleavedBuffer, InterleavedBufferAttribute, Vector3, Vector4, Sphere, Box3, Matrix4, Mesh, Float32BufferAttribute, Color } from '../engine/index.js';
 import { ShaderModule } from '../engine/gpu/Shader.js';
 import { ComputeKernel } from '../engine/gpu/Compute.js';
 import { UniformBlock } from '../engine/gpu/Uniforms.js';
@@ -637,6 +637,8 @@ const f3 = ( a ) => `vec3f( ${ a.map( ( x ) => x.toFixed( 3 ) ).join( ', ' ) } )
 
 // the most fans (the seats' chunks come to ~42,000)
 const MAX_FANS = 49152;
+// ---- FP2: the camera flashes' sprites (_flashBuild)
+const FLASHES = 4096;
 // the seats in each piece of a chunk (addChunk)
 const PIECE = 360;
 
@@ -987,14 +989,21 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 		let hand = mix( ${ f3( SIT_UP.hand ) }, ${ f3( STAND_UP.hand ) }, st );
 		let u = info.z;
 		let v = info.w;
-		let th = r1.z - 0.8 * v;
-		let rad = vec3f( cos( th ), 0.0, sin( th ) );
-		let tan = vec3f( - sin( th ), 0.0, cos( th ) );
-		let across = ( 1.0 - 2.0 * u ) * ( 0.065 + 0.045 * v );
+		let th = r1.z - 1.5 * v;
+		// ---- FP2 (C2B-16): the turn tipped toward the field (down in front, up behind) and the cloth's
+		// width half up and down, as a whirled towel hangs and flaps: flat and level, it was edge-on to
+		// the center field camera, a white card's sliver over each head
+		let rad = vec3f( cos( th ), 0.4 * sin( th ), sin( th ) );
+		let tan = vec3f( - sin( th ), 0.4 * cos( th ), cos( th ) );
+		let across = ( 1.0 - 2.0 * u ) * ( 0.055 + 0.055 * v );
+		let wv = normalize( tan * 0.8 + vec3f( 0.0, 0.6, 0.0 ) );
+		// (crumpled across its width as it flaps: a flat sheet read as paper)
+		let crumple = normalize( cross( rad, wv ) ) * 0.04 * v * sin( u * 6.28 + v * 3.0 + r1.z * 1.7 );
 		let lift = 0.03 + 0.07 * v + 0.05 * v * sin( r1.z * 2.0 + v * 2.5 + u * 1.5 ) - 0.06 * v * ( 1.0 - v ) - 0.03 * abs( 1.0 - 2.0 * u ) * v;
-		let spin = hand + rad * ( 0.33 * v ) + tan * across + vec3f( r2.z, 0.0, r2.w ) * 0.15 * v + vec3f( 0.0, lift, 0.0 );
+		let spin = hand + rad * ( 0.28 * v ) + wv * across + crumple + vec3f( r2.z, 0.0, r2.w ) * 0.15 * v + vec3f( 0.0, lift, 0.0 );
 		p = mix( p, spin, r1.y );
-		n = normalize( mix( n, vec3f( 0.0, 1.0, 0.0 ), r1.y ) );
+		n = normalize( mix( n, normalize( vec3f( 0.0, 1.0, 0.0 ) + cross( rad, wv ) * 0.35 ), r1.y ) );
+		// ---- end FP2
 	}
 
 	// the collar: a hoodie's hood lying down his back (CP-2: no bare yoke), a scarf wound round it
@@ -1380,6 +1389,10 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 		// the 2008 rally towel: white terry, the red square with the script across it in white
 		c = vec3f( 0.78, 0.77, 0.74 ); rough = 0.95;
 		if ( abs( L.x - 0.5 ) < 0.3 && abs( L.z - 0.5 ) < 0.26 ) { c = vec3f( 0.36, 0.02, 0.03 ); if ( abs( L.z - 0.5 ) < 0.05 && abs( L.x - 0.5 ) < 0.22 ) { c = vec3f( 0.78, 0.77, 0.74 ); } }
+		// ---- FP2 (C2B-16): whirled overhead, the square smears into the white: a pink and white blur, as
+		// the photos have them (Getty 84082693), not a red and white card
+		let whirl = cwPoseBuf[ fan * ${ POSE_N * 2 }u + 1u ].y;
+		c = mix( c, mix( vec3f( 0.76, 0.75, 0.72 ), c, 0.45 ), whirl );
 	}
 	if ( part == 10u ) { c = hairC; rough = 0.7; }
 	// lit by the stands' fill after dark, as the seats are
@@ -1612,6 +1625,8 @@ export class Crowd {
 	lod( camera ) {
 
 		const k = Math.tan( ( camera.fov || 60 ) * Math.PI / 360 );
+		// ---- FP2: the flashes hold a few pixels however long the lens (the angle of a pixel, ~800 tall)
+		if ( this._flashMat ) this._flashMat.uniforms.flash.value.z = k / 400;
 		// the view's cone (its corners) and its axis: a big chunk beside the camera is only seen where the
 		// cone has opened out to it, far off (the center field camera's long lens over the bleachers)
 		const kd = k * Math.hypot( 1, camera.aspect || 1.6 );
@@ -1696,6 +1711,19 @@ export class Crowd {
 
 		}
 
+		// ---- FP2 (C2B-16): the point-and-shoots' flashes (a share of the flashes' sprites going off at a
+		// time): a few all night, more late on the 29th, a burst for the last pitches (FOX's center field
+		// frame of the 2-2 to Hinske, Getty 83486198's specks round the bowl), the most at the last out
+		m.flash = 0.05;
+		if ( ( seg.kind === 'pitch' || seg.kind === 'walkup' ) && phPitch && late ) {
+
+			m.flash =0.2 + ( two ? 0.25 : 0 ) + ( outs2 ? 0.2 : 0 ) + ( two && outs2 && lt > 1.5 ? 0.15 : 0 );
+
+		}
+
+		if ( ( seg.kind === 'inplay' || seg.kind === 'result' ) && m.stand > 0.5 ) m.flash = Math.max( m.flash, 0.3 );
+		if ( seg.kind === 'celebrate' ) m.flash = 1 - 0.65 * Math.min( 1, Math.max( 0, lt - 30 ) / 200 );
+		// ---- end FP2
 		return m;
 
 	}
@@ -1745,6 +1773,15 @@ export class Crowd {
 		this._focusUpdate( dt );
 		if ( ! this.count ) return;
 		if ( ! this._kernel ) this._seat();
+		// ---- FP2: the flashes' share going off (fewer cameras out in the rain), on the crowd's clock
+		if ( this._flashMat ) {
+
+			const f = this._flashMat.uniforms.flash.value;
+			f.x += ( ( target.flash || 0 ) * ( 1 - 0.7 * rain ) - f.x ) * ( leap ? 1 : 1 - Math.exp( - dt * 4 ) );
+			f.y = this.time;
+			this._flashes.visible = f.x > 0.005;
+
+		}
 		this._kernel.dispatch( Math.ceil( this.count / 64 ) );
 
 	}
@@ -1827,7 +1864,7 @@ export class Crowd {
 	// the compute pass reads, and the pass itself
 	_seat() {
 
-		const ids = new Uint32Array( this.count * 4 ), seats = new Float32Array( this.count * 4 );
+		const ids = new Uint32Array( this.count * 4 ), seats = new Float32Array( this.count * 4 ), fwd = new Float32Array( this.count * 2 );
 		const m = new Matrix4(), w = new Matrix4();
 		for ( const ch of this.chunks ) {
 
@@ -1839,15 +1876,20 @@ export class Crowd {
 				for ( let k = 0; k < 3; k ++ ) ids[ f * 4 + k ] = ch.ids[ i * 3 + k ];
 				w.multiplyMatrices( mesh.matrixWorld, m.fromArray( im, i * 16 ) );
 				seats.set( [ w.elements[ 12 ], w.elements[ 13 ], w.elements[ 14 ], 0 ], f * 4 );
+				// (FP2: which way he faces, for the flashes)
+				fwd[ f * 2 ] = - w.elements[ 8 ];
+				fwd[ f * 2 + 1 ] = - w.elements[ 10 ];
 
 			}
 
 		}
 
+		this._fwd = fwd;
 		this._ids = ids;
 		this._seats = seats;
 		this.seatsBuf.write( seats );
 		this._writeIds();
+		this._flashBuild();
 		this._kernel = new ComputeKernel( {
 			label: 'crowd', modules: [ cwHashModule ], workgroupSize: [ 64, 1, 1 ],
 			bindings: {
@@ -1856,6 +1898,129 @@ export class Crowd {
 			},
 			code: kernelCode,
 		} );
+
+	}
+
+	// ---- FP2 (C2B-16): the point-and-shoots' flashes. In 2008 every big moment of a night game went off
+	// in camera flashes all round the bowl (FOX's center field frame of the last pitch has one behind the
+	// plate; Getty 83486198, the 2-2 to Hinske, shows the stands specked white). FLASHES fans (three times
+	// as many round the infield as in the outfield, nine times behind the plate, the TV's backdrop) each
+	// hold a flash that fires now and then: a sprite at his face, a few pixels across however long the
+	// lens, on for ~0.1 s. One draw,
+	// all on the GPU from the crowd's clock and a share going off (update()); no CPU per fan. Up close
+	// (under 9 m) there are none, the place's own figures and the seated fans' cameras do it; nor on the
+	// seats a place has its own people in, under 30 m (no camera in his hands there).
+	_flashBuild() {
+
+		const n = this.count, S = this._seats, Fw = this._fwd;
+		if ( ! n || this._flashes ) return;
+		const h = ( i, k ) => {
+
+			const s = Math.sin( i * 12.9898 + k * 78.233 ) * 43758.5453;
+			return s - Math.floor( s );
+
+		};
+		// home plate and center field (the world's x, z), for where each seat is round the field
+		const o = this.toWorld ? this.toWorld( 0, 0 ) : { x: 0, z: 0 }, c = this.toWorld ? this.toWorld( 0, - 1 ) : { x: 0, z: - 1 };
+		const cx = c.x - o.x, cz = c.z - o.z;
+		const wt = new Float32Array( n );
+		let sum = 0;
+		for ( let f = 0; f < n; f ++ ) {
+
+			const dx = S[ f * 4 ] - o.x, dz = S[ f * 4 + 2 ] - o.z, l = Math.hypot( dx, dz ) || 1;
+			// (the infield's stands three times the outfield's; behind the plate, the TV's backdrop, nine)
+			const along = ( dx * cx + dz * cz ) / l;
+			const t = Math.min( 1, Math.max( 0, ( 0.55 - along ) / 0.8 ) ), b = Math.min( 1, Math.max( 0, ( - 0.8 - along ) / 0.12 ) );
+			wt[ f ] = 1 + 2 * t * t * ( 3 - 2 * t ) + 10 * b * b * ( 3 - 2 * b );
+			sum += wt[ f ];
+
+		}
+
+		const pos = [], seat = [], dir = [], rnd = [], index = [];
+		let m = 0;
+		for ( let f = 0; f < n && m < FLASHES; f ++ ) {
+
+			if ( h( f, 1 ) >= wt[ f ] / sum * FLASHES ) continue;
+			const fl = Math.hypot( Fw[ f * 2 ], Fw[ f * 2 + 1 ] ) || 1;
+			// each its own pace (one every 1.7 to 4 s, a share of them fired), its own phase
+			const fr = 0.3 + 0.5 * h( f, 2 ), ph = h( f, 3 ), hh = h( f, 4 );
+			for ( const [ x, y ] of [ [ - 1, - 1 ], [ 1, - 1 ], [ 1, 1 ], [ - 1, 1 ] ] ) {
+
+				pos.push( S[ f * 4 ], S[ f * 4 + 1 ], S[ f * 4 + 2 ] );
+				seat.push( S[ f * 4 ], S[ f * 4 + 1 ], S[ f * 4 + 2 ], f );
+				dir.push( Fw[ f * 2 ] / fl, Fw[ f * 2 + 1 ] / fl, x, y );
+				rnd.push( fr, ph, hh, 0 );
+
+			}
+
+			index.push( m * 4, m * 4 + 1, m * 4 + 2, m * 4, m * 4 + 2, m * 4 + 3 );
+			m ++;
+
+		}
+
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		g.setAttribute( 'aSeat', new Float32BufferAttribute( seat, 4 ) );
+		g.setAttribute( 'aDir', new Float32BufferAttribute( dir, 4 ) );
+		g.setAttribute( 'aRnd', new Float32BufferAttribute( rnd, 4 ) );
+		g.setIndex( index );
+		g.boundingSphere = null;
+		const mat = this._flashMat = standard( {
+			name: 'crowd-flashes', color: new Color( 1, 1, 1 ), transparent: true, depthWrite: false, side: 'double', lit: false, blending: 'additive',
+			uniforms: { flash: [ 'vec4f', new Vector4( 0, 0, 0.0015, 0 ) ] },
+			storage: { cwPoseBuf: this.poseBuf },
+			attributes: { aSeat: 'vec4f', aDir: 'vec4f', aRnd: 'vec4f' },
+			varyings: { vA: 'f32', vUV: 'vec2f' },
+			vertex: /* wgsl */`
+	let fi = u32( v.aSeat.w + 0.5 );
+	let b = fi * ${ POSE_N * 2 }u;
+	let st = cwPoseBuf[ b ].x;
+	let flags = u32( cwPoseBuf[ b + 3u ].w + 0.5 );
+	// this flash's turn: fired or not this time round (a share of them, mat.flash.x), on for ~70 ms
+	let cyc = mat.flash.y * v.aRnd.x + v.aRnd.y;
+	let fired = fract( sin( ( floor( cyc ) + v.aRnd.z * 131.0 ) * 12.9898 ) * 43758.5453 ) < mat.flash.x;
+	let ft = fract( cyc ) / v.aRnd.x;
+	var a = select( 0.0, 1.0 - smoothstep( 0.07, 0.12, ft ), fired );
+	// (QA: mat.flash.w 1 lights them all)
+	if ( mat.flash.w > 0.5 ) { a = 1.0; }
+	// at his face, a hand in front of it, sat or stood
+	let p = v.aSeat.xyz + vec3f( v.aDir.x, 0.0, v.aDir.y ) * 0.22 + vec3f( 0.0, mix( 1.12, 1.6, st ), 0.0 );
+	let toCam = frame.cameraPos - p;
+	let d = length( toCam );
+	if ( d < 9.0 || ( ( flags & 4095u ) == 0u && d < 30.0 ) ) { a = 0.0; }
+	let tc = toCam / max( d, 0.001 );
+	let rt = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), tc ) );
+	let up = cross( tc, rt );
+	let r = max( 0.14, d * mat.flash.z * 6.0 ) * step( 0.001, a );
+	let q = p + ( rt * v.aDir.z + up * v.aDir.w ) * r;
+	v.useWorld = true;
+	v.worldPos = q;
+	v.worldNormal = tc;
+	v.prevWorldPos = q;
+	o.vA = a;
+	o.vUV = v.aDir.zw;
+`,
+			surface: /* wgsl */`
+	// a hard white core and a soft glow round it (the bloom does the rest)
+	let r2 = dot( in.vs.vUV, in.vs.vUV );
+	let k = exp( - r2 * 30.0 ) + exp( - r2 * 7.0 ) * 0.25 + exp( - r2 * 2.0 ) * 0.05;
+	s.albedo = vec3f( 0.93, 0.96, 1.0 ) * 40.0 * k * in.vs.vA * mix( 0.35, 1.0, smoothstep( 0.15, 0.7, frame.night ) );
+	s.alpha = clamp( in.vs.vA * k * 4.0, 0.0, 1.0 );
+`,
+		} );
+		mat.underwaterLighting = 'none';
+		const mesh = this._flashes = new Mesh( g, mat );
+		mesh.name = 'crowd-flashes';
+		mesh.frustumCulled = false;
+		mesh.castShadow = false;
+		mesh.layers.set( 2 );
+		mesh.userData.dynamic = true;
+		mesh.visible = false;
+		// (the seats are in the world's frame: the scene's root)
+		let root = this.chunks[ 0 ].near;
+		while ( root.parent ) root = root.parent;
+		root.add( mesh );
+		this.flashes = { mesh, count: m, shown: () => ( { sprites: m, rate: + mat.uniforms.flash.value.x.toFixed( 3 ), visible: mesh.visible } ) };
 
 	}
 

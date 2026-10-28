@@ -49,7 +49,11 @@ export function dressBoth( r, o = {} ) {
 
 	// the 29th: dry and colder, with the wind: knit hats, scarves, gloves, another layer
 	const dry = { ...base, poncho: 0 };
-	if ( dry.hat !== HAT.cap1980 && dry.hat !== HAT.capRays && r() < 0.45 ) dry.hat = Number( pick( r, { [ HAT.knitRed ]: 6, [ HAT.knitGrey ]: 2, [ HAT.knitBlack ]: 3, [ HAT.knitPlain ]: 2, [ HAT.earmuffs ]: dry.female ? 1 : 0 } ) );
+	// (FP2, C2B-16: the red P caps mostly stay on, as they did in the photos of the 29th behind the plate
+	// and along the lines, Getty 83485455 and 84082693; a knit hat for some more of the bareheaded, the
+	// Phillies' red one less than half of them: every third head behind the plate was the same red pom-pom)
+	const capped = dry.hat === HAT.capRed || dry.hat === HAT.capNavy || dry.hat === HAT.capBack || dry.hat === HAT.capBlack;
+	if ( dry.hat !== HAT.cap1980 && dry.hat !== HAT.capRays && r() < ( capped ? 0.18 : 0.42 ) ) dry.hat = Number( pick( r, { [ HAT.knitRed ]: 5, [ HAT.knitGrey ]: 2, [ HAT.knitBlack ]: 3, [ HAT.knitPlain ]: 4, [ HAT.earmuffs ]: dry.female ? 1 : 0 } ) );
 	if ( ! dry.scarf && r() < 0.3 ) dry.scarf = Number( pick( r, { 1: 5, 2: 3, 3: 2 } ) );
 	if ( ! dry.gloves && r() < 0.35 ) dry.gloves = true;
 	// a jersey or a tee goes over a hoodie (the sleeves), a light jacket becomes a puffer
