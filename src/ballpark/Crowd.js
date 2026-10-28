@@ -65,9 +65,11 @@ const HEAD_R = [ 0.082, 0.105, 0.098 ];
 // chest, the armpits, the shoulders sloping in to a collar round the neck (a seated 47 degree crowd
 // zipped to the chin), not a drum (CP-2: Getty 83893023, the 27th)
 const TRUNK = {
-	// (FW6, C4W-1: close up the shoulders round in plan and falling to the collar, not squared to a shelf)
+	// (FW6, C4W-1: close up the shoulders round in plan and falling to the collar from over the arms'
+	// rounds, not squared to a shelf: the top of the trunk was a flat ellipse 0.28 m across, level with the
+	// tops of the arms)
 	close: [ [ - 0.08, 0.17, 0.122, 0, 2.2 ], [ 0.1, 0.166, 0.118, 0, 2.2 ], [ 0.36, 0.156, 0.11, - 0.004, 2.2 ], [ 0.64, 0.168, 0.118, - 0.01, 2.25 ],
-		[ 0.84, 0.168, 0.113, - 0.004, 2.15 ], [ 0.95, 0.158, 0.103, 0.002, 2.05 ], [ 1.0, 0.138, 0.094, 0.004, 2.0 ], [ 1.35, 0.09, 0.078, 0, 2 ], [ 1.9, 0.072, 0.066, 0, 2 ] ],
+		[ 0.84, 0.166, 0.113, - 0.004, 2.1 ], [ 0.95, 0.15, 0.104, 0.002, 2.0 ], [ 1.0, 0.124, 0.094, 0.004, 2.0 ], [ 1.35, 0.088, 0.078, 0, 2 ], [ 1.9, 0.072, 0.066, 0, 2 ] ],
 	near: [ [ - 0.08, 0.17, 0.122, 0, 2.2 ], [ 0.4, 0.158, 0.11, - 0.004, 2.2 ], [ 0.8, 0.17, 0.116, - 0.008, 2.4 ],
 		[ 1.0, 0.142, 0.094, 0.004, 2.2 ], [ 1.4, 0.088, 0.077, 0, 2 ], [ 1.9, 0.072, 0.066, 0, 2 ] ],
 	mid: [ [ - 0.05, 0.172, 0.12, 0, 2 ], [ 0.85, 0.18, 0.112, - 0.004, 2 ], [ 1.4, 0.1, 0.08, 0, 2 ] ],
