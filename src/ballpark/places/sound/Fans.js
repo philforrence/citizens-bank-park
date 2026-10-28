@@ -581,7 +581,9 @@ export class Fans {
 		if ( ! inSeats || ! d.playing ) return;
 		const excite = Math.min( 1, L.roar + this.swell * 0.5 + L.clap * 0.5 );
 		// a shout or a whistle every ~20 s when it's quiet, every couple of seconds when it isn't
-		if ( Math.random() > RATE * ( 0.05 + 0.5 * excite ) ) return;
+		// (---- FS1, C4S-11: as many as there are people in the seats round you: in the delay's emptied deck
+		// nobody whistles beside you)
+		if ( Math.random() > RATE * ( 0.05 + 0.5 * excite ) * this._occupancy( dt, camera ) ) return;
 		const ang = Math.random() * Math.PI * 2, r = 2 + Math.random() * 8;
 		const F = this.field, w = F.toWorld( a.x + Math.cos( ang ) * r, a.z + Math.sin( ang ) * r );
 		const pos = this._v.set( w.x, camera.position.y + ( Math.random() - 0.3 ) * 1.5, w.z );
@@ -593,6 +595,36 @@ export class Fans {
 		else if ( this.single.length ) for ( let k = 0; k < 5 + excite * 6; k ++ ) this._oneShot( this.single[ k % this.single.length ], pos, 0.5, 1, k * ( 0.19 + 0.03 * Math.random() ) );
 
 	}
+
+	// ---- FS1 (C4S-11): how full the seats within 10 m of you are (the seated crowd's fans not vacated:
+	// Seats.js empties them through the delay), counted once a second, or at once when you've moved; 1 with
+	// no seats round you, 0 in an emptied deck
+	_occupancy( dt, camera ) {
+
+		const C = this.bowl?.crowd, ids = C?._ids, S = C?._seats, p = camera.position;
+		if ( ! ids || ! S ) return 1;
+		const o = this._occ ||= { t: 99, v: 1, x: 0, y: 0, z: 0 };
+		o.t += dt;
+		if ( o.t < 1 && Math.hypot( p.x - o.x, p.y - o.y, p.z - o.z ) < 2 ) return o.v;
+		o.t = 0;
+		o.x = p.x;
+		o.y = p.y;
+		o.z = p.z;
+		let n = 0, full = 0;
+		for ( let f = 0, N = C.count; f < N; f ++ ) {
+
+			const dx = S[ f * 4 ] - p.x, dz = S[ f * 4 + 2 ] - p.z;
+			if ( dx * dx + dz * dz > 100 || Math.abs( S[ f * 4 + 1 ] - p.y ) > 6 ) continue;
+			n ++;
+			if ( ! ( ids[ f * 4 + 2 ] >>> 31 ) ) full ++;
+
+		}
+
+		o.v = n ? Math.min( 1, full / n * 1.15 ) : 1;
+		return o.v;
+
+	}
+	// ---- end FS1
 
 	// what someone near you yells now (the fans/ shouts): by the situation (the Phillies batting, the Rays,
 	// two strikes, the end) and by who's up or on the mound ("Eva!" at Longoria, as they heckled him)

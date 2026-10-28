@@ -1632,6 +1632,38 @@ export class People {
 			}
 
 		} );
+		// ---- FS1 (C4S-9): the decks above the field level have people on their steps too: one in about every
+		// other aisle (going for a beer, back with two; the same walk, and the same holds for the pitches and
+		// the 9th). Above the field level nobody ever walked the stands
+		for ( const T of [ ...( bowl.tiers || [] ).slice( 1 ), ...( bowl.upper || [] ) ] ) {
+
+			if ( /suite/.test( T.name ) || ! T.rows ) continue;
+			const tSecs = tierSections( T ), tys = rowHeights( T ), TD = T.depth, TS0 = T.start || 0, tDeep = T.rows * TD;
+			const at = ( S, d ) => {
+
+				const s = S.m0 * ( TS0 + d );
+				return [ S.a[ 0 ] + S.ux * s + S.nx * ( TS0 + d ), S.a[ 1 ] + S.uz * s + S.nz * ( TS0 + d ) ];
+
+			};
+			const yAtT = ( d ) => {
+
+				const r = Math.max( 0, Math.min( tys.length - 1, d / TD ) ), i = Math.floor( r ), f = r - i;
+				return ( tys[ i ] ?? tys[ tys.length - 1 ] ) * ( 1 - f ) + ( tys[ Math.min( tys.length - 1, i + 1 ) ] ?? tys[ tys.length - 1 ] ) * f;
+
+			};
+			tSecs.forEach( ( S, i ) => {
+
+				if ( ! S.seats || rnd( i * 29 + T.rows * 7 + T.name.length * 13 ) < 0.5 ) return;
+				const p = this._add( ROLE.fan, 0, 0, 0, 0 );
+				if ( ! p ) return;
+				p.walk = 1;
+				const d0 = ( S.skipRows || 0 ) * TD;
+				p.aisle = { S, d: d0 + rnd( i * 11 + T.rows ) * ( tDeep - d0 ), d0, dir: rnd( i * 5 + T.rows ) < 0.5 ? - 1 : 1, deep: tDeep, at, yAt: yAtT, pause: 0 };
+
+			} );
+
+		}
+		// ---- end FS1
 
 	}
 
@@ -1752,10 +1784,42 @@ export class People {
 		}
 
 		// the aisles
+		// ---- FS1 (C4S-9): the steps during play. With a pitch on its way the walkers stop where they are and
+		// watch it (the ushers held people at the tops of the aisles during play); in the top of the 9th they
+		// go up and wait at the top, so the steps are clear for the last outs. They strolled down through
+		// every pitch, the 0-2 with two out in the 9th among them
+		const fsLive = !! d && seg?.kind === 'pitch' && d.t - seg.t0 > 0.6;
+		const fsNinth = ( snap.inning || 0 ) >= 9 && snap.half === 'top' && seg?.kind !== 'celebrate';
+		// (a jump into the 9th finds them already up there)
+		const fsJump = !! d && this._fsT !== undefined && Math.abs( d.t - this._fsT - dt ) > 2;
+		this._fsT = d ? d.t : undefined;
+		if ( fsJump && fsNinth ) for ( const p of this.list ) if ( p.aisle ) { p.aisle.d = p.aisle.deep; p.aisle.dir = 1; }
+		// (C4S-4: the rain delay, people leaving up the aisles in a steady file, each from a row part way down;
+		// the 29th's filling, coming down them to their seats: the steps were empty while the seats emptied)
+		let fsFlow = 0;
+		let fsN = null;
+		try { fsN = d?.night ? d.night( d.t ) : null; } catch ( e ) { fsN = null; }
+		if ( fsN?.delay && fsN.lt > 8 ) fsFlow = 1;
+		else if ( fsN?.back && d.t - fsN.split > 6 && d.t - fsN.split < 26 ) fsFlow = - 1;
+		// ---- end FS1
 		for ( const p of this.list ) if ( p.aisle ) {
 
 			const A = p.aisle;
-			if ( A.pause > 0 ) {
+			if ( fsNinth && A.dir < 0 ) A.dir = 1; // ---- FS1
+			if ( fsFlow ) {
+
+				// ---- FS1 (C4S-4): the file up (or down) the steps, a new one from his row as one goes out
+				p.walk = 1;
+				A.dir = fsFlow;
+				A.pause = 0;
+				A.d += fsFlow * 0.95 * dt;
+				if ( A.d > A.deep ) A.d = ( A.d0 || 0 ) + rnd( p.seed * 3 + this.time ) * 0.7 * ( A.deep - ( A.d0 || 0 ) );
+				if ( A.d < ( A.d0 || 0 ) ) A.d = A.deep - rnd( p.seed * 5 + this.time ) * 0.3 * ( A.deep - ( A.d0 || 0 ) );
+				p.phase += dt * 5.2;
+				// ---- end FS1
+
+			} else if ( fsLive || ( fsNinth && A.d >= A.deep - 0.01 ) ) p.walk = 0; // ---- FS1
+			else if ( A.pause > 0 ) {
 
 				A.pause -= dt;
 				p.walk = 0;
@@ -1779,6 +1843,7 @@ export class People {
 			const [ x, z ] = A.at( A.S, A.d );
 			p.x = x; p.z = z; p.y = A.yAt( A.d ) + 0.02;
 			p.yaw = Math.atan2( A.S.nx * A.dir, A.S.nz * A.dir ) + Math.PI;
+			if ( p.walk === 0 && ( fsLive || fsNinth ) ) p.yaw = Math.atan2( - A.S.nx, - A.S.nz ) + Math.PI; // ---- FS1: held, facing the play
 
 		}
 

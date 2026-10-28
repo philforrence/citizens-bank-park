@@ -26,7 +26,11 @@ export class Seats {
 			const y = p.y - y0;
 			const s = Math.sin( p.x * 12.9898 + p.z * 78.233 + y * 37.719 ) * 43758.5453;
 			const h = s - Math.floor( s );
-			const rank = 0.72 * h + 0.28 * Math.min( 1, Math.max( 0, 1 - y / 32 ) );
+			// ---- FS1 (C4S-4): those under a deck stay (Crowd's p.cover), the open rows empty, low and high, a
+			// few diehards left out in it: at the delay's emptiest about one in five under cover, one in
+			// eighteen in the open (Getty 83458502, the 3B field level nearly empty, its stayers under the
+			// overhangs). It was by height: the uncovered low rows stayed full and the upper deck went first
+			const rank = p.cover !== undefined ? 0.9 * h + 0.14 * p.cover : 0.72 * h + 0.28 * Math.min( 1, Math.max( 0, 1 - y / 32 ) );
 			return rank < this.level;
 
 		} );
