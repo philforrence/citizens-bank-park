@@ -10,6 +10,7 @@ import { castPool, filmModule } from './places/Cast.js';
 import { signAtlas, SIGN, SIGN_GRID } from './places/home/Signs.js';
 import { canvasTexture } from './geo.js';
 import { G29 } from './game/Suspension.js'; // ---- FS1 (C4S-5): the song's place in the 29th's return
+import { fanHeadLevel, fanHeadBuffer, fanHeadModule, faceFeatures, faceWeights, packFace } from './FanHead.js'; // ---- FF1
 let _blank = null;
 const BLANK = () => _blank ||= canvasTexture( 8, 8, ( ctx ) => { ctx.fillStyle = '#000'; ctx.fillRect( 0, 0, 8, 8 ); }, 'crowdBlank' );
 // ---- end FW1
@@ -83,8 +84,8 @@ const TRUNK = {
 // backdrop) the same shapes on fewer sides, the cap shaped from the head; then a middle one and a far
 // one for fans a few pixels tall
 const LODS = [
-	{ name: 'close', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 16, 11 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ], sign: true },
-	{ name: 'near', trunk: 6, rings: TRUNK.near, limb: 4, head: [ 8, 5 ], neck: false, hands: 4, joints: true, extras: false, hair: true, crown: null, bill: 4, shoes: false, nose: false, pom: null, sign: true },
+	{ name: 'close', mh: 'mid', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 16, 11 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ], sign: true },
+	{ name: 'near', mh: 'far', trunk: 6, rings: TRUNK.near, limb: 4, head: [ 8, 5 ], neck: false, hands: 4, joints: true, extras: false, hair: true, crown: null, bill: 4, shoes: false, nose: false, pom: null, sign: true },
 	{ name: 'mid', trunk: 6, rings: TRUNK.mid, limb: 3, head: [ 6, 4 ], neck: false, hands: 0, joints: true, extras: false, hair: true, crown: null, bill: 0, shoes: false, nose: false, pom: null },
 	{ name: 'far', trunk: 4, rings: TRUNK.far, limb: 3, head: [ 5, 3 ], neck: false, hands: 0, joints: false, extras: false, hair: false, crown: null, bill: 0, shoes: false, nose: false, pom: null },
 	// ---- SP2 (speed): the distant one, for fans under ~8 px tall (the bowl from the 400s, the outfield's
@@ -348,6 +349,25 @@ export function fanGeometry( lod ) {
 
 	// the head: an ellipsoid round its centre in each pose, the jaw narrower and the chin a little forward
 	// (the shaders put the hair, a cap, a hood and the face on it); close up a nose
+	// ---- FF1 (step 10): close up and near (FOX's backdrop) the players' MakeHuman head instead (FanHead.js:
+	// 400 triangles close, 90 near), its blend shapes moved by each fan's weights in the shaders; a the
+	// vertex's record in the heads' buffer, plus one (0: the egg's)
+	const MH = L.mh ? fanHeadLevel( L.mh ) : null;
+	if ( MH ) {
+
+		const first = verts.length;
+		for ( let i = 0; i < MH.count; i ++ ) {
+
+			const o = [ MH.position[ i * 3 ], MH.position[ i * 3 + 1 ], MH.position[ i * 3 + 2 ] ];
+			const n = [ MH.normal[ i * 3 ], MH.normal[ i * 3 + 1 ], MH.normal[ i * 3 + 2 ] ];
+			vert( fixed( add( SIT.head, o ), add( STAND.head, o ) ), n, n, P.head, 0, 0, MH.rec + i + 1, 0 );
+
+		}
+
+		for ( let i = 0; i < MH.index.length; i ++ ) index.push( first + MH.index[ i ] );
+
+	}
+	// ---- end FF1
 	{
 
 		const [ W, H ] = L.head, r = HEAD_R;
@@ -373,7 +393,7 @@ export function fanGeometry( lod ) {
 			return o;
 
 		};
-		for ( let j = 0; j <= H; j ++ ) for ( let i = 0; i < W; i ++ ) {
+		if ( ! MH ) for ( let j = 0; j <= H; j ++ ) for ( let i = 0; i < W; i ++ ) {
 
 			const th = j / H * Math.PI, ph = i / W * Math.PI * 2;
 			const d = [ Math.sin( th ) * Math.cos( ph ), Math.cos( th ), Math.sin( th ) * Math.sin( ph ) ];
@@ -392,7 +412,7 @@ export function fanGeometry( lod ) {
 
 		}
 
-		for ( let j = 0; j < H; j ++ ) for ( let i = 0; i < W; i ++ ) {
+		if ( ! MH ) for ( let j = 0; j < H; j ++ ) for ( let i = 0; i < W; i ++ ) {
 
 			const a = first + j * W + i, b = first + j * W + ( i + 1 ) % W, c = a + W, d = b + W;
 			if ( j > 0 ) index.push( a, b, c );
@@ -402,7 +422,7 @@ export function fanGeometry( lod ) {
 
 		// the nose: a wedge on the face, its normals bent toward the face's so it shades as skin (the
 		// Cast's pyramid went dark)
-		if ( L.nose ) {
+		if ( L.nose && ! MH ) {
 
 			// ---- FW4 (C3W-4): a bridge from between the brows to the tip, the wings either side, the
 			// underside back to the lip in shade (it was a wedge: a beak in profile)
@@ -1179,7 +1199,7 @@ fn cwTurn( v: vec3f, a: vec3f, b: vec3f ) -> vec3f {
 	return v * c + cross( ax, v ) * s + ax * dot( ax, v ) * ( 1.0 - c );
 }
 
-fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, standUp: vec3f, sitFace: vec3f, standFace: vec3f, info: vec4f, fan: u32, prev: bool, lod: u32 ) -> CwPose {
+fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, standUp: vec3f, sitFace: vec3f, standFace: vec3f, info: vec4f, fan: u32, prev: bool, lod: u32, paint: vec3f, fold: vec3f ) -> CwPose {
 	let b = fan * ${ POSE_N * 2 }u + select( 0u, ${ POSE_N }u, prev );
 	let r3 = cwPoseBuf[ b + 3u ];
 	let flags = u32( r3.w + 0.5 );
@@ -1314,8 +1334,18 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 	var local = info.zyw;
 	if ( part == 3u || part == 4u || part == 10u ) {
 		local = p - headC;
+		// ---- FF1: the MakeHuman head (close and near): its ears folded flat under a hood, a knit hat or long
+		// hair; the paint, and what's shaped by it (a hood's opening, a knit's edge, a cap's band), in the
+		// paint's own frame (paint: where the vertex lies on the egg the paint was drawn for)
+		let mh = part == 3u && any( paint != vec3f( 0.0 ) );
+		if ( mh && ( hood || ( flags & ( 1u << 13u ) ) != 0u || ( flags & ( 1u << 10u ) ) != 0u ) ) {
+			p += fold;
+			local = p - headC;
+		}
+		let dl = select( local, paint * ${ f3( HEAD_R ) }, mh );
+		// ---- end FF1
 		if ( part == 3u && info.y < 1.5 ) {
-			let d = local / ${ f3( HEAD_R ) };
+			let d = dl / ${ f3( HEAD_R ) };
 			if ( hood ) {
 				// loose over the head, its peak out over the brow, falling onto the neck behind (CP-9); the
 				// face's opening left where it is, so the hood's rim stands proud of the face
@@ -1347,7 +1377,7 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 		let hv = ( u32( r4.w + 0.5 ) >> 10u ) & 7u;
 		let fc = f32( ( u32( r4.w + 0.5 ) >> 13u ) & 7u ) / 7.0;
 		if ( part == 10u ) { p.y -= ( f32( hv ) / 7.0 - 0.35 ) * 0.13 * info.w; p.x = headC.x + ( p.x - headC.x ) * ( 0.96 + 0.1 * fract( f32( hv ) * 0.37 ) ); }
-		if ( part == 3u && info.y < 1.5 ) {
+		if ( part == 3u && info.y < 1.5 && ! mh ) { // (FF1: the MakeHuman head has its own: the blend shapes)
 			let dl = ( p - headC ) / ${ f3( HEAD_R ) };
 			let low = smoothstep( 0.1, - 0.6, dl.y );
 			p = vec3f( headC.x + ( p.x - headC.x ) * mix( 1.0, 0.92 + 0.12 * fc, low ), headC.y + ( p.y - headC.y ) * ( 0.97 + 0.06 * fract( fc * 3.7 ) ), p.z );
@@ -1367,6 +1397,7 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 		n = vec3f( n.x, n.y * cp + n.z * sp, n.z * cp - n.y * sp );
 		p = piv + vec3f( q.x * cy + q.z * sy, q.y, - q.x * sy + q.z * cy );
 		n = vec3f( n.x * cy + n.z * sy, n.y, - n.x * sy + n.z * cy );
+		local = dl; // (FF1: the paint's)
 	}
 
 	// his build (broad, a belly), a kid's size (still sat on the seat, feet off the tread)
@@ -1435,13 +1466,13 @@ const signCells = ( names ) => names.map( ( n ) => SIGN[ n ] ?? 0 ).join( 'u, ' 
 
 function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 
-	const call = ( prev ) => `cwVertex( v.position, v.normal, v.aStand, v.aStandN, v.aSitUp, v.aStandUp, v.aSitFace, v.aStandFace, v.aInfo, fan, ${ prev }, ${ lod }u )`;
+	const call = ( prev ) => `cwVertex( pos0, nrm0, stp0, nrm0s, v.aSitUp, v.aStandUp, v.aSitFace, v.aStandFace, v.aInfo, fan, ${ prev }, ${ lod }u, fhPaint, fhFold )`;
 	const mat = standard( {
 		// (the near ones are all 'crowd-near' to the rain: Night.js's FABRIC)
 		name: 'crowd-' + [ 'near', 'near', 'mid', 'far', 'far' ][ lod ], roughness: 0.8, side: 'double', // (SP2: the distant one is 'far' too)
-		modules: [ crowdModule, filmModule ],
+		modules: [ crowdModule, filmModule, fanHeadModule ],
 		defines: { CROWD_LOD: lod },
-		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf, cwIds: idsBuf },
+		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf, cwIds: idsBuf, fhRec: { storage: fanHeadBuffer(), access: 'read' } }, // (FF1: the heads)
 		// ---- FW1 (CP-12): the Cast's atlas, for the names and numbers on the backs; (FP2) the signs' boards
 		textures: { cwAtlas: () => castPool()?.atlas || BLANK(), cwSigns: () => signAtlas() },
 		uniforms: { cwNight: [ 'f32', 29 ], cwHome: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] },
@@ -1450,6 +1481,28 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		vertex: /* wgsl */`
 	// which fan: the chunk's first (Crowd.addChunk) and his seat in it
 	let fan = u32( draw.params.y + 0.5 ) + v.instance;
+	// ---- FF1 (step 10): close up and near, the MakeHuman head's vertices moved by his face's weights (his
+	// ids' w, from who he is and his seed: Crowd._seat), once for this frame's pose and last frame's
+	var pos0 = v.position;
+	var stp0 = v.aStand;
+	var nrm0 = v.normal;
+	var nrm0s = v.aStandN;
+	var fhPaint = vec3f( 0.0 );
+	var fhFold = vec3f( 0.0 );
+#if CROWD_LOD <= 1
+	let fhi = u32( v.aInfo.z + 0.5 );
+	if ( ( u32( v.aInfo.x + 0.5 ) & 15u ) == 3u && v.aInfo.y < 1.5 && fhi > 0u ) {
+		let fc = fhUnpack( cwIds[ fan ].w );
+		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ] );
+		pos0 += fh.dp;
+		stp0 += fh.dp;
+		nrm0 = normalize( nrm0 + fh.dn );
+		nrm0s = nrm0;
+		fhPaint = fh.d;
+		fhFold = fh.fold;
+	}
+#endif
+	// ---- end FF1
 	let cur = ${ call( 'false' ) };
 #if CROWD_LOD <= 1
 	let prev = ${ call( 'true' ) };
@@ -1606,6 +1659,10 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		c = skin;
 		rough = 0.55;
 #if CROWD_LOD < 3
+		// ---- FF1: the MakeHuman head's eyeballs (the paint's d.z marks them), white under the lids
+		let eyeball = d.z < - 2.0;
+		if ( eyeball ) { c = vec3f( 0.56, 0.54, 0.51 ); rough = 0.12; }
+		// ---- end FF1
 		// how big a pixel is on the face: the features fade out when they would only flicker
 		let fw = fwidth( d.x ) + fwidth( d.y );
 		let near = 1.0 - smoothstep( 0.15, 0.4, fw );
@@ -1616,6 +1673,13 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		// the eyes: sockets in shadow, the whites and the irises up close; the brows
 		let ey = vec2f( ax - 0.34, d.y - 0.1 );
 		c *= mix( 1.0, 0.7, smoothstep( 0.2, 0.08, length( ey * vec2f( 1.0, 1.5 ) ) ) * front );
+		// ---- FF1: on an eyeball the iris round the pupil (a brown, darker for a dark skin; a hazel or blue for
+		// some fair ones, by the seed)
+		if ( eyeball ) {
+			let irisC = select( vec3f( 0.09, 0.05, 0.025 ), select( vec3f( 0.16, 0.12, 0.05 ), vec3f( 0.12, 0.17, 0.22 ), fract( seed * 53.1 ) < 0.5 ), skin.r > 0.55 && fract( seed * 19.3 ) < 0.45 );
+			c = mix( c, irisC, smoothstep( 0.08, 0.065, length( ey ) ) );
+		}
+		// ---- end FF1
 		let white = smoothstep( 0.1, 0.075, length( ey * vec2f( 1.0, 1.9 ) ) ) * near * front;
 		c = mix( c, vec3f( 0.55, 0.53, 0.5 ), white );
 		c = mix( c, vec3f( 0.02, 0.015, 0.01 ), smoothstep( 0.05, 0.035, length( ey ) ) * near * front );
@@ -1634,8 +1698,14 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		// soft and broken into stubble, the skin through them (hard black cut-outs with ruler edges)
 		let fstub = 0.75 + 0.25 * sin( d.x * 211.0 + sin( d.y * 97.0 ) * 3.0 ) * sin( d.y * 183.0 + d.x * 41.0 );
 		let fcol = mix( c, hairC * 0.8, 0.85 );
+		// ---- FF1: the MakeHuman head has a neck under its chin (the egg ended there): no beard down it
+		var noNeck = 1.0;
+#if CROWD_LOD <= 1
+		noNeck = smoothstep( - 1.12, - 0.98, d.y );
+#endif
+		// ---- end FF1
 		let moust = smoothstep( 0.06, 0.02, abs( d.y + 0.33 + 0.04 * ax * ax ) ) * smoothstep( 0.33, 0.24, ax );
-		let goat = smoothstep( - 0.47, - 0.53, d.y ) * smoothstep( 0.27, 0.19, ax ) * smoothstep( 0.0, - 0.2, d.z );
+		let goat = smoothstep( - 0.47, - 0.53, d.y ) * smoothstep( 0.27, 0.19, ax ) * smoothstep( 0.0, - 0.2, d.z ) * noNeck;
 		if ( facial == 1u || facial == 3u ) { c = mix( c, fcol, clamp( moust * fstub * 1.15, 0.0, 0.92 ) * front ); }
 		if ( facial == 2u ) { c = mix( c, fcol, clamp( max( moust, goat ) * fstub * 1.15, 0.0, 0.92 ) * front ); }
 		// ---- end FW6
@@ -1645,11 +1715,11 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 			// back from the mouth down: a black bar from ear to ear, at arm's length)
 			let grain = 0.85 + 0.15 * sin( d.x * 93.0 ) * sin( d.y * 71.0 + d.z * 37.0 );
 			let edgeY = - 0.16 + 0.24 * smoothstep( 0.35, 0.85, ax );
-			let cover = smoothstep( edgeY + 0.03, edgeY - 0.1, d.y ) * smoothstep( 0.18, - 0.12, d.z ) * smoothstep( 0.5, 0.7, mo ) * smoothstep( 1.02, 0.86, ax );
+			let cover = smoothstep( edgeY + 0.03, edgeY - 0.1, d.y ) * smoothstep( 0.18, - 0.12, d.z ) * smoothstep( 0.5, 0.7, mo ) * smoothstep( 1.02, 0.86, ax ) * noNeck;
 			c = mix( c, mix( hairC, c, 0.22 ) * grain, 0.7 * cover );
 			// ---- end FW4
 		}
-		if ( facial == 0u && ! female && age != 2u && c1.w < 0.35 ) { c *= mix( vec3f( 1.0 ), vec3f( 0.82, 0.84, 0.88 ), step( d.y, - 0.2 ) * step( d.z, 0.3 ) * step( 0.8, mo ) ); }
+		if ( facial == 0u && ! female && age != 2u && c1.w < 0.35 ) { c *= mix( vec3f( 1.0 ), vec3f( 0.82, 0.84, 0.88 ), step( d.y, - 0.2 ) * step( d.z, 0.3 ) * step( 0.8, mo ) * noNeck ); }
 		// glasses: thin dark frames round the eyes and over the nose
 		if ( glasses ) {
 			let ring = abs( length( ey * vec2f( 1.0, 1.25 ) ) - 0.17 );
@@ -1946,6 +2016,17 @@ function randomFan( r ) {
 	return f;
 
 }
+
+// ---- FF1 (step 10): a fan's face (the MakeHuman head's blend shapes' weights, packed: FanHead.js) from who
+// he is (his ids: female, age, skin, build) and his seed
+function faceOf( x, y ) {
+
+	const seed = x & 0xffff, skin = ( x >> 16 ) & 7, build = ( x >> 22 ) & 3, age = ( y >> 21 ) & 3, female = ( y >> 23 ) & 1;
+	const r = rand4( seed * 11 + 30011 );
+	return packFace( faceWeights( faceFeatures( female, age, skin, build, r ), seed + 65536 * skin ) );
+
+}
+// ---- end FF1
 
 // three integers (exact in float32: < 2^24) for the shaders
 function pack( f, out, i ) {
@@ -2460,6 +2541,7 @@ export class Crowd {
 
 				const f = ch.base + i;
 				for ( let k = 0; k < 3; k ++ ) ids[ f * 4 + k ] = ch.ids[ i * 3 + k ];
+				ids[ f * 4 + 3 ] = faceOf( ch.ids[ i * 3 ], ch.ids[ i * 3 + 1 ] ); // ---- FF1: his face's weights
 				w.multiplyMatrices( mesh.matrixWorld, m.fromArray( im, i * 16 ) );
 				// (FP2: which way he faces, for the flashes; FS1: and in the seat's w, as an angle, for his head)
 				fwd[ f * 2 ] = - w.elements[ 8 ];

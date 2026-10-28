@@ -5,6 +5,7 @@ import { GPU } from '../../engine/gpu/GPU.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
 import { standard } from '../../materials/Materials.js';
 import { canvasTexture } from '../geo.js';
+import { fanHeadLevel, fanHeadBuffer, fanHeadModule, FH } from '../FanHead.js'; // ---- FF1
 
 // The park's people seen up close: one figure system for every place (the concourse's fans, the gate's
 // arrivals and scalpers, the Alley's hecklers, whoever the next places bring). People.js has the far-off
@@ -273,9 +274,10 @@ export function figureGeometry( lod = 0 ) {
 	const cross = ( a, b ) => [ a[ 1 ] * b[ 2 ] - a[ 2 ] * b[ 1 ], a[ 2 ] * b[ 0 ] - a[ 0 ] * b[ 2 ], a[ 0 ] * b[ 1 ] - a[ 1 ] * b[ 0 ] ];
 	const norm = ( a ) => mul( a, 1 / ( Math.hypot( ...a ) || 1 ) );
 	const side = ( j, s ) => [ j[ 0 ] * s, j[ 1 ], j[ 2 ] ];
-	const vert = ( p, n, bone, part ) => {
+	// (FF1: fh, a MakeHuman head's vertex: its record in the heads' buffer, plus one)
+	const vert = ( p, n, bone, part, fh = 0 ) => {
 
-		pos.push( ...p ); nrm.push( ...norm( n ) ); info.push( bone, part );
+		pos.push( ...p ); nrm.push( ...norm( n ) ); info.push( bone, part, fh );
 		return pos.length / 3 - 1;
 
 	};
@@ -701,7 +703,27 @@ export function figureGeometry( lod = 0 ) {
 	// the neck
 	tube( B.head, PART.neck, [ 0, 1.4, 0.03 ], [ 0, 1.54, 0.02 ], [ 0.052, 0.05 ], [ 0.046, 0.046 ], N6 );
 	// the head, the nose, a cap's brim, a knit hat's pom-pom, long hair down the back
-	if ( fine ) headFine( mid );
+	// ---- FF1 (step 10): the near and middle figures' head is the players' MakeHuman head (FanHead.js: 1,200
+	// triangles near, 400 the middle one), its nose and ears its own, its blend shapes moved by each one's
+	// face in the shader; sized from the seats' egg to this one (HEAD_R). FW4's modelled egg (headFine) is
+	// kept for anyone who wants it back
+	const mhHead = ( name ) => {
+
+		const L = fanHeadLevel( name ), first = pos.length / 3;
+		const k = HEAD_R.map( ( r, i ) => r / FH.R[ i ] );
+		for ( let i = 0; i < L.count; i ++ ) {
+
+			const o = [ L.position[ i * 3 ] * k[ 0 ], L.position[ i * 3 + 1 ] * k[ 1 ], L.position[ i * 3 + 2 ] * k[ 2 ] ];
+			const n = [ L.normal[ i * 3 ] / k[ 0 ], L.normal[ i * 3 + 1 ] / k[ 1 ], L.normal[ i * 3 + 2 ] / k[ 2 ] ];
+			vert( add( J.head, o ), n, B.head, PART.head, L.rec + i + 1 );
+
+		}
+
+		for ( let i = 0; i < L.index.length; i ++ ) index.push( first + L.index[ i ] );
+
+	};
+	if ( fine ) mhHead( mid ? 'mid' : 'near' );
+	// ---- end FF1
 	else ellipsoid( B.head, PART.head, J.head, HEAD_R, tiny ? 5 : 8, tiny ? 4 : 6 );
 
 	{
@@ -1289,7 +1311,7 @@ export function figureGeometry( lod = 0 ) {
 	const geo = new BufferGeometry();
 	geo.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
 	geo.setAttribute( 'normal', new Float32BufferAttribute( nrm, 3 ) );
-	geo.setAttribute( 'aInfo', new Float32BufferAttribute( info, 2 ) );
+	geo.setAttribute( 'aInfo', new Float32BufferAttribute( info, 3 ) ); // (FF1: and the head's record)
 	geo.setIndex( index );
 	geo.computeBoundingSphere();
 	geo.instanceCount = 0;
@@ -1520,11 +1542,12 @@ const any = ( v, list ) => list.map( ( x ) => `${ v } == ${ x }u` ).join( ' || '
 function castMaterial( pool ) {
 
 	const mat = standard( {
-		name: 'cast', roughness: 0.8, side: 'double', modules: [ castModule, filmModule ],
+		name: 'cast', roughness: 0.8, side: 'double', modules: [ castModule, filmModule, fanHeadModule ],
 		storage: { c3Pose: { storage: () => pool.poseBuf, access: 'read' }, c3Prev: { storage: () => pool.prevBuf, access: 'read' }, c3Look: { storage: () => pool.lookBuf, access: 'read' },
-			c3Order: { storage: () => pool.orderBuf, access: 'read' }, c3Pal: { storage: () => pool.palBuf, access: 'read' } },
+			c3Order: { storage: () => pool.orderBuf, access: 'read' }, c3Pal: { storage: () => pool.palBuf, access: 'read' },
+			fhRec: { storage: () => fanHeadBuffer(), access: 'read' } }, // (FF1: the heads)
 		textures: { c3Atlas: () => pool.atlas, c3Signs: () => pool.signTex },
-		attributes: { aInfo: 'vec2f' },
+		attributes: { aInfo: 'vec3f' }, // (FF1: the bone, the part, a MakeHuman head's record)
 		varyings: { vLocal: 'vec3f', vPart: 'u32', vLook: 'vec4u', vPose: 'vec4f', vVar: 'f32' },
 		vertex: /* wgsl */`
 	let bone = u32( v.aInfo.x + 0.5 );
@@ -1697,10 +1720,27 @@ function castMaterial( pool ) {
 		// ---- end FW6
 	}
 	let headC = ${ f3( J.head ) };
+	// ---- FF1 (step 10): the near and middle figures' MakeHuman head, moved by his face's weights (from who he
+	// is and his seed: FanHead.js fhCoefs); its ears folded flat under a hood (a poncho's, up), a knit hat,
+	// earmuffs, the motor helmet, long hair; the paint and what's shaped by it in the paint's frame (fhPaint)
+	let fhi = u32( v.aInfo.z + 0.5 );
+	var fhPaint = vec3f( 0.0 );
+	if ( fhi > 0u ) {
+		let hk = vec3f( ${ HEAD_R.map( ( r, i ) => ( r / FH.R[ i ] ).toFixed( 4 ) ).join( ', ' ) } );
+		let fc = fhCoefs( lk.w & 65535u, female, age, lx & 7u, build );
+		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ] );
+		q += fh.dp * hk;
+		n = normalize( n + fh.dn );
+		fhPaint = fh.d;
+		let hoodUp = poncho > 0u && fract( f32( lk.w & 65535u ) / 65536.0 * 13.1 ) > 0.35;
+		if ( hat == ${ HAT.hood }u || hoodUp || ${ any( 'hat', knitHats ) } || hat == ${ HAT.earmuffs }u || hat == ${ HAT.motor }u || hairStyle == 1u ) { q += fh.fold * hk; }
+	}
+	// ---- end FF1
 	if ( bone == 2u && part != ${ PART.neck }u ) {
 		// a kid's head is big for his body; a hood (and a knit hat) sits over the hair
 		if ( age == 2u ) { q = ${ f3( J.neck ) } + ( q - ${ f3( J.neck ) } ) * 1.22; }
-		let d = ( q - headC ) / vec3f( ${ HEAD_R.map( ( r ) => r.toFixed( 3 ) ).join( ', ' ) } );
+		var d = ( q - headC ) / vec3f( ${ HEAD_R.map( ( r ) => r.toFixed( 3 ) ).join( ', ' ) } );
+		if ( fhi > 0u ) { d = fhPaint; } // (FF1)
 		// ---- FP1 (CP-9): a hood (and a poncho's, up) loose over the head: its peak out over the brow,
 		// falling onto the neck behind, the face's opening left where it is so the rim stands proud of it
 		let ponchoHood = poncho > 0u && fract( f32( lk.w & 65535u ) / 65536.0 * 13.1 ) > 0.35;
@@ -1767,7 +1807,8 @@ function castMaterial( pool ) {
 	// small, an old man's longer). The paint keeps to the face as modelled (qFace), so the eyes and the
 	// mouth stay where they're drawn on it; the cap's shell is above all this and still fits
 	var qFace = q;
-	if ( part == ${ PART.head }u || part == ${ PART.nose }u || part == ${ PART.ear }u ) {
+	if ( fhi > 0u ) { qFace = headC + fhPaint * vec3f( ${ HEAD_R.map( ( r ) => r.toFixed( 3 ) ).join( ', ' ) } ); } // (FF1: the paint's frame)
+	if ( ( part == ${ PART.head }u || part == ${ PART.nose }u || part == ${ PART.ear }u ) && fhi == 0u ) { // (FF1: the MakeHuman head has its own)
 		let kid = age == 2u;
 		let rk = select( 1.0, 1.22, kid );
 		let hk = select( headC, ${ f3( J.neck ) } + ( headC - ${ f3( J.neck ) } ) * 1.22, kid );
@@ -2138,6 +2179,10 @@ function castMaterial( pool ) {
 		let ax = abs( d.x );
 		c = skin;
 		rough = 0.55;
+		// ---- FF1: the MakeHuman head's eyeballs (the paint's d.z marks them), white under the lids
+		let eyeball = d.z < - 2.0;
+		if ( eyeball ) { c = vec3f( 0.56, 0.54, 0.51 ); rough = 0.12; }
+		// ---- end FF1
 		let fw = fwidth( d.x ) + fwidth( d.y );
 		let near = 1.0 - smoothstep( 0.12, 0.35, fw );
 		let front = smoothstep( 0.1, - 0.25, d.z );
@@ -2147,6 +2192,13 @@ function castMaterial( pool ) {
 		let blink = in.vs.vPose.z;
 		let ey = vec2f( ax - 0.34, d.y - 0.1 );
 		c *= mix( 1.0, 0.68, smoothstep( 0.22, 0.08, length( ey * vec2f( 1.0, 1.5 ) ) ) * front );
+		// ---- FF1: on an eyeball the iris round the pupil (a brown, darker for a dark skin; a hazel or blue for
+		// some fair ones, by the seed)
+		if ( eyeball ) {
+			let irisC = select( vec3f( 0.09, 0.05, 0.025 ), select( vec3f( 0.16, 0.12, 0.05 ), vec3f( 0.12, 0.17, 0.22 ), fract( seed * 53.1 ) < 0.5 ), skin.r > 0.55 && fract( seed * 19.3 ) < 0.45 );
+			c = mix( c, irisC, smoothstep( 0.08, 0.065, length( ey ) ) );
+		}
+		// ---- end FF1
 		let white = smoothstep( 0.1, 0.075, length( ey * vec2f( 1.0, 1.9 + blink * 6.0 ) ) ) * near * front;
 		c = mix( c, vec3f( 0.55, 0.53, 0.5 ), white );
 		c = mix( c, vec3f( 0.02, 0.015, 0.01 ), smoothstep( 0.05, 0.035, length( ey * vec2f( 1.0, 1.0 + blink * 6.0 ) ) ) * near * front );
@@ -2162,8 +2214,10 @@ function castMaterial( pool ) {
 		// soft and broken into stubble, the skin through them (hard black cut-outs with ruler edges)
 		let fstub = 0.75 + 0.25 * sin( d.x * 211.0 + sin( d.y * 97.0 ) * 3.0 ) * sin( d.y * 183.0 + d.x * 41.0 );
 		let fcol = mix( c, hairC * 0.8, 0.85 );
+		// (FF1: the MakeHuman head has a neck under its chin, where the egg ended: no beard down it)
+		let noNeck = smoothstep( - 1.12, - 0.98, d.y );
 		let moust = smoothstep( 0.06, 0.02, abs( d.y + 0.33 + 0.04 * ax * ax ) ) * smoothstep( 0.33, 0.24, ax );
-		let goat = smoothstep( - 0.47, - 0.53, d.y ) * smoothstep( 0.27, 0.19, ax ) * smoothstep( 0.0, - 0.2, d.z );
+		let goat = smoothstep( - 0.47, - 0.53, d.y ) * smoothstep( 0.27, 0.19, ax ) * smoothstep( 0.0, - 0.2, d.z ) * noNeck;
 		if ( facial == 1u || facial == 3u ) { c = mix( c, fcol, clamp( moust * fstub * 1.15, 0.0, 0.92 ) * front ); }
 		if ( facial == 2u ) { c = mix( c, fcol, clamp( max( moust, goat ) * fstub * 1.15, 0.0, 0.92 ) * front ); }
 		// ---- end FW6
@@ -2173,11 +2227,11 @@ function castMaterial( pool ) {
 			// edges (not round the side of the head to the back)
 			let grain = 0.85 + 0.15 * sin( d.x * 93.0 ) * sin( d.y * 71.0 + d.z * 37.0 );
 			let edgeY = - 0.16 + 0.24 * smoothstep( 0.35, 0.85, ax );
-			let cover = smoothstep( edgeY + 0.03, edgeY - 0.1, d.y ) * smoothstep( 0.18, - 0.12, d.z ) * smoothstep( 0.5, 0.7, mo ) * smoothstep( 1.02, 0.86, ax );
+			let cover = smoothstep( edgeY + 0.03, edgeY - 0.1, d.y ) * smoothstep( 0.18, - 0.12, d.z ) * smoothstep( 0.5, 0.7, mo ) * smoothstep( 1.02, 0.86, ax ) * noNeck;
 			c = mix( c, mix( hairC, c, 0.2 ) * grain, 0.72 * cover );
 			// ---- end FW4
 		}
-		if ( facial == 4u ) { c *= mix( vec3f( 1.0 ), vec3f( 0.8, 0.82, 0.86 ), step( d.y, - 0.2 ) * step( d.z, 0.3 ) * step( 0.8, mo ) ); }
+		if ( facial == 4u ) { c *= mix( vec3f( 1.0 ), vec3f( 0.8, 0.82, 0.86 ), step( d.y, - 0.2 ) * step( d.z, 0.3 ) * step( 0.8, mo ) * noNeck ); }
 		// glasses: thin dark frames round the eyes and over the nose, a glint
 		if ( glasses ) {
 			let ring = abs( length( ey * vec2f( 1.0, 1.25 ) ) - 0.17 );

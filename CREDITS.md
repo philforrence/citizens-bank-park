@@ -98,6 +98,14 @@ own *Sky Pro WebGPU*. It is published here under this repository's MIT license b
 - Home plate, base positions and field bearing were measured on aerial imagery for reference only; no
   imagery is included in this project.
 
+## The people's bodies and faces: MakeHuman
+
+The players' body (`tools/build-body.mjs`) and the fans' heads (`tools/build-fanhead.mjs`: the head cut from
+the same base mesh, with blend shapes made from MakeHuman's macro targets for gender, age, ethnicity and
+weight and ~60 of its face modifiers) come from the [MakeHuman](http://www.makehumancommunity.org) base
+mesh, its targets, its default skeleton and weights, released CC0 by the MakeHuman community in 2020
+(github.com/makehumancommunity/makehuman, `makehuman/data/`).
+
 ## Motion capture
 
 The players' pitching delivery, swing and running are retargeted from the CMU Graphics Lab Motion
