@@ -33,7 +33,7 @@ const CELL = 128, COLS = 8, ROWS = 16, ATLAS_W = CELL * COLS, ATLAS_H = CELL * R
 const CHEST = [ 0.38, 0.22, 1.245 ];
 const CHEST_ASPECT = CHEST[ 0 ] / CHEST[ 1 ];
 // atlas cells: 0..MAX-1 the slots' backs, then the shared ones
-const C = { chestHome: 127, chestAway: 126, capHome: 125, capAway: 124, patch: 123, mlb: 122, jacketHome: 121, jacketAway: 120, capChamp: 119 }; // (FR1: capChamp)
+const C = { chestHome: 127, chestAway: 126, capHome: 125, capAway: 124, patch: 123, mlb: 122, jacketHome: 121, jacketAway: 120, capChamp: 119, ray: 118 }; // (FR1: capChamp; FY3: ray)
 
 // what he's wearing (p.role)
 export const ROLE = {
@@ -85,6 +85,7 @@ export class Players {
 			drawCapLogo( ctx, C.capAway, false );
 			drawChampCap( ctx, C.capChamp ); // ---- FR1
 			drawPatch( ctx, C.patch );
+			drawRay( ctx, C.ray ); // ---- FY3
 			drawMLB( ctx, C.mlb );
 
 		}, 'jerseys' );
@@ -597,7 +598,8 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 				let sh = vec3f( sx * ${ f( J.shoulderR[ 0 ] ) }, ${ f( J.shoulderR[ 1 ] ) }, ${ f( J.shoulderR[ 2 ] ) } );
 				let ab = normalize( vec3f( sx * ${ f( J.elbowR[ 0 ] - J.shoulderR[ 0 ] ) }, ${ f( J.elbowR[ 1 ] - J.shoulderR[ 1 ] ) }, ${ f( J.elbowR[ 2 ] - J.shoulderR[ 2 ] ) } ) );
 				let dv = lp3 - sh;
-				lp3 -= ( dv - ab * dot( dv, ab ) ) * 0.14 * ( 1.0 - smoothstep( 0.05, 0.15, arm ) );
+				// (FY3: 0.14 -> 0.2: from the high cameras the cap of the shoulder still read as a pad)
+				lp3 -= ( dv - ab * dot( dv, ab ) ) * 0.2 * ( 1.0 - smoothstep( 0.05, 0.15, arm ) );
 			}
 			if ( leg > -0.5 && leg < 0.16 ) {
 				let w = smoothstep( -0.2, -0.7, v.normal.x * sx ) * ( 1.0 - smoothstep( 0.02, 0.16, leg ) );
@@ -605,6 +607,44 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			}
 		}
 		// ---- end FB3
+		// ---- FY3: 2008's long pants hang loose from the knee to the shoe tops (Getty 83485159, Balfour;
+		// 83485858, Lidge), not tights over the calf with the kneecap showing: below the thigh's cone (FB2)
+		// a second, round the shin's bone, 8.8 cm at the knee to 7.6 at the hem, filled out where the leg is
+		// under it and the excess taken in, the hem a little fuller where it breaks over the shoe
+		// the fly: the cloth bridges the groin's creases, a little behind the thighs' fronts (the base
+		// mesh's groin is a V 3 cm deep: it read through the pants as a modelled crotch). Not lower down,
+		// where pulling the inner thighs forward hung a pouch between the legs
+		if ( ! phan && arm < -0.5 && lp3.y > 0.86 && lp3.y < 1.0 && lp3.z < -0.01 ) {
+			let k = 0.85 * ( 1.0 - smoothstep( 0.06, 0.095, abs( lp3.x ) ) ) * smoothstep( 0.86, 0.9, lp3.y ) * ( 1.0 - smoothstep( 0.965, 1.0, lp3.y ) ) * smoothstep( -0.01, -0.035, lp3.z );
+			lp3.z = min( lp3.z, mix( lp3.z, -0.077 - 0.6 * lp3.x * lp3.x, k ) );
+		}
+		// the seat: the cloth across the cleft and down off the cheeks, not painted on them (from behind,
+		// the pitchers' close-ups from center field)
+		if ( ! phan && arm < -0.5 && lp3.y > 0.86 && lp3.y < 1.02 && lp3.z > 0.01 ) {
+			let k = ( 1.0 - smoothstep( 0.06, 0.1, abs( lp3.x ) ) ) * smoothstep( 0.86, 0.9, lp3.y ) * ( 1.0 - smoothstep( 0.97, 1.02, lp3.y ) ) * smoothstep( 0.01, 0.04, lp3.z );
+			lp3.z = max( lp3.z, mix( lp3.z, 0.104 - 0.9 * lp3.x * lp3.x, k ) );
+		}
+		if ( ! phan && ( style & 1u ) == 0u && ( role & ${ R.shorts }u ) == 0u && leg > 0.3 ) {
+			let sx = sign( lp3.x );
+			let kn = vec3f( sx * ${ f( J.kneeR[ 0 ] ) }, ${ f( J.kneeR[ 1 ] ) }, ${ f( J.kneeR[ 2 ] ) } );
+			let an = vec3f( sx * ${ f( J.ankleR[ 0 ] ) }, ${ f( J.ankleR[ 1 ] ) }, ${ f( J.ankleR[ 2 ] ) } );
+			let ta = normalize( an - kn );
+			let d = lp3 - kn;
+			let along = dot( d, ta );
+			let tk = clamp( along / ${ f( Math.hypot( J.ankleR[ 0 ] - J.kneeR[ 0 ], J.ankleR[ 1 ] - J.kneeR[ 1 ], J.ankleR[ 2 ] - J.kneeR[ 2 ] ) ) }, 0.0, 1.0 );
+			let rv = d - ta * along;
+			let r = length( rv );
+			let w = smoothstep( 0.3, 0.4, leg );
+			if ( r > 1e-4 ) {
+				let rc = mix( 0.088, 0.076, tk ) + 0.008 * smoothstep( 0.8, 0.95, tk );
+				let rt = select( rc + ( r - rc ) * 0.45, mix( r, rc, 0.85 ), r < rc );
+				lp3 += rv / r * ( rt - r ) * w;
+			}
+			// the hem level, a clean ring breaking over the shoe's top (the mesh's end ring is ragged where
+			// the bare foot was cut away)
+			lp3.y = mix( lp3.y, ${ f( J.ankleR[ 1 ] + 0.004 ) }, smoothstep( 0.8, 0.85, leg ) );
+		}
+		// ---- end FY3
 		// ---- A (Phanatic): the rain slicker's sleeves stand off the fur (its body: the costume's, below)
 		if ( phan && ( role & ${ R.slicker }u ) != 0u ) {
 			if ( arm > -0.5 && arm < ${ f( U.wrist - 0.03 ) } ) { lp3 += v.normal * 0.028; }
@@ -615,6 +655,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		if ( arm < -0.5 && leg < -0.5 && lp3.y > ${ f( J.neck[ 1 ] ) } ) {
 			let jawK = smoothstep( eye.y, ${ f( F.jaw[ 1 ] ) }, lp3.y ) * smoothstep( ${ f( J.neck[ 1 ] - 0.01 ) }, ${ f( F.jaw[ 1 ] ) }, lp3.y );
 			lp3.x = lp3.x * ( 1.0 + i3.z * 0.09 * jawK );
+			// ---- FY3: a brow ridge, 3 mm over each eye, so the sockets sit under something and the bill's
+			// shadow has an edge to fall from (the base mesh's brow is smooth)
+			let brk = ( 1.0 - smoothstep( 0.005, 0.014, abs( lp3.y - ${ f( F.eyeR[ 1 ] + 0.019 ) } ) ) ) * smoothstep( 0.006, 0.014, abs( lp3.x ) ) * ( 1.0 - smoothstep( 0.048, 0.06, abs( lp3.x ) ) ) * smoothstep( eye.z + 0.03, eye.z, lp3.z );
+			lp3.z -= 0.003 * brk;
+			// ---- end FY3
 			let beard = u32( i2.w + 0.5 ) & 7u;
 			let front = lp3.z < eye.z + 0.075;
 			let bz = lp3.y < ${ f( F.mouth[ 1 ] ) } + 0.012 && lp3.y > ${ f( F.jaw[ 1 ] - 0.035 ) } && front;
@@ -774,7 +819,8 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			around = atan2( dot( d, cross( ax, e1 ) ), dot( d, e1 ) ) * 0.055;
 		} else if ( leg > -0.5 ) {
 			// high socks: the pants end below the knee; long pants to the shoe tops
-			let cuffAt = select( 0.845, ${ f( U.cuff ) }, highSocks || phan );
+			// (FY3: long pants to the shoe tops; the band of sock under a ragged hem is gone)
+			let cuffAt = select( 0.9, ${ f( U.cuff ) }, highSocks || phan );
 			part = select( ${ P.socks }, ${ P.pants }, leg < cuffAt );
 			let side = sign( L.x );
 			let hp = vec3f( side * ${ f( J.hipR[ 0 ] ) }, ${ f( J.hipR[ 1 ] ) }, ${ f( J.hipR[ 2 ] ) } );
@@ -790,7 +836,15 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			let r = length( vec2f( L.x, L.z - nk.z ) );
 			let cy = nk.y - 0.03 + 0.3 * clamp( L.z - nk.z, -0.08, 0.07 );
 			let vee = L.z < nk.z - 0.03 && L.y > cy - 0.05 && abs( L.x ) < 0.022 * clamp( ( L.y - cy + 0.05 ) / 0.045, 0.0, 1.0 );
-			if ( L.y > nk.y + 0.03 || ( L.y > cy && r < 0.1 ) ) { part = ${ P.skin }; skinArea = 1; }
+			// ---- FY3: the underside of a jutting chin is skin (the ring round the neck took it for the jersey and
+			// the undershirt's collar: a white and red crescent under every jaw in the close-ups); the
+			// undershirt's collar rides up the neck, a crew neck's 1.2 cm for most, a mock turtleneck's 4 cm for
+			// some (Balfour's navy mock: Getty 83485159)
+			let chinU = L.z < nk.z - 0.075 && L.y > cy + 0.02;
+			// (the umpires' jackets close round the neck in a collar: Getty 83485455)
+			let mock = select( select( 0.012, 0.038, fract( seed * 17.3 ) < 0.3 && ! crew && ! jacket && ! phan ), 0.03, ump );
+			if ( L.y > nk.y + 0.03 || chinU || ( L.y > cy + mock && r < 0.1 ) ) { part = ${ P.skin }; skinArea = 1; }
+			// ---- end FY3
 			else if ( ( L.y > cy - 0.011 && r < 0.11 ) || vee ) { part = select( ${ P.sleeve }, ${ P.jersey }, jacket ); }
 			else if ( L.y > ${ f( U.belt[ 1 ] ) } ) { part = ${ P.jersey }; }
 			else if ( L.y > ${ f( U.belt[ 0 ] ) } ) { part = ${ P.belt }; }
@@ -833,6 +887,13 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		}
 		if ( ! home && arm > ${ f( U.sleeve - 0.014 ) } ) { c = trim; }
 	}
+	// ---- FY3: the Rays' road pants piped in navy down the outer seam (Getty 83485159, Balfour)
+	if ( part == ${ P.pants } && kind == ${ KIND.away } && ! jacket && leg > -0.5 ) {
+		let sa = atan2( Nb.z, Nb.x * sign( L.x ) );
+		let fsa = max( fwidth( sa ), 1e-4 );
+		c = mix( c, trim, clamp( ( 0.05 - abs( sa ) ) / fsa + 0.5, 0.0, 1.0 ) );
+	}
+	// ---- end FY3
 	if ( ( part == ${ P.jersey } || part == ${ P.pants } ) && ! jacket && ! phan ) {
 		let fold = mx_noise_float3( vec3f( L.x * 26.0, L.y * 5.0, L.z * 26.0 ) + seed * 3.0 );
 		var zone = select( 0.25 + 0.75 * smoothstep( 1.4, 1.12, L.y ), 0.75, part == ${ P.pants } );
@@ -937,6 +998,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 	if ( part == ${ P.jersey } && arm > -0.5 && L.x > 0.0 && Nb.x > 0.3 && ! jacket ) {
 		cell = ${ C.patch }.0; lu = 0.5 - ( L.z - ${ f( J.shoulderR[ 2 ] ) } ) / 0.085; lv = ( arm - 0.05 ) / 0.085;
 	}
+	// ---- FY3: the Rays' manta on the left sleeve (Getty 83485159, Balfour)
+	if ( part == ${ P.jersey } && arm > -0.5 && L.x < 0.0 && Nb.x < -0.3 && ! jacket && kind == ${ KIND.away } ) {
+		cell = ${ C.ray }.0; lu = 0.5 + ( L.z - ${ f( J.shoulderR[ 2 ] ) } ) / 0.1; lv = ( arm - 0.045 ) / 0.1;
+	}
+	// ---- end FY3
 	let billPart = abs( in.vs.vField.x + 3.0 ) < 0.5;
 	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z < -0.35 && ! billPart ) {
 		cell = select( ${ C.capAway }.0, ${ C.capHome }.0, home || crew ); lu = 0.5 - L.x / 0.09; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.062 ) } ) / 0.09;
@@ -948,6 +1014,12 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		// the batterman at the back
 		cell = ${ C.mlb }.0; lu = 0.5 + L.x / 0.036; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.07 ) } ) / 0.04;
 	}
+	// ---- FY3 (CY-18): the 2008 World Series logo on the cap's left side, as both clubs wore it in the
+	// Series (Getty 83485858, Lidge at the last out; 83485159, Balfour)
+	if ( part == ${ P.cap } && ! billPart && ( role & ${ R.champCap | R.navyCap }u ) == 0u && Nb.x < -0.5 && abs( Nb.y ) < 0.6 ) {
+		cell = ${ C.patch }.0; lu = 0.5 + ( L.z + 0.044 ) / 0.044; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.052 ) } ) / 0.044;
+	}
+	// ---- end FY3
 	if ( ( ump || crew ) && part != ${ P.cap } ) { cell = -1.0; }
 	// ---- FB4 (C4B-4): the grounds crew's red hoodies carry the club's script on the chest, as the players'
 	// pullovers do (Getty 84081825: the 27th's crew in red hoodies, the white Phillies script, blue piping)
@@ -994,77 +1066,122 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		}
 		// the umpires' and the crew's hands stay bare; the Phanatic's are fur (above)
 		if ( skinArea == 1 ) {
+			// ---- FY3 (CY-18, C3B-10): the face as the close-ups show it (Getty 83483794, Feliz under his
+			// bill; 83484235, Upton; 83485858, Lidge's goatee; FOX's walk-ups). Everything here is soft-edged,
+			// in the face's own frame: FY2's boxes cut the beards out as flat brown rectangles with ruler-straight
+			// sides, the stubble's top edge and the face's back edge (isFace) drew a line across and down the
+			// cheeks, the goatee's box ran on down the throat (the throat is at the chin's height) and the jaw's
+			// underside was a hard black band. Now: the beard's density is a soft mask per style, its edges
+			// broken by a noise and its colour grained hair by hair, thinning into the stubble's shadow; the
+			// throat kept out (the chin juts past it); the brows thick and arched, tapering to the tail; the
+			// lids' lash line and crease; the lips, the ears and the nose a little redder; short hair at the
+			// temples and the sideburns under the cap (they were bald); the bill's shadow from the brow down
 			let ax = abs( L.x );
 			let eye = ${ v3( F.eyeR ) };
-			let isFace = L.z < eye.z + 0.035;
-			// the hair: the back and the sides of the head above the neck, behind the temples (the cap
-			// covers the top), greying at the temples with age; the ears stay skin
-			let ear = ax > 0.066 && L.y < eye.y + 0.012 && L.y > eye.y - 0.058 && L.z > eye.z + 0.06 && L.z < eye.z + 0.13;
-			let hairline = ( L.y > eye.y + 0.028 && L.z > eye.z + 0.045 ) || ( L.y > eye.y - 0.05 && L.z > eye.z + 0.105 ) || L.y > eye.y + 0.06;
-			if ( hairline && ! ear ) {
-				let edge = smoothstep( eye.y - 0.06, eye.y - 0.04, L.y );
+			let m = vec3f( 0.0, ${ f( F.mouth[ 1 ] ) }, ${ f( F.mouth[ 2 ] ) } );
+			let jawY = ${ f( F.jaw[ 1 ] ) };
+			// how far this is the face (soft, so there's no seam down the cheek), and the face and the temples
+			let fw = smoothstep( eye.z + 0.075, eye.z + 0.025, L.z );
+			let fw2 = smoothstep( eye.z + 0.13, eye.z + 0.06, L.z );
+			// grains: a hair's (a millimetre), and a coarser one that breaks the edges of the beard and the hair
+			// (faded to their mean once a hair is under a pixel, so the far faces don't sparkle)
+			let px = length( fwidth( L ) );
+			let g1 = mix( 0.5, mx_noise_float3( L * vec3f( 950.0, 380.0, 950.0 ) + seed * 5.0 ) * 0.5 + 0.5, 1.0 - smoothstep( 0.0006, 0.0018, px ) );
+			let g2 = mx_noise_float3( L * 190.0 + seed * 3.0 ) * ( 1.0 - smoothstep( 0.003, 0.008, px ) );
+			let earK = smoothstep( 0.062, 0.068, ax ) * smoothstep( eye.y - 0.062, eye.y - 0.054, L.y ) * ( 1.0 - smoothstep( eye.y + 0.008, eye.y + 0.016, L.y ) ) * smoothstep( eye.z + 0.055, eye.z + 0.065, L.z ) * ( 1.0 - smoothstep( eye.z + 0.125, eye.z + 0.135, L.z ) );
+			// the skin's colour: the cheeks, the nose's tip and the ears a little redder, the brow a shade paler
+			let nose = ( 1.0 - smoothstep( 0.008, 0.018, ax ) ) * smoothstep( m.y + 0.012, m.y + 0.026, L.y ) * ( 1.0 - smoothstep( eye.y - 0.03, eye.y - 0.012, L.y ) );
+			let cheek = ( 1.0 - smoothstep( 0.0, 0.02, abs( ax - 0.044 ) ) ) * ( 1.0 - smoothstep( 0.0, 0.026, abs( L.y - ( m.y + 0.032 ) ) ) );
+			c = mix( c, c * vec3f( 1.08, 0.86, 0.84 ), clamp( cheek * 0.45 + nose * 0.35 + earK * 0.4, 0.0, 1.0 ) );
+			c = c * mix( 1.0, 1.05, smoothstep( eye.y + 0.02, eye.y + 0.05, L.y ) * fw );
+			// a little oil on the brow and down the nose (Upton's face, Getty 83484235)
+			rough = mix( rough, 0.42, clamp( nose + smoothstep( eye.y + 0.025, eye.y + 0.045, L.y ) * ( 1.0 - smoothstep( 0.03, 0.06, ax ) ) * fw, 0.0, 1.0 ) * ( 1.0 - soak ) );
+			// FY2's mottling: pores, colour, a day's sun and wind
+			c = c * ( 0.94 + 0.08 * ( mx_noise_float3( L * 140.0 + seed ) * 0.5 + 0.5 ) ) * mix( vec3f( 1.0 ), vec3f( 1.04, 0.97, 0.96 ), smoothstep( 0.3, 0.8, mx_noise_float3( L * 30.0 ) ) );
+			// the hair: the back and the sides of the head under the cap, the sideburns in front of the ears
+			// (cropped short: the scalp shows through the grain), greying at the temples with age
+			let hairBack = max( max( smoothstep( eye.y + 0.022, eye.y + 0.032, L.y ) * smoothstep( eye.z + 0.038, eye.z + 0.052, L.z ),
+				smoothstep( eye.y - 0.068, eye.y - 0.054, L.y ) * smoothstep( eye.z + 0.098, eye.z + 0.112, L.z ) ), smoothstep( eye.y + 0.055, eye.y + 0.065, L.y ) * smoothstep( eye.z + 0.035, eye.z + 0.06, L.z ) );
+			let burn = 0.8 * smoothstep( 0.05, 0.062, ax ) * smoothstep( eye.z + 0.028, eye.z + 0.052, L.z ) * smoothstep( eye.y - 0.04, eye.y - 0.012, L.y );
+			let hairK = clamp( max( hairBack, burn ) * ( 1.0 - earK ) * ( 0.95 + 0.25 * g2 ), 0.0, 1.0 );
+			if ( hairK > 0.0 ) {
 				let temple = smoothstep( 0.05, 0.075, ax ) * smoothstep( eye.z + 0.13, eye.z + 0.06, L.z ) * age;
-				c = mix( skinC * 0.6, mix( hairC, vec3f( 0.42, 0.41, 0.4 ), temple * 0.7 ), 0.5 + 0.5 * edge ); rough = 0.7;
+				let hc = mix( hairC, vec3f( 0.42, 0.41, 0.4 ), temple * 0.7 ) * ( 0.7 + 0.6 * g1 );
+				c = mix( c, mix( skinC * 0.45, hc, 0.72 + 0.28 * g1 ), hairK );
+				rough = mix( rough, 0.75, hairK );
 			}
-			if ( isFace ) {
-				// the brows
-				let by = eye.y + 0.021 + 0.004 * ( 1.0 - smoothstep( 0.012, 0.05, ax ) ) - 0.004 * smoothstep( 0.03, 0.055, ax );
-				if ( abs( L.y - by ) < 0.0045 && ax > 0.009 && ax < 0.055 ) { c = mix( c, hairC, 0.8 ); }
-				// the lips
-				let m = vec3f( 0.0, ${ f( F.mouth[ 1 ] ) }, ${ f( F.mouth[ 2 ] ) } );
-				let lq = length( vec2f( L.x / 0.025, ( L.y - m.y ) / 0.008 ) );
-				if ( lq < 1.0 && L.z < m.z + 0.02 ) { c = mix( c, skinC * vec3f( 0.8, 0.52, 0.5 ), smoothstep( 1.0, 0.6, lq ) ); rough = 0.4; }
-				// the stubble's shadow over the jaw, the chin and the upper lip, then the beard he wears:
-				// a goatee on the chin, with a moustache joining it round the mouth, a short full beard up
-				// the cheeks to the sideburns, a moustache alone, a chin strap along the jawline
-				let beardK = face & 7u;
-				let jawY = ${ f( F.jaw[ 1 ] ) };
-				let jawZone = L.y < m.y + 0.02 && L.y > jawY - 0.012 && lq > 0.95;
-				let beardC = hairC * 0.9;
-				let grain = 0.75 + 0.5 * hash31( floor( L * 900.0 ) );
-				var bk = 0.0;
-				if ( jawZone ) {
-					let k = smoothstep( jawY - 0.012, jawY + 0.004, L.y );
-					c = mix( c, c * vec3f( 0.7, 0.68, 0.7 ), stubble * 0.5 * k );
-				}
-				let lipUp = L.y > m.y + 0.005 && L.y < m.y + 0.02 && ax < 0.028 && lq > 0.9;
-				let chin = ax < 0.028 && L.y < m.y - 0.009 && L.y > jawY - 0.03;
-				let corners = ax > 0.018 && ax < 0.032 && L.y < m.y + 0.012 && L.y > m.y - 0.03;
-				if ( beardK == 3u && chin ) { bk = 1.0; }
-				if ( beardK == 4u && ( chin || lipUp || corners ) ) { bk = 1.0; }
-				if ( beardK == 5u && ( ( L.y < eye.y - 0.045 && L.y > jawY - 0.035 && lq > 0.95 && ! ( ax < 0.02 && L.y > m.y + 0.022 ) ) || lipUp ) ) { bk = 1.0; }
-				if ( beardK == 6u && lipUp ) { bk = 1.0; }
-				if ( beardK == 7u && ( ( L.y < jawY + 0.012 && L.y > jawY - 0.03 ) || lipUp || chin ) ) { bk = 1.0; }
-				if ( beardK == 2u && jawZone ) { c = mix( c, beardC, 0.35 ); }
-				if ( bk > 0.0 ) { c = mix( c, beardC * grain, 0.88 ); rough = 0.8; }
-				// the eye sockets a shade darker; the shadow under the nose and the lower lip, the jaw's
-				// underside; a little colour in the cheeks
-				let es = length( vec2f( ax - abs( eye.x ), ( L.y - eye.y ) * 1.4 ) );
-				c = c * mix( 0.78, 1.0, smoothstep( 0.012, 0.024, es ) );
-				if ( ax < 0.022 && L.y > m.y + 0.011 && L.y < m.y + 0.024 ) { c = c * mix( 0.8, 1.0, smoothstep( 0.012, 0.022, ax ) ); }
-				if ( ax < 0.024 && L.y < m.y - 0.008 && L.y > m.y - 0.016 ) { c = c * 0.86; }
-				let cheek = smoothstep( 0.02, 0.0, abs( ax - 0.045 ) ) * smoothstep( 0.03, 0.0, abs( L.y - ( m.y + 0.03 ) ) );
-				c = mix( c, c * vec3f( 1.08, 0.86, 0.84 ), cheek * 0.4 );
-				// eye black: a greasy smudge on each cheekbone
-				// (FY2: a smudge, not a bar)
-				let ebk = length( vec2f( ( ax - 0.032 ) / 0.017, ( L.y - eye.y + 0.022 ) / 0.0085 ) );
-				if ( ( face & 8u ) != 0u && ebk < 1.0 ) { c = mix( c, vec3f( 0.012 ), smoothstep( 1.0, 0.55, ebk ) ); rough = 0.35; }
-				// age: the lines round the eyes and down from the nose
-				if ( age > 0.5 ) {
-					let crow = ax > 0.05 && ax < 0.065 && abs( L.y - eye.y ) < 0.012 && fract( L.y * 260.0 ) < 0.35;
-					if ( crow ) { c = c * 0.85; }
-				}
-				// ---- FY2 (CY-18): not a mannequin. The sockets deeper under the brow, the sides of the nose and
-				// the line between the lips in shade, the skin mottled (pores, colour, a day's sun and wind); and
-				// under the cap's bill (or the helmet's) its shadow across the brow and the eyes, the strongest
-				// thing on a ballplayer's face under the banks (FOX's close-up of Burrell, Getty 83485455)
-				c = c * mix( 0.84, 1.0, smoothstep( 0.012, 0.028, es ) );
-				c = c * ( 1.0 - 0.3 * smoothstep( 0.0024, 0.0008, abs( L.y - m.y + 0.001 ) ) * smoothstep( 0.024, 0.016, ax ) );
-				c = c * ( 0.94 + 0.08 * ( mx_noise_float3( L * 140.0 + seed ) * 0.5 + 0.5 ) ) * mix( vec3f( 1.0 ), vec3f( 1.04, 0.97, 0.96 ), smoothstep( 0.3, 0.8, mx_noise_float3( L * 30.0 ) ) );
-				if ( ( role & ${ R.nocap }u ) == 0u ) { c = c * mix( 1.0, 0.64, smoothstep( eye.y - 0.07, eye.y + 0.02, L.y ) ); }
-				// ---- end FY2
+			// the eyes: the sockets in shade under the brow, the lash line along the upper lid and the lid's
+			// crease above it, a little shadow under the lower lid
+			let es = length( vec2f( ax - abs( eye.x ), ( L.y - eye.y ) * 1.4 ) );
+			let up = smoothstep( eye.y - 0.004, eye.y + 0.002, L.y );
+			c = c * mix( 1.0, mix( 0.72, 1.0, smoothstep( 0.012, 0.03, es ) ), fw );
+			c = c * ( 1.0 - fw * ( 0.6 * up * ( 1.0 - smoothstep( 0.019, 0.0235, es ) ) + 0.25 * up * smoothstep( 0.024, 0.027, es ) * ( 1.0 - smoothstep( 0.028, 0.032, es ) ) + 0.15 * ( 1.0 - up ) * ( 1.0 - smoothstep( 0.019, 0.024, es ) ) ) );
+			// the brows: thick over the eye, arched, thinning to the tail, hair by hair
+			let by = eye.y + 0.021 + 0.004 * ( 1.0 - smoothstep( 0.012, 0.05, ax ) ) - 0.005 * smoothstep( 0.03, 0.058, ax );
+			let th = mix( 0.0062, 0.0026, smoothstep( 0.02, 0.056, ax ) );
+			let brow = ( 1.0 - smoothstep( th * 0.45, th, abs( L.y - by + 0.0015 * g2 ) ) ) * smoothstep( 0.007, 0.013, ax ) * ( 1.0 - smoothstep( 0.052, 0.06, ax ) ) * fw;
+			c = mix( c, hairC * ( 0.65 + 0.5 * g1 ), brow * ( 0.6 + 0.35 * g1 ) );
+			// the lips: their colour, the line between them, the shadow under the nose and under the lower lip
+			let lq = length( vec2f( L.x / 0.025, ( L.y - m.y ) / 0.0085 ) );
+			let lip = ( 1.0 - smoothstep( 0.7, 1.05, lq ) ) * fw;
+			c = mix( c, c * vec3f( 0.86, 0.6, 0.58 ), lip * 0.8 );
+			rough = mix( rough, 0.4, lip );
+			c = c * ( 1.0 - 0.35 * fw * smoothstep( 0.0026, 0.0008, abs( L.y - m.y + 0.001 ) ) * ( 1.0 - smoothstep( 0.018, 0.026, ax ) ) );
+			c = c * ( 1.0 - 0.2 * fw * ( 1.0 - smoothstep( 0.012, 0.022, ax ) ) * smoothstep( m.y + 0.009, m.y + 0.013, L.y ) * ( 1.0 - smoothstep( m.y + 0.02, m.y + 0.026, L.y ) ) );
+			c = c * ( 1.0 - 0.14 * fw * ( 1.0 - smoothstep( 0.018, 0.026, ax ) ) * smoothstep( m.y - 0.018, m.y - 0.014, L.y ) * ( 1.0 - smoothstep( m.y - 0.01, m.y - 0.006, L.y ) ) );
+			// the beard: how dense the hair is at this point, by style. The masks: the moustache over the
+			// upper lip, the goatee on the chin (down to its underside, in front of the throat), the corners
+			// joining them round the mouth, a full short beard up the cheeks to the sideburns and under the
+			// jaw, a chin strap along the jaw's edge; the lips stay clear
+			let beardK = face & 7u;
+			let lipsOut = smoothstep( 0.92, 1.2, lq );
+			let front = smoothstep( -0.058, -0.082, L.z );
+			let jl = jawY - 0.008 + 0.034 * smoothstep( 0.02, 0.07, ax ); // the jaw's edge, rising to the ear
+			let mx2 = ( ax / 0.028 ) * ( ax / 0.028 );
+			let mous = smoothstep( m.y + 0.003 + 0.004 * mx2, m.y + 0.008 + 0.004 * mx2, L.y ) * ( 1.0 - smoothstep( m.y + 0.016 - 0.007 * mx2, m.y + 0.022 - 0.007 * mx2, L.y ) ) * ( 1.0 - smoothstep( 0.02, 0.031, ax ) ) * lipsOut * fw;
+			let chinM = ( 1.0 - smoothstep( 0.012, 0.032, ax ) * 0.85 ) * ( 1.0 - smoothstep( 0.024, 0.034, ax ) ) * ( 1.0 - smoothstep( m.y - 0.016, m.y - 0.009, L.y ) ) * smoothstep( jawY - 0.018, jawY - 0.006, L.y ) * front * lipsOut;
+			let corner = 0.62 * smoothstep( 0.017, 0.022, ax ) * ( 1.0 - smoothstep( 0.027, 0.033, ax ) ) * smoothstep( m.y - 0.028, m.y - 0.018, L.y ) * ( 1.0 - smoothstep( m.y + 0.006, m.y + 0.012, L.y ) ) * lipsOut * fw;
+			let yTop = mix( m.y + 0.016, eye.y - 0.034, smoothstep( 0.022, 0.064, ax ) ) + 0.004 * g2;
+			let cheekTop = 1.0 - smoothstep( yTop - 0.012, yTop + 0.004, L.y );
+			// (under the jaw only where the chin juts forward, not down the throat)
+			let fullM = cheekTop * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * smoothstep( jl - 0.024, jl - 0.01, L.y ) * max( smoothstep( jl - 0.008, jl + 0.004, L.y ), smoothstep( -0.05, -0.075, L.z ) ) * lipsOut * ( 1.0 - nose );
+			let strap = ( 1.0 - smoothstep( 0.009, 0.017, abs( L.y - jl - 0.004 ) ) ) * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * max( front, smoothstep( 0.015, 0.03, ax ) );
+			var bd = 0.0;
+			if ( beardK == 3u ) { bd = chinM; }
+			if ( beardK == 4u ) { bd = max( max( chinM, mous ), corner ); }
+			if ( beardK == 5u ) { bd = max( fullM, mous ); }
+			if ( beardK == 6u ) { bd = mous; }
+			if ( beardK == 7u ) { bd = max( max( strap, mous ), chinM ); }
+			// the stubble: the beard's whole ground in shade, and the dots of the hairs where it's heavy
+			let stubZone = max( fullM, max( mous, chinM ) ) * fw;
+			let stub = stubble * select( 0.45, 0.85, beardK == 2u );
+			c = mix( c, c * mix( vec3f( 0.74, 0.72, 0.75 ), min( hairC / max( skinC, vec3f( 0.01 ) ), vec3f( 1.0 ) ), 0.15 ), stub * stubZone );
+			c = mix( c, hairC, stub * stubZone * 0.5 * smoothstep( 0.55, 0.8, g1 ) );
+			// the beard itself: its edge broken, the hairs grained, the skin under it showing at its thin edge
+			let bk = smoothstep( 0.3, 0.75, bd + 0.22 * g2 );
+			if ( bk > 0.0 ) {
+				c = mix( c, hairC * 0.9 * ( 0.55 + 0.75 * g1 ), bk * ( 0.78 + 0.2 * g1 ) );
+				rough = mix( rough, 0.82, bk );
 			}
-			if ( L.y < ${ f( F.jaw[ 1 ] ) } + 0.006 && Nb.y < -0.25 ) { c = c * 0.72; }
+			// eye black: a greasy smudge on each cheekbone (FY2: a smudge, not a bar)
+			let ebk = length( vec2f( ( ax - 0.032 ) / 0.017, ( L.y - eye.y + 0.022 ) / 0.0085 ) );
+			if ( ( face & 8u ) != 0u && ebk < 1.0 ) { c = mix( c, vec3f( 0.012 ), smoothstep( 1.0, 0.55, ebk ) * fw ); rough = 0.35; }
+			// age: the lines round the eyes and down from the nose
+			if ( age > 0.5 ) {
+				let crow = smoothstep( 0.05, 0.054, ax ) * ( 1.0 - smoothstep( 0.061, 0.065, ax ) ) * ( 1.0 - smoothstep( 0.008, 0.013, abs( L.y - eye.y ) ) ) * smoothstep( 0.2, 0.0, abs( fract( L.y * 260.0 ) - 0.2 ) );
+				c = c * ( 1.0 - 0.15 * crow * fw );
+			}
+			// under the cap's bill (or the helmet's) its shadow from the brow down over the eyes, the strongest
+			// thing on a ballplayer's face under the banks (FY2; FOX's close-up of Burrell, Getty 83485455),
+			// soft round the temples
+			if ( ( role & ${ R.nocap }u ) == 0u ) { c = c * mix( 1.0, 0.62, smoothstep( eye.y - 0.075, eye.y + 0.025, L.y ) * fw2 ); }
+			// the jaw's underside in shade
+			c = c * ( 1.0 - 0.24 * smoothstep( -0.2, -0.65, Nb.y ) * ( 1.0 - smoothstep( jawY, jawY + 0.025, L.y ) ) );
+			// hair doesn't carry the skin's light under it (the wrap lit the goatees orange)
+			let skinK = 1.0 - 0.9 * clamp( max( bk, hairK ), 0.0, 1.0 );
+			s.translucency = s.translucency * skinK;
+			s.emissive = s.emissive * skinK;
+			// ---- end FY3
 		}
 	}
 	if ( band ) { c = select( select( vec3f( 0.8, 0.79, 0.76 ), trim, ( style & 32u ) != 0u ), trim, home ); rough = 0.95; clothy = true; }
@@ -1074,12 +1191,20 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		let ec = vec3f( side * ${ f( F.eyeR[ 0 ] ) }, ${ f( F.eyeR[ 1 ] ) }, ${ f( F.eyeR[ 2 ] ) } );
 		let d = normalize( L - ec );
 		c = vec3f( 0.62, 0.6, 0.56 ); rough = 0.08;
-		if ( d.z < -0.93 ) { c = vec3f( 0.06, 0.035, 0.02 ); }
+		// (FY3: blue or grey-green eyes for some of the fair-skinned men, by seed; brown for the rest)
+		let iris = select( vec3f( 0.06, 0.035, 0.02 ), select( vec3f( 0.07, 0.1, 0.14 ), vec3f( 0.08, 0.09, 0.06 ), fract( seed * 53.1 ) < 0.15 ), skinC.r > 0.45 && fract( seed * 31.7 ) < 0.45 );
+		if ( d.z < -0.93 ) { c = iris * ( 0.8 + 0.4 * smoothstep( -0.93, -0.975, d.z ) ); }
 		if ( d.z < -0.985 ) { c = vec3f( 0.005 ); }
 	}
 	if ( part == ${ P.helmet } || part == ${ P.flapL } || part == ${ P.flapR } || part == ${ P.ccap } ) {
 		// the batting helmet: a glossy shell, scuffed; now and then a smear of pine tar on the crown
 		c = capC * 1.05; rough = 0.12;
+		// ---- FY3: the ear's hole in the flap (Rig.js: the flap is the shell carried down over the ear)
+		if ( part == ${ P.flapL } || part == ${ P.flapR } ) {
+			let eh = length( vec2f( ( L.y - ${ f( F.eyeR[ 1 ] - 0.024 ) } ) / 1.25, L.z - ${ f( F.eyeR[ 2 ] + 0.093 ) } ) );
+			c = mix( c, vec3f( 0.004 ), 1.0 - smoothstep( 0.0105, 0.0135, eh ) );
+		}
+		// ---- end FY3
 		let n = mx_noise_float3( L * vec3f( 30.0, 90.0, 30.0 ) + seed * 7.0 );
 		if ( n > 0.62 ) { c = mix( c, c * 0.7 + vec3f( 0.03 ), 0.3 ); rough = 0.3; }
 		if ( fract( seed * 11.0 ) > 0.6 && L.y > ${ f( F.top[ 1 ] - 0.03 ) } && Nb.z > -0.2 && mx_noise_float3( L * 40.0 + seed * 9.0 ) > 0.25 ) { c = vec3f( 0.08, 0.035, 0.012 ); rough = 0.3; }
@@ -1108,16 +1233,41 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		if ( lo < 0.13 && lo > 0.02 && abs( Nb.x ) > 0.55 ) { c = vec3f( 0.8, 0.79, 0.76 ); }
 	}
 	if ( part == ${ P.cap } ) { c = capC * 1.05; rough = 0.65; clothy = true; }
+	// ---- FY3: the crown's six panels, their seams running up to the button (from the high cameras the
+	// crown was one smooth shell)
+	if ( part == ${ P.cap } && abs( in.vs.vField.x + 3.0 ) > 0.5 && L.y > ${ f( F.top[ 1 ] - 0.08 ) } ) {
+		let az = atan2( L.x, -( L.z + 0.04 ) ) / 1.0472;
+		let sd = abs( fract( az + 0.5 ) - 0.5 );
+		let fsd = max( fwidth( az ), 1e-4 );
+		c = c * ( 1.0 - 0.35 * clamp( ( 0.025 - sd ) / fsd + 0.5, 0.0, 1.0 ) * smoothstep( ${ f( F.top[ 1 ] - 0.08 ) }, ${ f( F.top[ 1 ] - 0.06 ) }, L.y ) );
+	}
+	// ---- end FY3
 	// (FY2, CY-18) under the bill, the undervisor's dark grey-green
 	if ( part == ${ P.cap } && billPart && Nb.y < -0.3 ) { c = vec3f( 0.03, 0.045, 0.035 ); rough = 0.85; }
 	if ( part == ${ P.belt } ) { c = beltC; rough = 0.4; }
 	if ( part == ${ P.shoes } ) {
-		c = vec3f( 0.016 ); rough = 0.3;
+		// ---- FY3: 2008's cleats (Getty 83485858, Lidge's red Nikes with the white swoosh; 83485159,
+		// Balfour's black Reeboks with the white stripe), not slippers with a painted band: the upper black,
+		// or the Phillies' red for some of them; a stripe sweeping up from the toe box to the heel on both
+		// sides, thickest mid-foot (red on a Phillie's black, white on a Ray's and on the red ones); the laces
+		// down the instep; a pale midsole line over the black sole plate. The crew in work boots, the
+		// Phanatic in big white sneakers (below)
 		let fy = L.y;
-		// the sole, and a stripe along the outside: red for the Phillies, white for the Rays; the crew
-		// in work boots, the Phanatic in big white sneakers
-		if ( fy < 0.014 ) { c = vec3f( 0.03 ); rough = 0.6; }
-		else if ( abs( Nb.x ) > 0.6 && abs( fy - 0.035 ) < 0.008 ) { c = select( vec3f( 0.8 ), vec3f( 0.5, 0.02, 0.03 ), home ); }
+		let fx = L.x - sign( L.x ) * ${ f( J.ankleR[ 0 ] ) };
+		let fz = L.z - ${ f( J.ankleR[ 2 ] ) };
+		let redShoe = home && fract( seed * 23.7 ) < 0.45;
+		let upper = select( vec3f( 0.016 ), vec3f( 0.34, 0.014, 0.02 ), redShoe );
+		let accent = select( select( vec3f( 0.8 ), vec3f( 0.5, 0.02, 0.03 ), home ), vec3f( 0.82, 0.81, 0.79 ), redShoe );
+		c = upper; rough = 0.32;
+		let yc = 0.024 + 0.03 * smoothstep( -0.15, 0.06, fz );
+		let st = 0.0035 + 0.0065 * smoothstep( -0.17, -0.02, fz ) * ( 1.0 - smoothstep( 0.03, 0.075, fz ) );
+		let fst = max( fwidth( fy ), 1e-4 );
+		c = mix( c, accent, smoothstep( 0.35, 0.6, abs( Nb.x ) ) * clamp( ( st - abs( fy - yc ) ) / fst + 0.5, 0.0, 1.0 ) * smoothstep( -0.19, -0.16, fz ) * select( 1.0, 0.0, ump ) );
+		let lace = ( 1.0 - smoothstep( 0.011, 0.015, abs( fx ) ) ) * smoothstep( 0.45, 0.65, Nb.y ) * smoothstep( -0.14, -0.12, fz ) * ( 1.0 - smoothstep( 0.0, 0.02, fz ) );
+		c = mix( c, mix( upper * 1.8 + vec3f( 0.025 ), upper * 0.3, step( 0.62, fract( fz * 75.0 ) ) ), lace );
+		c = mix( c, vec3f( 0.7, 0.69, 0.66 ), ( 1.0 - smoothstep( 0.0025, 0.0045, abs( fy - 0.016 ) ) ) * select( 0.6, 1.0, redShoe ) );
+		if ( fy < 0.012 ) { c = vec3f( 0.025 ); rough = 0.6; }
+		// ---- end FY3
 		if ( crew ) { c = vec3f( 0.08, 0.05, 0.03 ); rough = 0.7; }
 		if ( phan ) { c = select( vec3f( 0.82, 0.8, 0.76 ), vec3f( 0.42, 0.02, 0.03 ), abs( fy - 0.05 ) < 0.012 ); rough = 0.6; }
 		// mud: the clay caked on the soles and the toes, darker and wetter in the rain
@@ -1271,6 +1421,65 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 	// (---- FB4, C4B-4: the crew's hoodies soak through like cotton, darker with a dull sheen; they shone
 	// like slickers, a glossy red dome for a head: C4B's T27-u11.3-crew)
 	if ( crew && ( part == ${ P.jersey } || part == ${ P.hood } ) ) { rough = mix( rough, 0.5, soak ); c = c * mix( 1.0, 0.72, soak ); }
+	// ---- FY3 (C3B-11, CY-6's "real fold normals"): the cloth's folds in the light, not only in its colour.
+	// FOX's close-ups (Balfour from above, t11530s; Burrell, t12990s) and Getty's (83485159, 83485858)
+	// show the jersey creased from the armpits down and across the back, soft rings down the sleeves,
+	// long folds down the pants breaking over the shoe tops and behind the knee; the cloth was smooth rubber.
+	// A height field of folds (a few millimetres) tilts the shading normal through the screen's
+	// derivatives; faded out once a pixel covers more than a few millimetres of him (the far views)
+	if ( clothy && ! phan && ( part == ${ P.jersey } || part == ${ P.pants } || part == ${ P.sleeve } ) ) {
+		let pxs = length( fwidth( L ) );
+		let fk = 1.0 - smoothstep( 0.0025, 0.0075, pxs );
+		if ( fk > 0.0 ) {
+			var fh = 0.0;
+			if ( part == ${ P.pants } ) {
+				fh = mx_noise_float3( vec3f( L.x * 34.0, L.y * 4.5, L.z * 34.0 ) + seed * 2.0 ) * 0.0042
+					+ mx_noise_float3( vec3f( L.x * 80.0, L.y * 14.0, L.z * 80.0 ) ) * 0.0012;
+				fh += sin( L.y * 130.0 + 7.0 * mx_noise_float3( L * vec3f( 30.0, 12.0, 30.0 ) + seed ) ) * 0.0016 * smoothstep( 0.72, 0.86, leg );
+				// the knee's bend, from this frame's bones: creases behind the knee and over the front of the
+				// thigh as he crouches (the pitcher's set, a fielder's ready, the catcher), none standing
+				if ( leg > 0.2 && leg < 0.6 ) {
+					let sx = sign( L.x );
+					let kb = select( 9u, 12u, L.x > 0.0 );
+					let Mt = plBones[ slotU * ${ NB }u + kb ];
+					let Ms = plBones[ slotU * ${ NB }u + kb + 1u ];
+					let dt = normalize( ( Mt * vec4f( sx * 0.052, -0.383, -0.007, 0.0 ) ).xyz );
+					let ds = normalize( ( Ms * vec4f( sx * 0.051, -0.481, 0.019, 0.0 ) ).xyz );
+					let bend = clamp( 1.0 - dot( dt, ds ), 0.0, 1.0 );
+					// (a few irregular folds, mostly behind the knee: a regular ripple read as corrugated cloth)
+					let behind = mix( 0.35, 1.0, smoothstep( -0.2, 0.4, Nb.z ) );
+					fh += sin( leg * 150.0 + 9.0 * mx_noise_float3( L * vec3f( 25.0, 12.0, 25.0 ) + seed ) ) * 0.0022 * min( 0.1 + bend * 1.6, 1.0 ) * behind * ( 1.0 - smoothstep( 0.02, 0.09, abs( leg - 0.39 ) ) );
+				}
+			} else {
+				// (one field over the trunk and the sleeves: two fields made a seam of dashes where they met)
+				let dx = abs( L.x );
+				fh = mx_noise_float3( vec3f( ( dx * 0.8 + L.y * 0.6 ) * 22.0, ( L.y - dx * 0.5 ) * 7.0, L.z * 22.0 ) + seed * 2.0 ) * 0.0045
+					+ mx_noise_float3( L * vec3f( 60.0, 25.0, 60.0 ) ) * 0.0012
+					+ sin( L.y * 110.0 + 7.0 * mx_noise_float3( L * vec3f( 18.0, 9.0, 18.0 ) + seed ) ) * 0.0012 * ( 1.0 - smoothstep( 1.12, 1.25, L.y ) ) * select( 1.0, 0.0, arm > -0.5 );
+				// the trunk bent over the pelvis (the set, the crouch): the cloth creases across the belly
+				if ( arm < -0.5 && L.z < 0.0 && L.y < 1.35 ) {
+					let up = normalize( ( plBones[ slotU * ${ NB }u + 1u ] * vec4f( 0.0, 1.0, 0.0, 0.0 ) ).xyz );
+					let upP = normalize( ( plBones[ slotU * ${ NB }u ] * vec4f( 0.0, 1.0, 0.0, 0.0 ) ).xyz );
+					let bendT = clamp( 1.0 - dot( up, upP ), 0.0, 1.0 );
+					fh += sin( L.y * 120.0 + 8.0 * mx_noise_float3( L * vec3f( 20.0, 10.0, 20.0 ) + seed ) ) * 0.0022 * min( bendT * 6.0, 1.0 ) * smoothstep( -0.02, -0.08, L.z );
+				}
+			}
+			fh *= fk * select( 1.0, 0.6, jacket );
+			let dpx = dpdx( in.P );
+			let dpy = dpdy( in.P );
+			let N0 = s.normal;
+			let r1 = cross( dpy, N0 );
+			let r2 = cross( N0, dpx );
+			let det = dot( dpx, r1 );
+			let gr = sign( det ) * ( dpdx( fh ) * r1 + dpdy( fh ) * r2 );
+			// (the tilt held under about 20 degrees: on a sliver of a triangle, or at a grazing angle, the
+			// screen's derivatives are near degenerate and the tilt blew up into rows of bright dashes)
+			let tl = gr / max( abs( det ), 1e-12 );
+			let tn = length( tl );
+			s.normal = normalize( N0 - tl * min( 1.0, 0.36 / max( tn, 1e-6 ) ) );
+		}
+	}
+	// ---- end FY3
 	// ---- FY2 (CY-4): the rest of the ring of light banks at night. After dark the key light (and its
 	// shadows) is the banks on the roof behind home, so a player's back, which the center field camera
 	// sees on every pitch, had nothing on it but the far towers. Citizens Bank Park's banks ring the bowl:
@@ -1438,25 +1647,46 @@ function drawChest( ctx, i, home, jacket = false ) {
 
 	} else {
 
-		// RAYS in navy edged in Columbia blue, the gold burst off the R's shoulder
-		ctx.font = '900 80px "Helvetica Neue", Arial, sans-serif';
-		const w = Math.min( W, ctx.measureText( 'RAYS' ).width );
-		const x0 = - w / 2, base = 28;
+		// ---- FY3: RAYS as the 2008 road jersey had it (Getty 83485159, Balfour; FOX t11530s): navy serif
+		// capitals edged in white and Columbia blue, the gold sunburst at the R's shoulder, and the R's leg
+		// carried on as a tail sweeping under AYS to the S (it was a heavy sans with no tail)
+		ctx.font = '700 86px Georgia, "Times New Roman", serif';
+		const full = ctx.measureText( 'RAYS' ).width, w = Math.min( W * 0.94, full ), sq = w / full;
+		const x0 = - w / 2, base = 16, wR = ctx.measureText( 'R' ).width * sq;
+		const tail = () => {
+
+			ctx.beginPath();
+			ctx.moveTo( x0 + wR * 0.6, base - 6 );
+			ctx.bezierCurveTo( x0 + wR * 0.95, base + 24, x0 + w * 0.62, base + 26, x0 + w * 1.03, base + 4 );
+			ctx.bezierCurveTo( x0 + w * 0.64, base + 15, x0 + wR * 1.15, base + 13, x0 + wR * 0.86, base - 6 );
+			ctx.closePath();
+
+		};
+		for ( const [ col, lw ] of [ [ '#8fbce6', 14 ], [ '#f4f2ec', 6 ] ] ) {
+
+			ctx.strokeStyle = col;
+			ctx.lineWidth = lw;
+			ctx.strokeText( 'RAYS', x0, base, w );
+			tail();
+			ctx.stroke();
+
+		}
+
+		ctx.fillStyle = jacket ? '#f4f2ec' : '#0b2a5b';
+		ctx.fillText( 'RAYS', x0, base, w );
+		tail();
+		ctx.fill();
 		ctx.fillStyle = '#f5d130';
 		ctx.beginPath();
 		for ( let k = 0; k < 16; k ++ ) {
 
-			const a = k * Math.PI / 8, r = k % 2 ? 7 : 17;
-			ctx.lineTo( x0 + 6 + Math.cos( a ) * r, base - 58 + Math.sin( a ) * r );
+			const a = k * Math.PI / 8 + 0.2, r = k % 2 ? 4.5 : 13;
+			ctx.lineTo( x0 + wR * 0.42 + Math.cos( a ) * r, base - 50 + Math.sin( a ) * r );
 
 		}
 
 		ctx.fill();
-		ctx.lineWidth = 9;
-		ctx.strokeStyle = '#8fbce6';
-		ctx.strokeText( 'RAYS', x0, base, W );
-		ctx.fillStyle = jacket ? '#f4f2ec' : '#0b2a5b';
-		ctx.fillText( 'RAYS', x0, base, W );
+		// ---- end FY3
 
 	}
 
@@ -1595,6 +1825,43 @@ function drawPatch( ctx, i ) {
 	ctx.restore();
 
 }
+
+// ---- FY3: the Rays' 2008 sleeve logo: a manta ray from above, navy edged in Columbia blue, its wings
+// swept, its tail trailing (Getty 83485159, Balfour's left sleeve)
+function drawRay( ctx, i ) {
+
+	const [ x, y ] = cellXY( i );
+	ctx.save();
+	ctx.clearRect( x, y, CELL, CELL );
+	ctx.translate( x + CELL / 2, y + CELL / 2 );
+	ctx.rotate( - 0.25 );
+	const ray = () => {
+
+		ctx.beginPath();
+		ctx.moveTo( - 50, 4 );
+		ctx.quadraticCurveTo( - 18, - 6, - 8, - 24 );
+		ctx.quadraticCurveTo( 0, - 30, 8, - 24 );
+		ctx.quadraticCurveTo( 18, - 6, 50, 4 );
+		ctx.quadraticCurveTo( 20, 8, 6, 20 );
+		ctx.lineTo( 3, 52 );
+		ctx.lineTo( - 3, 52 );
+		ctx.lineTo( - 6, 20 );
+		ctx.quadraticCurveTo( - 20, 8, - 50, 4 );
+		ctx.closePath();
+
+	};
+	ctx.lineJoin = 'round';
+	ctx.strokeStyle = '#8fbce6';
+	ctx.lineWidth = 7;
+	ray();
+	ctx.stroke();
+	ctx.fillStyle = '#0b2a5b';
+	ray();
+	ctx.fill();
+	ctx.restore();
+
+}
+// ---- end FY3
 
 // the MLB batterman, embroidered on the back of every cap and on the back of the helmets: a white
 // batter in silhouette between the red and the blue

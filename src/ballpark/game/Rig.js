@@ -247,19 +247,98 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 	// back), the button, the bill
 	// (FY2, CY-18: the bill curved down at its sides as a worn bill is, marked -3 so its underside takes the
 	// undervisor's dark grey-green)
-	add( dome( 1, 24, 12, Math.PI * 0.56 ), B.head, P.cap, 0, skullY - 0.004, skullZ, 0.22, 0, 0, rx, 0.1, rz );
-	add( cyl( 0.009, 0.009, 0.01, 8 ), B.head, P.cap, 0, skullY + 0.093, skullZ - 0.02 );
+	// ---- FY3 (CY-18): a 2008 New Era, not a dome. The six panels rise nearly upright from the band to a
+	// flatter top, the two in front taller (their buckram), about 11 cm at the front (Getty 83483794,
+	// Feliz; 83485159, Balfour); the bill longer, curved down more at its sides and level or a little down
+	// in the head's frame (it was tipped up 13 degrees, so from in front it read as a black band, its
+	// underside). The dome's profile squared (the horizontal radius r^0.72), its front raised
+	const crown = ( geo ) => {
+
+		const pa = geo.getAttribute( 'position' );
+		for ( let i = 0; i < pa.count; i ++ ) {
+
+			const x = pa.getX( i ), y = pa.getY( i ), z = pa.getZ( i ), r = Math.hypot( x, z );
+			const k = r > 1e-6 ? Math.pow( Math.min( 1, r ), 0.72 ) / r : 1;
+			pa.setXYZ( i, x * k, y * ( 1 + 0.16 * Math.max( 0, - z ) * Math.max( 0, y ) ), z * k );
+
+		}
+
+		geo.computeVertexNormals();
+		// (the sphere's seam has its vertices twice: their normals averaged, so the seam doesn't show)
+		const na = geo.getAttribute( 'normal' ), seen = new Map();
+		for ( let i = 0; i < pa.count; i ++ ) {
+
+			const key = `${ pa.getX( i ).toFixed( 4 ) },${ pa.getY( i ).toFixed( 4 ) },${ pa.getZ( i ).toFixed( 4 ) }`;
+			( seen.get( key ) || seen.set( key, [] ).get( key ) ).push( i );
+
+		}
+
+		for ( const list of seen.values() ) if ( list.length > 1 ) {
+
+			let x = 0, y = 0, z = 0;
+			for ( const i of list ) { x += na.getX( i ); y += na.getY( i ); z += na.getZ( i ); }
+			const l = Math.hypot( x, y, z ) || 1;
+			for ( const i of list ) na.setXYZ( i, x / l, y / l, z / l );
+
+		}
+
+		return geo;
+
+	};
+	// (worn up off the brows: the band a finger above them in front, so the brows and the eyes show under
+	// the bill's shadow, as Feliz's do; it sat on the lids)
+	add( crown( dome( 1, 24, 12, Math.PI * 0.56 ) ), B.head, P.cap, 0, skullY - 0.001, skullZ, 0.3, 0, 0, rx, 0.104, rz );
+	add( cyl( 0.009, 0.009, 0.01, 8 ), B.head, P.cap, 0, skullY + 0.1, skullZ - 0.016 );
 	mark = - 3;
-	add( bill( 0.086, 2.4 ), B.head, P.cap, 0, skullY + 0.004, skullZ - rz + 0.012, 0.22, 0, 0, 0.95, 1, 0.9 );
+	add( bill( 0.09, 3.3 ), B.head, P.cap, 0, skullY + 0.0145, skullZ - rz + 0.012, - 0.05, 0, 0, 0.95, 1, 0.9 );
 	mark = - 1;
+	// ---- end FY3
 	// the batting helmet: a shell down over the ears, a short bill; the ear flaps (the one toward the
 	// pitcher: a right-handed hitter's on his left ear, a lefty's on his right, switch hitters both)
-	add( dome( 1, 24, 14, Math.PI * 0.62 ), B.head, P.helmet, 0, skullY - 0.004, skullZ + 0.004, 0.12, 0, 0, rx + 0.017, 0.128, rz + 0.016 );
-	add( sph( 0.05, 12, 8 ), B.head, P.flapL, - rx - 0.004, skullY - 0.075, skullZ + 0.02, 0, 0, 0, 0.36, 1.15, 1.05 );
-	add( sph( 0.05, 12, 8 ), B.head, P.flapR, rx + 0.004, skullY - 0.075, skullZ + 0.02, 0, 0, 0, 0.36, 1.15, 1.05 );
+	// ---- FY3: the shell a little lower (it stood like a bowl); the ear flaps the shell itself carried on
+	// down over the ear, flush with it, their lower edge rounded, the ear's hole shaded in Players.js (they
+	// were two balls hanging off the head: FOX's walk-ups, Rollins's double flap); the bill longer and level
+	const shell = [ 0, skullY - 0.004, skullZ + 0.004, 0.12, 0, 0, rx + 0.017, 0.12, rz + 0.016 ];
+	// a patch of the shell's ellipsoid: phi from p0 over pl round the side, theta from the shell's rim down
+	// to its bottom edge, rounded at the front and back
+	const flap = ( p0, pl ) => {
+
+		// (down to the ear's lobe, not the jaw, and flaring off the cheek toward the bottom as a flap does:
+		// carried on round the ellipsoid it came in to the jaw in two points)
+		const NU = S( 10 ), NV = S( 5, 3 ), t0 = Math.PI * 0.6, tl = Math.PI * 0.135;
+		const P = [], N = [], I = [];
+		for ( let iv = 0; iv <= NV; iv ++ ) for ( let iu = 0; iu <= NU; iu ++ ) {
+
+			const u = iu / NU, phi = p0 + u * pl, v = iv / NV;
+			const th = t0 + v * tl * Math.sqrt( Math.max( 0.3, 1 - 0.6 * ( 2 * u - 1 ) ** 2 ) );
+			const flare = 1 + 0.1 * v * v;
+			const x = - Math.cos( phi ) * Math.sin( th ) * flare, y = Math.cos( th ), z = Math.sin( phi ) * Math.sin( th );
+			P.push( x, y, z );
+			N.push( x, y, z );
+
+		}
+
+		for ( let iv = 0; iv < NV; iv ++ ) for ( let iu = 0; iu < NU; iu ++ ) {
+
+			const a = iv * ( NU + 1 ) + iu + 1, b = iv * ( NU + 1 ) + iu, c = ( iv + 1 ) * ( NU + 1 ) + iu, d = ( iv + 1 ) * ( NU + 1 ) + iu + 1;
+			I.push( a, b, d, b, c, d );
+
+		}
+
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( P, 3 ) );
+		g.setAttribute( 'normal', new Float32BufferAttribute( N, 3 ) );
+		g.setIndex( I );
+		return g;
+
+	};
+	add( dome( 1, 24, 14, Math.PI * 0.62 ), B.head, P.helmet, ...shell );
+	add( flap( - 0.62, 1.42 ), B.head, P.flapL, ...shell );
+	add( flap( Math.PI - 0.8, 1.42 ), B.head, P.flapR, ...shell );
 	mark = - 3;
-	add( bill( 0.07, 1.6, 0.004 ), B.head, P.helmet, 0, skullY - 0.01, skullZ - rz - 0.004, 0.12, 0, 0, 1.15, 1, 0.62 );
+	add( bill( 0.07, 1.6, 0.004 ), B.head, P.helmet, 0, skullY - 0.012, skullZ - rz - 0.004, 0.02, 0, 0, 1.15, 1, 0.78 );
 	mark = - 1;
+	// ---- end FY3
 	// the catcher's skull cap: the shell without flaps, worn backwards (the short bill over his neck)
 	add( dome( 1, 20, 10, Math.PI * 0.55 ), B.head, P.ccap, 0, skullY - 0.004, skullZ + 0.004, - 0.1, 0, 0, rx + 0.014, 0.122, rz + 0.013 );
 	add( lathe( [ [ 0.0, - 0.004 ], [ 0.065, - 0.004 ], [ 0.065, 0.004 ], [ 0.0, 0.004 ] ], 16 ), B.head, P.ccap, 0, skullY - 0.004, skullZ + rz + 0.004, - 0.2, 0, 0, 1.1, 1, 0.5 );
@@ -432,8 +511,9 @@ function cleat( ankleY, R = 16 ) {
 	const y0 = - ankleY; // the ground
 	// [ z, half width, top ]
 	const S = [
-		[ 0.078, 0.02, y0 + 0.05 ], [ 0.07, 0.036, y0 + 0.085 ], [ 0.045, 0.044, 0.028 ], [ 0.0, 0.047, 0.03 ], [ - 0.04, 0.049, 0.004 ],
-		[ - 0.09, 0.05, y0 + 0.058 ], [ - 0.14, 0.047, y0 + 0.046 ], [ - 0.18, 0.041, y0 + 0.04 ], [ - 0.205, 0.03, y0 + 0.034 ], [ - 0.218, 0.012, y0 + 0.026 ],
+		[ 0.078, 0.02, y0 + 0.05 ], [ 0.07, 0.036, y0 + 0.085 ], [ 0.045, 0.044, 0.028 ], [ 0.0, 0.047, 0.03 ], [ - 0.04, 0.05, 0.011 ],
+		// (FY3: the instep higher and the toe rounder, a cleat's, not a slipper's pointed toe)
+		[ - 0.09, 0.051, y0 + 0.065 ], [ - 0.14, 0.049, y0 + 0.053 ], [ - 0.18, 0.045, y0 + 0.045 ], [ - 0.204, 0.037, y0 + 0.039 ], [ - 0.219, 0.022, y0 + 0.032 ], [ - 0.226, 0.007, y0 + 0.024 ],
 	];
 	const pos = [], index = [];
 	for ( const [ z, w, top ] of S ) {
