@@ -24,3 +24,4 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 
 - **C2W, the walk** (launched 09:23): fresh eyes on everything seen on foot, after round 1's merges.
 - **C2B, the broadcast** (launched 09:40): fresh eyes on the replay through FOX's cameras, after round 1's merges.
+- **SP1's first speed win, merged early** (611070b): hardware occlusion queries for the big objects in the opaque pass (crowd pieces, seat chunks, players, cars: skipped while their box shows no pixel, re-tested every frame, drawn on any doubt; `?noOcclusion` turns it off), box frustum tests for instanced pieces and the players' shadows, the stands' chunks by section, the underwater lighting term only under water. SP1 measured 3-8 ms back in every view but left field, with occlusion on and off matching.
