@@ -1,5 +1,5 @@
 import { UI } from '../ui/UI.js';
-import { CAMERA_NAMES } from './BallparkApp.js';
+import { CAMERA_NAMES, EDT_TO_SOLAR } from './BallparkApp.js';
 
 // Binds Tidewater's UI (settings panel + HUD) to the ballpark app: the sky, camera, effects and
 // performance tabs (the ocean, shore and fishing ones are gone with the sea).
@@ -53,7 +53,9 @@ export class BallparkUI {
 		// ---------------------------------------------------------------- Sky
 		const sky = ui.addTab( 'sky', 'Sky', 'sky' );
 		const sun = sky.addFolder( 'Sun', { icon: 'clock' } );
-		sun.addTimeOfDay( { object: app.settings, key: 'timeOfDay' } );
+		// FZ1 (C5F-5): the clock as the park's (EDT), not the sun's solar time the light runs on: 9:58 pm at
+		// the last out read 21:14 here while the Game clock's tooltip said 9:58
+		sun.addTimeOfDay( { object: app.settings, key: 'timeOfDay', offset: - EDT_TO_SOLAR, tooltip: 'Eastern Daylight Time, as the park\'s clocks read (the sun runs on local solar time, 44 minutes behind)' } );
 		// the light on the replay's clock (BallparkApp._gameHour): moving the time yourself lets go of it
 		sun.addToggle( { label: 'Game clock', object: s, key: 'gameClock', tooltip: 'The time of day follows the replay: 8:38 pm at the first pitch on the 27th, 9:58 pm at the last out on the 29th. Set the time yourself and it lets go.', onChange: ( v ) => {
 

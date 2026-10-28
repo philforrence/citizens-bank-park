@@ -1364,6 +1364,9 @@ class TimeOfDayControl extends Control {
 		super( parent, Object.assign( {}, o, { label: o.label ?? 'Time of day' } ), 'time' );
 		this._default = Number( this.value ) || 0;
 		this.onFinishChange = o.onFinishChange || null;
+		// offset: hours from the value (the sun's, local solar time) to the clock shown and typed (the
+		// ballpark's: Eastern Daylight Time, as the game's own times are given)
+		this.offset = o.offset || 0;
 		const id = uid( 'tw-tod' );
 
 		const head = h( 'div', 'tw-row' );
@@ -1511,7 +1514,7 @@ class TimeOfDayControl extends Control {
 
 		if ( ! this.enabled || this._editing ) return;
 		this._editing = true;
-		const inp = h( 'input', 'tw-value-input', { type: 'text', spellcheck: 'false', autocomplete: 'off', 'aria-label': this.label, value: fmtClock( Number( this.value ) || 0 ) } );
+		const inp = h( 'input', 'tw-value-input', { type: 'text', spellcheck: 'false', autocomplete: 'off', 'aria-label': this.label, value: fmtClock( ( Number( this.value ) || 0 ) + this.offset ) } );
 		this.valueEl.replaceWith( inp );
 		inp.focus();
 		inp.select();
@@ -1524,7 +1527,7 @@ class TimeOfDayControl extends Control {
 				const s = inp.value.trim();
 				const m = /^(\d{1,2})\s*[:h]\s*(\d{1,2})$/i.exec( s );
 				const hh = m ? Number( m[ 1 ] ) + Number( m[ 2 ] ) / 60 : parseFloat( s.replace( ',', '.' ) );
-				if ( isFinite( hh ) ) this._set( ( ( hh % 24 ) + 24 ) % 24 );
+				if ( isFinite( hh ) ) this._set( ( ( ( hh - this.offset ) % 24 ) + 24 ) % 24 );
 
 			}
 
@@ -1605,7 +1608,7 @@ class TimeOfDayControl extends Control {
 		this.glint.setAttribute( 'ry', f( gry ) );
 		this.glint.setAttribute( 'opacity', e > 0 ? ( 0.85 * Math.pow( 1 - e, 1.5 ) ).toFixed( 3 ) : '0' );
 
-		const clock = fmtClock( hrs );
+		const clock = fmtClock( hrs + this.offset );
 		const phase = phaseAt( hrs );
 		this.valueEl.textContent = clock;
 		this.phase.textContent = phase;
@@ -2149,7 +2152,7 @@ export class UI {
 					<section>
 						<h3>Interact</h3>
 						${ row( k( 'F' ), 'Free camera' ) }
-						${ row( k( 'T' ), 'Pause time' ) }
+						${ row( k( 'T' ), 'Run or stop the time of day<small>Off the game\'s clock; the Sky panel\'s Game clock puts it back</small>' ) }
 						${ row( k( 'L' ), 'Flashlight' ) }
 					</section>
 					<section>
