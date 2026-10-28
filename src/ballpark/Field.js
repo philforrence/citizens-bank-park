@@ -1720,7 +1720,10 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 	if ( wet > 0.001 && ! outside ) {
 		let k = select( 0.2, 0.42, dirt || track );
 		col *= 1.0 - k * wet;
-		rough = mix( rough, rough * select( 0.45, 0.28, dirt || track ), wet );
+		// (---- FB3, C3B-12: no glossier than 0.4: the one key light stands for six banks, and at 0.25 the
+		// soaked clay round the plate threw its glint back to high first as a blown-out white sheet beside the
+		// puddle; Getty 84081866 has it dark and speckled)
+		rough = mix( rough, max( 0.4, rough * select( 0.45, 0.28, dirt || track ) ), wet );
 		// ---- FB2 (C2B-13): from the 4th on the 27th the skin is soup, and the crew works calcined clay
 		// (a drying agent) into it between innings and during play: pale grey-tan granules raked out in
 		// streaks round the plate, the bases, the cut of the base paths and the front of the mound (Getty
