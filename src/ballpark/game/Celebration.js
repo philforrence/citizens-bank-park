@@ -5,6 +5,7 @@ import { ROLE } from './Players.js';
 import { POSITIONS, BASES, MOUND, DUGOUT, BULLPEN, boxFor, polar, dist, lerp2, yawTo } from './Plays.js';
 import { moundY } from './TarpPlan.js';
 import { neutralPose, DIM } from './Rig.js';
+import { OUTFIELD, FT } from '../layout.js';
 
 // The last out and the celebration, on the players' rig: the Director's celebrate segment (9:58 pm on
 // October 29 onward) as a script per man, a pure function of the time since the strikeout.
@@ -67,7 +68,30 @@ export const MVP = {
 // ---- end FR1
 // the lap (ronniebruce 2987488477, 2988346732: the players in their grey tees behind the big red flag, a
 // motor officer out front, round the warning track from the right field corner toward left)
-export const LAP = [ [ 30, - 26 ], [ 50, - 46 ], [ 64, - 64 ], [ 58, - 84 ], [ 44, - 104 ], [ 24, - 116 ], [ 0, - 120 ], [ - 24, - 115 ], [ - 44, - 102 ] ];
+// ---- FB3 (C3B-2): on the track, 2.7 m in from the wall at each angle (OUTFIELD's fence, the angle from
+// the center field line): the straight legs between hand-placed points cut behind the right-center wall,
+// so for the lap's last twenty seconds the men and the flag were out of sight behind it, and every camera
+// on them showed the padding (C3B's C-cel-283, B-lap-281.5)
+const fenceR = ( th ) => {
+
+	for ( let i = 0; i < OUTFIELD.length - 1; i ++ ) {
+
+		const [ a0, d0 ] = OUTFIELD[ i ], [ a1, d1 ] = OUTFIELD[ i + 1 ];
+		if ( a1 !== a0 && th >= a0 && th <= a1 ) return ( d0 + ( d1 - d0 ) * ( th - a0 ) / ( a1 - a0 ) ) * FT;
+
+	}
+
+	return 100;
+
+};
+const onTrack = ( th ) => {
+
+	const r = fenceR( th ) - 2.7, a = th * Math.PI / 180;
+	return [ r * Math.sin( a ), - r * Math.cos( a ) ];
+
+};
+export const LAP = [ [ 30, - 26 ], [ 50, - 46 ], onTrack( 38 ), onTrack( 31 ), onTrack( 24.5 ), onTrack( 18.42 ), onTrack( 14.5 ), onTrack( 11 ), onTrack( 5 ), onTrack( 0 ), onTrack( - 4.96 ), onTrack( - 10.27 ), onTrack( - 14.37 ), onTrack( - 17.92 ), onTrack( - 23 ) ];
+// ---- end FB3
 // who: Brett Myers with the flag (Getty 83570906), Howard with the trophy (Getty 83485971), and friends
 const LAP_MEN = [ 408206, 429667, 425664, 276519, 150029, 434563, 430935, 150268, 400120, 425785, 122644 ];
 const hash = ( n ) => {
