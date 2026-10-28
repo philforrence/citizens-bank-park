@@ -1449,7 +1449,14 @@ export class Crowd {
 		// In pieces of a few hundred seats (a dozen rows of a section): each is culled and picks its level of
 		// detail on its own, so a view draws the pieces it sees and only those close by in full (whole
 		// stands' chunks went in one draw, all of a chunk's 1,500 fans at the level of its nearest)
-		for ( let i0 = 0; i0 < mats.length; i0 += PIECE ) this._piece( group, mats.slice( i0, i0 + PIECE ), ids.subarray( i0 * 3, Math.min( mats.length, i0 + PIECE ) * 3 ), name );
+		// (---- SP1: the pieces even, a chunk of 400 is two of 200, not 360 and 40)
+		const n = Math.ceil( mats.length / PIECE );
+		for ( let j = 0; j < n; j ++ ) {
+
+			const i0 = Math.round( j * mats.length / n ), i1 = Math.round( ( j + 1 ) * mats.length / n );
+			this._piece( group, mats.slice( i0, i1 ), ids.subarray( i0 * 3, i1 * 3 ), name );
+
+		}
 
 	}
 

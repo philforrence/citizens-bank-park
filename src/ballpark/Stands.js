@@ -142,6 +142,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	const seatMats = [];
 	const seatCols = [];
 	const seatInfo = []; // for the crowd: the row (from the front) and, at a row's ends, the aisle's side
+	const seatSec = []; // ---- SP1: each seat's section (the chunks below follow them)
 	const _m = new Matrix4(), _q = new Quaternion(), _p = new Vector3(), _s = new Vector3( 1, 1, 1 ), _up = new Vector3( 0, 1, 0 );
 
 	const portals = [];
@@ -217,6 +218,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 				// the aisle at the row's first / last seat, as a side of the seat's own x axis ( cos yaw, -sin yaw )
 				const xu = Math.cos( yawSeat ) * ux - Math.sin( yawSeat ) * uz;
 				seatInfo.push( { row: r - first, rows: tier.rows - first, aisle: ( i === 0 ? - 1 : i === n - 1 ? 1 : 0 ) * Math.sign( xu ) } );
+				seatSec.push( S );
 
 			}
 
@@ -413,12 +415,29 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 
 	// seats: instanced meshes in chunks so the frustum culling can drop the ones behind you; a fan in
 	// nearly every seat (Crowd.js), its seat folded down, the empty ones folded up
-	const CHUNK = 1500;
+	// ---- SP1 (speed): the chunks are compact pieces of the stands, not runs of 1,500 seats in the order
+	// they were laid (which straddled two or three sections, 50 to 160 m across): whole sections,
+	// neighbours merged up to SEAT_CHUNK. The frustum and the occlusion culling (engine
+	// render/Occlusion.js) can only drop a chunk that is wholly out of view, and the crowd's pieces
+	// (bands of rows within a chunk, Crowd.addChunk) stay within a section or two
+	const SEAT_CHUNK = 900;
 	const crowd = materials.crowd;
 	const c = new Color();
-	for ( let i0 = 0; i0 < seatMats.length; i0 += CHUNK ) {
+	const groups = [];
+	for ( let i = 0; i < seatMats.length; ) {
 
-		const idx = [ ...Array( Math.min( CHUNK, seatMats.length - i0 ) ).keys() ].map( ( i ) => i0 + i );
+		let j = i;
+		while ( j < seatMats.length && seatSec[ j ] === seatSec[ i ] ) j ++;
+		const g = groups[ groups.length - 1 ];
+		if ( g && g[ 1 ] === i && j - g[ 0 ] <= SEAT_CHUNK ) g[ 1 ] = j;
+		else groups.push( [ i, j ] );
+		i = j;
+
+	}
+
+	for ( const [ i0, i1 ] of groups ) {
+
+		const idx = [ ...Array( i1 - i0 ).keys() ].map( ( i ) => i0 + i );
 		const taken = crowd ? idx.filter( ( i ) => crowd.occupied( seatMats[ i ] ) ) : [];
 		const empty = crowd ? idx.filter( ( i ) => ! crowd.occupied( seatMats[ i ] ) ) : idx;
 		for ( const [ list, geo ] of [ [ empty, materials.seatGeometry ], [ taken, materials.seatDownGeometry ] ] ) {
@@ -439,7 +458,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 
 		}
 
+		// the fans: the crowd cuts them into pieces of rows itself (Crowd.addChunk)
 		if ( crowd ) crowd.addChunk( group, taken.map( ( k ) => seatMats[ k ] ), tier.name, taken.map( ( k ) => seatInfo[ k ] ) );
+		// ---- end SP1
 
 	}
 
