@@ -312,6 +312,103 @@ export function throwBall( t ) {
 
 }
 
+// A pump fake (Utley to first before he threw Bartlett out at the plate): the throw's cock and the
+// start of its stride, held back short of the release, then gathered again. t: 0 .. ~0.7 s
+export function pumpFake( t ) {
+
+	const at = ( u ) => throwBall( u );
+	return keyframes( [ [ 0, at( 0.04 ) ], [ 0.22, at( 0.22 ) ], [ 0.34, at( 0.26 ) ], [ 0.62, at( 0.06 ) ] ], t );
+
+}
+
+// The receiving end of a throw, by where it is caught: a chest-high catch (`h` the ball's height, in
+// his frame's metres), the glove out in front with the bare hand beside it to cover; above 1.9 m the
+// arms go up. The base under his feet, weight on the front foot.
+export function receive( t = 0, h = 1.3 ) {
+
+	const b = Math.sin( t * 2 ) * 0.008;
+	const y = clamp( h, 0.35, 2.05 ), low = clamp( ( 1.0 - y ) / 0.6, 0, 1 );
+	return P( {
+		pelvisY: 0.9 - 0.3 * low + b, pelvis: [ - 0.12 - 0.35 * low, 0, 0 ], torso: [ - 0.12 - 0.3 * low, 0, 0 ], head: [ 0.15, 0 ],
+		footL: [ - 0.24, 0.08, - 0.12 ], footR: [ 0.22, 0.08, 0.1 ], footYawL: 0.15, footYawR: - 0.3,
+		handL: [ - 0.06, y, - 0.48 + 0.12 * low ], handR: [ 0.1, y - 0.05, - 0.4 + 0.12 * low ],
+	} );
+
+}
+
+// The first baseman's stretch: the right foot on the bag (his root), the left leg lunging out toward the
+// throw, the glove reaching for it at `h` (metres, his frame); a left-hander mirrors it
+export function stretch( t = 0, h = 1.1 ) {
+
+	const y = clamp( h, 0.3, 1.9 );
+	return P( {
+		pelvisX: - 0.32, pelvisY: 0.74 - 0.12 * clamp( ( 1 - y ) / 0.6, 0, 1 ), pelvisZ: - 0.18, pelvis: [ - 0.3, 0.25, 0 ], torso: [ - 0.4, 0.15, 0 ], head: [ 0.5, 0 ],
+		footL: [ - 0.72, 0.08, - 0.62 ], footR: [ 0.12, 0.08, 0.12 ], footYawL: 0.1, footYawR: - 0.7,
+		handL: [ - 0.5, y, - 1.05 ], handR: [ - 0.28, y + 0.05, - 0.82 ],
+	} );
+
+}
+
+// ---------------------------------------------------------------- sliding and tagging
+
+// A head-first slide (Bartlett into the plate): the root is tilted face down by the caller (`slideTilt`)
+// so that, pivoting on the trailing feet, he lies flat out along the ground; both arms reach ahead for
+// the bag, the chin up, the legs trailing. k: 0 the last stride .. 1 down and sliding
+export function slideHead( k = 1 ) {
+
+	const flat = P( {
+		pelvisY: DIM.hip, pelvis: [ 0.12, 0, 0 ], torso: [ 0.12, 0.08, 0 ], head: [ 0.95, 0.1 ],
+		footL: [ - 0.16, 0.1, 0.14 ], footR: [ 0.1, 0.22, 0.24 ], footYawL: 0.2, footYawR: - 0.1,
+		kneeR: [ 0, - 0.3, 0.5 ],
+		handL: [ - 0.24, 2.12, - 0.22 ], handR: [ 0.2, 2.08, - 0.18 ], glove: false,
+	} );
+	const p = blend( run( 0.3, 1 ), flat, ease( clamp( k, 0, 1 ) ) );
+	p.glove = false;
+	return p;
+
+}
+// the root's tilt for it (radians about his x axis, face down): with the feet as the pivot
+export const slideTilt = ( k ) => - 1.42 * ease( clamp( k, 0, 1 ) );
+
+// A feet-first (pop-up) slide: down on the right hip and thigh, the left leg out straight for the bag,
+// the trunk back, the hands up off the dirt; k as above. No tilt: his seat is on the ground.
+export function slideFeet( k = 1 ) {
+
+	const down = P( {
+		pelvisY: 0.2, pelvisZ: 0.3, pelvis: [ 0.55, 0, - 0.2 ], torso: [ 0.35, 0, 0.1 ], head: [ - 0.5, 0 ],
+		footL: [ - 0.08, 0.1, - 0.62 ], footR: [ 0.2, 0.06, - 0.05 ], footYawL: 0, footYawR: - 0.6,
+		kneeR: [ 0.3, 0.5, - 0.5 ],
+		handL: [ - 0.42, 0.95, 0.15 ], handR: [ 0.42, 1.0, 0.12 ], glove: false,
+	} );
+	const p = blend( run( 0.3, 1 ), down, ease( clamp( k, 0, 1 ) ) );
+	p.glove = false;
+	return p;
+
+}
+
+// Getting up after a slide: from the slide (a pose) back onto his feet over ~0.8 s
+export function upFrom( slide, t ) {
+
+	return blend( slide, stand( t ), ease( clamp( t / 0.8, 0, 1 ) ) );
+
+}
+
+// The catcher's dive for the tag (Ruiz on Bartlett): from the catch out in front of the plate, a lunge
+// and dive to the runner, the mitt down on him; k 0..1. The caller tilts the root forward (`diveTilt`)
+// and turns him toward the runner.
+export function diveTag( k = 1 ) {
+
+	const set = receive( 0, 1.1 );
+	const dive = P( {
+		pelvisY: 0.75, pelvis: [ - 0.25, 0, 0 ], torso: [ - 0.25, 0, 0 ], head: [ 0.6, 0 ],
+		footL: [ - 0.2, 0.1, 0.05 ], footR: [ 0.22, 0.25, 0.35 ], footYawL: 0.1, footYawR: - 0.2,
+		handL: [ - 0.12, 1.15, - 1.1 ], handR: [ 0.14, 1.2, - 0.95 ],
+	} );
+	return blend( set, dive, ease( clamp( k, 0, 1 ) ) );
+
+}
+export const diveTilt = ( k ) => - 1.0 * ease( clamp( k, 0, 1 ) );
+
 // ---------------------------------------------------------------- the pitcher's routine
 
 // Leaning in for the sign from the rubber: his feet already as in the set, bent at the waist, the ball

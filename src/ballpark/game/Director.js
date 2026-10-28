@@ -47,6 +47,19 @@ const ease01 = ( x ) => {
 
 };
 
+// The base a runner is put out at. The play data counts home plate as base 0, which read as a number is
+// "no base" (so Bartlett, out at the plate on Utley's throw, used to stop at third and be called out
+// there): as the runner's fourth base it's 4. null (no base: a strikeout, a fly out) stays null.
+export const outBaseOf = ( r ) => r.outBase === 0 ? 4 : r.outBase;
+// where a runner's move ends: his out base, else the base he reached (or the next one on, for an out
+// with no base)
+const runTo = ( r, from ) => r.out ? ( outBaseOf( r ) ?? from + 1 ) : ( r.to ?? from );
+
+// Slides: [ the root's distance short of the bag when he goes down, where the root stops ] (m). Head
+// first the root is his trailing feet, so it stops a body's length short with his hands on the bag;
+// feet first it's under his seat, with the lead foot on the bag.
+const SLIDE = { head: [ 4.3, 1.95 ], feet: [ 3.2, 0.72 ] };
+
 export class Director {
 
 	constructor( { game, players, ball } ) {
@@ -379,12 +392,8 @@ export class Director {
 		let to = h.x != null ? sprayToField( h.x, h.y ) : [ 0, - 60 ];
 		const hr = /home_run/.test( p.result.type );
 		const traj = h.traj || 'fly_ball';
-		const bb = battedBall( traj, h.hard, contact, to, p.i );
-		const plan = { ball: [], fielders: {}, runners: [], cues: [], hr, bb, contact };
 		const posOf = ( id ) => Object.keys( defense ).find( ( k ) => defense[ k ] === id );
 		const idAt = ( pos ) => defense[ pos ];
-		plan.ball.push( { t0: 0, dur: bb.time, at: bb.at } );
-		let tBall = bb.time;
 		const moves = p.runners.filter( ( r ) => r.k === e.k );
 		// the fielder who gets to it: the first one credited, else the one at the hit's location
 		const credits = moves.flatMap( ( r ) => r.credits );
@@ -392,6 +401,13 @@ export class Director {
 		let first = credits.find( ( c ) => /fielded|assist|putout|error/.test( c[ 1 ] ) );
 		let fielderPos = first ? first[ 0 ] : locPos;
 		if ( ! idAt( fielderPos ) ) fielderPos = locPos || 'CF';
+		// an infield single on the ground was slow getting there (a chopper, a roller), or he'd have
+		// been thrown out: Iwamura's chopper up the middle that Utley got to behind second
+		const infieldHit = traj === 'ground_ball' && p.result.type === 'single' && [ 'P', 'C', '1B', '2B', 'SS', '3B' ].includes( fielderPos );
+		const bb = battedBall( traj, infieldHit ? 'soft' : h.hard, contact, to, p.i );
+		const plan = { ball: [], fielders: {}, runners: [], cues: [], hr, bb, contact };
+		plan.ball.push( { t0: 0, dur: bb.time, at: bb.at } );
+		let tBall = bb.time;
 		const fielder = idAt( fielderPos );
 		const home = POSITIONS[ fielderPos ];
 		const run = ( id, from, pts ) => ( plan.fielders[ id ] ||= [] ).push( ...pts.map( ( q ) => ( { ...q, from } ) ) );
@@ -424,14 +440,23 @@ export class Director {
 
 			// the throws: to each out's putout man at the out base, in order
 			let holder = { id: fielder, at: to, pos: fielderPos };
-			const outs = moves.filter( ( r ) => r.out && r.outBase ).sort( ( a, b ) => ( a.outNumber ?? 9 ) - ( b.outNumber ?? 9 ) );
+			const outs = moves.filter( ( r ) => r.out && outBaseOf( r ) != null ).sort( ( a, b ) => ( a.outNumber ?? 9 ) - ( b.outNumber ?? 9 ) );
+			// a runner is forced when every base behind him is taken (the batter takes first)
+			const forced = ( from ) => {
+
+				for ( let b = 1; b < from; b ++ ) if ( ! st.bases[ b - 1 ] ) return false;
+				return true;
+
+			};
+			const batterSafe = moves.some( ( r ) => r.id === p.batter && ! r.out );
 			for ( const r of outs ) {
 
 				const put = r.credits.find( ( c ) => c[ 1 ] === 'f_putout' );
 				if ( ! put ) continue;
 				const target = idAt( put[ 0 ] ) || put[ 2 ];
 				if ( target === holder.id && airOut ) continue;
-				const baseAt = BASES[ r.outBase % 4 ];
+				const ob = outBaseOf( r );
+				const baseAt = BASES[ ob % 4 ];
 				if ( target === holder.id ) {
 
 					// he takes it himself: run to the base
@@ -443,17 +468,33 @@ export class Director {
 
 				}
 
-				// the receiver covers the base
+				// A tag play at the plate (Utley to Ruiz on Bartlett, the top of the 7th on the 29th): the
+				// catcher takes the throw a stride out in front of the plate toward third, then dives back
+				// across for the runner's slide. The ball beats him by a step.
+				const tag = ob === 4 && ( r.start || 0 ) > 0 && ! forced( r.start || 0 );
+				const catchAt = tag ? [ - 0.6, - 1.6 ] : ob % 4 === 1 ? [ baseAt[ 0 ] - 0.3, baseAt[ 1 ] - 0.3 ] : baseAt;
+				// an infielder who can't get the batter at first looks at him there and pumps before he
+				// turns and throws home (Utley's fake to first)
+				if ( tag && batterSafe && [ '1B', '2B', 'SS', '3B' ].includes( holder.pos ) ) {
+
+					run( holder.id, holder.at, [ { t0: tBall - 0.05, t1: tBall + 1.0, to: holder.at, act: 'fake', aim: BASES[ 1 ] } ] );
+					tBall += 1.0;
+
+				}
+
+				// the receiver covers the base; the throw is caught chest high (at first, the stretch)
 				const rPos = posOf( target ) || put[ 0 ];
 				const rHome = POSITIONS[ rPos ] || baseAt;
-				run( target, rHome, [ { t0: 0.4, t1: Math.min( tBall + 0.3, 0.4 + dist( rHome, baseAt ) / RUN ), to: baseAt, act: 'run' }, { t0: tBall + 0.3, t1: tBall + 0.3 + 1.5, to: baseAt, act: 'receive' } ] );
-				const th = throwPath( holder.at, baseAt );
-				run( holder.id, holder.at, [ { t0: tBall - 0.1, t1: tBall + 0.4, to: holder.at, act: 'throw', aim: baseAt } ] );
+				const th = throwPath( holder.at, catchAt, tag ? 24 : 30 );
+				const tCatch = tBall + 0.3 + th.time;
+				run( target, rHome, [ { t0: 0.4, t1: Math.min( tBall + 0.3, 0.4 + dist( rHome, catchAt ) / RUN ), to: catchAt, act: 'run' }, { t0: tBall + 0.3, t1: tCatch + ( tag ? 3 : 1.2 ), to: catchAt, act: 'receive', tCatch, thrower: holder.at, base: ob % 4, tag, runner: r.id } ] );
+				run( holder.id, holder.at, [ { t0: tBall - 0.1, t1: tBall + 0.4, to: holder.at, act: 'throw', aim: catchAt } ] );
 				plan.ball.push( { t0: tBall + 0.3, dur: th.time, at: th.at } );
-				plan.cues.push( [ tBall + 0.3 + th.time, { glove: true } ] );
-				tBall += 0.3 + th.time;
+				plan.cues.push( [ tCatch, { glove: true } ] );
+				tBall = tCatch;
 				r.tOut = tBall;
-				holder = { id: target, at: baseAt, pos: rPos };
+				r.tag = tag;
+				holder = { id: target, at: catchAt, pos: rPos };
 
 			}
 
@@ -465,8 +506,8 @@ export class Director {
 				if ( cover && cover !== holder.id ) {
 
 					const cHome = POSITIONS[ to[ 0 ] > 0 ? '2B' : 'SS' ];
-					run( cover, cHome, [ { t0: 0.5, t1: 0.5 + dist( cHome, cut ) / JOG, to: cut, act: 'run' }, { t0: tBall + 0.4, t1: tBall + 2, to: cut, act: 'receive' } ] );
 					const th = throwPath( holder.at, cut, 26 );
+					run( cover, cHome, [ { t0: 0.5, t1: 0.5 + dist( cHome, cut ) / JOG, to: cut, act: 'run' }, { t0: tBall + 0.4, t1: tBall + 2, to: cut, act: 'receive', tCatch: tBall + 0.35 + th.time, thrower: holder.at, base: 2 } ] );
 					run( holder.id, holder.at, [ { t0: tBall, t1: tBall + 0.5, to: holder.at, act: 'throw', aim: cut } ] );
 					plan.ball.push( { t0: tBall + 0.35, dur: th.time, at: th.at } );
 					tBall += 0.35 + th.time;
@@ -484,18 +525,26 @@ export class Director {
 		for ( const r of moves ) {
 
 			const from = r.start || 0;
-			const toBase = r.out ? ( r.outBase || from + 1 ) : ( r.to ?? from );
-			const start = from === 0 ? 0.55 : 0.2;
+			const toBase = runTo( r, from );
+			// with two out the runners go on contact
+			const start = from === 0 ? 0.55 : st.outs >= 2 ? 0.05 : 0.2;
 			const len = Math.max( 0, toBase - from ) * 27.43;
+			// a runner starts from his lead, not the bag (_runners: a few steps off first and second, a
+			// stride down the line from third)
+			const lead = from === 0 || airOut ? 0 : Math.min( len, from === 3 ? 1.6 : 3.3 );
 			let speed = RUN * ( r.id === p.batter ? 0.95 : 1 );
-			let tArrive = start + len / speed;
+			let tArrive = start + ( len - lead ) / speed;
 			// on a fly out the runners hold
 			if ( airOut && r.id !== p.batter ) tArrive = start;
-			// forced out: he gets there just after the ball
-			if ( r.out && r.tOut != null && len > 0 ) tArrive = Math.max( r.tOut + 0.25, tArrive );
+			// a tag play: he gets there a step after the ball (as fast as a man can go), and slides; a
+			// forced out: just after the ball
+			if ( r.out && r.tOut != null && len > 0 ) tArrive = r.tag ? Math.max( r.tOut + 0.3, start + ( len - lead ) / 8.9 ) : Math.max( r.tOut + 0.25, tArrive );
 			if ( airOut && r.id === p.batter ) tArrive = Math.min( tArrive, bb.time );
-			plan.runners.push( { id: r.id, from, to: toBase, start, tArrive, out: r.out, scores: toBase >= 4, halt: airOut && r.id === p.batter ? 0.6 : 1 } );
-			tEnd = Math.max( tEnd, tArrive );
+			const slide = r.tag ? ( toBase === 4 ? 'head' : 'feet' ) : null;
+			// the batter on a ground ball in the infield runs through first
+			const through = from === 0 && toBase === 1 && bb.ground && [ 'P', 'C', '1B', '2B', 'SS', '3B' ].includes( fielderPos );
+			plan.runners.push( { id: r.id, from, to: toBase, start, tArrive, out: r.out, scores: toBase >= 4, halt: airOut && r.id === p.batter ? 0.6 : 1, lead, len, slide, through, tCall: r.tag ? tArrive : r.tOut } );
+			tEnd = Math.max( tEnd, tArrive + ( slide ? 2 : 0 ) );
 
 		}
 
@@ -644,8 +693,11 @@ export class Director {
 		const lt = t - seg.t0;
 		this.actors = new Map();
 		this.ballAt = null;
+		// where the cameras look for the ball: where it is, or (in a glove) where it was last
+		this.ballFocus = null;
 		this.now = { seg, snap: seg.snap, count: [ Math.min( 3, seg.snap.balls ), Math.min( 2, seg.snap.strikes ) ], outs: seg.snap.outs, desc: seg.snap.desc, pitch: null };
 		this[ 'show_' + seg.kind ]( seg, lt );
+		if ( this.ballFocus == null ) this.ballFocus = this.ballAt;
 		this._umpires( seg, lt );
 		this._sync();
 
@@ -685,11 +737,26 @@ export class Director {
 
 		} else if ( seg.kind === 'inplay' ) {
 
+			// a runner coming home: the plate umpire takes off his mask and goes out to the third base line,
+			// in foul ground, to see the play at the plate (as on Utley's throw), and watches from there
+			const home = seg.plan.runners.find( ( r ) => r.to === 4 && r.from > 0 && r.tArrive > 1 );
+			if ( home ) {
+
+				const k = ease01( ( lt - 0.7 ) / Math.max( 0.8, Math.min( 2, home.tArrive - 1.2 ) ) );
+				const spot = [ - 2.6, 0.2 ];
+				const p = lerp2( crew[ 0 ][ 1 ], spot, k );
+				crew[ 0 ][ 1 ] = p;
+				crew[ 0 ][ 2 ] = k > 0 && k < 1 ? M.run( lt * 1.3, 0.2 ) : k >= 1 ? M.umpReady( lt ) : crew[ 0 ][ 2 ];
+				crew[ 0 ][ 3 ] = ROLE.bag;
+				crew[ 0 ][ 4 ] = k > 0 && k < 1 ? yawTo( crew[ 0 ][ 1 ], spot ) : yawTo( p, [ - 0.7, - 0.7 ] );
+
+			}
+
 			for ( const r of seg.plan.runners ) {
 
-				const tr = lt - ( r.out && r.tOut != null ? r.tOut : r.tArrive );
+				const tr = lt - ( r.out && r.tCall != null ? r.tCall : r.tArrive );
 				if ( ! r.out || tr < 0 || tr > 1.8 ) continue;
-				const b = ( r.out ? ( r.to || r.from + 1 ) : r.to ) % 4;
+				const b = r.to % 4;
 				const u = b === 1 ? 1 : b === 2 ? 2 : b === 3 ? 3 : 0;
 				crew[ u ][ 2 ] = M.umpCall( tr, true );
 
@@ -704,11 +771,11 @@ export class Director {
 
 		}
 
-		for ( const [ id, at, pose, role ] of crew ) {
+		for ( const [ id, at, pose, role, yaw ] of crew ) {
 
 			pose.glove = false;
 			const look = id === - 1 ? MOUND : [ 0, - 5 ];
-			this.act( id, at[ 0 ], at[ 1 ], yawTo( at, look ), pose, { role: role || 0 } );
+			this.act( id, at[ 0 ], at[ 1 ], yaw ?? yawTo( at, look ), pose, { role: role || 0 } );
 
 		}
 
@@ -1063,7 +1130,7 @@ export class Director {
 		// steals and passed balls on this pitch
 		for ( const a of seg.acts ) for ( const mv of a.moves ) {
 
-			const from = mv.start || mv.from, to = mv.out ? ( mv.outBase || from + 1 ) : ( mv.to ?? from );
+			const from = mv.start || mv.from, to = runTo( mv, from );
 			const k = Math.min( 1, Math.max( 0, ( d - 0.1 ) * RUN / ( 27.43 * Math.max( 1, to - from ) ) ) );
 			const p = basePath( from, to, k );
 			this.act( mv.id, p[ 0 ], p[ 1 ], yawTo( BASES[ from % 4 ], BASES[ to % 4 ] ), k < 1 ? M.run( d * 1.4, 1 ) : M.stand( lt ) );
@@ -1081,7 +1148,7 @@ export class Director {
 		this._batter( s, M.batterStance( lt ) );
 		for ( const a of seg.acts ) for ( const mv of a.moves ) {
 
-			const from = mv.start || mv.from, to = mv.out ? ( mv.outBase || from + 1 ) : ( mv.to ?? from );
+			const from = mv.start || mv.from, to = runTo( mv, from );
 			const k = Math.min( 1, Math.max( 0, ( lt - 0.8 ) * RUN / 27.43 ) );
 			const p = basePath( from, to, k );
 			this.act( mv.id, p[ 0 ], p[ 1 ], yawTo( BASES[ from % 4 ], BASES[ to % 4 ] ), k < 1 ? M.run( lt * 1.4, 1 ) : M.stand( lt ) );
@@ -1113,6 +1180,7 @@ export class Director {
 
 			const id = Number( idS );
 			let at = steps[ 0 ].from, yaw = 0, pose = M.ready( lt ), done = false;
+			const extra = {};
 			for ( const st of steps ) {
 
 				if ( lt < st.t0 ) break;
@@ -1135,9 +1203,42 @@ export class Director {
 
 					at = st.to; yaw = yawTo( at, st.aim ); pose = M.throwBall( ( lt - st.t0 ) * 0.9 + 0.1 );
 
+				} else if ( st.act === 'fake' ) {
+
+					// a look and a pump toward first, then he turns for home
+					at = st.to; yaw = yawTo( at, st.aim ); pose = M.pumpFake( lt - st.t0 );
+
 				} else if ( st.act === 'receive' ) {
 
-					at = st.to; yaw = yawTo( at, [ 0, - 20 ] ); pose = M.catchHigh( lt ); pose.pelvisY = 0.9;
+					// the throw caught chest high, facing it (the first baseman stretching for it off the bag
+					// as it comes); on a tag play at the plate, the catch and then the dive for the runner
+					at = st.to;
+					const h = 1.3 / this._height( id );
+					yaw = yawTo( at, st.thrower || [ 0, - 20 ] );
+					const rr = st.tag ? plan.runners.find( ( q ) => q.id === st.runner ) : null;
+					if ( rr && lt > rr.tArrive - 0.34 ) {
+
+						const kd = ( lt - ( rr.tArrive - 0.34 ) ) / 0.34;
+						// at his shoulders as his hands reach the plate
+						const sh = lerp2( BASES[ 0 ], BASES[ 3 ], 0.45 / 27.43 );
+						yaw = yawTo( at, sh );
+						pose = M.diveTag( kd );
+						extra.tilt = tiltX( M.diveTilt( kd ) );
+						extra.y = 0.04 * Math.min( 1, kd );
+						// he stays down on the runner a moment, then gets up
+						if ( lt > rr.tArrive + 0.9 ) {
+
+							const ku = ( lt - rr.tArrive - 0.9 ) / 0.8;
+							pose = M.blend( M.diveTag( 1 ), M.stand( lt ), ease01( ku ) );
+							extra.tilt = tiltX( M.diveTilt( 1 - Math.min( 1, ku ) ) );
+
+						}
+
+					} else if ( st.base === 1 ) {
+
+						pose = M.blend( M.receive( lt, h ), M.stretch( lt, h ), ease01( ( lt - st.tCatch + 0.4 ) / 0.3 ) );
+
+					} else pose = M.receive( lt, h );
 
 				}
 
@@ -1147,48 +1248,23 @@ export class Director {
 
 			void done;
 			const pos = Object.keys( s.defense ).find( ( k ) => s.defense[ k ] === id );
-			this.act( id, at[ 0 ], at[ 1 ], yaw, pos === 'P' || this.game.players[ id ]?.throws === 'L' ? this._hand( id, pose ) : pose );
+			this.act( id, at[ 0 ], at[ 1 ], yaw, pos === 'P' || this.game.players[ id ]?.throws === 'L' ? this._hand( id, pose ) : pose, extra );
 
 		}
 
-		// runners
+		// runners: from their leads round the bases, the batter out of the box
 		for ( const r of plan.runners ) {
 
-			let p, yaw, pose;
-			if ( lt < r.start ) {
+			if ( lt < r.start && r.id === s.batter ) {
 
 				// the batter finishes his swing
-				if ( r.id === s.batter ) {
-
-					this._batter( s, M.swing( M.CONTACT + lt ) );
-					continue;
-
-				}
-
-				p = BASES[ r.from % 4 ]; yaw = yawTo( p, BASES[ ( r.from + 1 ) % 4 ] ); pose = M.ready( lt );
-
-			} else {
-
-				const k = Math.min( 1, ( lt - r.start ) / Math.max( 0.1, r.tArrive - r.start ) );
-				p = basePath( r.from, r.to, k * r.halt );
-				const leg = Math.min( r.to - 1, Math.floor( k * ( r.to - r.from ) ) + r.from );
-				yaw = yawTo( BASES[ leg % 4 ], BASES[ ( leg + 1 ) % 4 ] );
-				pose = k < 1 ? M.run( lt * 1.45, 1 ) : M.stand( lt );
-				if ( k >= 1 && ( r.out || r.scores ) ) {
-
-					// off the field
-					const off = Math.min( 1, ( lt - r.tArrive ) * 0.2 );
-					const dug = DUGOUT[ s.batting ];
-					p = lerp2( p, dug, off );
-					yaw = yawTo( p, dug );
-					pose = off < 1 ? M.run( lt, 0 ) : M.stand( lt );
-					if ( off >= 1 ) continue;
-
-				}
+				this._batter( s, M.swing( M.CONTACT + lt ) );
+				continue;
 
 			}
 
-			this.act( r.id, p[ 0 ], p[ 1 ], yaw, pose );
+			const a = this._runnerAt( r, lt, s );
+			if ( a ) this.act( r.id, a.x, a.z, a.yaw, a.pose, a.extra );
 
 		}
 
@@ -1205,13 +1281,123 @@ export class Director {
 		} );
 
 		if ( ! plan.runners.some( ( r ) => r.id === s.batter ) ) this._batter( s, M.stand( lt ) );
-		this.ballAt = ball;
+		// between its flights the ball is in somebody's glove: not drawn, but the cameras keep looking
+		// where it was
+		this.ballAt = this._ballHeld ? null : ball;
+		this.ballFocus = ball;
 
 	}
 
+	// A runner at lt (plan.runners): out of the box or off his lead he gets up to speed, swings out
+	// before a base he's rounding and cuts its inside corner (the banana), and on a tag play slides; the
+	// batter runs through first on an infield play. Then a runner who's out or has scored heads for his
+	// dugout. Returns { x, z, yaw, pose, extra } or null once he's gone.
+	_runnerAt( r, lt, s ) {
+
+		const S = r.len - r.lead, T = Math.max( 0.1, r.tArrive - r.start );
+		const u = Math.max( 0, lt - r.start );
+		// the run: d( u ) = v ( u - tau ( 1 - e^-u/tau ) ), up to speed in about 3 tau
+		const tau = r.from === 0 ? 0.45 : 0.3;
+		const ramp = ( t ) => t - tau * ( 1 - Math.exp( - t / tau ) );
+		const sl = r.slide && S > SLIDE[ r.slide ][ 0 ] + 1 ? SLIDE[ r.slide ] : null;
+		// the batter on an infield play runs through the bag and pulls up in foul ground
+		const through = r.from === 0 && r.to === 1 && r.through;
+		let d, kSlide = - 1, over = 0;
+		if ( sl ) {
+
+			// a steady run to the slide, then down and sliding to a stop: the slide takes 2 ( D0 - D1 ) / v
+			const [ D0, D1 ] = sl;
+			// his speed going down is the run's at its end (a few rounds settle it)
+			let v = S / Math.max( 0.1, T - tau ), tRun = T;
+			for ( let i = 0; i < 3; i ++ ) {
+
+				tRun = Math.max( 0.2, T - 2 * ( D0 - D1 ) / v );
+				v = ( S - D0 ) / ramp( tRun ) * ( 1 - Math.exp( - tRun / tau ) );
+
+			}
+
+			const tSl = T - tRun;
+			if ( u < tRun ) d = ( S - D0 ) * ramp( u ) / ramp( tRun );
+			else {
+
+				const w = Math.min( tSl, u - tRun );
+				d = S - D0 + v * w - v * v / ( 4 * ( D0 - D1 ) ) * w * w;
+				kSlide = w / 0.24;
+
+			}
+
+		} else {
+
+			const v = S * r.halt / Math.max( 0.1, ramp( T ) );
+			d = Math.min( S * r.halt, v * ramp( Math.min( u, T ) ) );
+			// running through first: on past the bag, slowing to a stop 5 m on, in foul ground
+			if ( through && u > T ) over = 5 * ( 1 - Math.exp( - ( u - T ) / 0.45 ) );
+
+		}
+
+		let [ x, z, yaw ] = alongBases( r.from, r.to, r.lead + d );
+		if ( over > 0 ) {
+
+			const dir = [ BASES[ 1 ][ 0 ] / 27.43, BASES[ 1 ][ 1 ] / 27.43 ];
+			x += dir[ 0 ] * over; z += dir[ 1 ] * over;
+
+		}
+
+		const extra = {};
+		let pose = M.run( lt * 1.45, 1 );
+		if ( u <= 0 ) pose = M.ready( lt );
+		if ( kSlide >= 0 ) {
+
+			pose = r.slide === 'head' ? M.slideHead( kSlide ) : M.slideFeet( kSlide );
+			if ( r.slide === 'head' ) extra.tilt = tiltX( M.slideTilt( kSlide ) );
+
+		}
+
+		if ( u < T ) return { x, z, yaw, pose, extra };
+		// there: a slide stays down a moment, then he gets up
+		const after = lt - r.tArrive;
+		let down = 0;
+		if ( sl ) {
+
+			down = 1.6;
+			const end = r.slide === 'head' ? M.slideHead( 1 ) : M.slideFeet( 1 );
+			if ( after < 0.9 ) return { x, z, yaw, pose: end, extra };
+			if ( after < down ) return { x, z, yaw, pose: M.upFrom( end, after - 0.9 ), extra: { tilt: r.slide === 'head' ? tiltX( M.slideTilt( 1 - ( after - 0.9 ) / 0.7 ) ) : null } };
+
+		}
+
+		if ( over > 0 ) {
+
+			// pulled up past first: he turns and walks back to the bag (or, out, for the dugout)
+			if ( after < 1.2 ) return { x, z, yaw, pose: after < 0.7 ? M.run( lt * 1.45, Math.max( 0, 1 - after * 1.4 ) ) : M.stand( lt ), extra };
+			if ( ! r.out ) {
+
+				const k = Math.min( 1, ( after - 1.2 ) * WALK / 5 );
+				const p = lerp2( [ x, z ], BASES[ 1 ], k );
+				return { x: p[ 0 ], z: p[ 1 ], yaw: k < 1 ? yawTo( [ x, z ], BASES[ 1 ] ) : yawTo( BASES[ 1 ], [ 0, 0 ] ), pose: k < 1 ? M.walk( lt * 1.6 ) : M.stand( lt ), extra };
+
+			}
+
+			down = 1.2;
+
+		}
+
+		if ( ! ( r.out || r.scores ) ) return { x, z, yaw: yawTo( [ x, z ], [ 0, 0 ] ), pose: M.stand( lt ), extra: {} };
+		// off the field, to his dugout
+		const off = Math.min( 1, ( after - down ) * 0.2 );
+		if ( off >= 1 ) return null;
+		const dug = DUGOUT[ s.batting ];
+		const p = lerp2( [ x, z ], dug, Math.max( 0, off ) );
+		return { x: p[ 0 ], z: p[ 1 ], yaw: yawTo( p, dug ), pose: off > 0 ? M.run( lt, 0 ) : M.stand( lt ), extra: {} };
+
+	}
+
+	// where the ball is in a play (its flights in plan.ball); between them, and after the last, it's in a
+	// glove (_ballHeld), and this gives where it was last seen. A home run is gone.
 	_ballIn( plan, lt ) {
 
 		let last = null;
+		this._ballHeld = false;
 		for ( const b of plan.ball ) {
 
 			if ( lt >= b.t0 && lt <= b.t0 + b.dur ) return b.at( lt - b.t0 );
@@ -1219,6 +1405,7 @@ export class Director {
 
 		}
 
+		this._ballHeld = !! last;
 		return plan.hr ? null : last;
 
 	}
@@ -1363,6 +1550,52 @@ export class Director {
 }
 
 // ---------------------------------------------------------------- helpers
+
+// a root tilt about the player's own x axis (a slide, a dive), or none
+function tiltX( a ) {
+
+	return a ? new Quaternion().setFromEuler( new Euler( a, 0, 0 ) ) : null;
+
+}
+
+// A point d metres round the bases from base `from` toward base `to` (0 home .. 4 home again), and the
+// runner's heading there: [ x, z, yaw ]. On the way into a base he'll go on from he swings out into
+// foul ground (or the outfield grass) up to 1.6 m, and cuts back in to touch the bag's inside corner,
+// so his heading turns through the curve rather than snapping 90° at the bag.
+export function alongBases( from, to, d ) {
+
+	const n = to - from, L = 27.43;
+	if ( n <= 0 ) {
+
+		const b = BASES[ from % 4 ];
+		return [ b[ 0 ], b[ 1 ], yawTo( b, BASES[ ( from + 1 ) % 4 ] ) ];
+
+	}
+
+	const pt = ( x ) => {
+
+		x = Math.max( 0, Math.min( n * L, x ) );
+		const i = Math.min( n - 1, Math.floor( x / L ) );
+		const a = BASES[ ( from + i ) % 4 ], b = BASES[ ( from + i + 1 ) % 4 ];
+		const f = x / L - i;
+		let px = a[ 0 ] + ( b[ 0 ] - a[ 0 ] ) * f, pz = a[ 1 ] + ( b[ 1 ] - a[ 1 ] ) * f;
+		if ( i < n - 1 && f > 0.5 ) {
+
+			// out from the middle of the diamond
+			const ox = ( a[ 0 ] + b[ 0 ] ) / 2, oz = ( a[ 1 ] + b[ 1 ] ) / 2 + 19.4, ol = Math.hypot( ox, oz ) || 1;
+			const out = 1.6 * Math.sin( Math.PI * ( f - 0.5 ) / 0.5 ) ** 1.5;
+			px += ox / ol * out; pz += oz / ol * out;
+
+		}
+
+		return [ px, pz ];
+
+	};
+
+	const p = pt( d ), a = pt( d - 0.4 ), b = pt( d + 0.4 );
+	return [ p[ 0 ], p[ 1 ], yawTo( a, b ) ];
+
+}
 
 function applyMoves( st, moves ) {
 
