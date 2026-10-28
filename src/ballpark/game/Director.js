@@ -2,6 +2,7 @@ import { Quaternion, Euler } from '../../engine/index.js';
 import * as M from './Motions.js';
 import { POSITIONS, BASES, MOUND, DUGOUT, BULLPEN, ON_DECK, boxFor, sprayToField, pitchPath, fallbackPfx, battedBall, throwPath, basePath, dist, lerp2, yawTo } from './Plays.js';
 import { look as lookFor } from './Looks.js';
+import { OUTFIELD, FT } from '../layout.js';
 import { ROLE, DIRT } from './Players.js';
 // ---- R (rituals)
 import { showSuspension } from './Suspension.js';
@@ -446,19 +447,23 @@ export class Director {
 		} else {
 
 			// run to it: for a catch, arrive as it comes down; otherwise pick it up
-			const d = dist( home, to );
+			// (FB2, C2B-3: a ball off the wall is played off the wall, from in front of it: the spot can be
+			// in the padding, and Upton stood behind the wall playing Jenkins's double)
+			const spot = airOut ? to : insideFence( to, 1.3 );
+			const d = dist( home, spot );
 			const reach = d / RUN;
 			const tArrive = airOut ? Math.max( bb.time - 0.2, Math.min( bb.time, reach ) ) : Math.max( bb.time, reach + 0.3 );
-			run( fielder, home, [ { t0: 0.25, t1: Math.max( 0.3, tArrive ), to, act: d > 3 ? 'run' : 'shuffle' } ] );
-			const tField = Math.max( bb.time, tArrive );
+			run( fielder, home, [ { t0: 0.25, t1: Math.max( 0.3, tArrive ), to: spot, act: d > 3 ? 'run' : 'shuffle' } ] );
+			// (off the wall it caroms back out to him)
+			const tField = Math.max( bb.time + ( spot !== to ? 0.3 : 0 ), tArrive );
 			const grab = airOut ? 'catch' : ( bb.ground ? 'grounder' : 'pickup' );
-			run( fielder, to, [ { t0: tField - 0.1, t1: tField + 0.5, to, act: grab } ] );
-			if ( ! airOut && tField > bb.time ) plan.ball.push( { t0: bb.time, dur: tField - bb.time, at: rolling( to, bb.at( bb.time ), tField - bb.time ) } );
+			run( fielder, spot, [ { t0: tField - 0.1, t1: tField + 0.5, to: spot, act: grab } ] );
+			if ( ! airOut && tField > bb.time ) plan.ball.push( { t0: bb.time, dur: tField - bb.time, at: rolling( spot, bb.at( bb.time ), tField - bb.time ) } );
 			tBall = tField + 0.5;
 			plan.cues.push( [ 0.02, { crack: h.hard || 'medium' } ], [ tField, { glove: true } ] );
 
 			// the throws: to each out's putout man at the out base, in order
-			let holder = { id: fielder, at: to, pos: fielderPos };
+			let holder = { id: fielder, at: spot, pos: fielderPos };
 			const outs = moves.filter( ( r ) => r.out && outBaseOf( r ) != null ).sort( ( a, b ) => ( a.outNumber ?? 9 ) - ( b.outNumber ?? 9 ) );
 			// a runner is forced when every base behind him is taken (the batter takes first)
 			const forced = ( from ) => {
@@ -772,7 +777,13 @@ export class Director {
 			// hitter, the first base side for a lefty)
 			[ - 1, [ s.bats === 'L' ? 0.32 : - 0.32, 2.0 ], pitching ? M.umpSet( lt ) : M.stand( lt + 1 ), ROLE.bag | ( seg.kind === 'inplay' ? 0 : ROLE.mask ) ],
 			[ - 2, [ 19.4 + 2.2 * r2 + 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ], pitching ? M.umpReady( lt ) : M.stand( lt + 2 ) ],
-			[ - 3, runners ? [ - 4.5, - 22.5 ] : [ - 3.5, - 32.5 ], pitching ? M.umpReady( lt ) : M.stand( lt + 3 ) ],
+			// ---- FB2 (C2B-5): the second base umpire as 2008's four-man crews worked it, and out of FOX's
+			// center field frame as he was in theirs (t11710s, bases empty: nobody but the battery, the batter
+			// and the plate umpire; t13150s, a runner on second: only the runner's cap): with the bases empty
+			// on the grass behind second, a little to the shortstop's side; a runner on first only, inside on
+			// the first base side of the mound; with a man in scoring position, inside on the shortstop side
+			[ - 3, ! runners ? [ - 4, - 47 ] : s.bases[ 1 ] || s.bases[ 2 ] ? [ - 9, - 30 ] : [ 7, - 29 ], pitching ? M.umpReady( lt ) : M.stand( lt + 3 ) ],
+			// ---- end FB2
 			[ - 4, [ - 19.4 - 2.2 * r2 - 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ], pitching ? M.umpReady( lt ) : M.stand( lt + 4 ) ],
 			[ - 5, [ - 70 * r2 - 1.2, - 70 * r2 + 1.2 ], M.stand( lt + 5 ) ],
 			[ - 6, [ 70 * r2 + 1.2, - 70 * r2 + 1.2 ], M.stand( lt + 6 ) ],
@@ -924,7 +935,8 @@ export class Director {
 		// give their slots back when they're off, so the rig's 96 go round
 		for ( const [ id, s ] of this.slots ) {
 
-			if ( this.actors.has( id ) || typeof id !== 'string' || ! id.startsWith( 'r:' ) ) continue;
+			// (FB2, C2B-10: not while a replay is on: BallparkApp poses twice a frame, live and replayed)
+			if ( this.holdSlots || this.actors.has( id ) || typeof id !== 'string' || ! id.startsWith( 'r:' ) ) continue;
 			this.players.remove?.( s );
 			this.slots.delete( id );
 
@@ -1840,6 +1852,28 @@ export class Director {
 // ---------------------------------------------------------------- helpers
 
 // a root tilt about the player's own x axis (a slide, a dive), or none
+// ---- FB2 (C2B-3): p ([ x, z ]) brought in to `margin` metres inside the outfield fence (OUTFIELD's
+// distances by angle from the center line, interpolated)
+function insideFence( p, margin ) {
+
+	const th = Math.atan2( p[ 0 ], - p[ 1 ] ) * 180 / Math.PI;
+	let R = null;
+	for ( let i = 0; i < OUTFIELD.length - 1; i ++ ) {
+
+		const [ a0, d0 ] = OUTFIELD[ i ], [ a1, d1 ] = OUTFIELD[ i + 1 ];
+		if ( a1 === a0 || th < a0 || th > a1 ) continue;
+		R = ( d0 + ( d1 - d0 ) * ( th - a0 ) / ( a1 - a0 ) ) * FT;
+		break;
+
+	}
+
+	const L = Math.hypot( p[ 0 ], p[ 1 ] );
+	if ( R == null || L <= R - margin ) return p;
+	return [ p[ 0 ] * ( R - margin ) / L, p[ 1 ] * ( R - margin ) / L ];
+
+}
+// ---- end FB2
+
 function tiltX( a ) {
 
 	return a ? new Quaternion().setFromEuler( new Euler( a, 0, 0 ) ) : null;

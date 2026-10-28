@@ -50,6 +50,13 @@ const CSS = `
 .gm-ticks { position: absolute; left: 0; right: 0; top: 19px; height: 8px; pointer-events: none; font-size: 9px; opacity: 0.6; }
 .gm-ticks span { position: absolute; transform: translateX( -50% ); }
 .gm-time { font-variant-numeric: tabular-nums; opacity: 0.75; min-width: 86px; text-align: right; font-size: 12px; }
+/* FB2 (C2B-10): a replay on the air: FOX's tag over the bug */
+.gm-replay { display: none; position: absolute; left: 0; bottom: calc( 100% + 6px ); padding: 3px 10px 3px 8px; border-radius: 3px;
+	background: linear-gradient( #c8ccd3, #8a929e ); color: #0d1b3a; font: 800 13px/1.2 Inter, system-ui, sans-serif; letter-spacing: 0.12em;
+	box-shadow: 0 1px 3px rgba( 0, 0, 0, 0.5 ); }
+.gm-replay::before { content: ''; display: inline-block; width: 0; height: 0; margin-right: 7px; vertical-align: 1px;
+	border-left: 8px solid #b0101f; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.gm-hud.gm-tv.gm-replaying .gm-replay { display: block; }
 `;
 
 export class GameHUD {
@@ -67,6 +74,7 @@ export class GameHUD {
 		const el = this.el = document.createElement( 'div' );
 		el.className = 'gm-hud';
 		el.innerHTML = `
+			<div class="gm-replay">REPLAY</div>
 			<div class="gm-card">
 				<div class="gm-top">
 					<div class="gm-score">
@@ -213,7 +221,7 @@ export class GameHUD {
 		const d = this.d, g = this.g, n = d.now;
 		if ( ! n ) return;
 		const s = n.snap, P = g.players;
-		const key = [ d.t.toFixed( 1 ), d.playing, d.speed, this.radio?.muted, this.sound?.muted, this.app?.camMode ].join();
+		const key = [ d.t.toFixed( 1 ), d.playing, d.speed, this.radio?.muted, this.sound?.muted, this.app?.camMode, this.app?._replaying ].join();
 		if ( ! force && key === this._last ) return;
 		this._last = key;
 		this.$( 'away' ).textContent = s.score.away;
@@ -228,6 +236,7 @@ export class GameHUD {
 		this.$( 'desc' ).innerHTML = this._playLine( n, s );
 		// on TV the panel is a corner bug
 		this.el.classList.toggle( 'gm-tv', !! this.app?.camMode && this.app.camMode !== 'walk' );
+		this.el.classList.toggle( 'gm-replaying', !! this.app?._replaying );
 		const slider = this.$( 'slider' );
 		if ( document.activeElement !== slider ) slider.value = d.t;
 		const bt = this.el.querySelector( '[data-a="play"]' );

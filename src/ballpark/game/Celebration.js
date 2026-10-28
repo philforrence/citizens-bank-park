@@ -55,8 +55,10 @@ const ease = R.ease;
 export const PILE = [ MOUND[ 0 ], MOUND[ 1 ] + 0.6 ];
 const UMP_DOOR = [ - 8.6, 13.4 ];
 const r2 = Math.SQRT1_2;
+// (FB2, C2B-5: the second base umpire where the Director has him at the last pitch, Perez on second:
+// inside on the shortstop side)
 const UMP_AT = [
-	[ - 1, [ 0.35, 2.05 ] ], [ - 2, [ 19.4 + 2.2 * r2 + 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ] ], [ - 3, [ - 3.5, - 32.5 ] ],
+	[ - 1, [ 0.35, 2.05 ] ], [ - 2, [ 19.4 + 2.2 * r2 + 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ] ], [ - 3, [ - 9, - 30 ] ],
 	[ - 4, [ - 19.4 - 2.2 * r2 - 1.2 * r2, - 19.4 - 2.2 * r2 + 1.2 * r2 ] ], [ - 5, [ - 70 * r2 - 1.2, - 70 * r2 + 1.2 ] ], [ - 6, [ 70 * r2 + 1.2, - 70 * r2 + 1.2 ] ],
 ];
 
