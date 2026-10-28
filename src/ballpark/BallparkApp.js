@@ -56,7 +56,7 @@ import { Walker } from './Walker.js';
 import { Scope } from './Scope.js';
 import { PLACES } from './places/index.js';
 // ---- R (rituals)
-import { tarpState, rollAxis } from './game/TarpPlan.js';
+import { tarpState, rollAxis, tarpFocus, T27, T29 } from './game/TarpPlan.js'; // ---- FR2: tarpFocus, T27, T29
 // ---- end R
 import { Night, nightAirModule, BEAM } from './Night.js'; // ---- L: light and night
 import { when as gameClock } from './places/alley/Night.js'; // the replay's wall clock (the Alley's)
@@ -869,10 +869,15 @@ export class BallparkApp {
 
 			const u = lt;
 			if ( u < 7 ) return high;
-			// the roll coming off the wall and across, the crew on it
-			if ( u < 20 ) return roll ? fit( 'high3', [ roll[ 0 ], 1.0, roll[ 2 ] ], 4.5, 'roll' ) : high;
-			if ( u < 32 ) return roll ? fit( 'high', [ roll[ 0 ], 0.8, roll[ 2 ] ], 9, 'pull' ) : high;
-			if ( u < 44 ) return roll ? fit( 'high1', [ roll[ 0 ], 0.8, roll[ 2 ] ], 7, 'pull2' ) : high;
+			// ---- FR2: the roll off the wall and along the clay's edge, tight on it from high third; then
+			// along behind second from high home (Getty 83477151's view); the crew strung out along the strip
+			// and pulling the edge in from high first (83458151's): on the plan's times (TarpPlan.T27)
+			const foc = tarpFocus( st );
+			if ( u < T27.lay[ 0 ] + 6 ) return roll ? fit( 'high3', [ roll[ 0 ], 1.0, roll[ 2 ] ], 4.5, 'roll' ) : high;
+			if ( u < T27.spread[ 0 ] ) return roll ? fit( 'high', [ roll[ 0 ], 0.8, roll[ 2 ] ], 7, 'lay' ) : high;
+			if ( u < T27.pull[ 0 ] + 7 ) return foc ? fit( 'high', foc, 13, 'pull' ) : high;
+			if ( u < T27.pull[ 1 ] ) return foc ? fit( 'high1', foc, 11, 'pull2' ) : high;
+			// ---- end FR2
 			// the fans in the rain, PhanaVision, the fans again, then the covered field to the end
 			if ( u < 53 ) return fit( 'high1', [ - 38, 9, 4 ], 9, 'fans1' );
 			if ( u < 61 ) return fit( 'high', [ - 79, 31, - 109 ], 10, 'board' );
@@ -883,8 +888,12 @@ export class BallparkApp {
 
 		// the 29th's part, from the split
 		const u = d.t - N.split;
-		if ( u < 9 ) return fit( 'high1', [ - 40, 12, - 10 ], 22, 'bowl1' );
-		if ( u < 18 ) return roll ? fit( 'high3', [ roll[ 0 ], 1.0, roll[ 2 ] ], 6, 'off' ) : high;
+		// ---- FR2: the edge walked back and the roll wound back up to the line (TarpPlan.T29)
+		if ( u < 5 ) return fit( 'high1', [ - 40, 12, - 10 ], 22, 'bowl1' );
+		const foc29 = tarpFocus( st );
+		if ( u < T29.wind[ 0 ] ) return foc29 ? fit( 'high', foc29, 13, 'unpull' ) : high;
+		if ( u < T29.stow[ 1 ] ) return roll ? fit( 'high3', [ roll[ 0 ], 1.0, roll[ 2 ] ], 6, 'off' ) : high;
+		// ---- end FR2
 		if ( u < 27 ) return high;
 		if ( u < 36 ) return fit( 'low3', [ DUGOUT.home[ 0 ], 1.1, DUGOUT.home[ 1 ] ], 2.6, 'dugout' );
 		if ( u < 45 ) return fit( 'high', [ BULLPEN.home[ 0 ], 2.2, BULLPEN.home[ 1 ] - 1.5 ], 8, 'pens' );
@@ -1346,7 +1355,7 @@ export class BallparkApp {
 		// only while it's there; and the 27th's rain goes on through its part of the suspension (the delay)
 		const N = d.night ? d.night( d.t ) : null;
 		const tarp = tarpState( N );
-		this.details?.setTarp( tarp.pull );
+		this.details?.setTarp( tarp.pull, tarp ); // ---- FR2: the plan's state places the sheet fold by fold
 		if ( this.details?.tarpRoll ) this.details.tarpRoll.visible = tarp.stowed;
 		const rollY = this.details?.tarpMat?.uniforms?.rollY;
 		// (the part still to come off lies along the pulled edge, held up in the crew's hands)

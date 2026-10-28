@@ -12,7 +12,9 @@ const T27 = [ 20 + 38 / 60, 22 + 40 / 60 ], T29 = [ 20 + 37 / 60, 21 + 58 / 60 ]
 export function when( director ) {
 
 	const d = director;
-	const seg = d.segmentAt( d.t );
+	// ---- FR2: from strike three it's the celebration (Director.champsAt), its clock from the strike
+	const champ = d.champsAt ? d.champsAt( d.t ) : null;
+	const seg = champ ? champ.seg : d.segmentAt( d.t );
 	const snap = seg.snap || {};
 	const { inning = 1, half = 'top' } = snap;
 	const firstNight = inning < 6 || ( inning === 6 && half === 'top' );
@@ -20,7 +22,7 @@ export function when( director ) {
 	// ---- R (rituals): the break's first part is the 27th's delay (Director.night()); the rest the 29th
 	const suspended = seg.kind === 'switch' && inning === 6 && half === 'bottom' && ( d.night ? d.night( d.t ).night === 27 : true );
 	// ---- end R
-	const lt = d.t - seg.t0;
+	const lt = champ ? champ.lt : d.t - seg.t0;
 	// how hard it's raining (as BallparkApp._weather has it: harder and harder to the suspension)
 	const k = firstNight ? Math.min( 1, ( ( inning - 1 ) * 2 + ( half === 'top' ? 0 : 1 ) ) / 10 ) : 0;
 	const rain = firstNight || suspended ? 0.3 + 0.7 * ( suspended ? 1 : k ) : 0;

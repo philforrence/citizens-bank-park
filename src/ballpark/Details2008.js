@@ -312,12 +312,13 @@ export class Details2008 {
 
 		// the sheet: a grid over a 44 m square turned with the diamond, from behind the plate out past
 		// second; it drapes the mound, sags between, with folds
-		const S = 44, N = 64, c = [ 0, - 26 ];
+		// ---- FR2: finer across (u: the three folds and the edge they lift want the rows)
+		const S = 44, N = 64, NU = 96, c = [ 0, - 26 ];
 		const r2 = Math.SQRT1_2;
 		const pos = [], uv = [], index = [];
-		for ( let j = 0; j <= N; j ++ ) for ( let i = 0; i <= N; i ++ ) {
+		for ( let j = 0; j <= N; j ++ ) for ( let i = 0; i <= NU; i ++ ) {
 
-			const u = i / N, v = j / N;
+			const u = i / NU, v = j / N;
 			const lx = ( u - 0.5 ) * S, lz = ( v - 0.5 ) * S;
 			const x = c[ 0 ] + ( lx - lz ) * r2, z = c[ 1 ] + ( lx + lz ) * r2;
 			const fold = 0.06 * Math.sin( lx * 0.9 + Math.sin( lz * 0.4 ) * 2 ) + 0.04 * Math.sin( lz * 1.3 );
@@ -328,10 +329,10 @@ export class Details2008 {
 
 		}
 
-		for ( let j = 0; j < N; j ++ ) for ( let i = 0; i < N; i ++ ) {
+		for ( let j = 0; j < N; j ++ ) for ( let i = 0; i < NU; i ++ ) {
 
-			const k = j * ( N + 1 ) + i;
-			index.push( k, k + N + 1, k + 1, k + 1, k + N + 1, k + N + 2 );
+			const k = j * ( NU + 1 ) + i;
+			index.push( k, k + NU + 1, k + 1, k + 1, k + NU + 1, k + NU + 2 );
 
 		}
 
@@ -347,21 +348,66 @@ export class Details2008 {
 		// CB-9 (gauntlet r1): under the lights the sheet was bright white vinyl, the brightest thing on the
 		// field, a few long wrinkles and its seams, water only as a sheen in the low folds (Getty 84081873,
 		// 83458710; Commons, the delay from the left field upper deck): not mid-grey with dark leopard spots
+		// ---- FR2 (gauntlet r3): laid out as the 27th's photos have it (game/TarpPlan.js): folded in three
+		// along its length, the roll lays it as a strip on the grass beyond the left field edge, the roll's
+		// part still wound on it gathered inside the roll; then the crew pull the free edge (u = 1) in toward
+		// home and first: the folds open from the top, the pulled part sliding in flat after them, billowing,
+		// the last metres held up at their waists (its black underside showing); then the whole sheet is
+		// dragged in square. Each vertex is placed by where its bit of vinyl is in that: x, its distance from
+		// the left field edge along the sheet; the strip's three layers stacked a few centimetres apart.
+		// The underside and the hem are black, the hem with white tabs (Getty 83458393, 83458149, 83458153)
+		const W = S / 3;
 		this.tarpMat = standard( { name: 'tarp', color: new Color( 0.86, 0.87, 0.85 ), roughness: 0.3, side: 'double', modules: [ commonModule ],
-			uniforms: { pull: [ 'f32', 0 ], rollY: [ 'f32', 0.55 ] }, // ---- R: rollY, the roll's axis height (game/TarpPlan.js)
+			uniforms: {
+				pull: [ 'f32', 1 ], rollY: [ 'f32', 0.55 ], // ---- R: rollY (no longer read: FR2's rollR)
+				anchor: [ 'f32', 0 ], lay: [ 'f32', - 1 ], edgeY: [ 'f32', 0.05 ], rollR: [ 'f32', 0.3 ], billow: [ 'f32', 0 ],
+			},
 			vertex: /* wgsl */`
-	// the part not yet pulled out is the roll, lying along the sheet's leading edge as it crosses
-	let k = mat.pull;
-	let front = 1.0 - k;
-	let out = step( front, 1.0 - v.uv.x );
-	let lx = ( 0.5 - front ) * ${ S.toFixed( 1 ) }; let lz = ( v.uv.y - 0.5 ) * ${ S.toFixed( 1 ) };
-	// (---- R: up inside the roll's mesh, at its axis: places/rituals/Roll.js)
-	let rolled = vec3f( ${ c[ 0 ].toFixed( 2 ) } + ( lx - lz ) * ${ r2.toFixed( 5 ) }, mat.rollY * 0.6, ${ c[ 1 ].toFixed( 2 ) } + ( lx + lz ) * ${ r2.toFixed( 5 ) } );
-	let p = mix( rolled, v.position, out );
+	let S = ${ S.toFixed( 1 ) }; let W = ${ W.toFixed( 4 ) };
+	let x = v.uv.x * S;
+	// where the free edge and the left field edge are (m along u from the sheet's left field edge laid square)
+	let e = mat.pull * S; let a = mat.anchor * S;
+	let E = max( W, e - a );
+	// the folds open from the top: the second layer (back the way it came) shortens from the outfield
+	// side as the edge goes out, and the rest runs over the stack and out flat to the edge
+	let q = clamp( ( E - W ) * 0.5, 0.0, W );
+	var P = x; var h = 0.0; var flip = 1.0;
+	if ( x >= W && x < 2.0 * W - q ) { P = 2.0 * W - x; h = 0.035; flip = - 1.0; }
+	else if ( x >= W ) { P = x - 2.0 * W + 2.0 * q; h = 0.07 * ( 1.0 - smoothstep( W - 0.4, W + 0.3, P ) ) * ( 1.0 - smoothstep( W * 0.9, W, q ) ); }
+	let folded = 1.0 - smoothstep( 0.0, W * 0.5, q );
+	// still on the roll: gathered at its axis, inside it
+	let onRoll = step( v.uv.y, mat.lay );
+	let vv = mix( v.uv.y, mat.lay, onRoll );
+	let lx = a + P - 0.5 * S; let lz = ( vv - 0.5 ) * S;
+	let px = ${ c[ 0 ].toFixed( 2 ) } + ( lx - lz ) * ${ r2.toFixed( 5 ) };
+	let pz = ${ c[ 1 ].toFixed( 2 ) } + ( lx + lz ) * ${ r2.toFixed( 5 ) };
+	// the mound under it (Field.js moundHeight)
+	let mr = length( vec2f( px, pz + ${ ( 59 * 0.3048 ).toFixed( 4 ) } ) ) / ${ ( 9 * 0.3048 ).toFixed( 4 ) };
+	let mt = clamp( ( mr - 0.3 ) / 0.7, 0.0, 1.0 );
+	let mound = select( 0.0, ${ ( 10 / 12 * 0.3048 ).toFixed( 4 ) } * ( 1.0 - mt * mt * ( 3.0 - 2.0 * mt ) ), mr < 1.0 );
+	// its folds and sags (as the laid geometry has them: where it lies, so the strip's layers keep
+	// apart), lumpier folded up
+	let flz = ( v.uv.y - 0.5 ) * S;
+	let fold = 0.06 * sin( lx * 0.9 + sin( lz * 0.4 ) * 2.0 ) + 0.04 * sin( lz * 1.3 );
+	let edge = min( min( v.uv.x, 1.0 - v.uv.x ), min( v.uv.y, 1.0 - v.uv.y ) ) * S;
+	var y = mound + 0.05 + max( 0.0, fold ) * mix( min( 1.0, edge / 2.0 ), 0.5, folded ) + h;
+	y = y + folded * 0.06 * max( 0.0, mx_noise_float2( vec2f( P * 0.7, flz * 0.35 ) ) );
+	// the moving part billows (air under it), most in the middle of the run
+	let run = clamp( ( P - W ) / max( 0.5, E - W ), 0.0, 1.0 );
+	y = y + mat.billow * step( W, P ) * sin( 3.14159 * run ) * ( 0.16 + 0.14 * mx_noise_float2( vec2f( flz * 0.21, run * 3.0 ) ) );
+	// the last metres up in the crew's hands
+	let held = pow( smoothstep( S - 2.6, S, x ), 1.4 ) * step( 0.5, 1.0 - onRoll );
+	y = y + max( 0.0, mat.edgeY - 0.05 ) * held;
+	y = mix( y, mat.rollR * 0.7, onRoll );
+	let p = vec3f( px, y, pz );
 	v.useWorld = true;
 	v.worldPos = ( v.model * vec4f( p, 1.0 ) ).xyz;
-	v.worldNormal = normalize( ( v.model * vec4f( v.normal, 0.0 ) ).xyz );
+	// (the second layer lies upside down: its normal down, so its underside faces up)
+	let n = normalize( vec3f( v.normal.x, v.normal.y, v.normal.z ) + vec3f( - 0.6 * held * ${ r2.toFixed( 5 ) }, 0.0, - 0.6 * held * ${ r2.toFixed( 5 ) } ) * step( 0.1, mat.edgeY - 0.05 ) );
+	v.worldNormal = normalize( ( v.model * vec4f( n * flip, 0.0 ) ).xyz );
 	v.prevWorldPos = v.worldPos;
+	// (to the surface: how folded up it is, in the colour's green)
+	v.color = vec4f( 1.0, folded * ( 1.0 - onRoll ), 1.0, 1.0 );
 `,
 			surface: /* wgsl */`
 	// white vinyl, seams every 4 m; long wrinkles; water standing in the low folds (the sheet's own folds,
@@ -372,12 +418,26 @@ export class Details2008 {
 	let low = smoothstep( - 0.03, - 0.08, fold );
 	let pud = low * smoothstep( 0.58, 0.75, mx_noise_float2( vec2f( lx * 0.6, lz * 0.12 ) ) * 0.5 + 0.5 );
 	let wrinkle = mx_noise_float2( vec2f( lx * 0.35, lz * 2.4 ) );
-	s.albedo = mat.color * ( 1.0 - 0.12 * seam ) * ( 1.0 - 0.06 * pud ) * ( 0.95 + 0.05 * wrinkle ) * ( 0.96 + 0.05 * mx_noise_float2( in.P.xz * 2.0 ) );
-	s.normal = normalize( s.normal + vec3f( 0.06 * wrinkle, 0.0, 0.0 ) );
+	var alb = mat.color * ( 1.0 - 0.12 * seam ) * ( 1.0 - 0.06 * pud ) * ( 0.95 + 0.05 * wrinkle ) * ( 0.96 + 0.05 * mx_noise_float2( in.P.xz * 2.0 ) );
+	// ---- FR2: folded up in its strip it's a wet, crumpled silver-grey (Getty 83477151, 83458679; the
+	// world feed's 2:54:00 frames 1-3), the white showing as the folds open and it's pulled out flat
+	let fz = in.color.g;
+	let crumple = mx_noise_float2( in.P.xz * vec2f( 1.7, 2.3 ) ) * 0.5 + 0.5;
+	alb = alb * mix( 1.0, 0.62 + 0.22 * crumple, fz );
+	// ---- FR2: the underside black; the hem black all round, with its white tabs every 2 m (83458393)
+	let ed = min( min( in.uv.x, 1.0 - in.uv.x ), min( in.uv.y, 1.0 - in.uv.y ) ) * ${ S.toFixed( 1 ) };
+	let along = select( in.uv.x, in.uv.y, min( in.uv.x, 1.0 - in.uv.x ) < min( in.uv.y, 1.0 - in.uv.y ) ) * ${ S.toFixed( 1 ) };
+	let hem = 1.0 - smoothstep( 0.1, 0.13, ed );
+	let tab = hem * step( fract( along / 2.0 ), 0.05 ) * step( 0.02, ed );
+	let under = select( 1.0, 0.0, in.front );
+	alb = mix( alb, vec3f( 0.028, 0.03, 0.032 ), max( under, hem ) );
+	alb = mix( alb, vec3f( 0.8 ), tab );
+	s.albedo = alb;
+	s.normal = normalize( s.normal + vec3f( 0.06 * wrinkle + 0.25 * fz * ( crumple - 0.5 ), 0.0, 0.18 * fz * mx_noise_float2( in.P.xz * 3.1 + 7.0 ) ) );
 	// (the water glossy enough to catch the banks' glow, not a mirror of the black sky)
-	s.roughness = mix( 0.32, 0.12, pud );
+	s.roughness = mix( mix( 0.32, 0.12, pud ), 0.4, max( under, hem ) );
 	// under the lights the brightest thing on the field: every bank lights it
-	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.25;
+	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.25 * ( 1.0 - max( under, hem ) );
 ` } );
 		this.tarpMat.underwaterLighting = 'none';
 		this.tarpMat.setDefine( 'DRY', 1 );
@@ -392,11 +452,31 @@ export class Details2008 {
 
 	}
 
-	setTarp( k ) {
+	// k: how much of it is on (0 stowed .. 1 covering the infield); st: the rituals' plan's state
+	// (game/TarpPlan.js tarpState), which places it fold by fold
+	setTarp( k, st = null ) {
 
 		if ( ! this.tarpSheet ) return;
-		this.tarpMat.uniforms.pull.value = k;
-		this.tarpSheet.visible = k > 0.001;
+		const U = this.tarpMat.uniforms;
+		// ---- FR2: the strip, the pull and the drag from the plan (without one: on, or off)
+		if ( st ) {
+
+			U.pull.value = st.pull;
+			U.anchor.value = st.anchor;
+			U.lay.value = st.phase === 'lift' || st.phase === 'stowed' ? 2 : st.vRoll;
+			U.edgeY.value = st.edgeY;
+			U.rollR.value = st.r;
+			U.billow.value = st.billow || 0;
+			this.tarpSheet.visible = ! st.stowed && st.phase !== 'lift';
+
+		} else {
+
+			U.pull.value = 1; U.anchor.value = 0; U.lay.value = - 1; U.edgeY.value = 0.05; U.billow.value = 0;
+			this.tarpSheet.visible = k > 0.001;
+
+		}
+
+		// ---- end FR2
 		this.tarpRoll.visible = k < 0.98;
 
 	}

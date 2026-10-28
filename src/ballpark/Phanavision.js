@@ -207,8 +207,11 @@ export class Phanavision {
 	moment( d ) {
 
 		if ( ! d ) return null;
-		const seg = d.segmentAt( d.t ), s = seg.snap || {}, g = d.game;
-		const lt = d.t - seg.t0;
+		// ---- FR2: the champions from strike three (Director.champsAt), not the celebrate segment 3.6 s on
+		const champ = d.champsAt ? d.champsAt( d.t ) : null;
+		const seg = champ ? champ.seg : d.segmentAt( d.t ), s = seg.snap || {}, g = d.game;
+		const lt = champ ? champ.lt : d.t - seg.t0;
+		// ---- end FR2
 		const play = seg.pi != null ? g.plays[ seg.pi ] : null;
 		const before = seg.before?.score, after = s.score;
 		const m = {

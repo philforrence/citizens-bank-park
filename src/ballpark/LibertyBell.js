@@ -498,7 +498,8 @@ export class LibertyBell {
 		this._triggers = [];
 		for ( const s of d.segments ) {
 
-			if ( s.kind === 'celebrate' ) this._triggers.push( s.t0 + 0.3 );
+			// ---- FR2: the last out at strike three (Director.lastOut), not the celebrate segment 3.6 s on
+			if ( s.kind === 'celebrate' ) this._triggers.push( ( d.lastOut && ! d.oldCelebration ? d.lastOut.tStrike : s.t0 ) + 0.3 );
 			if ( s.kind === 'inplay' && s.plan?.hr && s.snap?.batting === 'home' ) this._triggers.push( s.t0 + ( s.plan.bb?.time || 3 ) );
 
 		}

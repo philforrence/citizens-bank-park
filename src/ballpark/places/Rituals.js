@@ -67,7 +67,7 @@ export default class Rituals {
 		this.leis = new Leis( this.group, app );
 		this.streamers = new Streamers( this.group );
 		this.families = new Families( { group: this.group } );
-		this.throng = new Throng( { group: this.group } ); // ---- FB3 (C3B-9): the field filling up
+		this.throng = new Throng( { group: this.group, stage: this.stage } ); // ---- FB3 (C3B-9): the field filling up (FR2: and the crew carrying the stage in)
 		// ---- end FR1
 		this._lastT = null;
 		// the lap's lead bike: the one parked nearest the lap's route, and how far along the route it is

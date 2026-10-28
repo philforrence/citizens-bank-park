@@ -1742,10 +1742,14 @@ export class Crowd {
 	// rally, everyone up and jumping at the end
 	mood( d ) {
 
-		const seg = d.segmentAt( d.t );
+		// ---- FR2: from strike three the stands are the champions' (Director.champsAt: the celebrate
+		// segment, its clock from the strike), not 3.6 s later when that segment starts
+		const champ = d.champsAt ? d.champsAt( d.t ) : null;
+		const seg = champ ? champ.seg : d.segmentAt( d.t );
 		const m = { stand: 0.03, cheer: 0, clap: 0.05, jump: 0, towel: 0.03, tense: 0 };
 		if ( ! seg ) return m;
-		const s = seg.snap || {}, lt = d.t - seg.t0;
+		const s = seg.snap || {}, lt = champ ? champ.lt : d.t - seg.t0;
+		// ---- end FR2
 		const phPitch = s.half === 'top', late = s.inning >= 9;
 		const two = ( s.strikes || 0 ) >= 2, outs2 = ( s.outs || 0 ) >= 2;
 		if ( seg.kind === 'pitch' || seg.kind === 'walkup' ) {

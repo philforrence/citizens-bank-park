@@ -3,9 +3,10 @@ import { standard } from '../../../materials/Materials.js';
 import { commonModule } from '../../../engine/render/wgsl/common.js';
 import { rollAxis, rollDistance, tubeAxis, R_FULL, R_CORE } from '../../game/TarpPlan.js';
 
-// The infield tarp's roll while it's off the wall (the rituals' tarp plan, game/TarpPlan.js): the long
-// roll of silver-grey vinyl on its black corrugated core, swung out from the wall, pushed across the
-// infield by the crew as the sheet pays out behind it (Details2008's sheet), thinning to the bare core
+// The infield tarp's roll while it's off the wall (the rituals' tarp plan, game/TarpPlan.js): the roll
+// of silver-grey vinyl on its black corrugated core, about 15 m long (the tarp folded in three), pushed off
+// the wall and along the outfield edge of the clay by the crew as the folded strip lays out behind it
+// (Details2008's sheet; ---- FR2: the 27th's route as photographed), thinning to the bare core
 // (Getty 83458220: the skin wrinkled and wet, the black ribbed pipe showing at the ends with a pale
 // stripe down it; 83458149: the empty core lying on the grass). Its rings are laid along the plan's axis
 // every frame it moves, and it turns as it rolls. While it's out, the canvas cover it was stowed under
@@ -26,7 +27,7 @@ export class Roll {
 		for ( let i = 0; i <= NR; i ++ ) for ( let k = 0; k <= NS; k ++ ) {
 
 			const v = i * ( NS + 1 ) + k;
-			uv[ v * 2 ] = i / NR; // along it (0..1: the plan's v); the shader scales to metres
+			uv[ v * 2 ] = i / NR; // along it (0..1: the plan's s); the shader scales to metres
 			uv[ v * 2 + 1 ] = k / NS;
 
 		}
@@ -71,7 +72,7 @@ export class Roll {
 		this.geo = g;
 		// (CB-9: the sheet's own white vinyl, as Details2008's tarp is, coming off the roll)
 		this.mat = standard( { name: 'tarp-roll-out', color: new Color( 0.86, 0.87, 0.85 ), roughness: 0.3, modules: [ commonModule ],
-			uniforms: { turn: [ 'f32', 0 ], bare: [ 'f32', 0 ], rOut: [ 'f32', R_FULL ], len: [ 'f32', 44 ] },
+			uniforms: { turn: [ 'f32', 0 ], bare: [ 'f32', 0 ], rOut: [ 'f32', R_FULL ], len: [ 'f32', 14.7 ] },
 			surface: /* wgsl */`
 	let wetK = frame.wet;
 	var c = vec3f( 0.0 );
@@ -92,7 +93,9 @@ export class Roll {
 		let sa = in.uv.x * mat.len;
 		let a = fract( in.uv.y + mat.turn );
 		// the vinyl skin: wrinkled, the sheet's seams where they come round, grimy where it touched the clay
-		var skin = mat.color * ( 0.86 + 0.18 * mx_noise_float2( vec2f( sa * 0.9, a * 14.0 ) ) );
+		// (---- FR2: wound up, the wet vinyl's a silver-grey under the lights, as the folded strip is:
+		// Getty 88457361, 83458679)
+		var skin = mat.color * vec3f( 0.56, 0.57, 0.6 ) * ( 0.86 + 0.18 * mx_noise_float2( vec2f( sa * 0.9, a * 14.0 ) ) );
 		let seam = max( 1.0 - smoothstep( 0.004, 0.009, abs( a - 0.23 ) ), 1.0 - smoothstep( 0.004, 0.009, abs( a - 0.71 ) ) );
 		skin = skin * ( 1.0 - 0.3 * seam );
 		skin = mix( skin, vec3f( 0.16, 0.08, 0.04 ), 0.25 * smoothstep( 0.55, 0.9, mx_noise_float2( vec2f( sa * 0.4, a * 5.0 ) ) ) );
@@ -131,7 +134,7 @@ export class Roll {
 		this.mesh.visible = out;
 		this.cover.visible = out;
 		if ( ! out ) return;
-		const key = [ st.phase, st.lift.toFixed( 4 ), st.u.toFixed( 4 ), st.r.toFixed( 4 ) ].join( '|' );
+		const key = [ st.phase, st.lift.toFixed( 4 ), ( st.vRoll ?? st.u ).toFixed( 4 ), st.r.toFixed( 4 ) ].join( '|' ); // ---- FR2: vRoll
 		if ( key === this._key ) return;
 		this._key = key;
 		const A = rollAxis( st, NR, this.axis );
