@@ -936,7 +936,7 @@ export class BallparkApp {
 		const [ g0, g1 ] = G29.gba;
 		if ( u < g0 ) return high;
 		if ( u < g1 ) return u < g0 + 4.5 ? high : ( fit( 'center', [ 0.6, 1.45, 9.6 ], 1.6, 'singer' ) || high );
-		if ( u < g1 + 7 ) return fit( 'low3', [ DUGOUT.home[ 0 ], 1.1, DUGOUT.home[ 1 ] ], 2.6, 'dugout' );
+		if ( u < g1 + 7 ) return fit( 'low3', [ DUGOUT.home[ 0 ], 1.1, DUGOUT.home[ 1 ] ], 2.6, 'dugout' ) || fit( 'high3', [ DUGOUT.home[ 0 ], 0.9, DUGOUT.home[ 1 ] ], 3.4, 'dugout' ) || high;
 		if ( u < g1 + 13 ) return fit( 'high', [ BULLPEN.home[ 0 ], 2.2, BULLPEN.home[ 1 ] - 1.5 ], 8, 'pens' );
 		if ( u < 54 ) return fit( 'high3', [ 40, 12, - 6 ], 22, 'bowl2' );
 		// ---- end FB4

@@ -405,12 +405,16 @@ export class Details2008 {
 	let sag = 0.09 * ( 0.5 - 0.5 * cos( flz * 2.856 ) ) * ( 1.0 - smoothstep( 0.0, 1.6, dE ) );
 	let Lb = min( 11.0, runL );
 	let wave = 1.0 + 0.3 * sin( dE * 0.85 - E * 1.1 + flz * 0.13 );
-	let amp = mat.billow * ( 0.42 + 0.32 * mx_noise_float2( vec2f( flz * 0.13, E * 0.08 ) ) ) * wave;
+	let amp = mat.billow * ( 0.55 + 0.3 * mx_noise_float2( vec2f( flz * 0.13, E * 0.08 ) ) ) * wave;
 	let rise = clamp( runL, 2.0, 8.0 );
-	let prof = Hh * ( 1.0 - smoothstep( 0.0, rise, dE ) ) - Hh * sag + amp * pow( sin( 3.14159 * clamp( dE / Lb, 0.0, 1.0 ) ), 0.75 );
+	// (the hump: up steeply from their hands to its crest 1.6 m back, steeper than the high cameras look
+	// down, so its black underside faces them under the edge; then down in a long tail, and a longer, lower
+	// billow over the whole run)
+	let hk = dE / 1.6; let hB = ( dE + 0.25 ) / 1.6;
+	let prof = Hh * ( 1.0 - smoothstep( 0.0, rise, dE ) ) - Hh * sag + amp * ( hk * exp( 1.0 - hk ) + 0.3 * sin( 3.14159 * clamp( dE / Lb, 0.0, 1.0 ) ) );
 	// (its slope back from the edge, for the light: the same a quarter metre further back)
 	let dB = dE + 0.25;
-	let profB = Hh * ( 1.0 - smoothstep( 0.0, rise, dB ) ) + amp * pow( sin( 3.14159 * clamp( dB / Lb, 0.0, 1.0 ) ), 0.75 );
+	let profB = Hh * ( 1.0 - smoothstep( 0.0, rise, dB ) ) + amp * ( hB * exp( 1.0 - hB ) + 0.3 * sin( 3.14159 * clamp( dB / Lb, 0.0, 1.0 ) ) );
 	y = y + top * prof;
 	let held = top * ( 1.0 - smoothstep( 0.0, 2.6, dE ) );
 	// ---- end FB4

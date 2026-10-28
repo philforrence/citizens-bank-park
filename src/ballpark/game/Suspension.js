@@ -60,7 +60,13 @@ const UMP_DOOR = [ - 8.6, 13.4 ];
 // named in CAST.md, their faces in Looks.js: crew 1 is Frank Tomaselli, 57, at the far end of the roll
 // and one of the six who stay out with it; crew 5 Ricky DeSantis, the intern, on a hose on the 29th; the
 // liner, his own man, Lucho Figueroa)
-const CREW = Array.from( { length: N_CREW }, ( _, i ) => ( { id: 'r:crew' + i, who: { side: 'crew', num: '', last: '' }, seed: hash( i * 3.1 + 0.7 ), v: 0.03 + 0.94 * i / ( N_CREW - 1 ) } ) );
+// (---- FB4, C4B-4: not evenly spaced along the roll, each his own distance back from it and his own way
+// of pushing: 60% bent over it with both hands, a quarter upright with a hand on it, the rest down with a
+// shoulder to it (Getty 88457361, 83458220: different heights and leans, gaps between them). They were
+// twenty men 0.74 m apart, one bend, a drill line)
+const CREW = Array.from( { length: N_CREW }, ( _, i ) => ( { id: 'r:crew' + i, who: { side: 'crew', num: '', last: '' }, seed: hash( i * 3.1 + 0.7 ),
+	v: 0.03 + 0.94 * i / ( N_CREW - 1 ) + ( i > 0 && i < N_CREW - 1 ? ( hash( i * 7.9 + 0.2 ) - 0.5 ) * 0.034 : 0 ),
+	back: 0.45 + 0.24 * hash( i * 5.3 + 0.9 ), style: hash( i * 2.7 + 0.4 ) < 0.6 ? 0 : hash( i * 2.7 + 0.4 ) < 0.85 ? 1 : 2 } ) );
 // most with the hood up on the 27th (the head groundskeeper's way: the cap)
 for ( const c of CREW ) c.hood = c.seed < 0.68;
 // the relievers who walk in from the pens: the Phillies' (the lower pen) to the first base side, the
@@ -128,10 +134,10 @@ const rollAt = ( st, axis, s ) => rollFrame( st, axis, s );
 function pusher( d, c, st, axis, role, t ) {
 
 	const f = rollAt( st, axis, c.v );
-	const back = f.r + 0.52;
+	const back = f.r + ( c.back ?? 0.52 ); // (---- FB4: his own distance back)
 	const x = f.p[ 0 ] - f.dir[ 0 ] * back, z = f.p[ 1 ] - f.dir[ 1 ] * back;
 	const moving = st.speed > 0;
-	const pose = R.pushRoll( moving ? f.travelled / 2.3 + c.seed : 0, f.r * 2, c.seed );
+	const pose = pushStyle( R.pushRoll( moving ? f.travelled / 2.3 + c.seed : 0, f.r * 2, c.seed ), c, f.r * 2, t );
 	if ( ! moving ) pose.pelvisY += 0.02 * Math.sin( t * 1.3 + c.seed * 9 );
 	// (on the 27th they walk on the sheet laid behind the roll)
 	const onSheet = st.dir > 0 && st.phase !== 'lift' ? 0.045 : 0;
@@ -139,6 +145,39 @@ function pusher( d, c, st, axis, role, t ) {
 	return [ x, z ];
 
 }
+
+// ---- FB4 (C4B-4): his way of pushing it (c.style, CREW above): bent over it with both hands, deeper or
+// shallower; upright with his right hand on it, the left at his side; or down low with his shoulder to it.
+// Now and then a look along the line. h: the roll's top above the ground
+function pushStyle( p, c, h, t ) {
+
+	if ( c.style === undefined ) return p;
+	const k = c.seed, reach = h * 0.92;
+	if ( c.style === 1 ) {
+
+		p.pelvisY += 0.07;
+		p.pelvis = [ - 0.12, 0, 0 ];
+		p.torso = [ - 0.28 - 0.12 * k, 0.15, 0 ];
+		p.head = [ 0.2, p.head[ 1 ] ];
+		p.handR = [ 0.18, reach + 0.04, - 0.6 ];
+		p.handL = [ - 0.24, 0.86, - 0.04 ];
+
+	} else if ( c.style === 2 ) {
+
+		p.pelvisY -= 0.05;
+		p.torso = [ - 0.95, - 0.35, 0.05 ];
+		p.head = [ 0.4, - 0.6 ];
+		p.handL = [ - 0.12, reach - 0.08, - 0.42 ];
+		p.handR = [ 0.3, reach - 0.12, - 0.36 ];
+
+	} else p.torso = [ p.torso[ 0 ] * ( 0.82 + 0.36 * k ), p.torso[ 1 ], p.torso[ 2 ] ];
+
+	const look = Math.max( 0, Math.sin( t * 0.37 + k * 23 ) - 0.75 ) * 4;
+	if ( look > 0 ) p.head = [ p.head[ 0 ] - 0.25 * look, p.head[ 1 ] + ( k < 0.5 ? 0.7 : - 0.7 ) * look ];
+	return p;
+
+}
+// ---- end FB4
 
 // someone pulling the sheet's free edge across by its handle (Getty 83458149: walking with the strap
 // behind him, leaning into it), just ahead of the edge; on the 29th walking it back to the strip, the
@@ -238,7 +277,7 @@ const edgeStart = ( c ) => {
 // ... and his place pushing the roll at an end of the strip ('end': behind second, where it runs out;
 // 'start': by the third base line), pushing it on (dir 1, the 27th) or back (dir -1, the 29th)
 const _endAxis = [];
-const pushSpot = ( c, end, dir, back = 0.52 ) => {
+const pushSpot = ( c, end, dir, back = c.back ?? 0.52 ) => {
 
 	const st = { phase: 'lay', vRoll: end === 'end' ? - ( R_CORE + 0.15 ) / SHEET.S : 1 + 0.65 / SHEET.S, r: end === 'end' ? R_CORE : R_FULL_29, lift: 1, dir };
 	const A = rollAxis( st, 20, _endAxis ), f = rollAt( st, A, c.v ), k = f.r + back;
@@ -285,7 +324,7 @@ function night27( d, seg, lt, st, axis ) {
 		if ( lt < T.lift ) {
 
 			const f = rollAt( st, axis, c.v );
-			const back = f.r + 0.45;
+			const back = f.r + c.back; // (---- FB4)
 			const station = [ f.p[ 0 ] - f.dir[ 0 ] * back, f.p[ 1 ] - f.dir[ 1 ] * back ];
 			const from = i >= 12 ? WAIT[ 19 - i ] : GATE_3B;
 			const t0 = i >= 12 ? T.out + ( 19 - i ) * 0.1 : T.out + i * 0.22;
@@ -301,7 +340,7 @@ function night27( d, seg, lt, st, axis ) {
 			if ( w.done ) {
 
 				// there: hands on it, waiting for the word
-				d.act( c.id, station[ 0 ], station[ 1 ], yawTo( station, [ station[ 0 ] + f.dir[ 0 ], station[ 1 ] + f.dir[ 1 ] ] ), R.pushRoll( 0, f.r * 2, c.seed ), who );
+				d.act( c.id, station[ 0 ], station[ 1 ], yawTo( station, [ station[ 0 ] + f.dir[ 0 ], station[ 1 ] + f.dir[ 1 ] ] ), pushStyle( R.pushRoll( 0, f.r * 2, c.seed ), c, f.r * 2, lt ), who );
 
 			} else d.act( c.id, w.p[ 0 ], w.p[ 1 ], w.yaw, M.run( w.dist / 3.2, 0.3 ), who );
 			continue;
