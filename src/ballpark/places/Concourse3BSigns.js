@@ -71,13 +71,24 @@ function player( ctx, cx, base, s, pose, num, skin = '#d9a07a' ) {
 		pitch: [ [ [ - 8, - 100 ], [ - 16, - 50 ], [ - 18, 0 ] ], [ [ 8, - 100 ], [ 44, - 118 ], [ 40, - 78 ] ] ],
 	}[ pose ];
 	for ( const L of legs ) limb( L, 26, white );
+	// ---- FW2 (C2W-8): painted, not flat: the cloth shaded down one side of each limb
+	const shade = ( pts, w ) => {
+
+		ctx.save(); ctx.translate( w * 0.28, 0 );
+		limb( pts, w * 0.42, 'rgba( 70, 70, 95, 0.28 )' );
+		ctx.restore();
+
+	};
+	for ( const L of legs ) shade( L, 26 );
+	// ---- end FW2
 	for ( const L of legs ) limb( L, 1.5, pin );
-	// the socks and the spikes
+	// the socks and the spikes (FW2: a cleat with its sole)
 	for ( const L of legs ) {
 
 		const [ fx, fy ] = L[ 2 ];
 		ctx.fillStyle = red; ctx.fillRect( fx - 10, fy - 22, 20, 18 );
-		ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse( fx + 6, fy - 2, 16, 7, 0, 0, Math.PI * 2 ); ctx.fill();
+		ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo( fx - 11, fy - 6 ); ctx.quadraticCurveTo( fx + 8, fy - 12, fx + 22, fy - 2 ); ctx.lineTo( fx + 22, fy + 2 ); ctx.lineTo( fx - 11, fy + 2 ); ctx.closePath(); ctx.fill();
+		ctx.fillStyle = '#d9d6cf'; ctx.fillRect( fx - 11, fy + 1, 33, 2.5 );
 
 	}
 
@@ -86,8 +97,13 @@ function player( ctx, cx, base, s, pose, num, skin = '#d9a07a' ) {
 	ctx.save();
 	ctx.translate( 0, - 100 );
 	ctx.rotate( tilt );
-	ctx.fillStyle = white;
+	// (FW2: the jersey lit from the left, folds at the waist)
+	const jg = ctx.createLinearGradient( - 32, 0, 32, 0 );
+	jg.addColorStop( 0, '#fbfaf6' ); jg.addColorStop( 0.6, white ); jg.addColorStop( 1, '#c9c6c2' );
+	ctx.fillStyle = jg;
 	ctx.beginPath(); ctx.moveTo( - 26, 0 ); ctx.lineTo( 26, 0 ); ctx.lineTo( 32, - 78 ); ctx.lineTo( - 32, - 78 ); ctx.closePath(); ctx.fill();
+	ctx.strokeStyle = 'rgba( 90, 90, 110, 0.25 )'; ctx.lineWidth = 1.5;
+	for ( const fx of [ - 14, 4, 18 ] ) { ctx.beginPath(); ctx.moveTo( fx, - 4 ); ctx.quadraticCurveTo( fx + 4, - 16, fx - 2, - 26 ); ctx.stroke(); }
 	ctx.fillStyle = pin;
 	for ( let x = - 30; x < 32; x += 7 ) ctx.fillRect( x, - 78, 1.5, 78 );
 	ctx.fillStyle = '#6a1020'; ctx.fillRect( - 26, - 6, 52, 7 );
@@ -102,22 +118,46 @@ function player( ctx, cx, base, s, pose, num, skin = '#d9a07a' ) {
 	for ( const A of sleeves ) {
 
 		limb( A.slice( 0, 2 ), 18, white );
+		shade( A.slice( 0, 2 ), 18 );
 		limb( A.slice( 1 ), 14, pose === 'pitch' ? red : skin );
+		shade( A.slice( 1 ), 14 );
+		// batting gloves on the hands
+		if ( pose !== 'pitch' ) { const [ hx, hy ] = A[ 2 ]; ctx.fillStyle = '#1b1b22'; ctx.beginPath(); ctx.arc( hx, hy, 7.5, 0, Math.PI * 2 ); ctx.fill(); }
 
 	}
 
-	if ( pose === 'bat' ) limb( [ [ 6, - 70 ], [ - 6, - 150 ] ], 7, '#b58a55' );
-	if ( pose === 'swing' ) limb( [ [ - 66, - 82 ], [ - 130, - 60 ] ], 7, '#b58a55' );
+	// (FW2: a bat, the knob in the hands and the barrel thickening out to its end)
+	const bat = ( x0, y0, x1, y1 ) => {
+
+		const dx = x1 - x0, dy = y1 - y0, l = Math.hypot( dx, dy ), nx = - dy / l, ny = dx / l;
+		const g = ctx.createLinearGradient( x0 + nx * 6, y0 + ny * 6, x0 - nx * 6, y0 - ny * 6 );
+		g.addColorStop( 0, '#d9b07a' ); g.addColorStop( 1, '#8a6034' );
+		ctx.fillStyle = g;
+		ctx.beginPath();
+		ctx.moveTo( x0 + nx * 2, y0 + ny * 2 ); ctx.lineTo( x0 + dx * 0.45 + nx * 2.5, y0 + dy * 0.45 + ny * 2.5 ); ctx.lineTo( x1 + nx * 5.5, y1 + ny * 5.5 );
+		ctx.arc( x1, y1, 5.5, Math.atan2( ny, nx ), Math.atan2( - ny, - nx ) );
+		ctx.lineTo( x0 + dx * 0.45 - nx * 2.5, y0 + dy * 0.45 - ny * 2.5 ); ctx.lineTo( x0 - nx * 2, y0 - ny * 2 ); ctx.closePath(); ctx.fill();
+
+	};
+	if ( pose === 'bat' ) bat( 6, - 66, - 8, - 160 );
+	if ( pose === 'swing' ) bat( - 62, - 84, - 140, - 56 );
 	if ( pose === 'pitch' ) {
 
 		ctx.fillStyle = '#5a3a20'; ctx.beginPath(); ctx.ellipse( 40, - 30, 14, 16, 0.4, 0, Math.PI * 2 ); ctx.fill();
 
 	}
 
-	// the head: a red helmet (a cap on the pitcher)
+	// the head: a red helmet (a cap on the pitcher); FW2: a face under its brim's shadow, generic (no
+	// likeness): the eye, the cheek's shade, the jaw
 	ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse( 0, - 96, 15, 18, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = 'rgba( 60, 30, 20, 0.35 )'; ctx.beginPath(); ctx.ellipse( 4, - 92, 10, 12, 0, - 0.3, Math.PI * 0.9 ); ctx.fill();
+	ctx.fillStyle = 'rgba( 30, 15, 10, 0.55 )'; ctx.fillRect( - 13, - 103, 26, 5 );
+	ctx.fillStyle = '#1a1210'; ctx.beginPath(); ctx.ellipse( pose === 'pitch' ? 7 : - 5, - 97, 2.2, 1.6, 0, 0, Math.PI * 2 ); ctx.fill();
+	ctx.strokeStyle = 'rgba( 60, 30, 20, 0.5 )'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo( pose === 'pitch' ? 12 : - 12, - 93 ); ctx.lineTo( pose === 'pitch' ? 15 : - 15, - 88 ); ctx.stroke();
 	ctx.fillStyle = red;
 	ctx.beginPath(); ctx.ellipse( 2, - 104, 18, 14, 0, Math.PI, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = 'rgba( 255, 255, 255, 0.35 )'; ctx.beginPath(); ctx.ellipse( - 4, - 112, 7, 3, - 0.3, 0, Math.PI * 2 ); ctx.fill();
+	ctx.fillStyle = red;
 	ctx.fillRect( pose === 'pitch' ? 4 : - 18, - 106, 26, 5 );
 	if ( pose !== 'pitch' ) {
 
@@ -147,7 +187,9 @@ export function drawAtlas2() {
 			blurCrowd( ctx, x + 18, y + 18, w - 36, h - 102, 3 + i * 17 );
 			ctx.save();
 			ctx.beginPath(); ctx.rect( x + 18, y + 18, w - 36, h - 102 ); ctx.clip();
-			player( ctx, x + w / 2, y + h - 110, 2.0, pose, num, i === 0 ? '#8a5a3c' : i === 1 ? '#b47d5a' : '#dca483' );
+			// (C2W-8, FW2: the whole player in the picture, helmet to cleats, as the 2008 banners framed him; at
+			// 2.0 the heads of the swing and the leg kick were cut off at the frame's top)
+			player( ctx, x + w / 2 + ( pose === 'swing' ? 30 : 0 ), y + h - 96, 1.42, pose, num, i === 0 ? '#8a5a3c' : i === 1 ? '#b47d5a' : '#dca483' );
 			ctx.restore();
 			// the nameplate: a red panel with notched ends, cream serif caps
 			ctx.fillStyle = '#b5152b';
@@ -167,7 +209,7 @@ export function drawAtlas2() {
 			blurCrowd( ctx, x + 6, y + 70, w - 12, h - 150, 41 + i * 9 );
 			ctx.save();
 			ctx.beginPath(); ctx.rect( x + 6, y + 70, w - 12, h - 150 ); ctx.clip();
-			player( ctx, x + w / 2, y + h - 90, 1.35, pose, num );
+			player( ctx, x + w / 2 + ( pose === 'swing' ? 20 : 0 ), y + h - 86, 1.05, pose, num );
 			ctx.restore();
 			ctx.fillStyle = '#e41b23'; ctx.fillRect( x, y, w, 66 );
 			ctx.fillStyle = '#ffffff'; ctx.font = `italic 700 40px "Brush Script MT", Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';

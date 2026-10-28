@@ -1300,11 +1300,15 @@ export class Concourse {
 		if ( F.blade ) {
 
 			const B = L.cells[ BRANDS.indexOf( U.what ) ], x = W - 0.15, z0 = 0.35, z1 = 1.75, y0 = 3.05, y1 = 4.1;
-			face.tri( P( x, y0, z0 ), P( x, y0, z1 ), P( x, y1, z1 ), [ a[ 0 ], 0, a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ] );
-			face.tri( P( x, y0, z0 ), P( x, y1, z1 ), P( x, y1, z0 ), [ a[ 0 ], 0, a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ], [ B[ 0 ], B[ 1 ] ] );
-			face.tri( P( x - 0.01, y0, z1 ), P( x - 0.01, y0, z0 ), P( x - 0.01, y1, z0 ), [ - a[ 0 ], 0, - a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ] );
-			face.tri( P( x - 0.01, y0, z1 ), P( x - 0.01, y1, z0 ), P( x - 0.01, y1, z1 ), [ - a[ 0 ], 0, - a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ], [ B[ 0 ], B[ 1 ] ] );
-			for ( const y of [ y1 + 0.04, y0 + 0.25 ] ) lbox( props.use( 'black' ), P, a, n, x, y, ( z0 + z1 ) / 2 - 0.15, 0.04, 0.04, z1 - z0 + 0.6 );
+			// (C2W-9, FW2: each face's u runs to its own viewer's right, toward the wall seen from the +a side
+			// and away from it from the other: both read backwards before)
+			face.tri( P( x, y0, z0 ), P( x, y0, z1 ), P( x, y1, z1 ), [ a[ 0 ], 0, a[ 1 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 0 ], B[ 1 ] ] );
+			face.tri( P( x, y0, z0 ), P( x, y1, z1 ), P( x, y1, z0 ), [ a[ 0 ], 0, a[ 1 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 0 ], B[ 1 ] ], [ B[ 2 ], B[ 1 ] ] );
+			face.tri( P( x - 0.01, y0, z1 ), P( x - 0.01, y0, z0 ), P( x - 0.01, y1, z0 ), [ - a[ 0 ], 0, - a[ 1 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 0 ], B[ 1 ] ] );
+			face.tri( P( x - 0.01, y0, z1 ), P( x - 0.01, y1, z0 ), P( x - 0.01, y1, z1 ), [ - a[ 0 ], 0, - a[ 1 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 0 ], B[ 1 ] ], [ B[ 2 ], B[ 1 ] ] );
+			// the arm over it (no longer a second rod through its face), the sign hung from it on two drops
+			lbox( props.use( 'black' ), P, a, n, x, y1 + 0.09, ( z0 + z1 ) / 2 - 0.15, 0.04, 0.04, z1 - z0 + 0.6 );
+			for ( const z of [ z0 + 0.15, z1 - 0.15 ] ) lbox( props.use( 'black' ), P, a, n, x, y1 + 0.03, z, 0.015, 0.1, 0.015 );
 
 		}
 		// ---- end FI1
