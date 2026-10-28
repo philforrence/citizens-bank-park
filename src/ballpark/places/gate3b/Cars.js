@@ -91,7 +91,7 @@ export function body( type ) {
 	};
 
 	// the dark under the car: a soft-edged patch on the ground (its shadow, without the shadow pass)
-	const L = type === 'bus' ? 6.3 : type === 'pickup' ? 2.9 : 2.7, W = type === 'bus' ? 1.3 : 1.05;
+	const L = type === 'bus' || type === 'coach' ? 6.3 : type === 'pickup' ? 2.9 : 2.7, W = type === 'bus' || type === 'coach' ? 1.35 : 1.05;
 	m.face( [ - W, 0.015, - L ], [ W, 0.015, - L ], [ W, 0.015, L ], [ - W, 0.015, L ], [ 0, 1, 0 ], [ part( 8 ), part( 8 ), part( 8 ), part( 8 ) ] );
 	if ( type === 'sedan' || type === 'police' ) {
 
@@ -133,6 +133,23 @@ export function body( type ) {
 		cabin( 0.95, 1.05, 1.75, - 1.55, - 0.7, 2.4, 2.5 );
 		lamps( 0.94, 0.85, - 2.55, 2.55 );
 		for ( const [ x, z ] of [ [ - 0.82, - 1.55 ], [ 0.82, - 1.55 ], [ - 0.82, 1.6 ], [ 0.82, 1.6 ] ] ) wheel( x, z, 0.36, 0.25 );
+
+	} else if ( type === 'coach' ) {
+
+		// ---- FW2 (C2I-2): a charter coach or a SEPTA bus: 12 m, flat-fronted, a deep windshield, the
+		// tinted windows in one band down its sides, the luggage bays' doors below
+		slab( - 1.27, 1.27, 0.45, 3.3, - 6.0, 6.0, 0, 0.22 );
+		for ( const s of [ - 1, 1 ] ) {
+
+			m.face( [ s * 1.275, 1.75, - 5.2 ], [ s * 1.275, 1.75, 5.6 ], [ s * 1.275, 2.85, 5.6 ], [ s * 1.275, 2.85, - 5.2 ], [ s, 0, 0 ], [ part( 1 ), part( 1 ), part( 1 ), part( 1 ) ] );
+			m.face( [ s * 1.28, 0.6, - 3.0 ], [ s * 1.28, 0.6, 3.0 ], [ s * 1.28, 0.66, 3.0 ], [ s * 1.28, 0.66, - 3.0 ], [ s, 0, 0 ], [ part( 5 ), part( 5 ), part( 5 ), part( 5 ) ] );
+
+		}
+
+		m.face( [ - 1.18, 1.3, - 6.01 ], [ 1.18, 1.3, - 6.01 ], [ 1.18, 3.0, - 6.01 ], [ - 1.18, 3.0, - 6.01 ], [ 0, 0, - 1 ], [ part( 1 ), part( 1 ), part( 1 ), part( 1 ) ] );
+		lamps( 1.05, 0.85, - 6.02, 6.02, 0.25, 0.1 );
+		for ( const [ x, z ] of [ [ - 1.1, - 3.9 ], [ 1.1, - 3.9 ], [ - 1.1, 3.6 ], [ 1.1, 3.6 ], [ - 1.1, 4.8 ], [ 1.1, 4.8 ] ] ) wheel( x, z, 0.5, 0.3 );
+		// ---- end FW2
 
 	} else if ( type === 'bus' ) {
 
@@ -681,7 +698,7 @@ export class LotCars {
 		const d = new Float32Array( n * 4 );
 		for ( let i = 0; i < n; i ++ ) d[ i * 4 + 3 ] = 1;
 		info.write( d );
-		const mesh = new InstancedMesh( body( 'bus' ), carMaterial( info ), n );
+		const mesh = new InstancedMesh( body( 'coach' ), carMaterial( info ), n );
 		const m = new Matrix4(), q = new Quaternion(), up = new Vector3( 0, 1, 0 ), col = new Color();
 		// white charters, a few silver, SEPTA's white (its stripe lost at this distance)
 		const bodies = [ [ 0.78, 0.78, 0.76 ], [ 0.72, 0.73, 0.75 ], [ 0.5, 0.51, 0.53 ], [ 0.8, 0.79, 0.74 ] ];
