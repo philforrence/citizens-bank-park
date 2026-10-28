@@ -70,4 +70,4 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 
 ## Round 4
 
-- **C4R, random shots everywhere** (launched 14:51): the owner's own method, ~60 random views across the whole park and its surroundings, both nights.
+- **C4R, random shots everywhere** (launched 14:32): the owner's own method, ~60 random views across the whole park and its surroundings, both nights.
