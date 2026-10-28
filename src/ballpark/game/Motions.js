@@ -185,6 +185,19 @@ export function delivery( t, release = null ) {
 		const at = pitchAt( REL ).handR;
 		const w = Math.exp( - ( ( ( t - REL ) / 0.14 ) ** 2 ) );
 		pose.handR = pose.handR.map( ( v, i ) => v + ( release[ i ] - at[ i ] ) * w );
+		// ---- FB2 (C2B-24): a submariner folds nearly double through the release, the trunk down over the
+		// front leg and the hips dropped (Bradford let go 1.8 ft off the ground: Getty 83912834), rather than
+		// standing upright with the hand dragged down to his knee; anyone releasing from the usual height
+		// throws as he did
+		if ( release[ 1 ] < 1.15 ) {
+
+			const w2 = Math.exp( - ( ( ( t - REL ) / 0.32 ) ** 2 ) ) * clamp( ( 1.15 - release[ 1 ] ) / 0.5, 0, 1 );
+			pose.torso = [ pose.torso[ 0 ] - 0.85 * w2, pose.torso[ 1 ], pose.torso[ 2 ] ];
+			pose.pelvis = [ pose.pelvis[ 0 ] - 0.3 * w2, pose.pelvis[ 1 ], pose.pelvis[ 2 ] ];
+			pose.pelvisY -= 0.2 * w2;
+
+		}
+		// ---- end FB2
 
 	}
 
