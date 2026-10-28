@@ -32,3 +32,5 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 - **FW1, the people on the walk** (launched 10:12).
 - **C2B, the broadcast** (returned 10:15): 24 findings. A policeman stands in front of both low cameras, the players are pear-shaped in close-up, the follow camera chases the ball into the night sky, the 9th's police line and the second base umpire stand in the center field frame, and the celebration gets one static wide shot. Bundled into FB2.
 - **FB2, the broadcast** (launched 10:16).
+- **C2I, inside and outside** (returned 10:23): 19 findings. The street trees are still icosahedra, three-quarters of the lots are empty, the Majestic Clubhouse Store is a white box, the World Series tents are missing, and in the new insides a cap floats under the club's ceiling, the buffets are toy blocks and the glass has no tint. Bundled into FW2 (outside) and FI3 (the insides' polish).
+- **FW2, the walk's building and outside** (launched 10:24).
