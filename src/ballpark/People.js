@@ -1050,6 +1050,8 @@ export class People {
 		this._thrPl = { x: 0, z: 0, yaw: 0, phase: 0, walking: 0, s: 0 };
 		// the columns on the concourse's floor (FI1's steel), for the throng to step round
 		this._thrCols = ( this._concourse?.steel?.columns || [] ).filter( ( c ) => Math.abs( c.y0 - STREET ) < 1.5 ).map( ( c ) => [ c.x, c.z ] );
+		// (and the light tower's legs in left, by the walk behind the seats)
+		this._thrCols.push( [ ...fencePoint( - 24.5, 455 ), 3 ] );
 
 	}
 
@@ -1115,6 +1117,16 @@ export class People {
 			const P = densify( offsetPolyline( rf.front, top + 5, [ 0, 0 ] ), 4 );
 			if ( P.length > 1 ) lines.push( { pts: P, kind: 2, band: band( P, 3.2 ), outdoors: 1e9 } );
 			this._thrRF = offsetPolyline( rf.front, top + 5, [ 0, 0 ] );
+
+		}
+
+		// the left field corner: from the loop's end round the corner's broad floor to the walk behind the
+		// left field seats (w17: an empty floor on a sold-out night)
+		const end = pts[ pts.length - 1 ], lf0 = this._thrLF?.[ 0 ];
+		if ( lf0 && Math.hypot( end[ 0 ] - lf0[ 0 ], end[ 1 ] - lf0[ 1 ] ) < 60 ) {
+
+			const P = densify( [ end, [ end[ 0 ] - 3, end[ 1 ] - 12 ], [ ( end[ 0 ] + lf0[ 0 ] ) / 2 - 4, ( end[ 1 ] + lf0[ 1 ] ) / 2 - 4 ], lf0 ], 4 );
+			lines.push( { pts: P, kind: 2, band: band( P, 4.5 ), outdoors: 1e9 } );
 
 		}
 
@@ -1220,13 +1232,13 @@ export class People {
 		// the clock: the share of the walkers, those at the rail, those standing about, at the gates, and
 		// the outfield's share of it
 		const ns = nightState( d );
-		let w = ns.top ? 0.62 : 0.32, s = ns.top ? 0.5 : 0.3, rail = 0.8, g = 0.08, of = 0.75;
+		let w = ns.top ? 0.62 : 0.32, s = ns.top ? 0.5 : 0.3, rail = 0.8, g = 0.08, of = 1;
 		if ( ns.between ) w = 1, s = 0.8;
 		// (before the first pitch, the gates: the replay opens on the walk-in; the Alley's packed)
-		if ( ns.seg?.kind === 'intro' || ( ns.inning === 1 && ns.half === 'top' && ( ns.snap?.outs || 0 ) === 0 ) ) g = 1, of = 1.2, rail = 0.6;
+		if ( ns.seg?.kind === 'intro' || ( ns.inning === 1 && ns.half === 'top' && ( ns.snap?.outs || 0 ) === 0 ) ) g = 1, of = 1.4, rail = 0.6;
 		if ( ns.suspended ) w = 0.8, s = 1, g = 0.3, rail = 0.9;
 		// (the 29th's evening, before the resumption: the gates open, the fans streaming in)
-		if ( ! ns.suspended && ns.seg?.kind === 'switch' && ns.inning === 6 && ns.half === 'bottom' && ! ns.first ) w = 0.8, s = 0.7, g = 1, of = 1.2, rail = 0.7;
+		if ( ! ns.suspended && ns.seg?.kind === 'switch' && ns.inning === 6 && ns.half === 'bottom' && ! ns.first ) w = 0.8, s = 0.7, g = 1, of = 1.4, rail = 0.7;
 		if ( ns.inning === 9 && ! ns.celebrate ) w *= 0.5, s *= 0.5, rail = 1;
 		if ( ns.celebrate ) w = 0.12, s = 0.5, g = 0, rail = 1;
 		// (easing in and out over a few seconds; a jump in the replay starts on the new moment)
@@ -1249,7 +1261,9 @@ export class People {
 		}
 
 		// (on the concourse's level: walking it, at the gates; not from the seats, the suites or the press box)
-		this.throng.visible = !! this.thrForce || ( near < 40 && Math.abs( c.y - STREET - 1.6 ) < 4 );
+		// (nor through FOX's cameras: the center field camera's platform is by the Alley's walk)
+		const tv = this._bowl?.tvCams?.list?.some( ( q ) => Math.hypot( c.x - q.x, c.y - q.y - 1.42, c.z - q.z ) < 1.5 );
+		this.throng.visible = !! this.thrForce || ( near < 40 && Math.abs( c.y - STREET - 1.6 ) < 4 && ! tv );
 		this.proxies.update();
 		if ( ! this.throng.visible ) {
 
@@ -1277,10 +1291,10 @@ export class People {
 
 		const O = this._thrObs, near = this._thrObsNear ||= [];
 		near.length = 0;
-		for ( const [ x, z ] of this._thrCols ) {
+		for ( const [ x, z, r = 0.55 ] of this._thrCols ) {
 
 			const dd = Math.abs( x - c.x ) + Math.abs( z - c.z );
-			if ( dd < 40 ) near.push( [ dd, x, z, 0.55 ] );
+			if ( dd < 40 ) near.push( [ dd, x, z, r ] );
 
 		}
 
