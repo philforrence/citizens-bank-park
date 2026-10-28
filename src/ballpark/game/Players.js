@@ -214,7 +214,7 @@ export class Players {
 			if ( p.tilt ) q.multiply( p.tilt );
 			const h = p.look.height || 1;
 			this._root.compose( new Vector3( p.x, p.y, p.z ), q, sc.set( h, h, h ) );
-			solvePose( this._root, p.pose, D, off, p.gloveHand, p.look.girth || 1 );
+			solvePose( this._root, p.pose, D, off, p.gloveHand, p.look.girth || 1, p.look.head || 1 ); // (---- FY4: the head's size)
 			skinMatrices( D, off );
 			// a player who just appeared has no motion from where his slot was before
 			if ( p.fresh ) {

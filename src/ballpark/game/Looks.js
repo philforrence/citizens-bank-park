@@ -255,6 +255,14 @@ const MORE = {
 };
 for ( const [ id, m ] of Object.entries( MORE ) ) FACE_MORE.forEach( ( k, i ) => FACES[ id ][ k ] = m[ i ] );
 for ( const [ id, f ] of Object.entries( FACES ) ) ( LOOKS[ id ] || STAFF[ id ] ).face = f;
+// the head's own size (Rig.js' solvePose scales the head bone, the cap and helmet with it): the mesh's
+// head is one size for everyone but for height; Howard's, Hinske's and Manuel's are big, Rollins' small
+const HEAD = {
+	429667: 1.045, 400134: 1.04, 434563: 1.025, 425900: 1.03, 150100: 1.03, 150289: 1.03, 346797: 1.02, 150268: 1.015,
+	276519: 0.97, 430935: 0.98, 425834: 0.985, 430583: 0.97, 425664: 0.98, 493127: 0.98, 408307: 0.99, 456034: 0.99,
+	'-1': 1.03, '-3': 1.02, '-5': 1.03, manuel: 1.05, lopes: 0.99,
+};
+for ( const [ id, h ] of Object.entries( HEAD ) ) ( LOOKS[ id ] || STAFF[ id ] ).head = h;
 // the jaw's width where the notes had none
 Object.assign( LOOKS[ 400134 ], { jaw: 0.4 } );
 Object.assign( LOOKS[ 425900 ], { jaw: 0.3 } );
@@ -284,6 +292,8 @@ function seededFace( seed, soft = false ) {
 
 }
 
+// a head's size where the notes give none: a little bigger with a full face and a thick neck
+const headOf = ( f ) => 1 + 0.012 * ( ( f.full || 0 ) + ( f.neck || 0 ) );
 const keySeed = ( id ) => typeof id === 'number' ? id * 0.00731 : [ ...String( id ) ].reduce( ( a, c ) => ( a * 31 + c.charCodeAt( 0 ) ) % 9973, 7 ) * 0.0917;
 // ---- end FY4
 
@@ -299,6 +309,7 @@ export function look( id, seed = 0 ) {
 
 		Object.assign( o, L );
 		if ( ! o.face ) o.face = seededFace( keySeed( id ), /^ballgirl/.test( id ) ); // ---- FY4
+		o.head ??= headOf( o.face ); // ---- FY4
 		return o;
 
 	}
@@ -322,6 +333,7 @@ export function look( id, seed = 0 ) {
 	o.jaw = r( 7 ) - 0.5;
 	o.age = r( 8 );
 	o.face = seededFace( seed + 0.5 + ( id != null ? keySeed( id ) : 0 ) ); // ---- FY4 (the coaches with no notes share a seed)
+	o.head = headOf( o.face ); // ---- FY4
 	return o;
 
 }

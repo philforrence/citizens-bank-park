@@ -792,7 +792,8 @@ const _x = new Vector3(), _y = new Vector3(), _z = new Vector3(), _p = new Vecto
 // (FB2, C2B-2: a big man is big through the chest and shoulders first; his hips and thighs take a little
 // over half of it, or every heavy man is a pear. The shoulder joints go out with the trunk they're in.)
 const _g = new Matrix4(), _gp = new Matrix4(), _hs = new Matrix4(), _pm = new Matrix4();
-export function solvePose( root, pose, out, offset, gloveHand = 'L', girth = 1 ) {
+// (---- FY4: `head`, the head's own size, about 1: Looks.js' `head`)
+export function solvePose( root, pose, out, offset, gloveHand = 'L', girth = 1, headSize = 1 ) {
 
 	const D = DIM, B = BONES;
 	const s = Math.cbrt( Math.abs( root.determinant() ) ) || 1;
@@ -808,7 +809,7 @@ export function solvePose( root, pose, out, offset, gloveHand = 'L', girth = 1 )
 	const torso = new Matrix4().copy( pelvis ).multiply( _m.compose( _t.set( 0, D.waist, 0 ), _q.setFromEuler( _e.set( pose.torso[ 0 ], pose.torso[ 1 ], pose.torso[ 2 ] ) ), _v.set( 1, 1, 1 ) ) );
 	put( B.torso, _pm.copy( torso ).multiply( _g ) );
 	const head = new Matrix4().copy( torso ).multiply( _m.compose( _t.set( 0, D.torso - 0.005, 0 ), _q.setFromEuler( _e.set( pose.head[ 0 ], pose.head[ 1 ], 0 ) ), _v.set( 1, 1, 1 ) ) );
-	const hk = ( 1 + ( s - 1 ) * 0.35 ) / s;
+	const hk = ( 1 + ( s - 1 ) * 0.35 ) / s * headSize; // (---- FY4: his own head's size)
 	put( B.head, head.multiply( _hs.makeScale( hk, hk, hk ) ) );
 
 	// limb targets are in the player's frame: into the field frame through `root`
