@@ -1,4 +1,4 @@
-import { InstancedMesh, BufferGeometry, InterleavedBuffer, InterleavedBufferAttribute, Vector3, Vector4, Sphere, Box3, Matrix4 } from '../engine/index.js';
+import { InstancedMesh, BufferGeometry, InterleavedBuffer, InterleavedBufferAttribute, Vector3, Vector4, Sphere, Box3, Matrix4, Mesh, Float32BufferAttribute, Color } from '../engine/index.js';
 import { ShaderModule } from '../engine/gpu/Shader.js';
 import { ComputeKernel } from '../engine/gpu/Compute.js';
 import { UniformBlock } from '../engine/gpu/Uniforms.js';
@@ -7,6 +7,7 @@ import { standard } from '../materials/Materials.js';
 import { SEAT_BACK } from './Stands.js';
 // ---- FW1 (CP-12): the backs' names and numbers come from the Cast's atlas (a blank one without it)
 import { castPool } from './places/Cast.js';
+import { signAtlas, SIGN, SIGN_GRID } from './places/home/Signs.js';
 import { canvasTexture } from './geo.js';
 let _blank = null;
 const BLANK = () => _blank ||= canvasTexture( 8, 8, ( ctx ) => { ctx.fillStyle = '#000'; ctx.fillRect( 0, 0, 8, 8 ); }, 'crowdBlank' );
@@ -78,8 +79,8 @@ const TRUNK = {
 // backdrop) the same shapes on fewer sides, the cap shaped from the head; then a middle one and a far
 // one for fans a few pixels tall
 const LODS = [
-	{ name: 'close', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 12, 8 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ] },
-	{ name: 'near', trunk: 6, rings: TRUNK.near, limb: 4, head: [ 8, 5 ], neck: false, hands: 4, joints: true, extras: false, hair: true, crown: null, bill: 4, shoes: false, nose: false, pom: null },
+	{ name: 'close', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 12, 8 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ], sign: true },
+	{ name: 'near', trunk: 6, rings: TRUNK.near, limb: 4, head: [ 8, 5 ], neck: false, hands: 4, joints: true, extras: false, hair: true, crown: null, bill: 4, shoes: false, nose: false, pom: null, sign: true },
 	{ name: 'mid', trunk: 6, rings: TRUNK.mid, limb: 3, head: [ 6, 4 ], neck: false, hands: 0, joints: true, extras: false, hair: true, crown: null, bill: 0, shoes: false, nose: false, pom: null },
 	{ name: 'far', trunk: 4, rings: TRUNK.far, limb: 3, head: [ 5, 3 ], neck: false, hands: 0, joints: false, extras: false, hair: false, crown: null, bill: 0, shoes: false, nose: false, pom: null },
 ];
@@ -469,7 +470,32 @@ export function fanGeometry( lod ) {
 
 		// long hair (or a ponytail) down the back of the head: a card curved round it (close up and near:
 		// three columns; a flat one was a board behind the head)
-		if ( L.hair ) {
+		if ( L.hair && L.extras ) {
+
+			// ---- FP2: close up, a shell round the back and sides of the head from the crown to the
+			// shoulders, framing the face in front of the ears (the card read as a panel behind her head from
+			// the aisle). Rows [ height, half width, half depth, how far round from the back ]; v down it
+			const rows = [ [ 0.045, 0.077, 0.094, 2.15 ], [ - 0.025, 0.09, 0.108, 2.05 ], [ - 0.11, 0.093, 0.117, 1.8 ], [ - 0.2, 0.088, 0.126, 1.4 ] ];
+			const cols = 7, q = [];
+			rows.forEach( ( [ y, rx, rz, span ], j ) => {
+
+				for ( let i = 0; i < cols; i ++ ) {
+
+					const u = i / ( cols - 1 ), ph = ( 1 - 2 * u ) * span, n = [ Math.sin( ph ), 0.15, Math.cos( ph ) ];
+					const o = [ Math.sin( ph ) * rx, y, Math.cos( ph ) * rz ];
+					q.push( vert( fixed( add( SIT.head, o ), add( STAND.head, o ) ), n, n, P.hair, 0, 0, u, j / ( rows.length - 1 ) ) );
+
+				}
+
+			} );
+			for ( let j = 0; j < rows.length - 1; j ++ ) for ( let i = 0; i < cols - 1; i ++ ) {
+
+				const a = j * cols + i;
+				index.push( q[ a ], q[ a + cols + 1 ], q[ a + 1 ], q[ a ], q[ a + cols ], q[ a + cols + 1 ] );
+
+			}
+
+		} else if ( L.hair ) {
 
 			const cols = L.trunk >= 6 && L.head[ 0 ] >= 8 ? 3 : 2, q = [];
 			for ( const v of [ 0, 1 ] ) for ( let i = 0; i < cols; i ++ ) {
@@ -514,9 +540,9 @@ export function fanGeometry( lod ) {
 	}
 
 	// the sign, in both hands: flat on the lap sitting, at the waist standing, over the head held up. u
-	// runs from his right (the viewer's left) to his left, v down it (close up only, with the blanket and
-	// what's in his hand: nobody has them yet)
-	if ( L.extras ) {
+	// runs from his right (the viewer's left) to his left, v down it (close up and near: FP2, CP-12, the
+	// TV's backdrop has them)
+	if ( L.extras || L.sign ) {
 
 		const at = ( k, u, v ) => {
 
@@ -637,6 +663,8 @@ const f3 = ( a ) => `vec3f( ${ a.map( ( x ) => x.toFixed( 3 ) ).join( ', ' ) } )
 
 // the most fans (the seats' chunks come to ~42,000)
 const MAX_FANS = 49152;
+// ---- FP2: the camera flashes' sprites (_flashBuild)
+const FLASHES = 4096;
 // the seats in each piece of a chunk (addChunk)
 const PIECE = 360;
 
@@ -737,8 +765,12 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwFanPose {
 	let jump = M.w * st;
 	// each arm raised or at the face (left, right), pumping when they're up
 	let pump = mix( 1.0, 0.88 + 0.12 * sin( t * 6.0 + h.w * 30.0 ), upAll );
-	let aUL = upAll * pump;
-	let aUR = upR * pump;
+	// ---- FP2 (CP-12): a sign's held up over the head now and then between pitches, whenever they cheer,
+	// with the towels when the stands are up (fewer in the rain: they get soaked)
+	let signOn = sg != 0u && ! ( rain > 0.35 && fract( h.x * 17.3 ) < 0.6 );
+	let sup = select( 0.0, max( cwWin( fract( t / ( 34.0 + h.y * 30.0 ) + h.z * 7.0 ), 0.0, 0.32 ) * ( 1.0 - 0.7 * rain ), smoothstep( 0.3, 0.6, M.z ) ), signOn );
+	let aUL = max( upAll, sup ) * pump;
+	let aUR = max( upR, sup ) * pump;
 	// the towel's turn, and its tip flapping held still
 	let th = t * ( 9.0 + 5.5 * fract( h.w * 17.0 ) ) + dot( seat.xz, vec2f( 0.31, 0.23 ) ) + h.x * 1.2;
 
@@ -763,7 +795,7 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec3f, t: f32 ) -> CwFanPose {
 	let towelOut = fract( h.y * 7.7 ) < 0.5 - 0.36 * rain && fract( h.z * 5.7 + h.w * 1.3 ) < 0.42 - 0.17 * rain && prop == 0u;
 	if ( towel == 1u && ! isRays && ( tw > 0.01 || towelOut ) ) { keep |= 1u << 5u; }
 	if ( prop != 0u ) { keep |= 1u << 8u; }
-	if ( sg != 0u ) { keep |= 1u << 9u; }
+	if ( signOn ) { keep |= 1u << 9u; }
 	if ( ( hairStyle == 1u || hairStyle == 3u ) && ! hood && ! capped ) { keep |= 1u << 10u; }
 	if ( blanket == 1u ) { keep |= 1u << 11u; }
 	// a seat given to someone else (Crowd.vacate): nobody here
@@ -987,14 +1019,21 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 		let hand = mix( ${ f3( SIT_UP.hand ) }, ${ f3( STAND_UP.hand ) }, st );
 		let u = info.z;
 		let v = info.w;
-		let th = r1.z - 0.8 * v;
-		let rad = vec3f( cos( th ), 0.0, sin( th ) );
-		let tan = vec3f( - sin( th ), 0.0, cos( th ) );
-		let across = ( 1.0 - 2.0 * u ) * ( 0.065 + 0.045 * v );
+		let th = r1.z - 1.5 * v;
+		// ---- FP2 (C2B-16): the turn tipped toward the field (down in front, up behind) and the cloth's
+		// width half up and down, as a whirled towel hangs and flaps: flat and level, it was edge-on to
+		// the center field camera, a white card's sliver over each head
+		let rad = vec3f( cos( th ), 0.4 * sin( th ), sin( th ) );
+		let tan = vec3f( - sin( th ), 0.4 * cos( th ), cos( th ) );
+		let across = ( 1.0 - 2.0 * u ) * ( 0.055 + 0.055 * v );
+		let wv = normalize( tan * 0.8 + vec3f( 0.0, 0.6, 0.0 ) );
+		// (crumpled across its width as it flaps: a flat sheet read as paper)
+		let crumple = normalize( cross( rad, wv ) ) * 0.04 * v * sin( u * 6.28 + v * 3.0 + r1.z * 1.7 );
 		let lift = 0.03 + 0.07 * v + 0.05 * v * sin( r1.z * 2.0 + v * 2.5 + u * 1.5 ) - 0.06 * v * ( 1.0 - v ) - 0.03 * abs( 1.0 - 2.0 * u ) * v;
-		let spin = hand + rad * ( 0.33 * v ) + tan * across + vec3f( r2.z, 0.0, r2.w ) * 0.15 * v + vec3f( 0.0, lift, 0.0 );
+		let spin = hand + rad * ( 0.28 * v ) + wv * across + crumple + vec3f( r2.z, 0.0, r2.w ) * 0.15 * v + vec3f( 0.0, lift, 0.0 );
 		p = mix( p, spin, r1.y );
-		n = normalize( mix( n, vec3f( 0.0, 1.0, 0.0 ), r1.y ) );
+		n = normalize( mix( n, normalize( vec3f( 0.0, 1.0, 0.0 ) + cross( rad, wv ) * 0.35 ), r1.y ) );
+		// ---- end FP2
 	}
 
 	// the collar: a hoodie's hood lying down his back (CP-2: no bare yoke), a scarf wound round it
@@ -1031,7 +1070,7 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 			}
 		}
 		// a ponytail: the long hair narrowed
-		if ( part == 10u && ( flags & ( 1u << 14u ) ) != 0u ) { p.x = headC.x + ( p.x - headC.x ) * 0.32; p.y -= 0.03; }
+		if ( part == 10u && ( flags & ( 1u << 14u ) ) != 0u ) { p.x = headC.x + ( p.x - headC.x ) * 0.32; p.y -= 0.03; p.z = max( p.z, headC.z + 0.03 ); }
 		// ---- FW1 (C2W-6): long hair to her own length (the chin to below the shoulders); each face its own
 		// width at the jaw and its own length (neighbours had the same face)
 		let hv = ( u32( r4.w + 0.5 ) >> 10u ) & 7u;
@@ -1104,7 +1143,13 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 `,
 } );
 
-function crowdMaterial( lod, poseBuf, lookBuf ) {
+// ---- FP2 (CP-12): the seated crowd's signs, by night (the boards behind home's, home/Signs.js: twelve
+// each; a fan's sign picks one by its number)
+const SIGNS29 = ["28 YEARS... WHAT'S ANOTHER DAY?", 'IT ENDS TONIGHT', 'PHABULOUS PHILLIES PHINALE', 'RAYS RAYS GO AWAY', 'PHINALLY', 'WE BELIEVE', 'RED OCTOBER', 'LIGHTS OUT LIDGE', 'HARRY, CALL IT!', 'PHILS IN PHIVE', 'SUSPENDED... NOT DEFEATED', 'FOX 9 MORE OUTS'];
+const SIGNS27 = ["RAIN? WE'RE FROM PHILLY", 'PHILS IN PHIVE', 'PHINALLY', 'WE BELIEVE', 'RED OCTOBER', 'HI MOM IN BOCA!', "RAIN? WE'RE FROM PHILLY", 'PHILS IN PHIVE', 'WE BELIEVE', 'RED OCTOBER', 'PHINALLY', 'RAYS RAYS GO AWAY'];
+const signCells = ( names ) => names.map( ( n ) => SIGN[ n ] ?? 0 ).join( 'u, ' ) + 'u';
+
+function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 
 	const call = ( prev ) => `cwVertex( v.position, v.normal, v.aStand, v.aStandN, v.aSitUp, v.aStandUp, v.aSitFace, v.aStandFace, v.aInfo, fan, ${ prev }, ${ lod }u )`;
 	const mat = standard( {
@@ -1112,9 +1157,10 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 		name: 'crowd-' + [ 'near', 'near', 'mid', 'far' ][ lod ], roughness: 0.8, side: 'double',
 		modules: [ crowdModule ],
 		defines: { CROWD_LOD: lod },
-		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf },
-		// ---- FW1 (CP-12): the Cast's atlas, for the names and numbers on the backs
-		textures: { cwAtlas: () => castPool()?.atlas || BLANK() },
+		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf, cwIds: idsBuf },
+		// ---- FW1 (CP-12): the Cast's atlas, for the names and numbers on the backs; (FP2) the signs' boards
+		textures: { cwAtlas: () => castPool()?.atlas || BLANK(), cwSigns: () => signAtlas() },
+		uniforms: { cwNight: [ 'f32', 29 ], cwHome: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] },
 		attributes: { aStand: 'vec3f', aStandN: 'vec3f', aSitUp: 'vec3f', aStandUp: 'vec3f', aSitFace: 'vec3f', aStandFace: 'vec3f', aInfo: 'vec4f' },
 		varyings: { vPart: 'u32', vFan: 'u32', vLocal: 'vec3f' },
 		vertex: /* wgsl */`
@@ -1214,6 +1260,18 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 				let a = textureSample( cwAtlas, smpAnisoClamp, ( vec2f( f32( cell % 8u ), f32( cell / 8u ) ) + uv ) / vec2f( 8.0, 10.0 ) ).r;
 				c = mix( c, select( vec3f( 0.72, 0.71, 0.68 ), vec3f( 0.32, 0.018, 0.024 ), trim == 1u ), a );
 			}
+		}
+#endif
+#if CROWD_LOD <= 1
+		// ---- FP2 (CP-12): a credential on its lanyard for a few (the clubs' and the press's passes, a
+		// season ticket holder's: Getty 112873396, 83433888): the strap down from the collar either side to
+		// a white card on the chest, its band at the top
+		let lny = fract( seed * 23.17 + c1.w * 1.7 ) < 0.045 && age != 2u && ! poncho;
+		// (the card at mid-chest, over the arms folded or the hands in the lap)
+		if ( lny && frontS && L.y > 0.6 ) {
+			let sx = mix( 0.016, 0.07, smoothstep( 0.84, 1.4, L.y ) );
+			if ( abs( abs( L.x ) - sx ) < 0.009 && L.y > 0.84 && L.y < 1.5 ) { c = select( vec3f( 0.02 ), vec3f( 0.32, 0.02, 0.03 ), seed > 0.5 ); rough = 0.6; }
+			if ( abs( L.x ) < 0.05 && L.y > 0.66 && L.y < 0.85 ) { c = select( vec3f( 0.8, 0.79, 0.76 ), vec3f( 0.04, 0.06, 0.22 ), L.y > 0.8 ); rough = 0.3; }
 		}
 #endif
 		// a hoodie's drawstrings, its hood up
@@ -1380,8 +1438,31 @@ function crowdMaterial( lod, poseBuf, lookBuf ) {
 		// the 2008 rally towel: white terry, the red square with the script across it in white
 		c = vec3f( 0.78, 0.77, 0.74 ); rough = 0.95;
 		if ( abs( L.x - 0.5 ) < 0.3 && abs( L.z - 0.5 ) < 0.26 ) { c = vec3f( 0.36, 0.02, 0.03 ); if ( abs( L.z - 0.5 ) < 0.05 && abs( L.x - 0.5 ) < 0.22 ) { c = vec3f( 0.78, 0.77, 0.74 ); } }
+		// ---- FP2 (C2B-16): whirled overhead, the square smears into the white: a pink and white blur, as
+		// the photos have them (Getty 84082693), not a red and white card
+		let whirl = cwPoseBuf[ fan * ${ POSE_N * 2 }u + 1u ].y;
+		c = mix( c, mix( vec3f( 0.76, 0.75, 0.72 ), c, 0.45 ), whirl );
 	}
-	if ( part == 10u ) { c = hairC; rough = 0.7; }
+#if CROWD_LOD <= 1
+	// ---- FP2 (CP-12): a homemade sign: poster board, its words in marker on the face toward the field
+	// (the boards behind home's atlas), the back plain; the night's own words
+	if ( part == 9u ) {
+		let sg = ( cwIds[ fan ].z >> 4u ) & 63u;
+		let si = ( sg + 11u ) % 12u;
+		var s29 = array<u32, 12>( ${ signCells( SIGNS29 ) } );
+		var s27 = array<u32, 12>( ${ signCells( SIGNS27 ) } );
+		let cell = select( s29[ si ], s27[ si ], mat.cwNight < 28.0 );
+		c = vec3f( 0.66, 0.65, 0.62 );
+		// (its printed face is the one toward the field: seen from the field's side of it)
+		if ( dot( in.V.xz, mat.cwHome.xz - in.P.xz ) > 0.0 ) {
+			let uv = vec2f( clamp( L.x, 0.0, 1.0 ), clamp( L.z, 0.0, 1.0 ) * ${ SIGN_GRID.aspect.toFixed( 4 ) } );
+			c = textureSample( cwSigns, smpAnisoClamp, ( vec2f( f32( cell % ${ SIGN_GRID.x }u ), f32( cell / ${ SIGN_GRID.x }u ) ) + uv ) / vec2f( ${ SIGN_GRID.x }.0, ${ SIGN_GRID.y }.0 ) ).rgb;
+		}
+		rough = mix( 0.75, 0.35, frame.wet );
+	}
+#endif
+	// (FP2: its strands, darker in among them and toward the ends: one flat colour read as a helmet)
+	if ( part == 10u ) { c = hairC * ( 0.8 + 0.2 * sin( atan2( L.x, L.z ) * 60.0 + L.y * 25.0 ) ) * mix( 1.0, 0.82, smoothstep( - 0.05, - 0.2, L.y ) ); rough = 0.7; }
 	// lit by the stands' fill after dark, as the seats are
 	s.albedo = c;
 	s.roughness = rough;
@@ -1474,6 +1555,11 @@ function randomFan( r ) {
 	// in his left hand (one in seven): a beer, the cold night's hot chocolate, a phone, a camera, a soda
 	if ( f.age !== 2 && d < 0.15 ) f.prop = d < 0.05 ? 1 : d < 0.1 ? 2 : d < 0.12 ? 3 : d < 0.14 ? 4 : 5;
 	else if ( f.age === 2 && d < 0.1 ) f.prop = 2;
+	// ---- FP2 (CP-12): a homemade sign for one in a hundred (a few hundred round the bowl, as in the
+	// 2008 frames: Getty 112873396, FOX's of the 29th), from his seed too; the night picks its words
+	const [ e, g ] = rand4( f.seed * 5 + 7919 );
+	if ( f.age !== 2 && e < 0.01 ) f.sign = 1 + Math.floor( g * 12 );
+	// ---- end FP2
 	return f;
 
 }
@@ -1507,7 +1593,7 @@ export class Crowd {
 			// the local reactions (focus()): where (world x, z) and how far, and how much (stand, arms up)
 			focus: [ 'vec4f[4]', new Float32Array( 16 ) ], focusMood: [ 'vec4f[4]', new Float32Array( 16 ) ],
 		} );
-		this.materials = LODS.map( ( _, k ) => crowdMaterial( k, this.poseBuf, this.lookBuf ) );
+		this.materials = LODS.map( ( _, k ) => crowdMaterial( k, this.poseBuf, this.lookBuf, this.idsBuf ) );
 		this.geometry = this.geometries[ 0 ];
 		this.material = this.materials[ 0 ];
 		this.chunks = [];
@@ -1542,6 +1628,7 @@ export class Crowd {
 
 			const f = randomFan( r );
 			f.towel = r() < 0.75 ? 1 : 0;
+			if ( f.sign ) f.towel = 0; // (FP2: both hands on the sign)
 			// the odd brave Rays fan (in Rays blue, most in a Rays cap; he sits out the Phillies' moments)
 			if ( r() < 0.004 ) {
 
@@ -1612,6 +1699,8 @@ export class Crowd {
 	lod( camera ) {
 
 		const k = Math.tan( ( camera.fov || 60 ) * Math.PI / 360 );
+		// ---- FP2: the flashes hold a few pixels however long the lens (the angle of a pixel, ~800 tall)
+		if ( this._flashMat ) this._flashMat.uniforms.flash.value.z = k / 400;
 		// the view's cone (its corners) and its axis: a big chunk beside the camera is only seen where the
 		// cone has opened out to it, far off (the center field camera's long lens over the bleachers)
 		const kd = k * Math.hypot( 1, camera.aspect || 1.6 );
@@ -1693,9 +1782,31 @@ export class Crowd {
 			m.cheer = 0.9;
 			m.jump = 1;
 			m.towel = 1;
+			// ---- FP2: the first minute everyone up, jumping, arms up, towels going; then they settle into
+			// a crowd again, each his own way (clapping, towels now and then, arms up, hugging, pictures),
+			// for the trophy and the laps (the whole stands in one pose, arms up, for minutes on end)
+			const k = Math.min( 1, Math.max( 0, lt - 45 ) / 90 );
+			m.cheer = 0.9 - 0.6 * k;
+			m.jump = 1 - 0.85 * k;
+			m.towel = 1 - 0.65 * k;
+			m.clap = 0.3 + 0.45 * k;
+			// ---- end FP2
 
 		}
 
+		// ---- FP2 (C2B-16): the point-and-shoots' flashes (a share of the flashes' sprites going off at a
+		// time): a few all night, more late on the 29th, a burst for the last pitches (FOX's center field
+		// frame of the 2-2 to Hinske, Getty 83486198's specks round the bowl), the most at the last out
+		m.flash = 0.05;
+		if ( ( seg.kind === 'pitch' || seg.kind === 'walkup' ) && phPitch && late ) {
+
+			m.flash =0.2 + ( two ? 0.25 : 0 ) + ( outs2 ? 0.2 : 0 ) + ( two && outs2 && lt > 1.5 ? 0.15 : 0 );
+
+		}
+
+		if ( ( seg.kind === 'inplay' || seg.kind === 'result' ) && m.stand > 0.5 ) m.flash = Math.max( m.flash, 0.3 );
+		if ( seg.kind === 'celebrate' ) m.flash = 1 - 0.65 * Math.min( 1, Math.max( 0, lt - 30 ) / 200 );
+		// ---- end FP2
 		return m;
 
 	}
@@ -1745,6 +1856,24 @@ export class Crowd {
 		this._focusUpdate( dt );
 		if ( ! this.count ) return;
 		if ( ! this._kernel ) this._seat();
+		// ---- FP2: the flashes' share going off (fewer cameras out in the rain), on the crowd's clock
+		if ( this._flashMat ) {
+
+			const f = this._flashMat.uniforms.flash.value;
+			f.x += ( ( target.flash || 0 ) * ( 1 - 0.7 * rain ) - f.x ) * ( leap ? 1 : 1 - Math.exp( - dt * 4 ) );
+			f.y = this.time;
+			this._flashes.visible = f.x > 0.005;
+
+		}
+
+		// ---- FP2 (CP-12): the night, for the words on the signs
+		const nt = d?.night ? d.night( d.t ).night : 29;
+		if ( nt !== this._night ) {
+
+			this._night = nt;
+			for ( const m of this.materials ) m.uniforms.cwNight.value = nt;
+
+		}
 		this._kernel.dispatch( Math.ceil( this.count / 64 ) );
 
 	}
@@ -1827,7 +1956,7 @@ export class Crowd {
 	// the compute pass reads, and the pass itself
 	_seat() {
 
-		const ids = new Uint32Array( this.count * 4 ), seats = new Float32Array( this.count * 4 );
+		const ids = new Uint32Array( this.count * 4 ), seats = new Float32Array( this.count * 4 ), fwd = new Float32Array( this.count * 2 );
 		const m = new Matrix4(), w = new Matrix4();
 		for ( const ch of this.chunks ) {
 
@@ -1839,15 +1968,23 @@ export class Crowd {
 				for ( let k = 0; k < 3; k ++ ) ids[ f * 4 + k ] = ch.ids[ i * 3 + k ];
 				w.multiplyMatrices( mesh.matrixWorld, m.fromArray( im, i * 16 ) );
 				seats.set( [ w.elements[ 12 ], w.elements[ 13 ], w.elements[ 14 ], 0 ], f * 4 );
+				// (FP2: which way he faces, for the flashes)
+				fwd[ f * 2 ] = - w.elements[ 8 ];
+				fwd[ f * 2 + 1 ] = - w.elements[ 10 ];
 
 			}
 
 		}
 
+		this._fwd = fwd;
 		this._ids = ids;
 		this._seats = seats;
 		this.seatsBuf.write( seats );
 		this._writeIds();
+		// ---- FP2: where home plate is (the world's x, z), for which way the signs face
+		const hp = this.toWorld ? this.toWorld( 0, 0 ) : { x: 0, z: 0 };
+		for ( const mt of this.materials ) mt.uniforms.cwHome.value.set( hp.x, 0, hp.z, 0 );
+		this._flashBuild();
 		this._kernel = new ComputeKernel( {
 			label: 'crowd', modules: [ cwHashModule ], workgroupSize: [ 64, 1, 1 ],
 			bindings: {
@@ -1856,6 +1993,129 @@ export class Crowd {
 			},
 			code: kernelCode,
 		} );
+
+	}
+
+	// ---- FP2 (C2B-16): the point-and-shoots' flashes. In 2008 every big moment of a night game went off
+	// in camera flashes all round the bowl (FOX's center field frame of the last pitch has one behind the
+	// plate; Getty 83486198, the 2-2 to Hinske, shows the stands specked white). FLASHES fans (three times
+	// as many round the infield as in the outfield, nine times behind the plate, the TV's backdrop) each
+	// hold a flash that fires now and then: a sprite at his face, a few pixels across however long the
+	// lens, on for ~0.1 s. One draw,
+	// all on the GPU from the crowd's clock and a share going off (update()); no CPU per fan. Up close
+	// (under 9 m) there are none, the place's own figures and the seated fans' cameras do it; nor on the
+	// seats a place has its own people in, under 30 m (no camera in his hands there).
+	_flashBuild() {
+
+		const n = this.count, S = this._seats, Fw = this._fwd;
+		if ( ! n || this._flashes ) return;
+		const h = ( i, k ) => {
+
+			const s = Math.sin( i * 12.9898 + k * 78.233 ) * 43758.5453;
+			return s - Math.floor( s );
+
+		};
+		// home plate and center field (the world's x, z), for where each seat is round the field
+		const o = this.toWorld ? this.toWorld( 0, 0 ) : { x: 0, z: 0 }, c = this.toWorld ? this.toWorld( 0, - 1 ) : { x: 0, z: - 1 };
+		const cx = c.x - o.x, cz = c.z - o.z;
+		const wt = new Float32Array( n );
+		let sum = 0;
+		for ( let f = 0; f < n; f ++ ) {
+
+			const dx = S[ f * 4 ] - o.x, dz = S[ f * 4 + 2 ] - o.z, l = Math.hypot( dx, dz ) || 1;
+			// (the infield's stands three times the outfield's; behind the plate, the TV's backdrop, nine)
+			const along = ( dx * cx + dz * cz ) / l;
+			const t = Math.min( 1, Math.max( 0, ( 0.55 - along ) / 0.8 ) ), b = Math.min( 1, Math.max( 0, ( - 0.8 - along ) / 0.12 ) );
+			wt[ f ] = 1 + 2 * t * t * ( 3 - 2 * t ) + 10 * b * b * ( 3 - 2 * b );
+			sum += wt[ f ];
+
+		}
+
+		const pos = [], seat = [], dir = [], rnd = [], index = [];
+		let m = 0;
+		for ( let f = 0; f < n && m < FLASHES; f ++ ) {
+
+			if ( h( f, 1 ) >= wt[ f ] / sum * FLASHES ) continue;
+			const fl = Math.hypot( Fw[ f * 2 ], Fw[ f * 2 + 1 ] ) || 1;
+			// each its own pace (one every 1.7 to 4 s, a share of them fired), its own phase
+			const fr = 0.3 + 0.5 * h( f, 2 ), ph = h( f, 3 ), hh = h( f, 4 );
+			for ( const [ x, y ] of [ [ - 1, - 1 ], [ 1, - 1 ], [ 1, 1 ], [ - 1, 1 ] ] ) {
+
+				pos.push( S[ f * 4 ], S[ f * 4 + 1 ], S[ f * 4 + 2 ] );
+				seat.push( S[ f * 4 ], S[ f * 4 + 1 ], S[ f * 4 + 2 ], f );
+				dir.push( Fw[ f * 2 ] / fl, Fw[ f * 2 + 1 ] / fl, x, y );
+				rnd.push( fr, ph, hh, 0 );
+
+			}
+
+			index.push( m * 4, m * 4 + 1, m * 4 + 2, m * 4, m * 4 + 2, m * 4 + 3 );
+			m ++;
+
+		}
+
+		const g = new BufferGeometry();
+		g.setAttribute( 'position', new Float32BufferAttribute( pos, 3 ) );
+		g.setAttribute( 'aSeat', new Float32BufferAttribute( seat, 4 ) );
+		g.setAttribute( 'aDir', new Float32BufferAttribute( dir, 4 ) );
+		g.setAttribute( 'aRnd', new Float32BufferAttribute( rnd, 4 ) );
+		g.setIndex( index );
+		g.boundingSphere = null;
+		const mat = this._flashMat = standard( {
+			name: 'crowd-flashes', color: new Color( 1, 1, 1 ), transparent: true, depthWrite: false, side: 'double', lit: false, blending: 'additive',
+			uniforms: { flash: [ 'vec4f', new Vector4( 0, 0, 0.0015, 0 ) ] },
+			storage: { cwPoseBuf: this.poseBuf },
+			attributes: { aSeat: 'vec4f', aDir: 'vec4f', aRnd: 'vec4f' },
+			varyings: { vA: 'f32', vUV: 'vec2f' },
+			vertex: /* wgsl */`
+	let fi = u32( v.aSeat.w + 0.5 );
+	let b = fi * ${ POSE_N * 2 }u;
+	let st = cwPoseBuf[ b ].x;
+	let flags = u32( cwPoseBuf[ b + 3u ].w + 0.5 );
+	// this flash's turn: fired or not this time round (a share of them, mat.flash.x), on for ~70 ms
+	let cyc = mat.flash.y * v.aRnd.x + v.aRnd.y;
+	let fired = fract( sin( ( floor( cyc ) + v.aRnd.z * 131.0 ) * 12.9898 ) * 43758.5453 ) < mat.flash.x;
+	let ft = fract( cyc ) / v.aRnd.x;
+	var a = select( 0.0, 1.0 - smoothstep( 0.07, 0.12, ft ), fired );
+	// (QA: mat.flash.w 1 lights them all)
+	if ( mat.flash.w > 0.5 ) { a = 1.0; }
+	// at his face, a hand in front of it, sat or stood
+	let p = v.aSeat.xyz + vec3f( v.aDir.x, 0.0, v.aDir.y ) * 0.22 + vec3f( 0.0, mix( 1.12, 1.6, st ), 0.0 );
+	let toCam = frame.cameraPos - p;
+	let d = length( toCam );
+	if ( d < 9.0 || ( ( flags & 4095u ) == 0u && d < 30.0 ) ) { a = 0.0; }
+	let tc = toCam / max( d, 0.001 );
+	let rt = normalize( cross( vec3f( 0.0, 1.0, 0.0 ), tc ) );
+	let up = cross( tc, rt );
+	let r = max( 0.14, d * mat.flash.z * 6.0 ) * step( 0.001, a );
+	let q = p + ( rt * v.aDir.z + up * v.aDir.w ) * r;
+	v.useWorld = true;
+	v.worldPos = q;
+	v.worldNormal = tc;
+	v.prevWorldPos = q;
+	o.vA = a;
+	o.vUV = v.aDir.zw;
+`,
+			surface: /* wgsl */`
+	// a hard white core and a soft glow round it (the bloom does the rest)
+	let r2 = dot( in.vs.vUV, in.vs.vUV );
+	let k = exp( - r2 * 30.0 ) + exp( - r2 * 7.0 ) * 0.25 + exp( - r2 * 2.0 ) * 0.05;
+	s.albedo = vec3f( 0.93, 0.96, 1.0 ) * 40.0 * k * in.vs.vA * mix( 0.35, 1.0, smoothstep( 0.15, 0.7, frame.night ) );
+	s.alpha = clamp( in.vs.vA * k * 4.0, 0.0, 1.0 );
+`,
+		} );
+		mat.underwaterLighting = 'none';
+		const mesh = this._flashes = new Mesh( g, mat );
+		mesh.name = 'crowd-flashes';
+		mesh.frustumCulled = false;
+		mesh.castShadow = false;
+		mesh.layers.set( 2 );
+		mesh.userData.dynamic = true;
+		mesh.visible = false;
+		// (the seats are in the world's frame: the scene's root)
+		let root = this.chunks[ 0 ].near;
+		while ( root.parent ) root = root.parent;
+		root.add( mesh );
+		this.flashes = { mesh, count: m, shown: () => ( { sprites: m, rate: + mat.uniforms.flash.value.x.toFixed( 3 ), visible: mesh.visible } ) };
 
 	}
 

@@ -1,5 +1,7 @@
 import { InstancedMesh, BufferGeometry, Float32BufferAttribute, InstancedBufferAttribute, Matrix4, Quaternion, Vector3 } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
+import { castPool } from '../Cast.js';
+import { canvasTexture } from '../../geo.js';
 
 // The people of the rail: the photographers in the wells, the TV crews, the ball girls, the bat boys, the
 // grounds crew, security, the police and the odd fan at the front. Low-poly posed figures in the style of
@@ -285,6 +287,8 @@ const PART = {
 	torso: 0, pants: 1, skin: 2, head: 3, brim: 4, shoe: 5, sleeve: 6, hair: 7,
 	dark: 8, lens: 9, leather: 10, white: 11, screen: 12, cover: 13, metal: 14, wood: 15, strap: 16, card: 17,
 	tally: 18, camGrey: 19,
+	// ---- FP2 (CP-19): a long lens's front glass, its maker's ring
+	glass: 20, ring: 21,
 };
 
 function jointsOf( pose ) {
@@ -432,29 +436,40 @@ function buildPose( pose, gear, point, { body = true } = {} ) {
 
 	}
 
+	// (FP2, CP-19: on more sides, with round shoulders, elbows and knees: on six sides with bare joints the
+	// rail's people read as boxes beside the Cast's fans and the players a few metres off)
+	// (the trunk through the hips, the waist, the chest at the armpits, the shoulders sloping in to the
+	// collar: from the chest straight to the neck it was a flat-topped box with square shoulders)
 	const pelvis = J( 'pelvis' ), chest = J( 'chest' ), neck = J( 'neck' );
-	torsoAt = [ 0, 1 ];
-	tube( add( pelvis, [ 0, - 0.06, 0 ] ), chest, [ 0.17, 0.12 ], [ 0.2, 0.125 ], PART.torso, 8, true );
-	torsoAt = [ 1, 1.3 ];
-	tube( chest, neck, [ 0.2, 0.125 ], [ 0.065, 0.06 ], PART.torso, 8 );
+	const hips = add( pelvis, [ 0, - 0.06, 0 ] ), waist = lerp( hips, chest, 0.45 ), pits = lerp( hips, chest, 0.86 ), slope = lerp( chest, neck, 0.55 );
+	const ring = [ [ hips, [ 0.17, 0.12 ], 0 ], [ waist, [ 0.158, 0.112 ], 0.45 ], [ pits, [ 0.2, 0.128 ], 0.86 ], [ chest, [ 0.178, 0.116 ], 1 ], [ slope, [ 0.118, 0.09 ], 1.15 ], [ neck, [ 0.065, 0.06 ], 1.3 ] ];
+	for ( let k = 0; k < ring.length - 1; k ++ ) {
+
+		torsoAt = [ ring[ k ][ 2 ], ring[ k + 1 ][ 2 ] ];
+		tube( ring[ k ][ 0 ], ring[ k + 1 ][ 0 ], ring[ k ][ 1 ], ring[ k + 1 ][ 1 ], PART.torso, 14, k === 0 );
+
+	}
+
 	torsoAt = null;
-	tube( J( 'shoulder', - 1 ), J( 'shoulder', 1 ), [ 0.07, 0.07 ], [ 0.07, 0.07 ], PART.sleeve, 6, true, true );
 	for ( const s of [ - 1, 1 ] ) {
 
-		tube( J( 'shoulder', s ), J( 'elbow', s ), [ 0.064, 0.064 ], [ 0.054, 0.054 ], PART.sleeve );
-		tube( J( 'elbow', s ), J( 'wrist', s ), [ 0.054, 0.054 ], [ 0.045, 0.045 ], PART.sleeve, 6, false, true );
+		blob( J( 'shoulder', s ), [ 0.071, 0.071, 0.071 ], PART.sleeve, 10, 5 );
+		tube( J( 'shoulder', s ), J( 'elbow', s ), [ 0.064, 0.064 ], [ 0.054, 0.054 ], PART.sleeve, 10 );
+		blob( J( 'elbow', s ), [ 0.054, 0.054, 0.054 ], PART.sleeve, 8, 4 );
+		tube( J( 'elbow', s ), J( 'wrist', s ), [ 0.054, 0.054 ], [ 0.045, 0.045 ], PART.sleeve, 10, false, true );
 		// the hand: a mitten, flattened across the palm
-		tube( J( 'wrist', s ), J( 'hand', s ), [ 0.034, 0.021 ], [ 0.03, 0.017 ], PART.skin, 5, false, true );
-		tube( J( 'hip', s ), J( 'knee', s ), [ 0.09, 0.09 ], [ 0.064, 0.064 ], PART.pants, 6, true );
-		tube( J( 'knee', s ), J( 'ankle', s ), [ 0.062, 0.062 ], [ 0.05, 0.05 ], PART.pants );
-		tube( add( J( 'ankle', s ), [ 0, - 0.03, 0.04 ] ), J( 'toe', s ), [ 0.052, 0.046 ], [ 0.044, 0.03 ], PART.shoe, 5, true, true );
+		tube( J( 'wrist', s ), J( 'hand', s ), [ 0.034, 0.021 ], [ 0.03, 0.017 ], PART.skin, 8, false, true );
+		tube( J( 'hip', s ), J( 'knee', s ), [ 0.09, 0.09 ], [ 0.064, 0.064 ], PART.pants, 10, true );
+		blob( J( 'knee', s ), [ 0.063, 0.063, 0.063 ], PART.pants, 8, 4 );
+		tube( J( 'knee', s ), J( 'ankle', s ), [ 0.062, 0.062 ], [ 0.05, 0.05 ], PART.pants, 10 );
+		tube( add( J( 'ankle', s ), [ 0, - 0.03, 0.04 ] ), J( 'toe', s ), [ 0.052, 0.046 ], [ 0.044, 0.03 ], PART.shoe, 8, true, true );
 
 	}
 
 	// ---- the head (turns on its own: its vertices are flagged), a nose, a cap's brim, a ponytail
 	headMode = 1;
-	tube( neck, add( neck, [ 0, 0.08, 0 ] ), [ 0.056, 0.052 ], [ 0.05, 0.048 ], PART.skin, 6 );
-	blob( hc, [ 0.083, 0.105, 0.1 ], PART.head, 10, 7 );
+	tube( neck, add( neck, [ 0, 0.08, 0 ] ), [ 0.056, 0.052 ], [ 0.05, 0.048 ], PART.skin, 8 );
+	blob( hc, [ 0.083, 0.105, 0.1 ], PART.head, 16, 10 );
 	tube( add( hc, [ 0, 0.005, - 0.09 ] ), add( hc, [ 0, - 0.02, - 0.118 ] ), [ 0.014, 0.012 ], [ 0.01, 0.008 ], PART.skin, 4, false, true );
 	// (FP1, CP-1) the bill out of the crown's lower edge just above the brows (it came out of the cap's
 	// middle), arched, its sides lower; under it too, so it has a shaded underside from below
@@ -486,9 +501,13 @@ const GEAR = {
 		const front = add( cam, mul( dir, 0.06 ) ), mid = lerp( front, tip, 0.24 ), hoodAt = lerp( front, tip, 0.74 );
 		box( cam, dir, [ 0, 1, 0 ], 0.09, 0.12, 0.15, PART.dark );
 		box( add( cam, [ 0.055, 0.035, 0.0 ] ), dir, [ 0, 1, 0 ], 0.06, 0.05, 0.05, PART.dark );
-		tube( front, mid, [ 0.045, 0.045 ], [ 0.058, 0.058 ], PART.lens, 8, true );
-		tube( mid, hoodAt, [ 0.064, 0.064 ], [ 0.07, 0.07 ], PART.lens, 8 );
-		tube( hoodAt, tip, [ 0.085, 0.085 ], [ 0.088, 0.088 ], PART.dark, 8, false, true );
+		// (FP2, CP-19: round, the maker's ring near the front, the hood open on the front glass: it was
+		// an octagon capped black, a black ball on a grey pipe end on)
+		tube( front, mid, [ 0.045, 0.045 ], [ 0.058, 0.058 ], PART.lens, 14, true );
+		tube( mid, hoodAt, [ 0.064, 0.064 ], [ 0.07, 0.07 ], PART.lens, 14 );
+		tube( lerp( mid, hoodAt, 0.86 ), lerp( mid, hoodAt, 0.91 ), [ 0.0712, 0.0712 ], [ 0.0712, 0.0712 ], PART.ring, 14 );
+		tube( hoodAt, tip, [ 0.085, 0.085 ], [ 0.088, 0.088 ], PART.dark, 14 );
+		tube( lerp( hoodAt, tip, 0.04 ), lerp( hoodAt, tip, 0.08 ), [ 0.072, 0.072 ], [ 0.072, 0.072 ], PART.glass, 14, false, true );
 		tube( lerp( front, tip, 0.35 ), J( 'monoTop' ), [ 0.018, 0.018 ], [ 0.018, 0.018 ], PART.dark, 4 );
 		tube( J( 'monoTop' ), J( 'monoFoot' ), [ 0.014, 0.014 ], [ 0.011, 0.011 ], PART.metal, 5, true, true );
 		// the rain cover: a loose sleeve from behind the body to the hood
@@ -735,10 +754,17 @@ export function kindGeometry( key ) {
 
 }
 
+// ---- FP2 (CP-19): the script "Phillies" in the Cast's atlas (its chest prints start at cell 64: CHEST.script)
+const SCRIPT_CELL = 65;
+let _blank = null;
+const BLANK = () => _blank ||= canvasTexture( 8, 8, ( ctx ) => { ctx.fillStyle = '#000'; ctx.fillRect( 0, 0, 8, 8 ); }, 'railBlank' );
+
 function railMaterial() {
 
 	const m = standard( {
 		name: 'rail-figures', roughness: 0.75, side: 'double',
+		// ---- FP2 (CP-19): the Cast's atlas, for the script on the ball girls' and bat boys' jerseys
+		textures: { rfAtlas: () => castPool()?.atlas || BLANK() },
 		attributes: { aMorph: 'vec4f', aMorphN: 'vec4f', aHead: 'vec3f', aWho: 'vec4f', aLook: 'vec4f' },
 		varyings: { vPart: 'f32', vWho: 'vec4f', vLook: 'vec4f', vLocal: 'vec3f', vHead: 'vec3f', vTorso: 'vec2f' },
 		vertex: /* wgsl */`
@@ -867,7 +893,13 @@ function railMaterial() {
 		let tv = in.vs.vTorso;
 		let front = tv.y < -0.35;
 		if ( pin ) { c = c * ( 1.0 - 0.4 * step( 0.84, fract( ( L.x + L.z ) * 50.0 ) ) ); }
-		if ( ( o == 3 || o == 4 ) && front && abs( tv.x - 0.78 ) < 0.07 && abs( L.x ) < 0.13 && fract( L.x * 24.0 + tv.x * 6.0 ) < 0.5 ) { c = red; }
+		// (FP2, CP-19: the script from the Cast's atlas, the same "Phillies" as on the fans' chests; it was
+		// a row of red bars like hazard tape)
+		if ( ( o == 3 || o == 4 ) && front && tv.x > 0.4 && tv.x < 0.95 && abs( L.x ) < 0.16 ) {
+			let uv = vec2f( 0.5 - L.x / 0.32, ( 0.95 - tv.x ) / 0.55 );
+			let a = textureSample( rfAtlas, smpAnisoClamp, ( vec2f( ${ SCRIPT_CELL % 8 }.0, ${ Math.floor( SCRIPT_CELL / 8 ) }.0 ) + uv ) / vec2f( 8.0, 10.0 ) ).r;
+			c = mix( c, red, a );
+		}
 		if ( ( o == 3 || o == 4 ) && front && abs( L.x ) < 0.008 && tv.x < 0.95 ) { c = c * 0.75; }
 		if ( hiVis && ( abs( L.y - 1.05 ) < 0.022 || abs( L.y - 1.2 ) < 0.022 ) ) { c = vec3f( 0.55 ); rough = 0.3; }
 		if ( hiVis ) { e = c * 0.06; }
@@ -902,10 +934,24 @@ function railMaterial() {
 	if ( part == 2 ) { c = skin; rough = 0.6; }
 	if ( part == 3 ) {
 		c = skin; rough = 0.6;
-		// the face: brows, eyes, a mouth; his hair round the back and top
-		if ( hd.z < -0.07 && abs( abs( hd.x ) - 0.032 ) < 0.014 && abs( hd.y - 0.012 ) < 0.008 ) { c = skin * 0.35; }
-		if ( hd.z < -0.07 && abs( abs( hd.x ) - 0.032 ) < 0.02 && abs( hd.y - 0.03 ) < 0.006 ) { c = mix( c, hair, 0.8 ); }
-		if ( hd.z < -0.08 && abs( hd.x ) < 0.022 && abs( hd.y + 0.05 ) < 0.006 ) { c = skin * vec3f( 0.7, 0.5, 0.5 ); }
+		// the face (FP2, CP-19, as the seated crowd's: it was two dark slits): the cold in the cheeks, the
+		// eyes in their sockets with the whites and the irises, the brows, the shadow under the nose, the
+		// lips; his hair round the back and top
+		let d = hd / vec3f( 0.083, 0.105, 0.1 );
+		let ax = abs( d.x );
+		let fr = smoothstep( 0.1, -0.25, d.z );
+		let fw = fwidth( d.x ) + fwidth( d.y );
+		let near = 1.0 - smoothstep( 0.15, 0.4, fw );
+		c = mix( c, c * vec3f( 1.25, 0.8, 0.78 ), 0.35 * smoothstep( 0.3, 0.05, length( vec2f( ax - 0.46, d.y + 0.16 ) ) ) * fr );
+		let ey = vec2f( ax - 0.36, d.y - 0.1 );
+		c *= mix( 1.0, 0.72, smoothstep( 0.2, 0.08, length( ey * vec2f( 1.0, 1.5 ) ) ) * fr );
+		c = mix( c, vec3f( 0.55, 0.53, 0.5 ), smoothstep( 0.1, 0.075, length( ey * vec2f( 1.0, 1.9 ) ) ) * near * fr );
+		c = mix( c, vec3f( 0.03, 0.02, 0.015 ), smoothstep( 0.05, 0.035, length( ey ) ) * near * fr );
+		let brow = smoothstep( 0.05, 0.02, abs( d.y - 0.3 + 0.05 * ax ) ) * step( 0.1, ax ) * step( ax, select( 0.56, 0.5, o == 3 ) ) * fr;
+		c = mix( c, hair, brow * select( 0.85, 0.55, o == 3 ) );
+		c *= mix( 1.0, 0.75, smoothstep( 0.1, 0.03, length( vec2f( d.x * 0.8, d.y + 0.24 ) ) ) * fr );
+		let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / 0.06 ) );
+		c = mix( c, c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), o == 3 ), smoothstep( 1.0, 0.7, mo ) * fr );
 		let bald = h.z > 0.93 && o != 3;
 		if ( hd.y > 0.02 - 0.07 * smoothstep( -0.02, 0.07, hd.z ) && ! bald ) { c = hair; rough = 0.7; }
 		// a beard on some of the men of the press and the crew
@@ -961,6 +1007,10 @@ function railMaterial() {
 	// a TV camera's tally light: red while its picture is on the air
 	if ( part == 18 ) { c = vec3f( 0.05, 0.0, 0.0 ); rough = 0.2; if ( ( flags & 512u ) != 0u ) { e = vec3f( 6.0, 0.25, 0.1 ); } }
 	if ( part == 19 ) { c = vec3f( 0.42, 0.42, 0.4 ); rough = 0.4; }
+	// ---- FP2 (CP-19): a long lens's front glass (dark, coated, catching the lights) and its ring (Canon's
+	// red on the white glass, a Nikon's gold on the black)
+	if ( part == 20 ) { c = vec3f( 0.01, 0.015, 0.03 ); rough = 0.05; e = vec3f( 0.02, 0.04, 0.05 ) * smoothstep( 0.15, 0.7, frame.night ); }
+	if ( part == 21 ) { c = select( vec3f( 0.5, 0.4, 0.15 ), vec3f( 0.45, 0.02, 0.03 ), h.y < 0.62 ); rough = 0.4; }
 	if ( part == 15 ) { c = select( vec3f( 0.5, 0.35, 0.2 ), vec3f( 0.02 ), h.y > 0.6 ); rough = 0.35; }
 	if ( part == 16 ) { c = select( vec3f( 0.015 ), red, o == 0 ); rough = 0.7; }
 	if ( part == 17 ) {

@@ -113,6 +113,18 @@ function drawAtlas() {
 
 }
 
+// ---- FP2 (CP-12): one atlas of the boards for everyone who holds one up (the seated crowd's signs too,
+// Crowd.js): its cells GRID across, GRID_Y down, the board in the top ASPECT of each
+let _atlas = null;
+export function signAtlas() {
+
+	return _atlas ||= drawAtlas();
+
+}
+
+export const SIGN_GRID = { x: GRID, y: GRID_Y, aspect: ASPECT };
+// ---- end FP2
+
 // the board: its printed face (uv in the cell), its back (uv.x < 0) and edges
 function boardGeometry() {
 
@@ -147,7 +159,7 @@ export class Signs {
 	constructor( parent, max = 16 ) {
 
 		this.max = max;
-		this.atlas = drawAtlas();
+		this.atlas = signAtlas(); // (FP2: shared with the crowd's)
 		const mat = standard( { name: 'home-signs', roughness: 0.75, side: 'double', textures: { hsAtlas: this.atlas },
 			varyings: { vCell: 'f32', vUV: 'vec2f' },
 			vertex: 'o.vCell = v.color.r; o.vUV = v.uv;',
