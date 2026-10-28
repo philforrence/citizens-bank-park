@@ -58,3 +58,6 @@ Holding under the floor; TV high, its rainy twin and left field sit at 31-32 ms.
 | 12:10 | SP2's first win: the players' far figure (rain TV high 29.2; a real 3B seat 23.8; the 3B plaza 22.2) | 23.8 | 28.1 | 19.1 | 20.7 | 17.8 | 22.5 | 29.5 |
 
 Every view at 34 fps or better; left field (29.5) has ~4 ms of room again.
+| 12:15 | FR1, the celebration (rain TV high 29.1; a real 3B seat 23.8; the 3B plaza 22.5) | 23.3 | 27.6 | 19.6 | 20.7 | 18.2 | 22.5 | 29.7 |
+
+FR1 cost nothing in the standard views. From here the job also has two celebration views (TV high 120 s after the last out, TV center at 245 s), where the most people are on the field.
