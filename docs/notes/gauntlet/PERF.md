@@ -67,3 +67,6 @@ FR1 cost nothing in the standard views. From here the job also has two celebrati
 | 13:33 | SP2's crowd levels and pieces (SP2's own run: the 400s seat 31.9, rain TV high 24.0, celebration TV high 23.7) | 21.0 | 23.3 | - | - | - | 20.6 | 29.1 |
 
 **Every view under the floor again**, the 400s seat included (31.9). Left field (29.1) is the tightest.
+| 13:55 | SP2's crowd pieces and FB3, the broadcast round 3 (rain TV high 24.9; a real 3B seat 23.4; the plaza 22.9; celebration TV high 25.1 / center 24.1; **the 400s seat 33.1**) | 22.7 | 24.5 | 19.3 | 21.0 | 19.6 | 22.1 | 29.3 |
+
+The TV views are the best they've been all day (TV high 24.5). **The 400s seat behind home (33.1, CPU 8.7 on a busy machine) sits right at the floor**, and left field (29.3) is next: they go to the next speed track (SP3) at the next free slot.
