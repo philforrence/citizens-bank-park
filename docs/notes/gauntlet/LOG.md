@@ -36,4 +36,4 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 - **FW2, the walk's building and outside** (launched 10:24).
 - **SP1's second speed win** (a62a3a7): the insides' material (one uniform palette, the netting's discard in the cages' own material), the players' draw packed to its visible slots, the local lights' BRDF only facing the light. Under the stands 33.0 -> 18.8 ms; the images unchanged.
 - **FW1, the people on the walk** (notes [FW1.md](FW1.md)): C2W-1 (the throng handed over to close-up figures within 7 m: no bubble), 3 (backs against the seat backs), 2 (the Cast's hands, shoes, limbs), 6 (the seated crowd up close), 11 (the 27th's ponchos and variety), 12 (the Alley and the corners), 16, 19, CP-8 (the ripple) and CP-10 done; C2W-10, 20 and CP-12 (names and numbers on backs) partly. Shots: `.claude/gauntlet/r2/FW1-shots/`.
-- **FP2, the people's polish** (launched 11:00): the floating caps, the crowd behind home (towels, beanies, flashes), signs and lanyards, RailFigures.
+- **FP2, the people's polish** (launched 11:10): the floating caps, the crowd behind home (towels, beanies, flashes), signs and lanyards, RailFigures.
