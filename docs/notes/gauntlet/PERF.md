@@ -36,3 +36,6 @@ FP1's crowd culls and picks its LOD per 360-seat piece, so the TV views got chea
 | 09:48 | FY2, the Phanatic and players (rain, TV high on the 27th: 32.4) | 23.0 | 30.6 | 22.7 | 30.9 | 28.8 | 32.5 | 32.6 |
 
 **At the floor's edge:** the upper-deck seat, left field and the rainy TV high are within 1 ms of 33.3. Until the speed track (SP1) lands, new fixes must cost nothing in those views.
+| 09:58 | SP1, occlusion culling (rain, TV high on the 27th: 26.9) | 21.0 | 26.3 | 19.9 | 23.5 | 21.8 | 25.2 | 31.0 |
+
+**The speed track's first win** gave back 2-7 ms everywhere but left field (an open view: little is hidden). Left field (31.0) is SP1's next target. From here the job also has a real field-level seat (`seat-3b-field-real`, the bowl critic's `__seat()`), since the old "3B field seat" eye sits under the stands.
