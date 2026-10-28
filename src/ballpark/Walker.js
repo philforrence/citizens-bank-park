@@ -3,13 +3,18 @@ import * as THREE from '../engine/index.js';
 // First-person walker for the ballpark: a capsule on the ground + walkable colliders (concourses,
 // stairs, seating rows). The walking part of Tidewater's player/Player.js, without the water and the
 // boat.
-//   W A S D move, Shift sprints, Space jumps. Steps up to STEP high are climbed without jumping.
+//   W A S D move, Shift hurries, Space jumps. Steps up to STEP high are climbed without jumping, and the
+// eye eases over them (it used to jump each riser in one frame). The seated fans are in the way
+// (`blocked`, BallparkApp's grid of them): you go up and down the stands by the aisles, not through the
+// rows.
 const EYE = 1.62;
 const RADIUS = 0.3;
 const HEIGHT = 1.75;
 const STEP = 0.62; // highest ledge you walk up onto: a stair riser is ~0.18 m, an upper deck's row 0.6
-const WALK = 3.0; // m/s
-const SPRINT = 6.2;
+// a stroll, as the concourse crowd walks (1.2-1.4 m/s; it was 3.0, a jog that overtook everyone), and
+// a hurry on Shift; G doubles both
+const WALK = 1.9; // m/s
+const SPRINT = 4.6;
 
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -149,18 +154,24 @@ export class Walker {
 		const old = p.clone();
 		p.addScaledVector( this.velocity, dt );
 		this.colliders.resolveCapsule( p, RADIUS, HEIGHT, STEP );
+		// the seated fans: pushed back out from among them (the aisles are clear)
+		if ( this.blocked ) this.blocked( p, RADIUS );
 		const g = this.groundAt( p.x, p.z, p.y + STEP + 0.05 );
+		const y0 = p.y;
 		if ( p.y <= g ) {
 
 			p.y = g;
 			if ( this.velocity.y < 0 ) this.velocity.y = 0;
+			// up a step: the eye follows over a moment instead of in one frame
+			if ( this.grounded && g - y0 > 0.03 ) this.camOff -= g - y0;
 			this.grounded = true;
 
 		} else if ( this.grounded && this.velocity.y <= 0 && p.y - g < STEP ) {
 
-			// walking down stairs: stay on them instead of hopping off each step
+			// walking down stairs: stay on them instead of hopping off each step (the eye eased down)
 			p.y = g;
 			this.velocity.y = 0;
+			if ( y0 - g > 0.03 ) this.camOff += y0 - g;
 
 		} else {
 

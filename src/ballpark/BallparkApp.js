@@ -315,6 +315,8 @@ export class BallparkApp {
 		const start = { position: at, yaw: Math.atan2( - ( look.x - at.x ), - ( look.z - at.z ) ) };
 		this.walker = new Walker( { camera, input: this.input, ground: this.terrain, colliders: this.colliders, start } );
 		this._addElevators();
+		// the seated crowd is in the walker's way (CY-15: you used to walk up the rows through them)
+		this.walker.blocked = ( p, r ) => this._pushFromFans( p, r );
 		this.freeCam = qs.has( 'fly' );
 
 		// ---------------------------------------------------------------- post
@@ -421,6 +423,65 @@ export class BallparkApp {
 				} );
 
 			} );
+
+		}
+
+	}
+
+	// The seated fans as obstacles for the walker: a grid (1 m cells, world x / z) of their seats from the
+	// crowd's instances, built the first time you walk near the stands; a fan pushes you out to 0.55 m
+	// from his seat (your radius and his knees), at his height. The aisles have no seats, so they're the
+	// way up and down; a row's front is too tight to walk along, as it is in a full house.
+	_pushFromFans( p, radius ) {
+
+		if ( this._fanGrid === undefined ) {
+
+			this._fanGrid = null;
+			const crowd = this.bowl?.crowd;
+			if ( crowd?.chunks?.length ) {
+
+				const grid = new Map(), v = new Vector3();
+				for ( const ch of crowd.chunks ) {
+
+					const m = ch.near, a = m.instanceMatrix.array;
+					m.updateMatrixWorld?.();
+					for ( let i = 0; i < m.count; i ++ ) {
+
+						v.set( a[ i * 16 + 12 ], a[ i * 16 + 13 ], a[ i * 16 + 14 ] ).applyMatrix4( m.matrixWorld );
+						const key = Math.floor( v.x ) * 4096 + Math.floor( v.z );
+						let cell = grid.get( key );
+						if ( ! cell ) grid.set( key, cell = [] );
+						cell.push( v.x, v.y, v.z );
+
+					}
+
+				}
+
+				this._fanGrid = grid;
+
+			}
+
+		}
+
+		const grid = this._fanGrid;
+		if ( ! grid ) return;
+		const R = radius + 0.25;
+		const cx = Math.floor( p.x ), cz = Math.floor( p.z );
+		for ( let i = - 1; i <= 1; i ++ ) for ( let j = - 1; j <= 1; j ++ ) {
+
+			const cell = grid.get( ( cx + i ) * 4096 + cz + j );
+			if ( ! cell ) continue;
+			for ( let k = 0; k < cell.length; k += 3 ) {
+
+				// his seat at about your feet's height (the row you're on, or the next up or down)
+				const dy = cell[ k + 1 ] - p.y;
+				if ( dy < - 0.7 || dy > 0.7 ) continue;
+				const dx = p.x - cell[ k ], dz = p.z - cell[ k + 2 ], d = Math.hypot( dx, dz );
+				if ( d >= R || d < 1e-4 ) continue;
+				p.x += dx / d * ( R - d );
+				p.z += dz / d * ( R - d );
+
+			}
 
 		}
 
