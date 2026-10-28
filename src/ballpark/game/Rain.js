@@ -1,6 +1,7 @@
 import { Mesh, BufferGeometry, Float32BufferAttribute, Color, Vector2, Vector4 } from '../../engine/index.js';
 import { standard } from '../../materials/Materials.js';
 import { StorageBuffer } from '../../engine/gpu/Texture.js';
+import { localLightsModule } from '../../materials/LocalLights.js'; // ---- FW2 (C2W-5)
 
 // Rain round the camera: streaks falling through a box that moves with you (each drop wraps inside it),
 // leaning with the wind, faint in the distance. `amount` 0..1 thins them out.
@@ -11,6 +12,14 @@ import { StorageBuffer } from '../../engine/gpu/Texture.js';
 // long on screen and never thinner than one, the box pushed out ahead of the lens (half of it used to
 // be behind you) with more drops in it, and each drop owns its pixel's motion (VELOCITY_OPAQUE, as
 // AirMotes does) so the resolve follows it instead of smearing it.
+// C2W-5 (gauntlet r2, FW2): outside on the 27th it read as snow near you and as white dashes over the
+// black sky and the brick, because every drop was lit the same wherever it was (a floor of a quarter of
+// the night's light). In the photos (roadieshow 3023773899, the Third Base Gate from the street that
+// night; Getty 83458502 from the concourse) the rain shows only where light crosses it: round the
+// street lamps and the gate's lights, round the banks, and in the beams over the field. So each drop
+// is lit by the lamps actually near it (LocalLights' chosen dozen: the banks, the plaza's posts, the
+// gate's lights, the domes), mostly forward (a drop seen against a lamp blazes, side on it's faint),
+// and a drop nothing lights is all but invisible.
 const N = 20000;
 const BOX = [ 44, 26, 44 ]; // m
 // ---- W2 (concourse): the cover map's size (cells): the height of the top of whatever's overhead, per
@@ -55,11 +64,15 @@ export class Rain {
 				// the light banks (world, w = 1 if used): drops between you and a bank light up
 				l0: [ 'vec4f', new Vector4() ], l1: [ 'vec4f', new Vector4() ], l2: [ 'vec4f', new Vector4() ], l3: [ 'vec4f', new Vector4() ],
 				l4: [ 'vec4f', new Vector4() ], l5: [ 'vec4f', new Vector4() ], l6: [ 'vec4f', new Vector4() ], l7: [ 'vec4f', new Vector4() ],
+				// ---- FW2 (C2W-5): the lamps' light on a drop (x), how much light makes a drop show (y), the
+				// city's glow off the low cloud (z), the banks' fixtures' light leaking all round (w)
+				lightK: [ 'vec4f', new Vector4( 2.5, 0.12, 0.02, 60 ) ],
 				// ---- W2 (concourse): the cover map: world to field (cos, sin, the field's y, on), its grid (x0, z0, cell, nx)
 				coverXf: [ 'vec4f', new Vector4() ], coverGrid: [ 'vec4f', new Vector4( 0, 0, 1, 1 ) ],
 				// ---- end W2
 			},
 			storage: { rainCover: this.coverBuf }, // ---- W2 (concourse): the cover map
+			modules: [ localLightsModule ], // ---- FW2 (C2W-5): the lamps near each drop
 			attributes: { aSeed: 'vec4f', aCorner: 'vec2f' },
 			defines: { VELOCITY_OPAQUE: 1 }, // CB-2
 			varyings: { vA: 'f32', vY: 'f32', vLit: 'f32', vK: 'f32' },
@@ -86,7 +99,8 @@ export class Rain {
 	let d = length( p - cam );
 	let pxM = 2.0 * d * tanHalf / max( frame.resolution.y, 1.0 );
 	let wide = smoothstep( 0.08, 0.3, tanHalf );
-	let len = min( mix( 0.05, 0.13, wide ), mix( 7.0, 5.0, wide ) * pxM );
+	// (C2W-5: up close a dash of 5 px or less read as a flake; 8 px on the wide lens, still a pixel wide)
+	let len = min( mix( 0.05, 0.13, wide ), mix( 7.0, 8.0, wide ) * pxM );
 	let halfW = max( 0.0025, 0.5 * pxM );
 	let wp = p + side * v.aCorner.x * halfW + dir * v.aCorner.y * len;
 	v.useWorld = true;
@@ -112,21 +126,50 @@ export class Rain {
 	// (CB-2: through a long lens the dashes are short and few; each a little denser, so the speckle
 	// shows the way it does in the center field frames)
 	o.vK = mix( 1.7, 1.0, wide );
-	// forward scattering: a drop in front of a bank (seen against it) glows
+	// ---- FW2 (C2W-5): what lights the drop. The lamps near it, as they light a surface (LocalLights:
+	// the inverse square, the range window, the spot's cone), weighed by the drops' forward lobe: seen
+	// against a lamp a drop blazes, side on it scatters a tenth of that
 	let ray = normalize( p - cam );
 	var lit = 0.0;
+	for ( var i = 0; i < localLights.count; i++ ) {
+		let lp = localLights.pos[ i ];
+		let dv = lp.xyz - p;
+		let d2 = dot( dv, dv );
+		if ( d2 < lp.w ) {
+			let c = localLights.col[ i ];
+			let sd = localLights.dir[ i ];
+			let Ld = dv * inverseSqrt( max( d2, 1e-6 ) );
+			let x = d2 / lp.w;
+			let win = sat( 1.0 - x * x );
+			let spot = localLightsSpotProfile( dot( - Ld, sd.xyz ), c.w, sd.w );
+			let E = dot( c.xyz, vec3f( 0.3, 0.55, 0.15 ) ) * win * win * spot / ( d2 + 0.15 );
+			lit += E * ( 0.12 + 2.4 * pow( max( dot( Ld, ray ), 0.0 ), 12.0 ) );
+		}
+	}
+	// the light banks: their fixtures leak light all round (from the street their backs glow), so the
+	// drops within a few metres of a bank make a halo round it, brightest seen against it
+	let nk = smoothstep( 0.15, 0.75, frame.night );
 	for ( var i = 0; i < 8; i ++ ) {
 		var L = mat.l0;
 		switch i { case 1: { L = mat.l1; } case 2: { L = mat.l2; } case 3: { L = mat.l3; } case 4: { L = mat.l4; } case 5: { L = mat.l5; } case 6: { L = mat.l6; } case 7: { L = mat.l7; } default: {} }
-		if ( L.w > 0.5 ) { lit += pow( max( 0.0, dot( normalize( L.xyz - p ), ray ) ), 10.0 ); }
+		if ( L.w > 0.5 ) {
+			let dv = L.xyz - p;
+			let d2 = dot( dv, dv );
+			lit += mat.lightK.w * nk * ( 0.15 + 2.0 * pow( max( 0.0, dot( dv * inverseSqrt( d2 ), ray ) ), 10.0 ) ) / ( d2 + 9.0 );
+		}
 	}
+	// ---- end FW2
 	o.vLit = lit;
 `,
 			surface: /* wgsl */`
-	// brighter under the lights at night, and glowing where they're backlit by a bank
-	let lightK = mix( 0.9, 1.4, frame.night ) + in.vs.vLit * 3.0 * frame.night;
-	s.albedo = mat.color * lightK * ( frame.skyIrradiance * 1.5 + vec3f( 0.25 ) * frame.night );
-	s.alpha = in.vs.vA * 0.3 * ( 1.0 - in.vs.vY * 0.5 ) * min( 1.0, 0.6 + in.vs.vLit ) * in.vs.vK;
+	// ---- FW2 (C2W-5): lit by the sky by day; after dark by the lamps near it (vLit) and a little by the
+	// city's glow off the cloud. A drop nothing lights doesn't show: its coverage goes with its light
+	let E = min( in.vs.vLit * mat.lightK.x, 6.0 ) + mat.lightK.z * frame.night;
+	let sky = frame.skyIrradiance * 1.5;
+	s.albedo = mat.color * ( sky + vec3f( E ) );
+	let seen = smoothstep( 0.0, mat.lightK.y, E + luminance( sky ) );
+	s.alpha = in.vs.vA * 0.3 * ( 1.0 - in.vs.vY * 0.5 ) * in.vs.vK * seen;
+	// ---- end FW2
 `,
 		} );
 		this.material.underwaterLighting = 'none';

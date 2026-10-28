@@ -1,4 +1,4 @@
-import { Group, Mesh, InstancedMesh, BoxGeometry, BufferGeometry, Float32BufferAttribute, Vector2, Vector3, Matrix4, Quaternion, Euler, Color } from '../engine/index.js';
+import { Group, Mesh, InstancedMesh, BoxGeometry, BufferGeometry, Float32BufferAttribute, Vector2, Vector3, Vector4, Matrix4, Quaternion, Euler, Color } from '../engine/index.js';
 import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { commonModule } from '../engine/render/wgsl/common.js';
 import { ShaderModule } from '../engine/gpu/Shader.js';
@@ -1568,8 +1568,11 @@ ${ open ? `	s.albedo = vec3f( 0.01 );
 
 		}
 
+		// ---- FW2 (C2W-13): the Third and First Base Gates (world x z, x z), for the frame's lit ceilings
+		const gw = GATES.slice( 0, 2 ).map( ( g ) => this.field.toWorld( g.at[ 0 ], g.at[ 1 ] ) );
 		const mat = standard( {
 			name: 'outer-floors', color: new Color( 0.5, 0.49, 0.46 ), roughness: 0.8, side: 'double', modules: [ commonModule ],
+			uniforms: { gates: [ 'vec4f', new Vector4( gw[ 0 ].x, gw[ 0 ].z, gw[ 1 ].x, gw[ 1 ].z ) ] }, // ---- FW2
 			surface: /* wgsl */`
 	if ( in.N.y > 0.6 ) {
 		// the concourse floor: sealed concrete
@@ -1577,6 +1580,20 @@ ${ open ? `	s.albedo = vec3f( 0.01 );
 		s.roughness = 0.6;
 	} else if ( in.N.y < - 0.6 ) {
 ${ SOFFIT_WGSL }
+		// ---- FW2 (C2W-13): over the Third and First Base Gates the frame's levels are open to the street,
+		// and after dark every one shows lit from the plazas, its ceiling pale green-white under rows of
+		// metal halides (roadieshow, the 3B gate from the street on Oct 27 2008; pvsbond, Oct 2009). Each a
+		// lens and the pool it throws up on the deck, a lamp every 6 m, within the gates' reach
+		let gd = min( length( in.P.xz - mat.gates.xy ), length( in.P.xz - mat.gates.zw ) );
+		let gk = 1.0 - smoothstep( 30.0, 42.0, gd );
+		if ( gk > 0.0 ) {
+			let cl = fract( in.P.xz / 6.0 ) - 0.5;
+			let r = length( cl ) * 6.0;
+			let lens = 1.0 - smoothstep( 0.2, 0.28, r );
+			let mh = vec3f( 0.82, 1.0, 0.86 );
+			s.emissive += mh * smoothstep( 0.15, 0.7, frame.night ) * gk * ( vec3f( 0.34, 0.33, 0.31 ) * ( 0.25 + 0.75 * exp( - r * r / 4.0 ) ) * 0.9 + vec3f( 9.0 ) * lens );
+		}
+		// ---- end FW2
 	} else {
 		// the precast edge: light grey, a reveal along it
 		let v = fract( in.P.y );

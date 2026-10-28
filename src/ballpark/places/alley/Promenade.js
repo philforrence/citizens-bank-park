@@ -57,7 +57,7 @@ export function promenade( parent, { pit, x0, x1, zBack, near = - 126, lamps = [
 	while ( C.length < 12 ) C.push( [ 1e4, 1e4 ] );
 	const vec = ( pts ) => pts.map( ( [ x, z ] ) => `vec2f( ${ x.toFixed( 2 ) }, ${ z.toFixed( 2 ) } )` ).join( ', ' );
 	const mat = standard( {
-		name: 'alley-promenade', color: new Color( 0.3, 0.085, 0.05 ), roughness: 0.8, modules: [ commonModule ],
+		name: 'alley-promenade', color: new Color( 0.2, 0.072, 0.048 ), roughness: 0.8, modules: [ commonModule ], // ---- FW2 (C2W-23): a duller red-brown
 		uniforms: { alley: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] }, // x litter, y rain (the puddles), z, w unused
 		surface: /* wgsl */`
 	// the field frame: x along the Alley, z out toward the field (uv, from the outline)
@@ -67,7 +67,12 @@ export function promenade( parent, { pit, x0, x1, zBack, near = - 126, lamps = [
 	// 0.9 m along the counters, 0.6 m along the field's edge
 	let bandX = abs( fract( ( p.x + 2.0 ) / 12.0 ) - 0.5 ) * 12.0;
 	let edgeD = ${ ( - zBack ).toFixed( 2 ) } + p.y;
-	var concrete = bandX > 5.3 || edgeD < 0.9;
+	// ---- FW2 (C2W-23): the walk is mostly pale concrete (wallyg, Aug 2005, from above; gf, Oct 29 2008:
+	// pale concrete by the stands): a wide concrete walk along the rail and the flower boxes, the brick in
+	// a band down the middle and the cross bands at the lamps
+	let railD = ${ ( near ).toFixed( 2 ) } - p.y;
+	var concrete = bandX > 5.3 || edgeD < 2.8 || railD < 3.8;
+	// ---- end FW2
 	// the pavers: 20 x 10 cm, a running bond along the Alley; each its own shade of red and brown
 	let bu = p.x / 0.2 + 0.5 * floor( p.y / 0.1 );
 	let bv = p.y / 0.1;
@@ -87,6 +92,8 @@ export function promenade( parent, { pit, x0, x1, zBack, near = - 126, lamps = [
 	let traffic = exp( - pow( ( edgeD - mid ) / 3.5, 2.0 ) );
 	c = c * ( 1.0 - 0.14 * traffic * ( 0.6 + 0.4 * mx_noise_float2( p * 0.7 ) ) );
 	c = c * ( 0.9 + 0.12 * mx_noise_float2( p * 0.35 ) );
+	// ---- FW2 (C2W-23): a season's stains: spilled beer and soda, dark blotches where the crowd stands
+	c = c * ( 1.0 - 0.18 * smoothstep( 0.35, 0.75, mx_noise_float2( p * 0.9 + vec2f( 11.0, 3.0 ) ) ) * ( 0.4 + 0.6 * traffic ) );
 	// flattened gum: dark grey dots, most in front of the stands
 	let gcell = floor( p / 0.35 );
 	let gh = fract( sin( dot( gcell, vec2f( 41.3, 17.7 ) ) ) * 7543.21 );

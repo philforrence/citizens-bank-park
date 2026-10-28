@@ -109,7 +109,7 @@ const HALF = {
 	family: { type: 'door', room: 5, sign: [ 'FAMILY RESTROOM', '#14305c', '#ffffff' ] },
 	firstaid: { type: 'window', room: 8, sign: [ 'FIRST AID', '#f4f2ec', '#c8102e' ] },
 	guest: { type: 'window', room: 6, sign: [ 'GUEST SERVICES', '#b3121b', '#ffffff' ] },
-	tickets: { type: 'window', room: 6, sign: [ 'TICKETS', '#13294f', '#ffffff' ] },
+	tickets: { type: 'window', room: 6, sign: [ 'TICKETS · WILL CALL', '#13294f', '#ffffff' ] }, // ---- FW2 (C2W-21): WILL CALL
 	merch: { type: 'shop', room: 7, sign: [ 'PHILLIES', '#b3121b', '#ffffff' ] },
 	news: { type: 'shop', room: 9, sign: [ 'NEWSSTAND', '#0b2a5b', '#ffffff' ] },
 	phanatic: { type: 'shop', room: 7, sign: [ 'MAKE YOUR OWN PHANATIC', '#1c8a3c', '#ffffff' ] },
@@ -713,8 +713,9 @@ const ROOMS_WGSL = /* wgsl */`
 			if ( hy < 0.12 ) { col = vec3f( 0.2 ); }
 			light = 0.75;
 		} else if ( room == 6 ) {
-			// an office: a notice board, a Phillies poster, two monitors on the counter
-			col = vec3f( 0.55, 0.57, 0.58 );
+			// an office: a notice board, a Phillies poster, two monitors on the counter (FW2: its wall a shade
+			// darker, so the booth reads as a room and not a lit panel)
+			col = vec3f( 0.4, 0.42, 0.44 );
 			if ( hy < 1.0 ) { col = vec3f( 0.3, 0.31, 0.33 ); }
 			if ( hx > 0.2 && hx < 1.0 && hy > 1.35 && hy < 2.0 ) { col = vec3f( 0.45, 0.3, 0.15 ); if ( rnd > 0.35 ) { col = vec3f( 0.85, 0.84, 0.8 ); } }
 			if ( hx > 1.25 && hx < 1.95 && hy > 1.3 && hy < 2.2 ) { col = vec3f( 0.5, 0.03, 0.04 ); if ( length( vec2f( hx - 1.6, hy - 1.8 ) ) < 0.17 ) { col = vec3f( 0.85 ); } }
@@ -755,6 +756,36 @@ const ROOMS_WGSL = /* wgsl */`
 			}
 		}
 	}
+	// ---- FW2 (C2W-21): the ticket and guest-services windows were blank lit panels: a counter just inside
+	// the glass, a clerk behind it at most (a red Phillies jacket or a navy blazer), the speaking grille,
+	// and the glass's own dimming and sheen over it all
+	if ( room == 6 ) {
+		let tcl = 0.8 / rd.z;
+		if ( tcl < t ) {
+			let pc = vec3f( xl, y, 0.0 ) + rd * tcl;
+			let cid = floor( pc.x / 1.1 );
+			let hh = fract( sin( cid * 12.9898 + code * 3.1 ) * 43758.5453 );
+			let cx = pc.x - ( cid + 0.5 ) * 1.1 - ( hh - 0.5 ) * 0.2;
+			let ht = 1.66 + 0.14 * hh;
+			let head = length( vec2f( cx, pc.y - ht * 0.93 ) * vec2f( 1.0, 0.85 ) ) < 0.11;
+			let body = abs( cx ) < 0.23 - 0.06 * smoothstep( ht * 0.78, ht * 0.86, pc.y ) && pc.y < ht * 0.86 && pc.y > 0.5;
+			if ( hh > 0.2 && ( head || body ) ) {
+				col = select( select( vec3f( 0.42, 0.03, 0.04 ), vec3f( 0.04, 0.06, 0.16 ), hh > 0.6 ), vec3f( 0.55, 0.38, 0.27 ) * ( 0.7 + 0.5 * hh ), head );
+				if ( head && pc.y > ht * 0.985 ) { col = vec3f( 0.06, 0.04, 0.03 ); }
+				e = vec3f( 0.0 );
+				light = 0.5;
+			}
+		}
+		let tct = 0.22 / rd.z;
+		if ( tct < t ) {
+			let pq = vec3f( xl, y, 0.0 ) + rd * tct;
+			if ( pq.y < 1.08 ) { col = select( vec3f( 0.18, 0.18, 0.2 ), vec3f( 0.6, 0.6, 0.62 ), pq.y > 1.03 ); e = vec3f( 0.0 ); }
+		}
+		if ( length( vec2f( fract( xl / 1.1 ) * 1.1 - 0.55, y - 1.55 ) ) < 0.06 ) { col = vec3f( 0.22 ); e = vec3f( 0.0 ); }
+		let fres = pow( 1.0 - max( dot( - Vd, Nw ), 0.0 ), 4.0 );
+		col = col * 0.8 + vec3f( 0.08 ) * fres;
+	}
+	// ---- end FW2
 	s.albedo = col * 0.25;
 	s.roughness = 0.4;
 	s.emissive = ( col * vec3f( 1.0, 0.86, 0.68 ) * light + e ) * mix( 0.45, 1.0, smoothstep( 0.1, 0.7, frame.night ) );
@@ -1300,11 +1331,15 @@ export class Concourse {
 		if ( F.blade ) {
 
 			const B = L.cells[ BRANDS.indexOf( U.what ) ], x = W - 0.15, z0 = 0.35, z1 = 1.75, y0 = 3.05, y1 = 4.1;
-			face.tri( P( x, y0, z0 ), P( x, y0, z1 ), P( x, y1, z1 ), [ a[ 0 ], 0, a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ] );
-			face.tri( P( x, y0, z0 ), P( x, y1, z1 ), P( x, y1, z0 ), [ a[ 0 ], 0, a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ], [ B[ 0 ], B[ 1 ] ] );
-			face.tri( P( x - 0.01, y0, z1 ), P( x - 0.01, y0, z0 ), P( x - 0.01, y1, z0 ), [ - a[ 0 ], 0, - a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ] );
-			face.tri( P( x - 0.01, y0, z1 ), P( x - 0.01, y1, z0 ), P( x - 0.01, y1, z1 ), [ - a[ 0 ], 0, - a[ 1 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 2 ], B[ 1 ] ], [ B[ 0 ], B[ 1 ] ] );
-			for ( const y of [ y1 + 0.04, y0 + 0.25 ] ) lbox( props.use( 'black' ), P, a, n, x, y, ( z0 + z1 ) / 2 - 0.15, 0.04, 0.04, z1 - z0 + 0.6 );
+			// (C2W-9, FW2: each face's u runs to its own viewer's right, toward the wall seen from the +a side
+			// and away from it from the other: both read backwards before)
+			face.tri( P( x, y0, z0 ), P( x, y0, z1 ), P( x, y1, z1 ), [ a[ 0 ], 0, a[ 1 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 0 ], B[ 1 ] ] );
+			face.tri( P( x, y0, z0 ), P( x, y1, z1 ), P( x, y1, z0 ), [ a[ 0 ], 0, a[ 1 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 0 ], B[ 1 ] ], [ B[ 2 ], B[ 1 ] ] );
+			face.tri( P( x - 0.01, y0, z1 ), P( x - 0.01, y0, z0 ), P( x - 0.01, y1, z0 ), [ - a[ 0 ], 0, - a[ 1 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 0 ], B[ 3 ] ], [ B[ 0 ], B[ 1 ] ] );
+			face.tri( P( x - 0.01, y0, z1 ), P( x - 0.01, y1, z0 ), P( x - 0.01, y1, z1 ), [ - a[ 0 ], 0, - a[ 1 ] ], [ B[ 2 ], B[ 3 ] ], [ B[ 0 ], B[ 1 ] ], [ B[ 2 ], B[ 1 ] ] );
+			// the arm over it (no longer a second rod through its face), the sign hung from it on two drops
+			lbox( props.use( 'black' ), P, a, n, x, y1 + 0.09, ( z0 + z1 ) / 2 - 0.15, 0.04, 0.04, z1 - z0 + 0.6 );
+			for ( const z of [ z0 + 0.15, z1 - 0.15 ] ) lbox( props.use( 'black' ), P, a, n, x, y1 + 0.03, z, 0.015, 0.1, 0.015 );
 
 		}
 		// ---- end FI1

@@ -2,7 +2,7 @@ import { InstancedMesh, Matrix4, Quaternion, Vector3, Color, Sphere } from '../.
 import { StorageBuffer } from '../../../engine/gpu/Texture.js';
 import { commonModule } from '../../../engine/render/wgsl/common.js';
 import { standard } from '../../../materials/Materials.js';
-import { LEVELS } from '../../layout.js';
+import { LEVELS, FOOTPRINT } from '../../layout.js';
 import { G } from '../../../engine/render/Frame.js';
 import { LOTS } from '../../data/complex.js';
 import { Mesher, rng } from './Mesher.js';
@@ -24,7 +24,7 @@ const TYPES = [ 'sedan', 'suv', 'pickup', 'van', 'bus', 'police' ];
 
 // ---------------------------------------------------------------- the bodies
 
-function body( type ) {
+export function body( type ) {
 
 	const m = new Mesher();
 	const part = ( k ) => [ k + 0.5, 0.5 ];
@@ -91,7 +91,7 @@ function body( type ) {
 	};
 
 	// the dark under the car: a soft-edged patch on the ground (its shadow, without the shadow pass)
-	const L = type === 'bus' ? 6.3 : type === 'pickup' ? 2.9 : 2.7, W = type === 'bus' ? 1.3 : 1.05;
+	const L = type === 'bus' || type === 'coach' ? 6.3 : type === 'pickup' ? 2.9 : 2.7, W = type === 'bus' || type === 'coach' ? 1.35 : 1.05;
 	m.face( [ - W, 0.015, - L ], [ W, 0.015, - L ], [ W, 0.015, L ], [ - W, 0.015, L ], [ 0, 1, 0 ], [ part( 8 ), part( 8 ), part( 8 ), part( 8 ) ] );
 	if ( type === 'sedan' || type === 'police' ) {
 
@@ -134,6 +134,23 @@ function body( type ) {
 		lamps( 0.94, 0.85, - 2.55, 2.55 );
 		for ( const [ x, z ] of [ [ - 0.82, - 1.55 ], [ 0.82, - 1.55 ], [ - 0.82, 1.6 ], [ 0.82, 1.6 ] ] ) wheel( x, z, 0.36, 0.25 );
 
+	} else if ( type === 'coach' ) {
+
+		// ---- FW2 (C2I-2): a charter coach or a SEPTA bus: 12 m, flat-fronted, a deep windshield, the
+		// tinted windows in one band down its sides, the luggage bays' doors below
+		slab( - 1.27, 1.27, 0.45, 3.3, - 6.0, 6.0, 0, 0.22 );
+		for ( const s of [ - 1, 1 ] ) {
+
+			m.face( [ s * 1.275, 1.75, - 5.2 ], [ s * 1.275, 1.75, 5.6 ], [ s * 1.275, 2.85, 5.6 ], [ s * 1.275, 2.85, - 5.2 ], [ s, 0, 0 ], [ part( 1 ), part( 1 ), part( 1 ), part( 1 ) ] );
+			m.face( [ s * 1.28, 0.6, - 3.0 ], [ s * 1.28, 0.6, 3.0 ], [ s * 1.28, 0.66, 3.0 ], [ s * 1.28, 0.66, - 3.0 ], [ s, 0, 0 ], [ part( 5 ), part( 5 ), part( 5 ), part( 5 ) ] );
+
+		}
+
+		m.face( [ - 1.18, 1.3, - 6.01 ], [ 1.18, 1.3, - 6.01 ], [ 1.18, 3.0, - 6.01 ], [ - 1.18, 3.0, - 6.01 ], [ 0, 0, - 1 ], [ part( 1 ), part( 1 ), part( 1 ), part( 1 ) ] );
+		lamps( 1.05, 0.85, - 6.02, 6.02, 0.25, 0.1 );
+		for ( const [ x, z ] of [ [ - 1.1, - 3.9 ], [ 1.1, - 3.9 ], [ - 1.1, 3.6 ], [ 1.1, 3.6 ], [ - 1.1, 4.8 ], [ 1.1, 4.8 ] ] ) wheel( x, z, 0.5, 0.3 );
+		// ---- end FW2
+
 	} else if ( type === 'bus' ) {
 
 		// a school bus: the long box, the hood out front, the windows down its sides, the black rub rails
@@ -156,7 +173,7 @@ function body( type ) {
 
 }
 
-function carMaterial( info ) {
+export function carMaterial( info ) {
 
 	const mat = standard( {
 		name: 'w1-cars', roughness: 0.3, modules: [ commonModule ],
@@ -200,6 +217,10 @@ function carMaterial( info ) {
 			c = c * mix( 0.7, 1.0, smoothstep( 0.3, 0.7, in.vs.vLoc.y ) );
 		}
 	}
+	// ---- FW2 (C2I-2): a parked car in the lots stands in its pole's pool (info.z: LotCars; the shader's
+	// own pools light only the asphalt)
+	if ( inf.w > 0.5 && inf.w < 1.5 && part != 7 ) { e += c * vec3f( 1.0, 0.94, 0.84 ) * inf.z * 0.45 * smoothstep( 0.2, 0.8, frame.night ); }
+	// ---- end FW2
 	// the rain beads on the paint and the glass
 	rough = mix( rough, rough * 0.4, frame.wet );
 	s.albedo = c;
@@ -292,7 +313,7 @@ export class Cars {
 			M.mesh.setMatrixAt( i, m );
 			const c = this.paint();
 			M.mesh.setColorAt( i, col.setRGB( c[ 0 ], c[ 1 ], c[ 2 ] ) );
-			M.info.data.set( [ 0, 0, p.type === 'police' ? 1 : 0, p.type === 'police' ? 2 : 1 ], i * 4 );
+			M.info.data.set( [ 0, 0, p.type === 'police' ? 1 : ( p.light || 0 ), p.type === 'police' ? 2 : 1 ], i * 4 ); // ---- FW2: z, its pool's light
 
 		}
 
@@ -400,7 +421,10 @@ export class Cars {
 					const nx = - su * face, nz = cu * face;
 					const u2 = r();
 					const type = u2 < 0.4 ? 'sedan' : u2 < 0.68 ? 'suv' : u2 < 0.86 ? 'pickup' : 'van';
-					out.push( { x: x + ( r() - 0.5 ) * 0.2, z, yaw: Math.atan2( - nx, - nz ) + ( r() - 0.5 ) * 0.08, type } );
+					// ---- FW2 (C2I-2): the light of the pole's pool it stands in (the lots' shader's grid)
+					const gu = ( ( u / 40 + 0.5 ) % 1 + 1 ) % 1 - 0.5, gv = ( ( vv / 36.6 + 0.5 ) % 1 + 1 ) % 1 - 0.5;
+					const pool = Math.exp( - ( ( gu * 40 ) ** 2 + ( gv * 36.6 ) ** 2 ) / 200 );
+					out.push( { x: x + ( r() - 0.5 ) * 0.2, z, yaw: Math.atan2( - nx, - nz ) + ( r() - 0.5 ) * 0.08, type, light: pool * pool * 3.2 + pool * 0.22 } );
 
 				}
 
@@ -526,3 +550,221 @@ export class Cars {
 	}
 
 }
+
+// ---- FW2 (C2I-2, gauntlet r2): the rest of the lots. On a sold-out World Series night every lot round
+// the park was packed to its fences, charter and SEPTA buses lined up along Darien and Hartranft (Getty
+// 83476766 and 83476821, Oct 27 2008, from the north-east; roadieshow 3024603196, the north lot full of
+// SUVs). The Cars above fill only the lots by the Third Base plaza; the other ~15,000 stalls were bare
+// asphalt under bright pools, a closed park. Two tiers: within LOT_NEAR of you (on the ground) real cars,
+// instanced by type and re-chosen when you've walked LOT_STEP; everywhere else (and from the upper deck)
+// the lots' own shader paints them (Complex._lots: the same stall grid, a little relief from above),
+// told where the real ones are so they never overlap.
+function inFootprint( x, z ) {
+
+	let c = false;
+	for ( let i = 0, j = FOOTPRINT.length - 1; i < FOOTPRINT.length; j = i ++ ) {
+
+		const [ xi, zi ] = FOOTPRINT[ i ], [ xj, zj ] = FOOTPRINT[ j ];
+		if ( ( zi > z ) !== ( zj > z ) && x < ( xj - xi ) * ( z - zi ) / ( zj - zi ) + xi ) c = ! c;
+
+	}
+
+	return c;
+
+}
+
+export const LOT_NEAR = 170, W1_LOTS = { c: [ - 110, 90 ], corner: 260, r: 165 };
+const LOT_STEP = 20, LOT_TYPES = [ 'sedan', 'suv', 'pickup', 'van' ], LOT_CAP = 1400;
+
+export class LotCars {
+
+	// clear: [ [ x, z, r ], ... ] where nobody's parked (the tailgates, the tents); complex: its lots'
+	// material learns where the real cars are
+	constructor( { group, clear = [], complex = null } ) {
+
+		this.complex = complex;
+		const r = rng( 83 );
+		const paints = [ [ 0.5, 0.51, 0.52 ], [ 0.012, 0.012, 0.014 ], [ 0.75, 0.75, 0.73 ], [ 0.2, 0.2, 0.21 ], [ 0.22, 0.02, 0.025 ], [ 0.02, 0.03, 0.09 ], [ 0.03, 0.08, 0.05 ], [ 0.35, 0.3, 0.2 ], [ 0.4, 0.4, 0.42 ] ];
+		// every stall outside the plaza's lots (Cars has those), 90 % taken, on a coarse grid for the lookup
+		const stalls = [];
+		const inside = ( x, z, P ) => {
+
+			let c = false;
+			for ( let i = 0, j = P.length - 1; i < P.length; j = i ++ ) {
+
+				const [ xi, zi ] = P[ i ], [ xj, zj ] = P[ j ];
+				if ( ( zi > z ) !== ( zj > z ) && x < ( xj - xi ) * ( z - zi ) / ( zj - zi ) + xi ) c = ! c;
+
+			}
+
+			return c;
+
+		};
+
+		for ( const P of LOTS ) {
+
+			const w1 = P.some( ( [ x, z ] ) => Math.hypot( x - W1_LOTS.c[ 0 ], z - W1_LOTS.c[ 1 ] ) < W1_LOTS.corner );
+			let best = 0, ang = 0;
+			for ( let i = 0; i < P.length; i ++ ) {
+
+				const [ ax, az ] = P[ i ], [ bx, bz ] = P[ ( i + 1 ) % P.length ];
+				const l = Math.hypot( bx - ax, bz - az );
+				if ( l > best ) {
+
+					best = l; ang = Math.atan2( bz - az, bx - ax );
+
+				}
+
+			}
+
+			const cu = Math.cos( ang ), su = Math.sin( ang );
+			let u0 = Infinity, u1 = - Infinity, v0 = Infinity, v1 = - Infinity;
+			for ( const [ x, z ] of P ) {
+
+				const u = x * cu + z * su, v = - x * su + z * cu;
+				u0 = Math.min( u0, u ); u1 = Math.max( u1, u ); v0 = Math.min( v0, v ); v1 = Math.max( v1, v );
+
+			}
+
+			const ax = Math.cos( ang + Math.PI / 2 ) * 2.8, az = Math.sin( ang + Math.PI / 2 ) * 2.8;
+			for ( let v = Math.floor( v0 / 18.3 ) * 18.3; v < v1; v += 18.3 ) for ( const [ dv, face ] of [ [ 2.75, 1 ], [ 15.55, - 1 ] ] ) {
+
+				for ( let u = Math.floor( u0 / 2.7 ) * 2.7 + 1.35; u < u1; u += 2.7 ) {
+
+					const vv = v + dv;
+					const x = u * cu - vv * su, z = u * su + vv * cu;
+					if ( w1 && Math.hypot( x - W1_LOTS.c[ 0 ], z - W1_LOTS.c[ 1 ] ) <= W1_LOTS.r ) continue;
+					if ( clear.some( ( [ cx, cz, cr ] ) => Math.hypot( x - cx, z - cz ) < cr ) ) continue;
+					if ( ! inside( x, z, P ) || ! inside( x + ax, z + az, P ) || ! inside( x - ax, z - az, P ) ) continue;
+					if ( r() > 0.9 ) continue;
+					const nx = - su * face, nz = cu * face;
+					const u2 = r();
+					// the light it stands in: the pole grid's pool, as the lots' shader lights the asphalt
+					const gu = ( ( u / 40 + 0.5 ) % 1 + 1 ) % 1 - 0.5, gv = ( ( vv / 36.6 + 0.5 ) % 1 + 1 ) % 1 - 0.5;
+					const pool = Math.exp( - ( ( gu * 40 ) ** 2 + ( gv * 36.6 ) ** 2 ) / 200 );
+					stalls.push( { x: x + ( r() - 0.5 ) * 0.2, z, yaw: Math.atan2( - nx, - nz ) + ( r() - 0.5 ) * 0.08, type: u2 < 0.4 ? 0 : u2 < 0.68 ? 1 : u2 < 0.86 ? 2 : 3, paint: paints[ Math.floor( r() * paints.length ) ], light: pool * pool * 3.2 + pool * 0.22 } );
+
+				}
+
+			}
+
+		}
+
+		this.stalls = stalls;
+		const G = this.grid = new Map();
+		for ( const s of stalls ) {
+
+			const k = `${ Math.floor( s.x / 50 ) },${ Math.floor( s.z / 50 ) }`;
+			if ( ! G.has( k ) ) G.set( k, [] );
+			G.get( k ).push( s );
+
+		}
+
+		this.meshes = LOT_TYPES.map( ( t ) => {
+
+			const info = new StorageBuffer( { label: 'lotCarInfo-' + t, count: LOT_CAP, type: 'vec4f' } );
+			const d = new Float32Array( LOT_CAP * 4 );
+			for ( let i = 0; i < LOT_CAP; i ++ ) d[ i * 4 + 3 ] = 1;
+			info.write( d );
+			this.infos = this.infos || [];
+			this.infos.push( { buf: info, data: d } );
+			const mesh = new InstancedMesh( body( t ), carMaterial( info ), LOT_CAP );
+			mesh.name = 'fw2-lot-cars-' + t;
+			mesh.castShadow = false;
+			mesh.receiveShadow = true;
+			mesh.frustumCulled = false;
+			mesh.setColorAt( 0, new Color( 1, 1, 1 ) ); // (the instance colours there from the start)
+			mesh.count = 0;
+			mesh.boundingSphere = new Sphere( new Vector3(), LOT_NEAR + 10 );
+			group.add( mesh );
+			return mesh;
+
+		} );
+		this._buses( group );
+		this.at = null;
+		this.R = - 1;
+
+	}
+
+	// the buses: charters and SEPTA's along Darien Street's west curb and Hartranft Street's south curb,
+	// nose to tail, waiting for the game to end
+	_buses( group ) {
+
+		const spots = [];
+		for ( let z = - 150; z <= - 20; z += 14.5 ) spots.push( [ 187.6, z, Math.PI ] );
+		for ( let x = 20; x <= 120; x += 14.5 ) spots.push( [ x, - 166.6, - Math.PI / 2 ] );
+		const n = spots.length;
+		const info = new StorageBuffer( { label: 'lotBusInfo', count: n, type: 'vec4f' } );
+		const d = new Float32Array( n * 4 );
+		for ( let i = 0; i < n; i ++ ) d[ i * 4 + 3 ] = 1;
+		info.write( d );
+		const mesh = new InstancedMesh( body( 'coach' ), carMaterial( info ), n );
+		const m = new Matrix4(), q = new Quaternion(), up = new Vector3( 0, 1, 0 ), col = new Color();
+		// white charters, a few silver, SEPTA's white (its stripe lost at this distance)
+		const bodies = [ [ 0.78, 0.78, 0.76 ], [ 0.72, 0.73, 0.75 ], [ 0.5, 0.51, 0.53 ], [ 0.8, 0.79, 0.74 ] ];
+		spots.forEach( ( [ x, z, yaw ], i ) => {
+
+			q.setFromAxisAngle( up, yaw );
+			m.compose( new Vector3( x, STREET + 0.006, z ), q, new Vector3( 1, 1, 1 ) );
+			mesh.setMatrixAt( i, m );
+			const c = bodies[ i % bodies.length ];
+			mesh.setColorAt( i, col.setRGB( c[ 0 ], c[ 1 ], c[ 2 ] ) );
+
+		} );
+		mesh.name = 'fw2-buses';
+		mesh.castShadow = false;
+		mesh.receiveShadow = true;
+		mesh.frustumCulled = false;
+		mesh.boundingSphere = new Sphere( new Vector3( 120, STREET, - 100 ), 140 );
+		group.add( mesh );
+		this.buses = mesh;
+
+	}
+
+	// cam: the camera in the field frame [ x, y, z ]. On the ground the near stalls get real cars; above
+	// it (the decks, the air) the lots' shader paints them all
+	update( cam ) {
+
+		if ( ! cam ) return;
+		// (inside the park the lots are only seen far off, over the walls and through the gates: painted)
+		const R = cam[ 1 ] < STREET + 9 && ! inFootprint( cam[ 0 ], cam[ 2 ] ) ? LOT_NEAR : 0;
+		if ( R === this.R && ( R === 0 || ( this.at && Math.hypot( cam[ 0 ] - this.at[ 0 ], cam[ 2 ] - this.at[ 1 ] ) < LOT_STEP ) ) ) return;
+		this.R = R;
+		this.at = [ cam[ 0 ], cam[ 2 ] ];
+		const used = [ 0, 0, 0, 0 ];
+		if ( R > 0 ) {
+
+			const m = new Matrix4(), q = new Quaternion(), up = new Vector3( 0, 1, 0 ), one = new Vector3( 1, 1, 1 ), p = new Vector3(), col = new Color();
+			const [ cx, cz ] = this.at;
+			const k0 = Math.floor( ( cx - R ) / 50 ), k1 = Math.floor( ( cx + R ) / 50 ), j0 = Math.floor( ( cz - R ) / 50 ), j1 = Math.floor( ( cz + R ) / 50 );
+			for ( let i = k0; i <= k1; i ++ ) for ( let j = j0; j <= j1; j ++ ) for ( const s of this.grid.get( `${ i },${ j }` ) || [] ) {
+
+				if ( Math.hypot( s.x - cx, s.z - cz ) > R || used[ s.type ] >= LOT_CAP ) continue;
+				const M = this.meshes[ s.type ], n = used[ s.type ] ++;
+				q.setFromAxisAngle( up, s.yaw );
+				m.compose( p.set( s.x, STREET + 0.03, s.z ), q, one );
+				M.setMatrixAt( n, m );
+				M.setColorAt( n, col.setRGB( s.paint[ 0 ], s.paint[ 1 ], s.paint[ 2 ] ) );
+				this.infos[ s.type ].data[ n * 4 + 2 ] = s.light;
+
+			}
+
+		}
+
+		for ( const I of this.infos ) I.buf.write( I.data );
+
+		this.meshes.forEach( ( M, t ) => {
+
+			M.count = used[ t ];
+			M.boundingSphere.center.set( this.at[ 0 ], STREET, this.at[ 1 ] );
+			M.instanceMatrix.needsUpdate = true;
+			if ( M.instanceColor ) M.instanceColor.needsUpdate = true;
+
+		} );
+		// the shader paints the rest
+		this.complex?.lotNear?.( this.at[ 0 ], this.at[ 1 ], R );
+
+	}
+
+}
+// ---- end FW2

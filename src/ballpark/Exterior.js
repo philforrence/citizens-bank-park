@@ -107,7 +107,7 @@ export class Exterior {
 		this.frontBuffer = new StorageBuffer( { label: 'facadeFronts', count: 16, type: 'vec4f' } );
 		this.brick = standard( {
 			name: 'facade-brick', color: new Color( 0.24, 0.065, 0.038 ), roughness: 0.85, modules: [ commonModule, frontagesModule ],
-			uniforms: { frontN: [ 'f32', 0 ] },
+			uniforms: { frontN: [ 'f32', 0 ], parkC: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] }, // ---- FW2: parkC
 			storage: { facFronts: this.frontBuffer },
 			surface: /* wgsl */`
 	// uv: x along the wall (m), y height above the street (m). The ground storey in rose granite with
@@ -177,6 +177,10 @@ export class Exterior {
 	// a precast band over the granite, and the cap
 	if ( v > 5.0 && v < 5.35 ) { c = vec3f( 0.5, 0.46, 0.4 ); rough = 0.7; }
 	if ( v > 6.25 ) { c = vec3f( 0.5, 0.46, 0.4 ); rough = 0.7; }
+	// ---- FW2 (C2W-13): after dark the street's sodium lamps wash the wall from below, in pools (the outer
+	// faces only)
+	if ( dot( in.N.xz, in.P.xz - mat.parkC.xy ) > 0.0 ) { e += c * fzSodium( u, v ) * night; }
+	// ---- end FW2
 	s.emissive = e;
 	s.albedo = c;
 	s.roughness = rough;
@@ -289,6 +293,9 @@ export class Exterior {
 		let fz = fzStore( fx, v, flen, fzRay( in.P, normalize( in.N ) ), smoothstep( 0.1, 0.7, frame.night ), true, FzOut( c, e, rough, 0.0 ) );
 		c = fz.c; e = fz.e; rough = fz.r;
 	}
+	// ---- FW2 (C2W-13): the street lamps' wash, fading up the wall
+	if ( outward ) { e += c * fzSodium( u, v + ${ FACADE.toFixed( 1 ) } ) * smoothstep( 0.1, 0.7, frame.night ); }
+	// ---- end FW2
 	s.albedo = c;
 	s.roughness = rough;
 	s.emissive = e;
@@ -771,6 +778,7 @@ export class Exterior {
 
 			const c = this.field.toWorld( 0, 0 );
 			this.brickUpper.uniforms.parkC.value.set( c.x, c.z, 0, 0 );
+			this.brick.uniforms.parkC.value.set( c.x, c.z, 0, 0 ); // ---- FW2
 
 		}
 		for ( const [ geo, mat, name ] of [ [ q, this.brick, 'facade' ], [ up, this.brickUpper, 'facade-upper' ], [ cap, this.stone, 'facade-coping' ], [ trim, this.coping, 'facade-trim' ] ] ) {
@@ -1471,7 +1479,7 @@ export class Exterior {
 	_stairTower( P, s, o, n ) {
 
 		const W = 10, D = 7, top = LEVELS.terraceConcourse + 3.2;
-		const q = new Quads(), slab = new Quads(), mesh = new Quads();
+		const q = new Quads(), slab = new Quads(), mesh = new Quads(), under = new Quads(); // ---- FW2: under
 		const hw = W / 2, hd = D / 2;
 		for ( const [ a, b ] of [ [ - hw, - hd ], [ hw, - hd ], [ - hw, hd ], [ hw, hd ] ] ) beam( q, P( s + a, o + b, STREET ), P( s + a, o + b, top ), 0.45 );
 		const L = LEVELS, lv = [ L.suites, ( L.suites + L.clubConcourse ) / 2, L.clubConcourse, ( L.clubConcourse + L.terraceConcourse ) / 2, L.terraceConcourse ];
@@ -1482,7 +1490,7 @@ export class Exterior {
 			const e = i % 2 ? - 1 : 1;
 			const a0 = e > 0 ? 0 : - hw, a1 = e > 0 ? hw : 0;
 			slab.add( P( s + a0, o - hd, y ), P( s + a1, o - hd, y ), P( s + a1, o + hd, y ), P( s + a0, o + hd, y ), [ 0, 1, 0 ] );
-			slab.add( P( s + a0, o - hd, y - 0.35 ), P( s + a1, o - hd, y - 0.35 ), P( s + a1, o + hd, y - 0.35 ), P( s + a0, o + hd, y - 0.35 ), [ 0, - 1, 0 ] );
+			under.add( P( s + a0, o - hd, y - 0.35 ), P( s + a1, o - hd, y - 0.35 ), P( s + a1, o + hd, y - 0.35 ), P( s + a0, o + hd, y - 0.35 ), [ 0, - 1, 0 ] );
 			beam( q, P( s - hw, o + hd, y - 0.2 ), P( s + hw, o + hd, y - 0.2 ), 0.3 );
 			beam( q, P( s - hw, o - hd, y - 0.2 ), P( s + hw, o - hd, y - 0.2 ), 0.3 );
 			mesh.add( P( s + a0, o + hd + 0.2, y ), P( s + a1, o + hd + 0.2, y ), P( s + a1, o + hd + 0.2, y + 1.15 ), P( s + a0, o + hd + 0.2, y + 1.15 ), [ n[ 0 ], 0, n[ 1 ] ] );
@@ -1494,11 +1502,24 @@ export class Exterior {
 		} );
 		// the roof
 		slab.add( P( s - hw - 0.6, o - hd - 0.6, top ), P( s + hw + 0.6, o - hd - 0.6, top ), P( s + hw + 0.6, o + hd + 0.6, top ), P( s - hw - 0.6, o + hd + 0.6, top ), [ 0, 1, 0 ] );
-		slab.add( P( s - hw - 0.6, o - hd - 0.6, top - 0.4 ), P( s + hw + 0.6, o - hd - 0.6, top - 0.4 ), P( s + hw + 0.6, o + hd + 0.6, top - 0.4 ), P( s - hw - 0.6, o + hd + 0.6, top - 0.4 ), [ 0, - 1, 0 ] );
+		under.add( P( s - hw - 0.6, o - hd - 0.6, top - 0.4 ), P( s + hw + 0.6, o - hd - 0.6, top - 0.4 ), P( s + hw + 0.6, o + hd + 0.6, top - 0.4 ), P( s - hw - 0.6, o + hd + 0.6, top - 0.4 ), [ 0, - 1, 0 ] );
+		// ---- FW2 (C2W-13): the mesh fronts catch the landings' lights after dark (pvsbond, Oct 2009: the
+		// stair towers either side of the frame a stack of lit landings)
 		const meshMat = this.meshMat || ( this.meshMat = standard( { name: 'stair-mesh', color: new Color( 0.42, 0.43, 0.44 ), roughness: 0.5, metalness: 0.6, side: 'double', modules: [ commonModule ],
-			surface: 's.albedo = mat.color * ( 0.75 + 0.25 * step( 0.5, fract( ( in.P.x + in.P.z ) * 12.0 ) ) );' } ) );
+			surface: 's.albedo = mat.color * ( 0.75 + 0.25 * step( 0.5, fract( ( in.P.x + in.P.z ) * 12.0 ) ) ); s.emissive = s.albedo * vec3f( 1.0, 0.86, 0.66 ) * smoothstep( 0.15, 0.7, frame.night ) * 0.35;' } ) );
 		meshMat.underwaterLighting = 'none';
-		for ( const [ geo, mat, name ] of [ [ q, this.gateSteel, 'stair-tower' ], [ slab, this.stone, 'stair-landings' ], [ mesh, meshMat, 'stair-mesh' ] ] ) {
+		// each landing's underside: painted concrete with a wall-pack's lens at its middle, its light
+		// spread over the slab
+		const soffit = this.stairSoffit || ( this.stairSoffit = standard( { name: 'stair-soffit', color: new Color( 0.5, 0.48, 0.44 ), roughness: 0.8, modules: [ commonModule ],
+			surface: /* wgsl */`
+	let nk = smoothstep( 0.15, 0.7, frame.night );
+	let c = fract( in.P.xz / vec2f( 5.0, 3.5 ) ) - 0.5;
+	let r = length( c * vec2f( 5.0, 3.5 ) );
+	let lens = 1.0 - smoothstep( 0.18, 0.24, r );
+	s.emissive = vec3f( 1.0, 0.9, 0.74 ) * nk * ( s.albedo * 0.9 * exp( - r * r / 5.0 ) + vec3f( 6.0 ) * lens );
+` } ) );
+		soffit.underwaterLighting = 'none';
+		for ( const [ geo, mat, name ] of [ [ q, this.gateSteel, 'stair-tower' ], [ slab, this.stone, 'stair-landings' ], [ mesh, meshMat, 'stair-mesh' ], [ under, soffit, 'stair-soffits' ] ] ) {
 
 			const m = new Mesh( geo.geometry(), mat );
 			m.name = name;
