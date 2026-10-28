@@ -1,4 +1,4 @@
-import { InstancedMesh, Matrix4, Vector3, Quaternion, PlaneGeometry, Color } from '../../engine/index.js';
+import { InstancedMesh, InstancedBufferAttribute, BufferGeometry, Matrix4, Vector3, Quaternion, PlaneGeometry, Color } from '../../engine/index.js';
 import { StorageBuffer } from '../../engine/gpu/Texture.js';
 import { standard } from '../../materials/Materials.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
@@ -21,6 +21,7 @@ import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 //   players.update() before rendering; players.remove( p ).
 
 const MAX = 96;
+const COSTUMES = 4; // the Phanatic's costume's draw: at most this many of him at once
 const K = 4; // vec4s per slot
 const Z16 = new Float32Array( 16 );
 const CELL = 128, COLS = 8, ROWS = 16, ATLAS_W = CELL * COLS, ATLAS_H = CELL * ROWS;
@@ -69,7 +70,9 @@ export class Players {
 		this.info = new Float32Array( MAX * K * 4 );
 		this.bones = new StorageBuffer( { label: 'playerBones', count: MAX * NB * 2, type: 'mat4x4f' } );
 		this.infoBuffer = new StorageBuffer( { label: 'playerInfo', count: MAX * K, type: 'vec4f' } );
-		const geo = buildPlayerGeometry();
+		// the rig's triangles in two draws (FY2): everyone's, and the Phanatic's costume, drawn only for his
+		// slots (the slot each of its instances is in aSlot), so the ninety-odd others don't carry it
+		const [ geo, costumeGeo ] = splitByPart( buildPlayerGeometry(), PHANATIC_PARTS );
 		this.atlas = canvasTexture( ATLAS_W, ATLAS_H, ( ctx ) => {
 
 			drawChest( ctx, C.chestHome, true );
@@ -91,6 +94,18 @@ export class Players {
 		this.mesh.castShadow = true;
 		this.mesh.receiveShadow = true;
 		parent.add( this.mesh );
+		this.costumeSlots = new InstancedBufferAttribute( new Float32Array( COSTUMES ), 1 );
+		costumeGeo.setAttribute( 'aSlot', this.costumeSlots );
+		this.costumeMaterial = playerMaterial( this.bones, this.infoBuffer, this.atlas, true );
+		this.costume = new InstancedMesh( costumeGeo, this.costumeMaterial, COSTUMES );
+		this.costume.name = 'players-phanatic-costume';
+		this.costume.frustumCulled = false;
+		this.costume.castShadow = true;
+		this.costume.receiveShadow = true;
+		this.costume.count = 0;
+		this.costume.visible = false;
+		// (a child of the players' draw, so whatever takes the players out takes it too)
+		this.mesh.add( this.costume );
 		// a soft contact shadow on the ground under each player (grounds them under any light)
 		const blobGeo = new PlaneGeometry( 1, 1 );
 		blobGeo.rotateX( - Math.PI / 2 );
@@ -191,6 +206,28 @@ export class Players {
 		let used = 0;
 		for ( let i = 0; i < MAX; i ++ ) if ( this.slots[ i ] && this.slots[ i ].visible ) used = i + 1;
 		this.mesh.count = Math.max( 1, used );
+		// the Phanatic's costume on his slots (him, and the little one)
+		let nc = 0;
+		for ( let i = 0; i < used && nc < COSTUMES; i ++ ) {
+
+			const p = this.slots[ i ];
+			if ( p && p.visible && p.kind === KIND.phanatic ) {
+
+				if ( this.costumeSlots.array[ nc ] !== i ) {
+
+					this.costumeSlots.array[ nc ] = i;
+					this.costumeSlots.needsUpdate = true;
+
+				}
+
+				nc ++;
+
+			}
+
+		}
+
+		this.costume.count = Math.max( 1, nc );
+		this.costume.visible = nc > 0;
 		// the contact shadows: under the pelvis, stretched along the stance, fading as he leaves the ground
 		const bm = new Matrix4(), bq = new Quaternion(), bs = new Vector3(), bp = new Vector3();
 		for ( let i = 0; i < used; i ++ ) {
@@ -243,20 +280,39 @@ function packLook( L ) {
 
 }
 
-function playerMaterial( bones, info, atlas ) {
+// the rig's geometry split by its triangles' parts: [ the rest, those in `parts` ], sharing the vertices
+function splitByPart( g, parts ) {
+
+	const pt = g.getAttribute( 'aPart' ).array, idx = g.index.array;
+	const keep = [], put = [];
+	for ( let i = 0; i < idx.length; i += 3 ) ( parts.includes( Math.round( pt[ idx[ i ] ] ) ) ? put : keep ).push( idx[ i ], idx[ i + 1 ], idx[ i + 2 ] );
+	return [ keep, put ].map( ( list ) => {
+
+		const h = new BufferGeometry();
+		for ( const [ k, a ] of Object.entries( g.attributes ) ) h.setAttribute( k, a );
+		h.setIndex( list );
+		h.computeBoundingSphere();
+		return h;
+
+	} );
+
+}
+
+// costume: the material of the Phanatic's costume draw (its instances' slots from aSlot)
+function playerMaterial( bones, info, atlas, costume = false ) {
 
 	const P = PART, U = UNIFORM, F = FACE, J = BODY_JOINTS;
 	const f = ( x ) => x.toFixed( 4 );
 	const v3 = ( a ) => `vec3f( ${ f( a[ 0 ] ) }, ${ f( a[ 1 ] ) }, ${ f( a[ 2 ] ) } )`;
 	const R = ROLE;
 	const mat = standard( {
-		name: 'players', roughness: 0.75, modules: [ commonModule ],
+		name: costume ? 'players-costume' : 'players', roughness: 0.75, modules: [ commonModule ],
 		storage: { plBones: bones, plInfo: info },
 		textures: { plAtlas: atlas },
-		attributes: { aBones: 'vec4f', aWeights: 'vec4f', aPart: 'f32', aField: 'vec2f' },
+		attributes: { aBones: 'vec4f', aWeights: 'vec4f', aPart: 'f32', aField: 'vec2f', ...( costume ? { aSlot: 'f32' } : {} ) },
 		varyings: { vPart: 'f32', vInfo: 'vec4f', vLocal: 'vec3f', vNrm: 'vec3f', vField: 'vec2f', vSlot: 'f32', vFN: 'vec3f' },
 		vertex: /* wgsl */`
-	let slot = v.instance;
+	let slot = ${ costume ? 'u32( v.aSlot + 0.5 )' : 'v.instance' };
 	let i0 = plInfo[ slot * ${ K }u ];
 	let i2 = plInfo[ slot * ${ K }u + 2u ];
 	let i3 = plInfo[ slot * ${ K }u + 3u ];
