@@ -50,4 +50,4 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 
 ## Round 3
 
-- **C3B, the broadcast end to end** (launched 12:16): fresh eyes on the whole replay through the broadcast mode, regressions first.
+- **C3B, the broadcast end to end** (launched 12:12): fresh eyes on the whole replay through the broadcast mode, regressions first.
