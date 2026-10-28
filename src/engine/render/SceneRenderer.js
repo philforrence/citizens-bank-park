@@ -135,7 +135,9 @@ export class SceneRenderer {
 		const { scene, camera, meshRenderer: mr } = this;
 		const rt = this.sceneRT;
 		const views = rt.textures.map( ( t ) => t.view() );
-		const common = { camera, colorViews: views, colorFormats: rt.formats, depthView: rt.depthTexture.view(), depthFormat: DEPTH_FORMAT, kind: 'main' };
+		// (---- SP3: pixelMotion: the frame camera is set at this target's size, so a fragment's motion takes this
+		// frame's position from the pixel: MeshShader.js)
+		const common = { camera, colorViews: views, colorFormats: rt.formats, depthView: rt.depthTexture.view(), depthFormat: DEPTH_FORMAT, kind: 'main', pixelMotion: true };
 
 		// 1. opaques + background
 		mr.render( scene, {

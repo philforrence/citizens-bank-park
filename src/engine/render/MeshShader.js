@@ -68,18 +68,33 @@ export function buildMeshShader( material, layout, pass ) {
 
 	// ---- varyings
 	const withMotion = kind === 'main';
+	// ---- SP3 (speed): only the varyings that vary (pass.leanVaryings, MeshRenderer.leanVaryings). On the
+	// M2 (a tile GPU) every vertex's outputs are written out to memory and read back by the tiles, so a
+	// vertex's bytes cost as much as its arithmetic; the crowd's fans are millions of vertices a frame:
+	//  - uv and colour, when the geometry has none and the material's vertex hook doesn't touch them, are
+	//    the defaults (0, 0) and white everywhere: the fragment takes them as constants
+	//  - this frame's unjittered clip position (for the motion vectors) is where the pixel is, less the
+	//    jitter, in a pass whose frame camera has its size (pass.pixelMotion: the scene's own passes)
+	//  - last frame's clip position without its z (only x / w and y / w are used)
+	const lean = !! pass.leanVaryings;
+	const hook = material.vertex || '';
+	defs.VARY_UV = ! lean || has.has( 'uv' ) || /\buv\b/.test( hook ) ? 1 : 0;
+	defs.VARY_COLOR = ! lean || has.has( 'color' ) || has.has( 'instanceColor' ) || /\bcolor\b/.test( hook ) ? 1 : 0;
+	defs.PIXEL_MOTION = lean && withMotion && pass.pixelMotion ? 1 : 0;
+	defs.LEAN_VARYINGS = lean ? 1 : 0;
 	let loc = 0;
 	let vsout = 'struct VSOut {\n\t@builtin( position ) clip: vec4f,\n';
 	vsout += `\t@location( ${ loc ++ } ) worldPos: vec3f,\n`;
 	vsout += `\t@location( ${ loc ++ } ) normal: vec3f,\n`;
-	vsout += `\t@location( ${ loc ++ } ) uv: vec2f,\n`;
-	vsout += `\t@location( ${ loc ++ } ) color: vec4f,\n`;
+	if ( defs.VARY_UV ) vsout += `\t@location( ${ loc ++ } ) uv: vec2f,\n`;
+	if ( defs.VARY_COLOR ) vsout += `\t@location( ${ loc ++ } ) color: vec4f,\n`;
 	if ( withMotion ) {
 
-		vsout += `\t@location( ${ loc ++ } ) curClip: vec4f,\n`;
-		vsout += `\t@location( ${ loc ++ } ) prevClip: vec4f,\n`;
+		if ( ! defs.PIXEL_MOTION ) vsout += `\t@location( ${ loc ++ } ) curClip: vec4f,\n`;
+		vsout += `\t@location( ${ loc ++ } ) prevClip: ${ lean ? 'vec3f' : 'vec4f' },\n`; // (SP3: lean, its x y w)
 
 	}
+	// ---- end SP3
 
 	for ( const k in material.varyings ) {
 
@@ -203,12 +218,23 @@ ${ fetch }#if !HAS_POSITION
 	}
 	o.worldPos = wp;
 	o.normal = wn;
+#if VARY_UV
 	o.uv = v.uv;
+#endif
+#if VARY_COLOR
 	o.color = v.color;
+#endif
 	o.clip = frame.viewProj * vec4f( wp, 1.0 );
 #if PASS_MAIN
+#if !PIXEL_MOTION
 	o.curClip = frame.viewProjNoJitter * vec4f( wp, 1.0 );
+#endif
+#if LEAN_VARYINGS
+	let pc = frame.prevViewProjNoJitter * vec4f( pwp, 1.0 );
+	o.prevClip = pc.xyw;
+#else
 	o.prevClip = frame.prevViewProjNoJitter * vec4f( pwp, 1.0 );
+#endif
 #endif
 #if CLIP_DISTANCES
 	return vsClip( o, frame.seaLevel + REFRACTION_CLIP_MARGIN - wp.y );
@@ -237,6 +263,28 @@ fn submergedHidden( P: vec3f ) -> bool {
 }
 #endif
 
+#if PASS_MAIN
+// ---- SP3: this frame's unjittered screen position (NDC) of the fragment, for its motion vector
+fn motionCur( vs: VSOut ) -> vec2f {
+#if PIXEL_MOTION
+	// the pixel's centre in the frame's own size, less this frame's jitter (Frame.js setFrameCamera:
+	// viewProj is viewProjNoJitter with clip xy moved by jitter x w)
+	return vec2f( vs.clip.x * frame.invResolution.x * 2.0 - 1.0, 1.0 - vs.clip.y * frame.invResolution.y * 2.0 ) - frame.jitter;
+#else
+	return vs.curClip.xy / vs.curClip.w;
+#endif
+}
+
+// last frame's (its clip x y w, lean)
+fn motionPrev( vs: VSOut ) -> vec2f {
+#if LEAN_VARYINGS
+	return vs.prevClip.xy / vs.prevClip.z;
+#else
+	return vs.prevClip.xy / vs.prevClip.w;
+#endif
+}
+#endif
+
 fn fragInput( vs: VSOut, front: bool ) -> FragInput {
 	var in: FragInput;
 	in.vs = vs;
@@ -250,8 +298,16 @@ fn fragInput( vs: VSOut, front: bool ) -> FragInput {
 #endif
 	in.N = N;
 	in.V = normalize( frame.cameraPos - vs.worldPos );
+#if VARY_UV
 	in.uv = vs.uv;
+#else
+	in.uv = vec2f( 0.0 );
+#endif
+#if VARY_COLOR
 	in.color = vs.color;
+#else
+	in.color = vec4f( 1.0 );
+#endif
 	in.front = front;
 	in.pixel = vs.clip.xy;
 	return in;
@@ -307,8 +363,8 @@ struct FragOut {
 	if ( submergedHidden( in.P ) ) {
 		var so: FragOut;
 		so.color = vec4f( mat.color * in.color.rgb * hookEnvDiffuse( in.N ) * hookAmbientModulation( in.P, in.N ), 1.0 );
-		let cur0 = vs.curClip.xy / vs.curClip.w;
-		let prev0 = vs.prevClip.xy / vs.prevClip.w;
+		let cur0 = motionCur( vs );
+		let prev0 = motionPrev( vs );
 		so.velocity = vec4f( ( cur0 - prev0 ) * vec2f( 0.5, -0.5 ), 0.0, 1.0 );
 		so.mask = vec4f( 0.0 );
 		return so;
@@ -327,8 +383,8 @@ struct FragOut {
 	r.color = vec4f( s.albedo + s.emissive, s.alpha );
 #endif
 #if PASS_MAIN
-	let cur = vs.curClip.xy / vs.curClip.w;
-	let prev = vs.prevClip.xy / vs.prevClip.w;
+	let cur = motionCur( vs );
+	let prev = motionPrev( vs );
 	r.velocity = vec4f( ( cur - prev ) * vec2f( 0.5, -0.5 ), 0.0, 1.0 );
 #else
 	r.velocity = vec4f( 0.0 );
