@@ -146,7 +146,9 @@ function figureGeometry( pose ) {
 	};
 
 	// a tapered tube from joint a to joint b: rings of n, radii [ across, depth ] at each end
-	const tube = ( a, b, rA, rB, pt, n = 6, capA = false, capB = false ) => {
+	// (---- FR1: ptB, the part at b's ring: the trunk's carry how far up it they are in the fraction, for
+	// the jackets' script and collar in the shader)
+	const tube = ( a, b, rA, rB, pt, n = 6, capA = false, capB = false, ptB = pt ) => {
 
 		const ax = norm( sub( b, a ) );
 		let across = cross( ax, [ 0, 0, 1 ] );
@@ -154,11 +156,11 @@ function figureGeometry( pose ) {
 		across = norm( across );
 		const depth = norm( cross( across, ax ) );
 		const base = pos.length / 3;
-		for ( const [ c, r ] of [ [ a, rA ], [ b, rB ] ] ) for ( let k = 0; k < n; k ++ ) {
+		for ( const [ c, r, q ] of [ [ a, rA, pt ], [ b, rB, ptB ] ] ) for ( let k = 0; k < n; k ++ ) {
 
 			const ang = ( k / n ) * Math.PI * 2 + Math.PI / n;
 			const d = add( mul( across, Math.cos( ang ) ), mul( depth, Math.sin( ang ) ) );
-			vert( add( c, add( mul( across, Math.cos( ang ) * r[ 0 ] ), mul( depth, Math.sin( ang ) * r[ 1 ] ) ) ), d, pt );
+			vert( add( c, add( mul( across, Math.cos( ang ) * r[ 0 ] ), mul( depth, Math.sin( ang ) * r[ 1 ] ) ) ), d, q );
 
 		}
 
@@ -187,8 +189,9 @@ function figureGeometry( pose ) {
 
 	// the trunk: hips to chest, chest to the neck; the shoulders' yoke across
 	const pelvis = J( 'pelvis', 1 ), chest = J( 'chest', 1 ), neck = J( 'neck', 1 );
-	tube( add( pelvis, [ 0, - 0.06, 0 ] ), chest, [ 0.17, 0.12 ], [ 0.2, 0.12 ], PART.top, 8, true );
-	tube( chest, neck, [ 0.2, 0.12 ], [ 0.06, 0.055 ], PART.top, 8 );
+	// (FR1: the fraction of the part, 0.05 at the hips to 0.45 at the chest to 0.85 at the neck)
+	tube( add( pelvis, [ 0, - 0.06, 0 ] ), chest, [ 0.17, 0.12 ], [ 0.2, 0.12 ], PART.top + 0.05, 8, true, false, PART.top + 0.45 );
+	tube( chest, neck, [ 0.2, 0.12 ], [ 0.06, 0.055 ], PART.top + 0.45, 8, false, false, PART.top + 0.85 );
 	tube( J( 'shoulder', - 1 ), J( 'shoulder', 1 ), [ 0.07, 0.07 ], [ 0.07, 0.07 ], PART.top, 6, true, true );
 	tube( neck, add( neck, [ 0, 0.07, 0 ] ), [ 0.055, 0.05 ], [ 0.05, 0.048 ], PART.skin, 6 );
 	for ( const s of [ - 1, 1 ] ) {
@@ -278,7 +281,7 @@ function figureMaterial() {
 	// a padded jacket or a rain suit stands a little off the body
 	let oi = i32( who.x + 0.5 );
 	let puffy = oi != 1 && oi != 3 && oi != 8;
-	if ( puffy && v.aPart < 0.5 ) { p += v.normal * 0.018; }
+	if ( puffy && v.aPart < 0.95 ) { p += v.normal * 0.018; }
 	// a small idle sway: breathing, shifting his weight
 	let sway = sin( frame.time * ( 0.5 + 0.3 * seed ) + seed * 40.0 );
 	p.x += sway * 0.012 * max( p.y - 0.5, 0.0 );
@@ -339,7 +342,34 @@ function figureMaterial() {
 	if ( part == 0 ) {
 		// the Phillies jackets: a white script band across the chest; a player's jersey: the red
 		// undershirt's sleeves and the button placket
-		if ( ( o == 0 || o == 9 || o == 7 ) && L.y > 1.18 && L.y < 1.3 && L.z < -0.02 && abs( L.x ) < 0.12 ) { c = mix( c, white, 0.75 ); }
+		// ---- FR1 (FB2's note on C2B-11): not a white band but the jacket's "Phillies": white script edged
+		// in royal blue, rising across the chest (the tall P, then the letters slanting), and the royal-blue
+		// band in the knit collar (Getty 83483743, 83570999). Placed by how far up the trunk it is (the
+		// part's fraction) so it sits on the chest seated, leaning or standing
+		if ( o == 0 || o == 9 || o == 7 ) {
+			let fr = fract( in.vs.vPart );
+			let front = in.vs.vHd.z < -0.03;
+			if ( front && fr > 0.3 && fr < 0.43 && abs( L.x ) < 0.135 ) {
+				let u = ( 0.135 - L.x ) / 0.27;
+				let v = ( fr - 0.32 ) / 0.09 - 0.3 * u;
+				// the P: its stem and its bowl
+				var d = abs( u - 0.07 - v * 0.05 ) + max( 0.0, abs( v - 0.45 ) - 0.6 ) * 0.4;
+				d = min( d, abs( length( vec2f( u - 0.115 - v * 0.05, ( v - 0.75 ) * 0.22 ) ) - 0.045 ) + max( 0.0, 0.07 - ( u - v * 0.05 ) ) );
+				// the rest: slanted strokes, the h and the l's tall
+				let cu = ( u - 0.2 ) / 0.112;
+				let ci = floor( cu );
+				if ( cu > 0.0 && ci < 7.0 ) {
+					let tall = ci == 0.0 || ci == 2.0 || ci == 3.0;
+					let fx = fract( cu + v * 0.3 );
+					d = min( d, abs( fx - 0.35 ) * 0.112 + max( 0.0, v - select( 0.5, 0.95, tall ) ) * 0.3 + max( 0.0, - v ) * 0.3 );
+				}
+				let fw = max( fwidth( d ), 1e-4 );
+				c = mix( c, vec3f( 0.03, 0.06, 0.4 ), clamp( ( 0.036 - d ) / fw + 0.5, 0.0, 1.0 ) );
+				c = mix( c, white, clamp( ( 0.02 - d ) / fw + 0.5, 0.0, 1.0 ) );
+			}
+			if ( fr > 0.8 ) { c = mix( c, vec3f( 0.03, 0.06, 0.4 ), 0.85 ); }
+		}
+		// ---- end FR1
 		if ( ( o == 1 || o == 8 ) && abs( L.x ) > 0.2 ) { c = red; }
 		if ( o == 3 && abs( L.x ) > 0.2 ) { c = navy; }
 		if ( ( o == 1 || o == 3 || o == 8 ) && L.z < -0.05 && abs( L.x ) < 0.012 ) { c = c * 0.7; }
