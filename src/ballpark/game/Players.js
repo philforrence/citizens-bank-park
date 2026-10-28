@@ -729,36 +729,40 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		let x = lp3.x; let y = lp3.y; let z = lp3.z;
 		let ax = abs( x );
 		let sx = select( - 1.0, 1.0, x > 0.0 );
-		let drop = 0.0055 + 0.0025 * fD.z;
+		let drop = 0.007 + 0.003 * fD.z;
 		let onHead = u32( v.aBones.x + 0.5 ) == ${ BONES.head }u && v.aWeights.x > 0.99;
 		if ( pt == ${ P.body } ) {
 			// the neck: thicker (a ballplayer's), more for the big men; not the chin's underside or the
 			// trapezius' slope
 			let nr = length( vec2f( x, z + 0.008 ) );
 			let thK = smoothstep( 1.578, 1.6, y ) * ( 1.0 - smoothstep( 1.645, 1.675, y ) ) * ( 1.0 - smoothstep( 0.072, 0.092, nr ) ) * smoothstep( - 0.095, - 0.07, z );
-			fd += vec3f( x, 0.0, z + 0.008 ) * ( 0.035 + 0.055 * fD.z ) * thK;
+			fd += vec3f( x, 0.0, z + 0.008 ) * ( 0.06 + 0.07 * fD.z ) * thK;
 			// the head lower on it: all of it above the jaw, the neck taking it up
 			let dropK = smoothstep( 1.592, 1.648, y ) * ( 1.0 - smoothstep( 0.075, 0.1, nr ) * ( 1.0 - smoothstep( 1.64, 1.66, y ) ) );
 			fd.y -= drop * dropK;
 			let fr = smoothstep( - 0.06, - 0.09, z );
+			let erK0 = smoothstep( 0.066, 0.074, ax ) * smoothstep( 1.7, 1.716, y ) * ( 1.0 - smoothstep( 1.78, 1.795, y ) ) * smoothstep( - 0.066, - 0.052, z );
 			// the lower face's length: the chin lower, the mouth a little, the throat under the chin with it
 			let lowK = smoothstep( ${ f( F.mouth[ 1 ] + 0.022 ) }, 1.655, y ) * smoothstep( 1.592, 1.64, y ) * smoothstep( 0.02, - 0.09, z );
-			fd.y -= 0.01 * fA.x * lowK;
+			fd.y -= 0.017 * fA.x * lowK;
 			// the chin: its jut, and its breadth (square or pointed)
 			let chinK = ( 1.0 - smoothstep( 0.012, 0.032, ax ) ) * ( 1.0 - smoothstep( 0.008, 0.026, abs( y - 1.656 ) ) ) * smoothstep( - 0.085, - 0.115, z );
-			fd += vec3f( 0.0, - 0.002, - 0.007 ) * fA.y * chinK;
+			fd += vec3f( 0.0, - 0.003, - 0.01 ) * fA.y * chinK;
 			let chinWK = ( 1.0 - smoothstep( 0.03, 0.046, ax ) ) * ( 1.0 - smoothstep( 0.012, 0.03, abs( y - 1.66 ) ) ) * smoothstep( - 0.07, - 0.1, z );
-			fd.x += x * 0.2 * fA.z * chinWK;
+			fd.x += x * 0.32 * fA.z * chinWK;
 			// the cheekbones, out and a little forward; the cheeks' flesh below them; age's jowls along the jaw
 			let ckK = ( 1.0 - smoothstep( 0.008, 0.022, length( vec2f( y - 1.745, ( z + 0.098 ) * 0.7 ) ) ) ) * smoothstep( 0.035, 0.055, ax );
-			fd += vec3f( sx * 0.005, 0.0, - 0.0025 ) * fB.x * ckK;
+			fd += vec3f( sx * 0.008, 0.0, - 0.004 ) * fB.x * ckK;
 			let flK = ( 1.0 - smoothstep( 0.01, 0.03, length( vec2f( y - 1.7, ( z + 0.092 ) * 0.8 ) ) ) ) * smoothstep( 0.018, 0.045, ax );
-			fd += vec3f( sx * 0.0055, - 0.001, - 0.0015 ) * fB.y * flK;
+			fd += vec3f( sx * 0.008, - 0.0015, - 0.002 ) * fB.y * flK;
+			// (and a full face is a broader one, a gaunt one narrower, from the temples to the jaw)
+			let bdK = smoothstep( 1.64, 1.67, y ) * ( 1.0 - smoothstep( 1.77, 1.81, y ) ) * smoothstep( - 0.04, - 0.08, z ) * ( 1.0 - erK0 );
+			fd.x += x * 0.07 * fB.y * bdK;
 			let jwK = smoothstep( 0.025, 0.045, ax ) * ( 1.0 - smoothstep( 0.008, 0.022, abs( y - 1.66 ) ) ) * smoothstep( - 0.03, - 0.07, z ) * smoothstep( - 0.135, - 0.105, z );
-			fd += vec3f( sx * 0.004, - 0.003, 0.0 ) * aged * jwK;
+			fd += vec3f( sx * 0.006, - 0.004, 0.0 ) * aged * jwK;
 			// the brow: FY3's ridge heavier or lighter, and the glabella between
 			let brk = ( 1.0 - smoothstep( 0.005, 0.016, abs( y - ${ f( F.eyeR[ 1 ] + 0.019 ) } ) ) ) * ( 1.0 - smoothstep( 0.046, 0.062, ax ) ) * smoothstep( ${ f( F.eyeR[ 2 ] + 0.03 ) }, ${ f( F.eyeR[ 2 ] ) }, z );
-			fd.z -= 0.0025 * fB.z * brk;
+			fd.z -= 0.0035 * fB.z * brk;
 			// the nose: how far it stands off the face scaled (a longer nose stands further out, its tip
 			// lower), the bridge higher or flatter, the wings broader
 			let nsK = ( 1.0 - smoothstep( 0.012, 0.026, ax ) ) * smoothstep( - 0.126, - 0.136, z ) * smoothstep( 1.702, 1.712, y ) * ( 1.0 - smoothstep( 1.762, 1.772, y ) );
@@ -766,19 +770,19 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			let noseL = fC.x + 0.4 * aged;
 			let tipK = 1.0 - smoothstep( 0.004, 0.022, abs( y - 1.726 ) );
 			let brgK = 1.0 - smoothstep( 0.004, 0.016, abs( y - 1.75 ) );
-			fd += vec3f( 0.0, - 0.004 * noseL * tipK, - proj * ( 0.2 * noseL * tipK + 0.3 * fC.z * brgK ) ) * nsK;
+			fd += vec3f( 0.0, - 0.006 * noseL * tipK, - proj * ( 0.32 * noseL * tipK + 0.45 * fC.z * brgK ) ) * nsK;
 			let nwK = ( 1.0 - smoothstep( 0.018, 0.03, ax ) ) * smoothstep( - 0.118, - 0.13, z ) * smoothstep( 1.702, 1.71, y ) * ( 1.0 - smoothstep( 1.728, 1.742, y ) );
-			fd.x += x * 0.2 * fC.y * nwK;
+			fd.x += x * 0.32 * fC.y * nwK;
 			// the eyes' sockets wider apart or closer (the eyes themselves below)
 			let esK = ( 1.0 - smoothstep( 0.012, 0.028, length( vec2f( ax - 0.031, y - 1.767 ) ) ) ) * fr;
-			fd.x += sx * 0.0025 * fD.x * esK;
+			fd.x += sx * 0.0035 * fD.x * esK;
 			// the ears: bigger about their root, and standing off the head (less under a helmet's flaps)
 			let ears = ( fD.y + 0.5 * aged ) * select( 1.0, 0.4, helmet );
 			let erK = smoothstep( 0.068, 0.075, ax ) * smoothstep( 1.704, 1.716, y ) * ( 1.0 - smoothstep( 1.78, 1.792, y ) ) * smoothstep( - 0.064, - 0.052, z ) * ( 1.0 - smoothstep( 0.006, 0.016, z ) );
 			let er0 = vec3f( sx * 0.07, 1.746, - 0.024 );
-			fd += ( ( lp3 - er0 ) * 0.14 * ears + vec3f( sx * 0.005 * max( ears, 0.0 ) * clamp( ( ax - 0.07 ) / 0.02, 0.0, 1.0 ), 0.0, 0.0 ) ) * erK;
+			fd += ( ( lp3 - er0 ) * 0.2 * ears + vec3f( sx * 0.005 * max( ears, 0.0 ) * clamp( ( ax - 0.07 ) / 0.02, 0.0, 1.0 ), 0.0, 0.0 ) ) * erK;
 		} else if ( pt == ${ P.eye } ) {
-			fd += vec3f( sx * 0.0025 * fD.x, - drop, 0.0 );
+			fd += vec3f( sx * 0.0035 * fD.x, - drop, 0.0 );
 		} else if ( onHead ) {
 			fd.y -= drop;
 		}
