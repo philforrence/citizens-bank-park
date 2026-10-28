@@ -447,12 +447,17 @@ export class Bowl {
 	// distance to the nearest strand, in cells (strands on the cell edges)
 	let m = abs( fract( vec2f( in.uv.x, in.uv.y ) / 0.045 ) - 0.5 );
 	let fw = max( fwidth( in.uv.x ), fwidth( in.uv.y ) ) / 0.045;
-	let strand = smoothstep( 0.5 - 0.06 - fw, 0.5 - 0.06 + fw, max( m.x, m.y ) );
+	// ---- FS1 (C4S-7): the strands ~2.5 mm (they were ~5 mm at 80%: from the Diamond Club's rows, 1.5-3 m
+	// behind it, the field was behind a dark cage), and within ~3 m of the eye fading to the far veil, as
+	// the eye (and yeago81's 2007 frame from the club's seats at night) focuses through a net that close
+	let strand = smoothstep( 0.5 - 0.03 - fw, 0.5 - 0.03 + fw, max( m.x, m.y ) );
 	// far away the strands blur into a faint veil (their share of the cell)
 	// (only resolve the strands when a cell spans a dozen pixels: coarser, they beat against the pixel
 	// grid into big blotches, worst through the zoomed TV cameras)
-	let coverage = mix( 0.12, strand, clamp( 1.5 - fw * 6.0, 0.0, 1.0 ) );
-	s.alpha = coverage * 0.8;
+	let coverage = mix( 0.11, strand, clamp( 1.5 - fw * 6.0, 0.0, 1.0 ) );
+	let nearEye = 1.0 - smoothstep( 1.5, 3.5, length( frame.cameraPos - in.P ) );
+	s.alpha = mix( coverage * 0.6, 0.05, nearEye );
+	// ---- end FS1
 `,
 		} );
 		mat.underwaterLighting = 'none';

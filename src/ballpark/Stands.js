@@ -511,6 +511,14 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	// (bands of rows within a chunk, Crowd.addChunk) stay within a section or two
 	const SEAT_CHUNK = 900;
 	const crowd = materials.crowd;
+	// ---- FS1 (C4S-4): the seats sat on read their fans' vacated bit (the seats' material, SEAT_FOLD)
+	if ( crowd?.idsBuf && ! crowd.off && ! materials.seat.bindings.cwIds ) {
+
+		materials.seat.bindings.cwIds = { storage: crowd.idsBuf, access: 'read' };
+		materials.seat.setDefine( 'SEAT_FOLD', 1 );
+
+	}
+	// ---- end FS1
 	const c = new Color();
 	const groups = [];
 	for ( let i = 0; i < seatMats.length; ) {
@@ -529,10 +537,12 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const idx = [ ...Array( i1 - i0 ).keys() ].map( ( i ) => i0 + i );
 		const taken = crowd ? idx.filter( ( i ) => crowd.occupied( seatMats[ i ] ) ) : [];
 		const empty = crowd ? idx.filter( ( i ) => ! crowd.occupied( seatMats[ i ] ) ) : idx;
+		const fan0 = crowd && ! crowd.off ? crowd.count : - 1; // (FS1: the first fan addChunk gives these seats, below)
 		for ( const [ list, geo ] of [ [ empty, materials.seatGeometry ], [ taken, materials.seatDownGeometry ] ] ) {
 
 			if ( ! list.length ) continue;
 			const mesh = new InstancedMesh( geo, materials.seat, list.length );
+			if ( geo === materials.seatDownGeometry && fan0 >= 0 ) mesh.drawParams = [ fan0 + 1, 0, 0 ]; // ---- FS1 (C4S-4)
 			list.forEach( ( k, i ) => {
 
 				mesh.setMatrixAt( i, seatMats[ k ] );
@@ -706,7 +716,25 @@ ${ SOFFIT_WGSL }
 	// depth rather than a varying per vertex: engine MeshShader WORLD_FROM_DEPTH)
 	const seat = standard( { name: 'seats', color: new Color( 1, 1, 1 ), roughness: 0.38, side: 'double', vertexColors: true, worldFromDepth: true,
 		varyings: { vSeatY: 'f32' },
-		vertex: 'o.vSeatY = v.position.y;',
+		defines: { SEAT_FOLD: 0 },
+		// ---- FS1 (C4S-4): a seat whose fan has gone (Crowd.vacate: the delay's emptying, the 29th's filling)
+		// folds its pan up as the empty seats' are (seatGeometry(): 75 degrees, in front of the back's lower
+		// half), read from the crowd's ids (bit 31) for the seats built sat on (buildTier: drawParams, the
+		// first fan + 1). They stayed down, a field of flat blue shelves where Getty 83511062 has every
+		// empty seat's pan up
+		vertex: /* wgsl */`
+#if SEAT_FOLD
+	if ( draw.params.y > 0.5 && v.normal.y > 0.9 && v.position.y < 0.5 ) {
+		let fan = u32( draw.params.y + 0.5 ) - 1u + v.instance;
+		if ( ( cwIds[ fan ].z >> 31u ) == 1u ) {
+			let k = clamp( ( 0.14 - v.position.z ) / 0.44, 0.0, 1.0 );
+			v.position = vec3f( v.position.x, 0.26 + 0.36 * k, 0.02 + 0.0956 * k );
+			v.normal = vec3f( 0.0, 0.257, - 0.966 );
+		}
+	}
+#endif
+	o.vSeatY = v.position.y;
+`, // ---- end FS1
 		surface: /* wgsl */`
 	let y = in.vs.vSeatY;
 	let ao = mix( 0.38, 1.0, smoothstep( 0.2, 0.72, y ) );
@@ -718,7 +746,10 @@ ${ SOFFIT_WGSL }
 	s.emissive = s.albedo * smoothstep( 0.15, 0.7, frame.night ) * 0.03;
 ` } );
 	// galvanized steel for the rails
-	const rail = standard( { name: 'rails', color: new Color( 0.55, 0.56, 0.57 ), roughness: 0.35, metalness: 0.8 } );
+	// (---- FS1, C4S-7: dull, weathered galvanizing, a pale grey that catches the banks: smooth and mostly
+	// metal it mirrored the night sky, every aisle's handrail and the Diamond Club's rail black bars where
+	// Getty 83485581 and brownwall 2981780425 have them silver-grey under the lights)
+	const rail = standard( { name: 'rails', color: new Color( 0.6, 0.61, 0.62 ), roughness: 0.55, metalness: 0.45 } );
 	// the decks' fronts: light grey precast in 6 m panels with a drip groove under the top, over maroon
 	// steel edge beams
 	const fascia = standard( { name: 'deck-fascia', color: new Color( 0.58, 0.55, 0.49 ), roughness: 0.85, side: 'double',
