@@ -100,3 +100,4 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 ## Round 5
 
 - **C5F, the pre-publish check** (launched 17:06): first impressions as a new player, regressions everywhere, and the hero shot for the step-9 page.
+- **FY3, the players up close** (notes [FY3.md](FY3.md); its own critique `.claude/gauntlet/r4/FY3-critique.md`): beards as soft masks thinning to stubble, no seams or bands on the faces, no crescent under the chins, helmet flaps over the ears, a squared New Era crown with a long level bill and the World Series logo, pants loose below the knee to a clean hem, cloth folds from the pose, real cleats, the 2008 RAYS script and the manta; the skin, the umpires and the shoulders partly. Merged by hand over FB4's crew line in Players.js (both kept). Shots: `.claude/gauntlet/r4/FY3/` (b0 before, final and final2 after).
