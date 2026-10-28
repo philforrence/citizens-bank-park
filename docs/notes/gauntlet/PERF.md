@@ -70,3 +70,6 @@ FR1 cost nothing in the standard views. From here the job also has two celebrati
 | 13:55 | SP2's crowd pieces and FB3, the broadcast round 3 (rain TV high 24.9; a real 3B seat 23.4; the plaza 22.9; celebration TV high 25.1 / center 24.1; **the 400s seat 33.1**) | 22.7 | 24.5 | 19.3 | 21.0 | 19.6 | 22.1 | 29.3 |
 
 The TV views are the best they've been all day (TV high 24.5). **The 400s seat behind home (33.1, CPU 8.7 on a busy machine) sits right at the floor**, and left field (29.3) is next: they go to the next speed track (SP3) at the next free slot.
+| 14:31 | FW5, the Terrace from below (rain TV high 24.9; a real 3B seat 23.8; the plaza 22.7; celebration 25.0 / 23.3; **the 400s seat 33.5**, GPU 27.8) | 22.6 | 24.5 | 19.1 | 21.8 | 18.3 | 20.9 | 29.3 |
+
+FW5 cost nothing measurable (left field 29.3 as before). The 400s seat's wall time (33.5) is over its GPU span by ~6 ms with the CPU at 9.3 on a busy machine; SP3 has it.
