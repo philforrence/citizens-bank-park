@@ -25,3 +25,5 @@ The cold load was 62 s (shaders compiling in a fresh browser), no console errors
 | When | Merged | TV center | TV high | TV follow | Concourse | Seat 3B | Upper | Left field |
 |---|---|---|---|---|---|---|---|---|
 | Baseline | step 8 | 25.2 | 32.1 | 29.7 | 28.1 | 27.4 | 29.4 | 28.0 |
+| 08:58 | FI1, the concourse | 23.7 | 30.2 | 27.9 | 27.6 | 26.7 | 28.9 | 27.4 |
+| 09:02 | FB1, the bowl (rain, TV high on the 27th: 29.8) | 23.9 | 30.6 | 28.0 | 27.7 | 25.6 | 29.2 | 27.5 |
