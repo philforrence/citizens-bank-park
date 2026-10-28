@@ -22,6 +22,8 @@
 //   plan.nights: the replay time the 29th begins (the resumption)
 
 import { REL } from '../../game/Motions.js';
+import { G29 } from '../../game/Suspension.js'; // ---- FS1 (C4S-10): the 29th's return as it's seen
+import { T29, TARP_ON_29 } from '../../game/TarpPlan.js';
 
 const WALKUP = 6, CHANGE = 18, SWITCH = 24, SET = 3.0, SPLIT = 0.55;
 
@@ -113,7 +115,7 @@ export function buildPlan( director ) {
 				const L27 = night2 - t0, L29 = s.dur - L27;
 				// R's rituals' times for the tarp (ASK-R.md: 77 s of the 27th, 63 of the 29th), squeezed if the
 				// break is shorter
-				const a = ( x ) => t0 + x * Math.min( 1, L27 / 77 ), b = ( x ) => night2 + x * Math.min( 1, L29 / 63 );
+				const a = ( x ) => t0 + x * Math.min( 1, L27 / 77 ); // (FS1: the 29th's own times below)
 				// the 27th: the roll swung out off the wall on the third base side, pushed across the
 				// infield, the bare core rolled off; the edges walked square in the wind
 				const roll = ( t, from, to, t1, v ) => add( t, 'crew', { what: 'roll', from, to, dur: t1 - t, v } );
@@ -128,24 +130,37 @@ export function buildPlan( director ) {
 				add( said + 2.5, 'fans', { what: 'groan', level: 1.4 } );
 				add( said + 3.5, 'fans', { what: 'boo', level: 0.5 } );
 				add( night2, 'night2' );
-				// the 29th: the core back, the tarp wound up from the first base side and swung back to the
-				// wall, then the crew's work on the clay
-				roll( b( 1.5 ), [ 32, - 31 ], [ 24, - 26 ], b( 6 ), 0.45 );
-				roll( b( 6 ), [ 24, - 26 ], [ - 24, - 26 ], b( 27 ), 1 );
-				roll( b( 27 ), [ - 24, - 26 ], [ - 32, - 8 ], b( 35 ), 0.8 );
-				add( b( 35 ), 'crew', { what: 'work', dur: b( 55 ) - b( 35 ) } );
-				for ( const [ x, key ] of [ [ 7, 'crew-pull' ], [ 19, 'crew-walk' ], [ 30, 'crew-go' ] ] ) add( b( x ), 'crewcall', { key } );
-				tarp = [ a( 44 ), b( 6 ) ];
-				// the welcome back, and (with the long break) God Bless America before the first pitch: Navy
-				// Petty Officer Dorcus Whigham (the Inquirer), the park on its feet and silent, then the roar
-				if ( L29 > 40 ) {
+				// ---- FS1 (C4S-10): the 29th keyed to what you see (it was R's old 63-s schedule, 14 s off the
+				// picture: the PA asked you to rise after she'd sung, the welcome-back roar landed on the song, and
+				// the crew's roll was heard over a tarp FB4 stowed before the gates opened). The tarp's sounds
+				// follow TarpPlan.T29 when it's on; without it, the crew working the skin (Suspension: ten of them,
+				// done by 13-17 s). The song is Suspension's G29.gba: the welcome (12 s) and its roar first, the
+				// PA's "please rise" (8.4 s) to end as she starts, the park silent under her, the roar as she ends
+				const [ g0, g1 ] = G29.gba;
+				if ( TARP_ON_29 ) {
 
-					add( b( 18 ), 'pa', { key: 'welcome-29' } );
-					add( b( 27.5 ), 'fans', { what: 'cheer', level: 2.2 } );
-					add( b( 37 ), 'pa', { key: 'gba' } );
-					add( b( 40 ), 'gba', { dur: b( 58 ) - b( 40 ) } );
-					add( b( 58.2 ), 'fans', { what: 'cheer', level: 2.8 } );
-					add( b( 60 ), 'chant', { what: 'letsgo', from: pick( [ - 60, 40, 120 ] ), cycles: 3 } );
+					const u = ( x ) => night2 + x;
+					roll( u( T29.unpull[ 0 ] ), [ 32, - 31 ], [ 24, - 26 ], u( T29.unpull[ 1 ] ), 0.45 );
+					roll( u( T29.wind[ 0 ] ), [ 24, - 26 ], [ - 24, - 26 ], u( T29.wind[ 1 ] ), 1 );
+					roll( u( T29.stow[ 0 ] ), [ - 24, - 26 ], [ - 32, - 8 ], u( T29.stow[ 1 ] ), 0.8 );
+					for ( const [ x, key ] of [ [ T29.unpull[ 0 ] + 2, 'crew-pull' ], [ T29.wind[ 0 ] + 3, 'crew-walk' ], [ T29.stow[ 0 ], 'crew-go' ] ] ) add( u( x ), 'crewcall', { key } );
+					tarp = [ a( 44 ), u( T29.wind[ 0 ] ) ];
+
+				} else {
+
+					add( night2 + 0.5, 'crew', { what: 'work', dur: 15 } );
+					tarp = [ a( 44 ), night2 ];
+
+				}
+
+				if ( L29 > g1 + 6 ) {
+
+					add( night2 + 1.5, 'pa', { key: 'welcome-29' } );
+					add( night2 + 13.8, 'fans', { what: 'cheer', level: 2.2 } );
+					add( night2 + g0 - 8.6, 'pa', { key: 'gba' } );
+					add( night2 + g0, 'gba', { dur: g1 - g0 } );
+					add( night2 + g1 + 0.3, 'fans', { what: 'cheer', level: 2.8 } );
+					add( night2 + g1 + 3, 'chant', { what: 'letsgo', from: pick( [ - 60, 40, 120 ] ), cycles: 3 } );
 
 				} else {
 
@@ -155,6 +170,7 @@ export function buildPlan( director ) {
 					add( back + 12, 'chant', { what: 'letsgo', from: pick( [ - 60, 40, 120 ] ), cycles: 3 } );
 
 				}
+				// ---- end FS1
 
 				add( t0 + s.dur + 7, 'ump', { key: 'ump-playball' } );
 				continue;
