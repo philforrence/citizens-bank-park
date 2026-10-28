@@ -173,6 +173,130 @@ LOOKS[ 400284 ].stubble = 0.7;
 LOOKS[ 150100 ].stubble = 0.75;
 // ---- end FY3
 
+// ---- FY4 (gauntlet r4, every man his own face): the mesh is one MakeHuman face; Players.js shapes it in
+// the vertex stage by sixteen numbers (twelve here, four in MORE below), -1 to 1 (0 the base mesh's), each a few millimetres at its ends:
+//   jawL the lower face's length (the chin lower), chin its jut, chinW its breadth (square or pointed),
+//   cheek the cheekbones, full the cheeks' flesh (a round face or a gaunt one), brow the ridge over the
+//   eyes, noseL the nose's length and how far it stands out, noseW its breadth at the wings, bridge how
+//   high the bridge stands, eyes their spacing, ears their size and how far they stand off the head, neck
+//   its thickness (a thick neck sits the head a little lower too).
+// The looks are from the Series' close-ups and the 2008 team photos as remembered (Getty's 2008-10-29 set
+// in .claude/ref/rituals/ for Lidge, Feliz, Upton, Balfour and Hamels; the FOX feed for Burrell): Lidge's
+// long face, jutting chin and deep-set eyes; Ruiz's broad round face and wide nose; Utley's angular face,
+// high cheekbones and heavy brow; Howard's big round face; Rollins' narrow face, high cheekbones and ears;
+// Werth's long face and long nose; Hamels' narrow, fine face; Navarro's round one; Longoria's square jaw
+// and heavy brow; Upton's and Price's long lean faces; Iwamura's flat bridge and wide cheekbones. Older men
+// get age's own besides (Players.js: jowls, the nose and ears grown): the umpires, the coaches, Manuel.
+// The jaw's width stays the look's `jaw`
+export const FACE_KEYS = [ 'jawL', 'chin', 'chinW', 'cheek', 'full', 'brow', 'noseL', 'noseW', 'bridge', 'eyes', 'ears', 'neck' ];
+// (and four more, FACE_MORE: lips fuller, mouthW wider, deep-set eyes, gonion the jaw's angle flared)
+export const FACE_MORE = [ 'lips', 'mouthW', 'deep', 'gonion' ];
+// how Players.js packs them: four to a float, in this order
+export const FACE_PACK = [ 'jawL', 'chin', 'chinW', 'lips', 'cheek', 'full', 'brow', 'mouthW', 'noseL', 'noseW', 'bridge', 'deep', 'eyes', 'ears', 'neck', 'gonion' ];
+const fc = ( ...v ) => Object.fromEntries( FACE_KEYS.map( ( k, i ) => [ k, v[ i ] ?? 0 ] ) );
+//                     jawL  chin chinW cheek  full brow noseL noseW bridge eyes ears  neck
+const FACES = {
+	400058: fc( 0.7, 0.6, 0.1, 0.3, - 0.6, 0.6, 0.5, - 0.2, 0.6, - 0.2, 0.0, - 0.1 ), // Lidge
+	434563: fc( - 0.3, - 0.2, 0.6, 0.3, 0.8, 0.3, 0.0, 0.8, - 0.5, 0.2, 0.2, 0.7 ), // Ruiz
+	400134: fc( 0.1, 0.2, 0.6, 0.0, 0.7, 0.4, 0.1, 0.4, - 0.1, - 0.2, 0.0, 0.9 ), // Hinske
+	400284: fc( 0.4, 0.5, 0.4, 0.8, - 0.8, 0.7, 0.2, - 0.3, 0.5, - 0.4, 0.2, 0.2 ), // Utley
+	429667: fc( 0.2, 0.1, 0.6, 0.4, 0.9, 0.4, 0.2, 0.9, - 0.4, 0.3, 0.1, 1.0 ), // Howard
+	276519: fc( - 0.3, - 0.3, - 0.6, 0.8, - 0.5, 0.2, - 0.1, 0.6, - 0.4, 0.1, 0.7, - 0.2 ), // Rollins
+	150029: fc( 0.8, 0.3, 0.3, 0.3, - 0.4, 0.6, 0.8, 0.0, 0.6, 0.0, 0.0, 0.3 ), // Werth
+	150268: fc( 0.1, 0.0, 0.5, 0.8, 0.2, 0.5, 0.0, 0.7, - 0.3, 0.2, 0.0, 0.5 ), // Feliz
+	150100: fc( 0.3, 0.4, 0.8, 0.3, 0.0, 0.7, 0.2, 0.1, 0.3, - 0.1, - 0.2, 0.8 ), // Burrell
+	430935: fc( 0.3, - 0.1, - 0.6, - 0.2, - 0.6, - 0.3, 0.6, - 0.4, 0.7, 0.2, 0.5, - 0.6 ), // Hamels
+	425664: fc( - 0.3, - 0.2, 0.1, 0.5, 0.7, 0.1, - 0.2, 0.6, - 0.4, 0.3, 0.1, 0.0 ), // Victorino
+	132961: fc( 0.5, 0.5, 0.3, 0.1, - 0.2, 0.4, 0.6, 0.1, 0.4, - 0.2, 0.3, 0.3 ), // Jenkins
+	425492: fc( 0.6, 0.1, - 0.3, 0.0, - 0.5, 0.1, 0.4, - 0.2, 0.4, 0.0, 0.3, - 0.5 ), // Madson
+	408307: fc( 0.2, 0.0, - 0.3, 0.8, - 0.6, 0.3, - 0.1, 0.6, - 0.3, 0.3, 0.2, 0.2 ), // Crawford
+	446334: fc( 0.3, 0.4, 0.8, 0.4, - 0.2, 0.8, 0.2, 0.0, 0.4, - 0.2, - 0.2, 0.5 ), // Longoria
+	425834: fc( 0.7, - 0.1, - 0.5, 0.7, - 0.6, 0.2, 0.0, 0.6, - 0.3, 0.2, 0.3, - 0.4 ), // Upton
+	150289: fc( 0.3, 0.3, 0.7, 0.4, 0.3, 0.7, 0.4, 0.5, 0.2, 0.0, 0.0, 0.7 ), // Pena
+	430583: fc( 0.1, 0.3, - 0.7, 0.2, - 0.6, 0.1, 0.2, - 0.4, 0.3, - 0.4, 0.4, - 0.4 ), // Bartlett
+	425900: fc( - 0.5, - 0.5, 0.2, 0.2, 1.0, 0.1, - 0.2, 0.7, - 0.5, 0.1, 0.1, 0.8 ), // Navarro
+	456034: fc( 0.7, 0.0, - 0.3, 0.4, - 0.5, 0.2, 0.2, 0.6, - 0.2, 0.3, 0.7, - 0.5 ), // Price
+	346797: fc( 0.1, 0.5, 0.7, 0.3, 0.1, 0.9, 0.3, 0.2, 0.3, - 0.3, 0.0, 0.6 ), // Balfour
+	493127: fc( - 0.2, - 0.3, 0.0, 0.8, 0.3, - 0.4, - 0.4, 0.3, - 0.8, 0.5, 0.2, 0.0 ), // Iwamura
+	408306: fc( 0.4, 0.3, 0.2, 0.3, - 0.4, 0.5, 0.5, 0.0, 0.6, - 0.2, 0.0, 0.1 ), // Baldelli
+	431148: fc( 0.0, - 0.2, - 0.3, 0.1, - 0.3, 0.0, 0.1, - 0.2, 0.2, 0.2, 0.3, - 0.3 ), // Kazmir
+	430632: fc( - 0.2, 0.0, 0.4, 0.4, 0.5, 0.3, 0.0, 0.6, - 0.3, 0.1, 0.1, 0.5 ), // Aybar
+	445010: fc( 0.3, - 0.2, - 0.4, 0.6, - 0.5, 0.2, 0.0, 0.5, - 0.3, 0.2, 0.3, - 0.2 ), // Fernando Perez
+	// the umpires (older men: age adds its own) and the managers and coaches
+	'-1': fc( 0.0, - 0.1, 0.5, 0.0, 0.7, 0.3, 0.4, 0.4, 0.0, 0.0, 0.3, 0.8 ),
+	'-2': fc( 0.6, 0.2, - 0.1, 0.3, - 0.2, 0.4, 0.6, 0.0, 0.6, - 0.2, 0.4, 0.3 ),
+	'-3': fc( - 0.1, - 0.3, 0.3, 0.3, 0.5, 0.4, 0.2, 0.7, - 0.3, 0.2, 0.2, 0.6 ),
+	'-4': fc( 0.7, 0.5, 0.0, 0.4, - 0.4, 0.2, 0.5, - 0.1, 0.4, 0.0, 0.6, 0.2 ),
+	'-5': fc( - 0.3, 0.0, 0.7, 0.1, 0.8, 0.2, 0.0, 0.3, 0.0, 0.1, 0.2, 0.9 ),
+	'-6': fc( 0.2, 0.1, 0.2, 0.2, 0.3, 0.6, 0.3, 0.2, - 0.3, - 0.1, 0.3, 0.5 ),
+	// Charlie Manuel: the big, heavy face, the big nose and ears (and age's jowls); Maddon's long face
+	manuel: fc( 0.5, - 0.2, 0.5, 0.0, 0.9, 0.4, 1.0, 0.7, 0.3, 0.0, 1.0, 0.9 ),
+	maddon: fc( 0.4, 0.1, - 0.2, 0.1, - 0.2, 0.2, 0.7, 0.0, 0.6, 0.0, 0.3, 0.0 ),
+	lopes: fc( 0.1, 0.0, 0.2, 0.6, - 0.2, 0.3, 0.1, 0.6, - 0.2, 0.1, 0.4, 0.3 ),
+	smith: fc( 0.3, 0.2, 0.3, 0.1, 0.2, 0.3, 0.4, 0.1, 0.3, - 0.1, 0.3, 0.4 ),
+	hendrick: fc( 0.5, 0.0, 0.0, 0.6, - 0.3, 0.4, 0.2, 0.6, - 0.2, 0.2, 0.4, 0.2 ),
+	foley: fc( 0.2, 0.3, 0.4, 0.2, 0.3, 0.2, 0.5, 0.2, 0.2, - 0.1, 0.4, 0.5 ),
+	'r:moyer': fc( 0.3, 0.1, - 0.2, 0.1, - 0.4, 0.2, 0.4, - 0.1, 0.3, 0.0, 0.3, - 0.2 ),
+	'r:hickey': fc( 0.1, 0.2, 0.3, 0.2, 0.3, 0.3, 0.4, 0.2, 0.2, 0.0, 0.3, 0.5 ),
+};
+//                     lips mouthW deep gonion
+const MORE = {
+	400058: [ - 0.5, 0.0, 0.6, 0.2 ], 434563: [ 0.4, 0.3, 0.0, 0.5 ], 400134: [ 0.0, 0.2, 0.3, 0.5 ], 400284: [ - 0.4, 0.1, 0.7, 0.6 ],
+	429667: [ 0.7, 0.5, 0.1, 0.6 ], 276519: [ 0.5, 0.2, 0.0, - 0.3 ], 150029: [ - 0.2, 0.1, 0.5, 0.3 ], 150268: [ 0.4, 0.3, 0.3, 0.5 ],
+	150100: [ - 0.2, 0.2, 0.6, 0.8 ], 430935: [ - 0.3, - 0.2, 0.0, - 0.5 ], 425664: [ 0.4, 0.4, - 0.2, 0.1 ], 132961: [ - 0.3, 0.0, 0.4, 0.3 ],
+	425492: [ - 0.3, - 0.1, 0.3, - 0.2 ], 408307: [ 0.6, 0.2, - 0.1, - 0.2 ], 446334: [ - 0.1, 0.1, 0.5, 0.8 ], 425834: [ 0.5, 0.0, - 0.1, - 0.3 ],
+	150289: [ 0.3, 0.3, 0.4, 0.6 ], 430583: [ - 0.4, - 0.3, 0.3, - 0.4 ], 425900: [ 0.4, 0.2, - 0.2, 0.2 ], 456034: [ 0.6, 0.2, 0.0, - 0.2 ],
+	346797: [ - 0.4, 0.1, 0.7, 0.6 ], 493127: [ - 0.1, 0.1, - 0.6, 0.3 ], 408306: [ - 0.2, 0.0, 0.4, 0.3 ], 431148: [ - 0.2, - 0.2, 0.1, - 0.2 ],
+	430632: [ 0.3, 0.2, 0.0, 0.4 ], 445010: [ 0.5, 0.1, - 0.1, - 0.2 ],
+	'-1': [ 0.0, 0.2, 0.3, 0.4 ], '-2': [ - 0.4, 0.0, 0.4, 0.1 ], '-3': [ 0.4, 0.3, 0.2, 0.4 ], '-4': [ - 0.3, - 0.1, 0.5, 0.0 ],
+	'-5': [ 0.1, 0.3, 0.1, 0.6 ], '-6': [ - 0.2, 0.1, 0.6, 0.3 ],
+	manuel: [ 0.2, 0.3, 0.6, 0.3 ], maddon: [ - 0.3, 0.0, 0.3, 0.0 ], lopes: [ 0.4, 0.2, 0.2, 0.0 ], smith: [ - 0.2, 0.0, 0.3, 0.3 ],
+	hendrick: [ 0.5, 0.2, 0.2, 0.1 ], foley: [ - 0.2, 0.1, 0.3, 0.4 ], 'r:moyer': [ - 0.3, 0.0, 0.3, - 0.1 ], 'r:hickey': [ - 0.1, 0.1, 0.3, 0.3 ],
+};
+for ( const [ id, m ] of Object.entries( MORE ) ) FACE_MORE.forEach( ( k, i ) => FACES[ id ][ k ] = m[ i ] );
+for ( const [ id, f ] of Object.entries( FACES ) ) ( LOOKS[ id ] || STAFF[ id ] ).face = f;
+// the head's own size (Rig.js' solvePose scales the head bone, the cap and helmet with it): the mesh's
+// head is one size for everyone but for height; Howard's, Hinske's and Manuel's are big, Rollins' small
+const HEAD = {
+	429667: 1.045, 400134: 1.04, 434563: 1.025, 425900: 1.03, 150100: 1.03, 150289: 1.03, 346797: 1.02, 150268: 1.015,
+	276519: 0.97, 430935: 0.98, 425834: 0.985, 430583: 0.97, 425664: 0.98, 493127: 0.98, 408307: 0.99, 456034: 0.99,
+	'-1': 1.03, '-3': 1.02, '-5': 1.03, manuel: 1.05, lopes: 0.99,
+};
+for ( const [ id, h ] of Object.entries( HEAD ) ) ( LOOKS[ id ] || STAFF[ id ] ).head = h;
+// the jaw's width where the notes had none
+Object.assign( LOOKS[ 400134 ], { jaw: 0.4 } );
+Object.assign( LOOKS[ 425900 ], { jaw: 0.3 } );
+Object.assign( LOOKS[ 425664 ], { jaw: 0.2 } );
+Object.assign( LOOKS[ 408307 ], { jaw: - 0.1 } );
+Object.assign( LOOKS[ 425834 ], { jaw: - 0.25 } );
+Object.assign( LOOKS[ 430583 ], { jaw: - 0.3 } );
+Object.assign( LOOKS[ 456034 ], { jaw: - 0.1 } );
+Object.assign( LOOKS[ 346797 ], { jaw: 0.35 } );
+Object.assign( LOOKS[ 493127 ], { jaw: 0.2 } );
+Object.assign( LOOKS[ 132961 ], { jaw: 0.2 } );
+
+// anyone else (the rest of the rosters, the crews, the bat boys): a face from his seed, within the range
+// of the men above (a ball girl's softer)
+function seededFace( seed, soft = false ) {
+
+	const r = ( k ) => {
+
+		const s = Math.sin( seed * 53.3 + k * 29.1 ) * 24634.6345;
+		return s - Math.floor( s );
+
+	};
+
+	const f = Object.fromEntries( FACE_PACK.map( ( k, i ) => [ k, ( r( i + 1 ) * 2 - 1 ) * 0.6 ] ) );
+	if ( soft ) Object.assign( f, { chin: - 0.3, chinW: - 0.5, brow: - 0.6, neck: - 0.8, full: 0.1, noseL: - 0.5, noseW: - 0.4 } );
+	return f;
+
+}
+
+// a head's size where the notes give none: a little bigger with a full face and a thick neck
+const headOf = ( f ) => 1 + 0.012 * ( ( f.full || 0 ) + ( f.neck || 0 ) );
+const keySeed = ( id ) => typeof id === 'number' ? id * 0.00731 : [ ...String( id ) ].reduce( ( a, c ) => ( a * 31 + c.charCodeAt( 0 ) ) % 9973, 7 ) * 0.0917;
+// ---- end FY4
+
 const CREW_SKINS = [ S.light, S.brown, S.ruddy, S.latin, S.fair, S.dark, S.tan, S.olive ];
 const CREW_HAIR = [ H.brown, H.black, H.sandy, H.black, H.dark, H.black, H.dark, H.brown ];
 
@@ -181,7 +305,14 @@ export function look( id, seed = 0 ) {
 
 	const o = { ...BASE };
 	const L = LOOKS[ id ] || STAFF[ id ];
-	if ( L ) return Object.assign( o, L );
+	if ( L ) {
+
+		Object.assign( o, L );
+		if ( ! o.face ) o.face = seededFace( keySeed( id ), /^ballgirl/.test( id ) ); // ---- FY4
+		o.head ??= headOf( o.face ); // ---- FY4
+		return o;
+
+	}
 	// someone we have no notes on: from the seed
 	const r = ( k ) => {
 
@@ -201,6 +332,8 @@ export function look( id, seed = 0 ) {
 	o.belly = r( 5 ) < 0.4 ? r( 6 ) * 0.5 : 0;
 	o.jaw = r( 7 ) - 0.5;
 	o.age = r( 8 );
+	o.face = seededFace( seed + 0.5 + ( id != null ? keySeed( id ) : 0 ) ); // ---- FY4 (the coaches with no notes share a seed)
+	o.head = headOf( o.face ); // ---- FY4
 	return o;
 
 }
