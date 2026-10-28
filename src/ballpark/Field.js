@@ -1728,7 +1728,7 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		if ( dirt && wet > 0.55 ) {
 			let dk = smoothstep( 0.55, 0.8, wet );
 			let second = vec2f( 0.0, ${ f( - BASE * Math.SQRT2 ) } );
-			let spots = max( max( 1.0 - smoothstep( 1.2, 4.2, length( p - plate ) ), 1.0 - smoothstep( 0.8, 3.4, min( length( p - first ), length( p - third ) ) ) ),
+			let spots = max( max( 0.85 - 0.85 * smoothstep( 0.6, 3.8, length( p - plate ) ), 1.0 - smoothstep( 0.8, 3.4, min( length( p - first ), length( p - third ) ) ) ),
 				max( 1.0 - smoothstep( 0.8, 3.8, length( p - second ) ), 1.0 - smoothstep( 1.4, 3.4, length( p - moundC - vec2f( 0.0, 2.2 ) ) ) ) );
 			let lanes = max( 1.0 - smoothstep( 0.3, 1.1, abs( b ) ), 1.0 - smoothstep( 0.3, 1.1, abs( a ) ) ) * 0.75;
 			let dpatch = smoothstep( 0.42, 0.62, max( spots, lanes ) * 0.75 + 0.32 * mx_noise_float2( p * 0.8 + 5.0 ) );
