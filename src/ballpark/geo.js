@@ -222,6 +222,54 @@ export function nearestAlong( P, p ) {
 
 }
 
+// ---- SP1 (speed): a non-indexed geometry (Quads: two triangles a quad, each with its own three
+// corners) indexed, its identical vertices (every attribute equal) shared: the vertex shader runs once
+// per corner, not once per triangle corner. The triangles and what they show are unchanged. (For the
+// seats, `return indexed( g )` at the end of Stands.js's seatGeometry(): 24 vertices a seat, not 36,
+// measured -0.25 to -0.55 ms in the walking views; left to FW1, who has seatGeometry now.)
+export function indexed( g ) {
+
+	if ( g.index ) return g;
+	const names = Object.keys( g.attributes ), attrs = names.map( ( n ) => g.attributes[ n ] );
+	const n = attrs[ 0 ].count, map = new Map(), remap = new Uint32Array( n ), keep = [];
+	for ( let i = 0; i < n; i ++ ) {
+
+		let key = '';
+		for ( const a of attrs ) for ( let k = 0; k < a.itemSize; k ++ ) key += a.array[ i * a.itemSize + k ] + ',';
+		let j = map.get( key );
+		if ( j === undefined ) {
+
+			j = keep.length;
+			map.set( key, j );
+			keep.push( i );
+
+		}
+
+		remap[ i ] = j;
+
+	}
+
+	const out = new BufferGeometry();
+	for ( let a = 0; a < attrs.length; a ++ ) {
+
+		const A = attrs[ a ], k = A.itemSize, arr = new Float32Array( keep.length * k );
+		keep.forEach( ( i, j ) => {
+
+			for ( let c = 0; c < k; c ++ ) arr[ j * k + c ] = A.array[ i * k + c ];
+
+		} );
+		out.setAttribute( names[ a ], new Float32BufferAttribute( arr, k ) );
+
+	}
+
+	out.setIndex( new BufferAttribute( keep.length < 65536 ? new Uint16Array( remap ) : remap, 1 ) );
+	out.computeBoundingBox();
+	out.computeBoundingSphere();
+	return out;
+
+}
+// ---- end SP1
+
 // Static batching: every plain mesh under `root` (position / normal / uv only, not instanced, on the
 // default layer, not flagged userData.dynamic) is merged with the others that share its material and
 // shadow flags into one mesh, its transform baked in (relative to root). Hundreds of little meshes (poles,

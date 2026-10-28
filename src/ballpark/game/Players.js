@@ -87,7 +87,13 @@ export class Players {
 		}, 'jerseys' );
 		this.atlasCtx = this.atlas.canvas.getContext( '2d' );
 		this._atlasDirty = false;
-		this.material = playerMaterial( this.bones, this.infoBuffer, this.atlas );
+		// ---- SP1 (speed): everyone's draw takes its slots from aSlot too, the visible ones packed at the
+		// front, so a hidden slot (a runner who scored, a reliever sat down) isn't drawn: a hidden slot's
+		// 32,000 triangles were shaded (collapsed to a point) for every slot below the last visible one
+		this.drawSlots = new InstancedBufferAttribute( new Float32Array( MAX ), 1 );
+		geo.setAttribute( 'aSlot', this.drawSlots );
+		this.material = playerMaterial( this.bones, this.infoBuffer, this.atlas, false, true );
+		// ---- end SP1
 		this.mesh = new InstancedMesh( geo, this.material, MAX );
 		this.mesh.name = 'players';
 		this.mesh.frustumCulled = false;
@@ -203,9 +209,24 @@ export class Players {
 		this.bones.write( D );
 		this.infoBuffer.write( this.info );
 		// draw only as many instances as there are slots in use
-		let used = 0;
-		for ( let i = 0; i < MAX; i ++ ) if ( this.slots[ i ] && this.slots[ i ].visible ) used = i + 1;
-		this.mesh.count = Math.max( 1, used );
+		let used = 0, drawn = 0;
+		const ds = this.drawSlots.array;
+		for ( let i = 0; i < MAX; i ++ ) if ( this.slots[ i ] && this.slots[ i ].visible ) {
+
+			used = i + 1;
+			// ---- SP1: the visible slots, packed (aSlot)
+			if ( ds[ drawn ] !== i ) {
+
+				ds[ drawn ] = i;
+				this.drawSlots.needsUpdate = true;
+
+			}
+
+			drawn ++;
+
+		}
+
+		this.mesh.count = Math.max( 1, drawn );
 		// the Phanatic's costume on his slots (him, and the little one)
 		let nc = 0;
 		for ( let i = 0; i < used && nc < COSTUMES; i ++ ) {
@@ -298,8 +319,9 @@ function splitByPart( g, parts ) {
 
 }
 
-// costume: the material of the Phanatic's costume draw (its instances' slots from aSlot)
-function playerMaterial( bones, info, atlas, costume = false ) {
+// costume: the material of the Phanatic's costume draw; slotted: its instances' slots from aSlot (SP1:
+// everyone's draw too)
+function playerMaterial( bones, info, atlas, costume = false, slotted = costume ) {
 
 	const P = PART, U = UNIFORM, F = FACE, J = BODY_JOINTS;
 	const f = ( x ) => x.toFixed( 4 );
@@ -309,10 +331,10 @@ function playerMaterial( bones, info, atlas, costume = false ) {
 		name: costume ? 'players-costume' : 'players', roughness: 0.75, modules: [ commonModule ],
 		storage: { plBones: bones, plInfo: info },
 		textures: { plAtlas: atlas },
-		attributes: { aBones: 'vec4f', aWeights: 'vec4f', aPart: 'f32', aField: 'vec2f', ...( costume ? { aSlot: 'f32' } : {} ) },
+		attributes: { aBones: 'vec4f', aWeights: 'vec4f', aPart: 'f32', aField: 'vec2f', ...( slotted ? { aSlot: 'f32' } : {} ) },
 		varyings: { vPart: 'f32', vInfo: 'vec4f', vLocal: 'vec3f', vNrm: 'vec3f', vField: 'vec2f', vSlot: 'f32', vFN: 'vec3f' },
 		vertex: /* wgsl */`
-	let slot = ${ costume ? 'u32( v.aSlot + 0.5 )' : 'v.instance' };
+	let slot = ${ slotted ? 'u32( v.aSlot + 0.5 )' : 'v.instance' };
 	let i0 = plInfo[ slot * ${ K }u ];
 	let i2 = plInfo[ slot * ${ K }u + 2u ];
 	let i3 = plInfo[ slot * ${ K }u + 3u ];
