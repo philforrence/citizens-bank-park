@@ -1,6 +1,6 @@
 import { Cast, TOP, COLOR, HAT, GEAR, PROP, restPose, lookAt } from '../Cast.js';
 import { armIK, rng, pick } from '../Concourse3BKit.js';
-import { PILE } from '../../game/Celebration.js';
+import { PILE, STAGE } from '../../game/Celebration.js';
 
 // The press at the last out (Getty 83571364, John Iacono's: the photographers in among the hugs with
 // their long zooms, a flash on top; a FOX handheld on the shoulder; the boom mic in its fuzzy
@@ -18,6 +18,17 @@ import { PILE } from '../../game/Celebration.js';
 const EXITS = [ [ 29.7, - 9.1 ], [ - 29.7, - 9.1 ], [ 14.3, 6.3 ], [ - 14.3, 6.3 ] ];
 const N_PHOTO = 22, N_TV = 3;
 
+// ---- FB4 (C4B-1): the pit in front of the stage. A point in the stage's own frame (x along its front,
+// z out of its front: STAGE.point's inverse)
+const stageLocal = ( x, z ) => {
+
+	const c = Math.cos( STAGE.yaw ), s = Math.sin( STAGE.yaw ), dx = x - STAGE.at[ 0 ], dz = z - STAGE.at[ 1 ];
+	return [ dx * c - dz * s, dx * s + dz * c ];
+
+};
+// how far outside the deck's footprint a point is (negative inside)
+const offDeck = ( lx, lz ) => Math.max( Math.abs( lx ) - STAGE.W / 2, Math.abs( lz ) - STAGE.D / 2 );
+// ---- end FB4
 const hash = ( n ) => {
 
 	const s = Math.sin( n * 12.9898 ) * 43758.5453;
@@ -104,6 +115,7 @@ export class Press {
 
 				p.visible = false;
 				q.last = null;
+				q.pit = q.f = null; // ---- FB4
 				continue;
 
 			}
@@ -145,7 +157,47 @@ export class Press {
 				const k = ease( ( cel - Math.max( 38 + hash( q.i ) * 8, t0 + run / speed + 2.5 ) ) / 4 );
 				if ( a && k > 0 ) {
 
-					const sa = a.yaw + q.side, fx = a.x - Math.sin( sa ) * q.dist, fz = a.z - Math.cos( sa ) * q.dist;
+					const sa = a.yaw + q.side;
+					let fx = a.x - Math.sin( sa ) * q.dist, fz = a.z - Math.cos( sa ) * q.dist;
+					// ---- FB4 (C4B-1): once his man is up on the stage (Manuel's interview, the players and the
+					// trophy), or the place he'd shoot from is on the deck, he works from the pit along its front,
+					// pressed against it and shooting up, as the press did (Getty 83570999, puffygreenjacket
+					// 2994338984: a row of them along the front, cameras up). He'd followed at y 0 into the deck's
+					// footprint, his head through it (C4B's D-cel-192: 11 of them in it at 186 s). The pit's two
+					// rows leave the way to the stairs at its left end clear, and the players' crowd behind them
+					const [ flx, flz ] = stageLocal( fx, fz );
+					const want = Math.max( Math.min( 1, Math.max( 0, ( a.y || 0 ) / 0.5 ) ), Math.min( 1, Math.max( 0, ( 1.2 - offDeck( flx, flz ) ) / 0.6 ) ) );
+					q.pit = dt > 0 && q.pit != null ? q.pit + Math.max( - dt / 1.5, Math.min( dt / 1.5, want - q.pit ) ) : want;
+					if ( want > 0.5 ) {
+
+						const col = Math.floor( q.i / 2 ) % 13, row = q.i % 2;
+						[ fx, fz ] = STAGE.point( - 1.8 + col * 0.4 + row * 0.2 + ( hash( q.i * 7.7 ) - 0.5 ) * 0.12, STAGE.D / 2 + 0.42 + row * 0.55 + hash( q.i * 3.1 ) * 0.1 );
+
+					}
+
+					// he gets there at a hurried walk: when his man turns round, or goes up, the place he'd shoot
+					// from swings metres at once (they'd jumped 4-9 m in a frame at the gather, 120-124 s); at once
+					// after a seek
+					if ( dt > 0 && q.f ) {
+
+						const gx = fx - q.f[ 0 ], gz = fz - q.f[ 1 ], g = Math.hypot( gx, gz ), mv = Math.min( g, 3.2 * dt );
+						if ( g > 1e-6 ) { q.f[ 0 ] += gx / g * mv; q.f[ 1 ] += gz / g * mv; }
+
+					} else q.f = [ fx, fz ];
+					// (and never on the deck: round it, along its nearest edge)
+					const [ lx, lz ] = stageLocal( q.f[ 0 ], q.f[ 1 ] );
+					if ( offDeck( lx, lz ) < 0.3 ) {
+
+						const ex = Math.abs( lx ) - STAGE.W / 2, ez = Math.abs( lz ) - STAGE.D / 2;
+						q.f = ex > ez ? STAGE.point( Math.sign( lx ) * ( STAGE.W / 2 + 0.3 ), lz ) : STAGE.point( lx, Math.sign( lz ) * ( STAGE.D / 2 + 0.3 ) );
+
+					}
+
+					[ fx, fz ] = q.f;
+
+					// (nobody crouches below the deck's edge: up on their toes, the long lenses held up)
+					if ( q.pit > 0.5 && stance === 'crouch' ) stance = 'shoot';
+					// ---- end FB4
 					x += ( fx - x ) * k;
 					z += ( fz - z ) * k;
 					yaw = Math.atan2( - ( a.x - x ), - ( a.z - z ) );
@@ -172,7 +224,7 @@ export class Press {
 			P.armR = arms[ 1 ];
 			P.propR = q.kind === 'photo' ? PROP.slr : q.kind === 'eng' ? PROP.eng : PROP.boom;
 			P.varR = q.lens;
-			P.headPitch = stance === 'high' ? - 0.15 : 0.05;
+			P.headPitch = stance === 'high' ? - 0.15 : q.pit > 0.5 ? - 0.2 : 0.05; // (---- FB4: up at the deck from the pit)
 			P.breath = ( cel * 0.3 + q.i * 0.17 ) % 1;
 			p.x = x; p.z = z; p.y = 0; p.yaw = yaw;
 			if ( ! p.visible ) p.fresh = true;
