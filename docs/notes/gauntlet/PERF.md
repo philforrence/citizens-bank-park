@@ -27,3 +27,6 @@ The cold load was 62 s (shaders compiling in a fresh browser), no console errors
 | Baseline | step 8 | 25.2 | 32.1 | 29.7 | 28.1 | 27.4 | 29.4 | 28.0 |
 | 08:58 | FI1, the concourse | 23.7 | 30.2 | 27.9 | 27.6 | 26.7 | 28.9 | 27.4 |
 | 09:02 | FB1, the bowl (rain, TV high on the 27th: 29.8) | 23.9 | 30.6 | 28.0 | 27.7 | 25.6 | 29.2 | 27.5 |
+| 09:10 | FY1, the game and cameras (rain, TV high on the 27th: 31.0) | 25.0 | 29.4 | 25.9 | 29.9 | 27.0 | 29.8 | 29.5 |
+
+**From FY1 on, every view is lit at game time.** The light used to default to 4 pm, so the baseline's walking views were in daylight; now the replay's clock sets it (~8:30-10:40 pm), and the night's lamps cost the walking views ~2 ms. That's the honest condition: the game is at night. TV high got cheaper from FOX's tighter lens (fov 32).
