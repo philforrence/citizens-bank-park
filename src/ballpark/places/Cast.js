@@ -3195,7 +3195,8 @@ class Pool {
 				{
 
 					const ex = x - fcx, ez = z - fcz, e2 = ex * ex + ez * ez, up = fcy - y;
-					const near = walking && e2 < 1.44 && up > 0.4 && up < 2.4;
+					// (not one sat down: he stays in his chair or on his stool)
+					const near = walking && e2 < 1.44 && up > 0.4 && up < 2.4 && a.hipL < 0.9 && a.hipR < 0.9;
 					if ( near || p._ax ) {
 
 						const e = Math.sqrt( e2 ) || 1;
