@@ -1097,7 +1097,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			// the hair: the back and the sides of the head under the cap, the sideburns in front of the ears
 			// (cropped short: the scalp shows through the grain), greying at the temples with age
 			let hairBack = max( max( smoothstep( eye.y + 0.022, eye.y + 0.032, L.y ) * smoothstep( eye.z + 0.038, eye.z + 0.052, L.z ),
-				smoothstep( eye.y - 0.058, eye.y - 0.044, L.y ) * smoothstep( eye.z + 0.098, eye.z + 0.112, L.z ) ), smoothstep( eye.y + 0.055, eye.y + 0.065, L.y ) * smoothstep( eye.z + 0.035, eye.z + 0.06, L.z ) );
+				smoothstep( eye.y - 0.068, eye.y - 0.054, L.y ) * smoothstep( eye.z + 0.098, eye.z + 0.112, L.z ) ), smoothstep( eye.y + 0.055, eye.y + 0.065, L.y ) * smoothstep( eye.z + 0.035, eye.z + 0.06, L.z ) );
 			let burn = 0.8 * smoothstep( 0.05, 0.062, ax ) * smoothstep( eye.z + 0.028, eye.z + 0.052, L.z ) * smoothstep( eye.y - 0.04, eye.y - 0.012, L.y );
 			let hairK = clamp( max( hairBack, burn ) * ( 1.0 - earK ) * ( 0.95 + 0.25 * g2 ), 0.0, 1.0 );
 			if ( hairK > 0.0 ) {
@@ -1141,7 +1141,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 			let cheekTop = 1.0 - smoothstep( yTop - 0.012, yTop + 0.004, L.y );
 			// (under the jaw only where the chin juts forward, not down the throat)
 			let fullM = cheekTop * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * smoothstep( jl - 0.024, jl - 0.01, L.y ) * max( smoothstep( jl - 0.008, jl + 0.004, L.y ), smoothstep( -0.05, -0.075, L.z ) ) * lipsOut * ( 1.0 - nose );
-			let strap = ( 1.0 - smoothstep( 0.007, 0.014, abs( L.y - jl - 0.003 ) ) ) * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * max( front, smoothstep( 0.02, 0.035, ax ) );
+			let strap = ( 1.0 - smoothstep( 0.009, 0.017, abs( L.y - jl - 0.004 ) ) ) * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * max( front, smoothstep( 0.015, 0.03, ax ) );
 			var bd = 0.0;
 			if ( beardK == 3u ) { bd = chinM; }
 			if ( beardK == 4u ) { bd = max( max( chinM, mous ), corner ); }
@@ -1229,6 +1229,15 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		if ( lo < 0.13 && lo > 0.02 && abs( Nb.x ) > 0.55 ) { c = vec3f( 0.8, 0.79, 0.76 ); }
 	}
 	if ( part == ${ P.cap } ) { c = capC * 1.05; rough = 0.65; clothy = true; }
+	// ---- FY3: the crown's six panels, their seams running up to the button (from the high cameras the
+	// crown was one smooth shell)
+	if ( part == ${ P.cap } && abs( in.vs.vField.x + 3.0 ) > 0.5 && L.y > ${ f( F.top[ 1 ] - 0.08 ) } ) {
+		let az = atan2( L.x, -( L.z + 0.04 ) ) / 1.0472;
+		let sd = abs( fract( az + 0.5 ) - 0.5 );
+		let fsd = max( fwidth( az ), 1e-4 );
+		c = c * ( 1.0 - 0.35 * clamp( ( 0.025 - sd ) / fsd + 0.5, 0.0, 1.0 ) * smoothstep( ${ f( F.top[ 1 ] - 0.08 ) }, ${ f( F.top[ 1 ] - 0.06 ) }, L.y ) );
+	}
+	// ---- end FY3
 	// (FY2, CY-18) under the bill, the undervisor's dark grey-green
 	if ( part == ${ P.cap } && billPart && Nb.y < -0.3 ) { c = vec3f( 0.03, 0.045, 0.035 ); rough = 0.85; }
 	if ( part == ${ P.belt } ) { c = beltC; rough = 0.4; }
