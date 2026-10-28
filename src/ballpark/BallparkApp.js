@@ -292,6 +292,7 @@ export class BallparkApp {
 		} ) } );
 
 		this.sceneRenderer = new SceneRenderer( engine.meshRenderer, scene, camera );
+		this.sceneRenderer.copyColor = false; // ---- SP2 (speed): nothing here samples the opaque colour's copy (no water)
 		if ( this.sky.background ) this.sceneRenderer.background = this.sky.background;
 		// point and spot lights: the flashlight (L) and, after dusk, the light towers aimed at the field
 		this.localLights = new LocalLights();
@@ -1482,7 +1483,7 @@ export class BallparkApp {
 		// shares the near one's bounds
 		// (`_noPlayerLod`: everyone near, for an A/B)
 		if ( P.lodSplit && ! this._noPlayerLod ) P.lodSplit( this.camera, this.engine.canvas.height || 800 );
-		else if ( P.far ) P.far.count = 0;
+		else if ( P.far ) P.far.count = P.mid.count = 0;
 		const f = P.far;
 		// ---- end SP2
 		const b = m.occlusionBox || ( m.occlusionBox = new Box3() );
@@ -1493,7 +1494,7 @@ export class BallparkApp {
 
 			m.frustumCulled = false;
 			m.occlusionBox = null;
-			if ( f ) { f.frustumCulled = false; f.occlusionBox = null; } // ---- SP2
+			for ( const o of f ? [ f, P.mid ] : [] ) { o.frustumCulled = false; o.occlusionBox = null; } // ---- SP2
 			return;
 
 		}
@@ -1503,7 +1504,7 @@ export class BallparkApp {
 		b.max.x += 2.5; b.max.z += 2.5; b.max.y += 3.2;
 		b.getBoundingSphere( m.boundingSphere || ( m.boundingSphere = new Sphere() ) );
 		m.frustumCulled = true;
-		if ( f ) { f.frustumCulled = true; f.occlusionBox = b; f.boundingSphere = m.boundingSphere; } // ---- SP2
+		for ( const o of f ? [ f, P.mid ] : [] ) { o.frustumCulled = true; o.occlusionBox = b; o.boundingSphere = m.boundingSphere; } // ---- SP2
 
 	}
 	// ---- end SP1
