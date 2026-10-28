@@ -18,7 +18,9 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 - **FB1, the bowl, the roofs and the boards** (notes [FB1.md](FB1.md)): CB-1 (the bunting), 2 (the rain), 3 (the light banks), 4 (the logos), 5 (the dugout roofs), 7 (the ribbon boards), 8 (the out-of-town board), 9 (the tarp), 10 (the champions banner), 11, 12, 13 and 16 done, and the left field disc sign moved; CB-6, 14 and 15 partly. Before and after: `.claude/gauntlet/r1/FB1-shots/shots/`.
 - **FY1, the game and the cameras** (notes [FY1.md](FY1.md)): CY-1 (Utley's play at the plate), 2 (the light follows the replay's clock), 3 (FOX's center field camera), 5 (the follow camera), 7, 8, 9, 10, 11, 12 (a FOX broadcast mode), 14, 20, 22 and 23 done; CY-13, 15 and 17 partly. **The replay's clock is kept** (every in-play segment keeps step 8's length) so the radio call stays in sync. Shots: `.claude/gauntlet/r1/FY1/`.
 - **FP1, the people** (notes [FP1.md](FP1.md)): **every figure was lit inside out** (wound against its own normals): fixed in every figure system. CP-1 (real caps everywhere), 2 (jackets with shoulders), 5 (the P), 6, 7, 9, 11, 13, 14, 15, 17, 18 and 21 done; CP-8, 10, 12 and 19 partly; CI-2 (the concourse filled by a GPU throng on the replay's clock). Before: `.claude/gauntlet/r1/CP-shots/`; after: `.claude/gauntlet/r1/FP1/final/`.
+- **FY2, the Phanatic and the players' look** (notes [FY2.md](FY2.md)): CP-3, 4, 16 and 20 (the Phanatic as the 2008 costume, his fur, the rain dance), CY-4 (whites white at night), 6 (the 2008 cut), 16 (the pile) and 21 done; CY-18 partly. Before and after: `.claude/gauntlet/r1/FY2/before/` and `after4/`.
 
 ## Round 2
 
 - **C2W, the walk** (launched 09:23): fresh eyes on everything seen on foot, after round 1's merges.
+- **C2B, the broadcast** (launched 09:40): fresh eyes on the replay through FOX's cameras, after round 1's merges.
