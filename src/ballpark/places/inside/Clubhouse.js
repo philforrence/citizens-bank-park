@@ -42,6 +42,7 @@ const YC = Y0 + 4.9; // its ceiling (the glass's head)
 const T = 0.8; // the facade's thickness
 const FACADE = 6.5; // the facade's ground storey (Exterior.js)
 const GLASS_IN = 0.1; // the glass, in from the facade's face
+const BACK_IN = 0.6; // the back wall, in from the block's open side
 
 const sub = ( a, b ) => [ a[ 0 ] - b[ 0 ], a[ 1 ] - b[ 1 ] ];
 const add = ( a, b ) => [ a[ 0 ] + b[ 0 ], a[ 1 ] + b[ 1 ] ];
@@ -296,7 +297,9 @@ export default class Clubhouse {
 		wall( add( this.X3, mul( fa.nIn, 0.012 ) ), add( this.Ci, mul( fa.nIn, 0.012 ) ), fa.nIn, 'drywall' );
 		wall( this.Ci, this.Di, fa.nIn, 'slatwall', YF, YC, 0.9 );
 		// the back (D to A: the building behind): the cap wall's slatwall over a navy base
-		const bp = ( p ) => add( p, mul( fr.n, 0.06 ) );
+		// (---- 0.6 m in from the line D-A: the Third Base Gate's frame runs on along that line past A, its beam
+		// through the block a black band across the back wall's top)
+		const bp = ( p ) => add( p, mul( fr.n, BACK_IN ) );
 		wall( bp( this.Di ), bp( this.Ai ), fr.n, 'slatwall', YF + 0.9, YC, 0.9 );
 		wall( bp( this.Di ), bp( this.Ai ), fr.n, 'navyWall', YF, YF + 0.9 );
 		// the platforms in the window bays: 15 cm, carpeted dark, black fronts; none across the doors
@@ -344,7 +347,7 @@ export default class Clubhouse {
 			return a[ 0 ] + ( c[ 0 ] - a[ 0 ] ) * ( z - a[ 1 ] ) / ( c[ 1 ] - a[ 1 ] );
 
 		};
-		const zBack = this.toF( this.Di )[ 1 ];
+		const zBack = this.toF( this.Di )[ 1 ] - BACK_IN + 0.06; // (the back wall at zBack - 0.06)
 		this.zBack = zBack;
 		const people = this.spots;
 
