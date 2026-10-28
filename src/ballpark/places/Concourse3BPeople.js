@@ -142,6 +142,9 @@ export class ConcoursePeople {
 
 		const r = this.r, W = this.W;
 		this.atrium = [];
+		// (the third base side's only: the first base side (People1B, its own this.gate) has the gate's
+		// arrivals there, and its cast's room goes to them)
+		if ( this.gate ) return;
 		// (in the gate's gap in the stands, out to the gate; and in front of the stands either side of it, clear
 		// of their lines, the columns and the carts)
 		const clear = ( s, d ) => ! this.obstacles.some( ( [ os, od, orad ] ) => Math.hypot( s - os, d - od ) < orad + 0.75 )
