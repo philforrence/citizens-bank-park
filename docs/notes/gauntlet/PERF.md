@@ -99,3 +99,4 @@ FI3 cost nothing measurable (under the stands is cheaper: no discard, no local l
 | | | The celebration, TV high / TV center | 18.6 / 18.2 | 54 / 55 | 22.5 / 22.1 | 18.3 / 18.4 |
 
 Every view is at 43 fps or better. Step 8's baseline, by the same honest measure, was its GPU column (21.6-27.6 ms, 36-46 fps), with a fraction of today's detail.
+| 15:05 | FW4, the people up close | every view within 0.6 ms of 15:05's: TV center 17.1, TV high 17.8, rain 18.8, follow 13.9, concourse 14.5, lounge 11.1, real 3B seat 17.1, plaza 16.4, left field 20.7, **the 400s seat 23.8** (42 fps), celebration 18.6 / 18.7 | | | | |
