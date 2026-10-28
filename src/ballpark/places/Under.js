@@ -78,9 +78,9 @@ export default class Under {
 		this.screens = new Screens( app );
 		this.reach = new Reach( 14 );
 		this.spots = [];
-		const add = ( b, name, centre, r ) => {
+		const add = ( b, name, centre, r, material = this.material ) => {
 
-			const m = b.mesh( this.material, name );
+			const m = b.mesh( material, name );
 			this.group.add( m );
 			this.reach.add( m, centre, r );
 			return m;
@@ -105,7 +105,8 @@ export default class Under {
 
 			const b = new Inside();
 			this._cages( b, this.segs[ 0 ] );
-			add( b, 'under-cages', mid( this.segs[ 0 ] ), 16 );
+			// (---- SP1: their own material, the only one with the netting's cut-outs: Kit.js insideMaterial)
+			add( b, 'under-cages', mid( this.segs[ 0 ] ), 16, insideMaterial( 'under-cages', { net: true } ) );
 
 		}
 
