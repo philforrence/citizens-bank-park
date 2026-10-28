@@ -1537,6 +1537,10 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 			c = capC; rough = 0.8;
 			if ( abs( fract( atan2( d.x, d.z ) * 0.955 ) - 0.5 ) > 0.47 ) { c *= 0.75; }
 		}
+		// ---- FW6 (C4W-10): the brim's shade on the face down to the nose, the eyes in it (every capped face
+		// under the lights was lit evenly from the band to the chin)
+		if ( capped && d.y <= 0.18 + 0.225 * frontness ) { c *= 1.0 - 0.38 * smoothstep( - 0.3, 0.4, d.y ) * smoothstep( - 0.1, - 0.5, d.z ); }
+		// ---- end FW6
 		// a knit hat (a folded cuff, ribs, a pom-pom; the Phillies' red one with its navy cuff and the
 		// white P on the front, Getty 83893023)
 		// ---- FW6 (C4W-2): from its edge on the forehead (cwKnitEdge), the cuff 0.13 over it; it came down
