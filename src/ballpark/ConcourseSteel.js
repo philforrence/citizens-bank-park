@@ -23,7 +23,7 @@ const STREET = LEVELS.mainConcourse;
 
 // [ name, linear albedo, roughness, metalness, glow ]
 const PALETTE = [
-	[ 'maroon', [ 0.2, 0.028, 0.032 ], 0.42, 0 ], [ 'galv', [ 0.42, 0.43, 0.44 ], 0.42, 0.55 ], [ 'pipe', [ 0.62, 0.62, 0.6 ], 0.45, 0 ],
+	[ 'maroon', [ 0.2, 0.028, 0.032 ], 0.62, 0 ], [ 'galv', [ 0.42, 0.43, 0.44 ], 0.42, 0.55 ], [ 'pipe', [ 0.62, 0.62, 0.6 ], 0.45, 0 ],
 	[ 'conduit', [ 0.3, 0.31, 0.32 ], 0.45, 0.6 ], [ 'black', [ 0.02, 0.02, 0.022 ], 0.5, 0 ], [ 'red', [ 0.5, 0.03, 0.03 ], 0.5, 0 ],
 	[ 'dome', [ 0.72, 0.72, 0.7 ], 0.3, 0, [ 1.6, 1.52, 1.38 ] ], [ 'hid', [ 0.9, 0.9, 0.86 ], 0.3, 0, [ 9.0, 8.6, 7.6 ] ],
 	[ 'can', [ 0.8, 0.78, 0.72 ], 0.3, 0, [ 4.0, 3.5, 2.8 ] ], [ 'trim', [ 0.05, 0.05, 0.055 ], 0.5, 0.3 ], [ 'grate', [ 0.16, 0.165, 0.17 ], 0.6, 0.5 ],
@@ -103,7 +103,7 @@ export function obox( q, c, u, lu, v, lv, w, lw ) {
 
 // A wide-flange member from a to b (its centre line): d deep along `up` (made square to the member), the
 // flanges bf wide
-export function wide( q, a, b, up, d, bf, tf = 0.035, tw = 0.022 ) {
+export function wide( q, a, b, up, d, bf, tf = 0.035, tw = 0.022, stiff = 0 ) {
 
 	const ab = sub( b, a ), len = Math.hypot( ab[ 0 ], ab[ 1 ], ab[ 2 ] );
 	if ( len < 0.01 ) return;
@@ -113,6 +113,16 @@ export function wide( q, a, b, up, d, bf, tf = 0.035, tw = 0.022 ) {
 	obox( q, add( c, mul( v, d / 2 - tf / 2 ) ), u, len, v, tf, w, bf );
 	obox( q, add( c, mul( v, - d / 2 + tf / 2 ) ), u, len, v, tf, w, bf );
 	obox( q, c, u, len, v, d - 2 * tf, w, tw );
+	// ---- FW2 (C2W-14): web stiffeners every `stiff` m, a plate each side of the web between the flanges
+	// (docindigo76, NLCS 2009, from the mezzanine: the deep girder's stiffeners every bay, its bottom flange
+	// catching the light), so a deep girder seen from below reads as steel, not a smooth painted slab
+	if ( stiff > 0 ) for ( let t = ( len % stiff ) / 2; t <= len; t += stiff ) {
+
+		const p = add( a, mul( u, t ) );
+		obox( q, p, u, 0.014, v, d - 2 * tf, w, bf * 0.92 );
+
+	}
+	// ---- end FW2
 
 }
 
@@ -588,7 +598,7 @@ ${ SOFFIT_WGSL }
 
 				const end = add( c, mul( n, dOut - dIn ) );
 				q.use( 'maroon' );
-				wide( q, c, end, up, GD, 0.32 );
+				wide( q, c, end, up, GD, 0.32, 0.035, 0.022, 2.4 );
 				// the knee brace in, from the column to the girder's bottom flange
 				pipe( q, [ st.x, yG - 2.4, st.z ], add( c, add( mul( n, 2.2 ), [ 0, - GD / 2 + 0.05, 0 ] ) ), 0.09, 4 );
 
@@ -600,7 +610,7 @@ ${ SOFFIT_WGSL }
 
 				const end = add( c, mul( n, - st.facade ) );
 				q.use( 'maroon' );
-				wide( q, c, end, up, GD, 0.32 );
+				wide( q, c, end, up, GD, 0.32, 0.035, 0.022, 2.4 );
 				pipe( q, [ st.x, yG - 2.4, st.z ], add( c, add( mul( n, - 2.2 ), [ 0, - GD / 2 + 0.05, 0 ] ) ), 0.09, 4 );
 
 			}
@@ -640,7 +650,7 @@ ${ SOFFIT_WGSL }
 		for ( let i = 0; i < ML.length - 1; i ++ ) {
 
 			q.use( 'maroon' );
-			wide( q, [ ML[ i ][ 0 ], yG, ML[ i ][ 1 ] ], [ ML[ i + 1 ][ 0 ], yG, ML[ i + 1 ][ 1 ] ], up, GD, 0.32 );
+			wide( q, [ ML[ i ][ 0 ], yG, ML[ i ][ 1 ] ], [ ML[ i + 1 ][ 0 ], yG, ML[ i + 1 ][ 1 ] ], up, GD, 0.32, 0.035, 0.022, 1.6 );
 
 		}
 
@@ -656,7 +666,7 @@ ${ SOFFIT_WGSL }
 		for ( let i = 0; i < EL.length - 1; i ++ ) {
 
 			q.use( 'maroon' );
-			wide( q, [ EL[ i ][ 0 ], yG, EL[ i ][ 1 ] ], [ EL[ i + 1 ][ 0 ], yG, EL[ i + 1 ][ 1 ] ], up, GD, 0.32 );
+			wide( q, [ EL[ i ][ 0 ], yG, EL[ i ][ 1 ] ], [ EL[ i + 1 ][ 0 ], yG, EL[ i + 1 ][ 1 ] ], up, GD, 0.32, 0.035, 0.022, 1.6 );
 
 		}
 
@@ -771,8 +781,13 @@ ${ SOFFIT_WGSL }
 
 		const bowl = this.bowl, D = bowl.D, infield = bowl.path.slice( 2, 10 );
 		const line = ( P, d ) => offsetPolyline( P, d, [ 0, - 40 ] );
-		const d0 = D.suites + 2 * 0.95, d1 = d0 + 7, y = LEVELS.suites - 0.5;
-		const A = line( infield, d0 ), B = line( infield, d1 );
+		// (C2W-17, FW2: 6 cm under the bowl's own soffit there, which it z-fought into a pale blotched band
+		// along the overhang's edge over the SRO rail)
+		const d0 = D.suites + 2 * 0.95, d1 = d0 + 7, y = LEVELS.suites - 0.56;
+		// (C2W-17, FW2: and forward under the suites' outdoor rows to their front: their own underside, lit
+		// by the banks, showed as the pale mottled band over the rail)
+		const dF = D.suites + 0.05;
+		const A = line( infield, dF ), B = line( infield, d1 );
 		const panel = new Quads();
 		for ( let i = 0; i < A.length - 1; i ++ ) panel.add( [ A[ i ][ 0 ], y, A[ i ][ 1 ] ], [ B[ i ][ 0 ], y, B[ i ][ 1 ] ], [ B[ i + 1 ][ 0 ], y, B[ i + 1 ][ 1 ] ], [ A[ i + 1 ][ 0 ], y, A[ i + 1 ][ 1 ] ], [ 0, - 1, 0 ] );
 		const m = standard( { name: 'suite-soffit', color: new Color( 0.05, 0.05, 0.055 ), roughness: 0.6,
@@ -807,6 +822,29 @@ ${ SOFFIT_WGSL }
 
 		}
 
+		// ---- FW2 (C2W-17): its front edge one dark band, as in auds's photo from behind 125 (27 Oct 2008)
+		{
+
+			const Fr = line( infield, dF - 0.03 );
+			for ( let i = 0; i < Fr.length - 1; i ++ ) {
+
+				const [ ax, az ] = Fr[ i ], [ bx, bz ] = Fr[ i + 1 ];
+				let nx = - ( bz - az ), nz = bx - ax;
+				const l = Math.hypot( nx, nz ) || 1;
+				nx /= l; nz /= l;
+				if ( nx * ( - ax ) + nz * ( - 40 - az ) < 0 ) {
+
+					nx = - nx; nz = - nz;
+
+				}
+
+				q.use( 'black' );
+				q.add( [ ax, y - 0.34, az ], [ bx, y - 0.34, bz ], [ bx, y + 0.04, bz ], [ ax, y + 0.04, az ], [ nx, 0, nz ] );
+
+			}
+
+		}
+		// ---- end FW2
 		// the beam along its back edge
 		const E = line( infield, d1 - 0.2 );
 		for ( let i = 0; i < E.length - 1; i ++ ) {
@@ -911,7 +949,7 @@ ${ SOFFIT_WGSL }
 			q.add( [ ax, yW - 0.06, az ], [ ex, yW - 0.06, ez ], [ fx, yW - 0.06, fz ], [ bx, yW - 0.06, bz ], [ 0, - 1, 0 ] );
 			// the deep girder under its edge, a lighter one along the brick
 			q.use( 'maroon' );
-			wide( q, [ WG[ i ][ 0 ], yW - 0.4, WG[ i ][ 1 ] ], [ WG[ i + 1 ][ 0 ], yW - 0.4, WG[ i + 1 ][ 1 ] ], up, 0.8, 0.3 );
+			wide( q, [ WG[ i ][ 0 ], yW - 0.4, WG[ i ][ 1 ] ], [ WG[ i + 1 ][ 0 ], yW - 0.4, WG[ i + 1 ][ 1 ] ], up, 0.8, 0.3, 0.035, 0.022, 1.5 );
 			wide( q, [ WS[ i ][ 0 ], yW - 0.28, WS[ i ][ 1 ] ], [ WS[ i + 1 ][ 0 ], yW - 0.28, WS[ i + 1 ][ 1 ] ], up, 0.5, 0.2 );
 			{
 
@@ -981,7 +1019,7 @@ ${ SOFFIT_WGSL }
 				for ( const o of [ - W / 2 + 0.15, W / 2 - 0.15 ] ) {
 
 					const a2 = L( a, o ), b2 = L( b, o );
-					wide( q, [ a2[ 0 ], yW - 0.4, a2[ 1 ] ], [ b2[ 0 ], yW - 0.4, b2[ 1 ] ], up, 0.8, 0.3 );
+					wide( q, [ a2[ 0 ], yW - 0.4, a2[ 1 ] ], [ b2[ 0 ], yW - 0.4, b2[ 1 ] ], up, 0.8, 0.3, 0.035, 0.022, 1.5 );
 
 				}
 
