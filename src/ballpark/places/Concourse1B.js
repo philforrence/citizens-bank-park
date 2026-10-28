@@ -21,6 +21,7 @@ import { Scenes1B } from './concourse1b/Scenes.js';
 import { Tailgates } from './concourse1b/Tailgate.js';
 import { programKiosk, caricatureCorner, cartSigns, cartTop } from './concourse1b/Things.js';
 import { Tempo } from './Tempo.js'; // ---- H
+import { domeLights } from '../ConcourseSteel.js'; // ---- FI1
 
 // The main concourse on the first base side, behind home plate round to the right field corner (sections
 // 122 to 108), and the First Base Gate: the other half of the walkable ring, and the other way in. It was
@@ -651,6 +652,20 @@ export default class Concourse1B {
 
 	update( dt, director, camera ) {
 
+		// ---- FI1 (CI-1): the domes light the concourse for real, once the app has its local lights
+		if ( ! this._lit && this.app?.localLights ) {
+
+			this._lit = true;
+			domeLights( this.app, this.lamps.map( ( [ s, d ] ) => {
+
+				const w = this.W.at( s, d );
+				return [ w.x, STREET + 7.2, w.z ];
+
+			} ) );
+			this.concourse?.steel?.lightUp( this.app );
+
+		}
+		// ---- end FI1
 		const ns = nightState( director );
 		this.night = ns;
 		// on arriving (and after a jump in the replay) the concourse has been going a while

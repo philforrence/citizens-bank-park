@@ -6,6 +6,7 @@ import { canvasTexture, box, beam } from './geo.js';
 import { offsetPolyline } from './Bowl.js';
 import { LEVELS, fencePoint } from './layout.js';
 import { GATES } from './Exterior.js';
+import { ConcourseSteel } from './ConcourseSteel.js'; // ---- FI1
 
 // The main concourse round the infield, as the Phillies' guides had it in 2008 (the concessions guide as
 // archived on 6 October 2008, the 2007 Convenience Guide): along its outer side, just inside the columns
@@ -470,6 +471,9 @@ export class Concourse {
 		this._stands( bowl );
 		this._monitors( bowl );
 		this._sectionSigns();
+		// ---- FI1 (CI-1, CI-8): the steel overhead, the columns, the domes (ConcourseSteel.js)
+		this.steel = new ConcourseSteel( { group: this.group, bowl } );
+		// ---- end FI1
 
 	}
 

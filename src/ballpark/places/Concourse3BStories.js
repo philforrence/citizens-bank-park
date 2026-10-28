@@ -231,6 +231,7 @@ export class Stories {
 		}
 
 		this._updateFamily( dt, ns, bigMoment );
+		this._updateGallery( dt, ns ); // ---- FI1
 		this._updateEddie( dt, ns );
 		this._updateCouple( dt, ns );
 		// Stan's line: busier on the 27th
@@ -258,6 +259,72 @@ export class Stories {
 		}
 
 	}
+
+	// ---- FI1 (CI-3): up on the mezzanine over the Third Base Gate's atrium (ConcourseSteel's bridges): two
+	// ushers at the bridges' rails watching the crowd come in under them (hcwoodward, Game 5, 27 Oct 2008:
+	// ushers at the rail of the bridge with Pedro Feliz's banner on it), and fans at the walkway's rail
+	// along the brick looking down on the concourse. Not named: faces in the gallery
+	gallery( bridges ) {
+
+		this.up = [];
+		const W = this.W, y = LEVELS.suites;
+		const mine = ( bridges || [] ).filter( ( b ) => b.gate === 'THIRD BASE GATE' );
+		const usher = ( k ) => ( { top: TOP.usher, color: COLOR.red, sleeves: COLOR.red, hat: HAT.capRed, pants: 2, shoes: 1, age: k ? 1 : 0, hair: k ? 7 : 1, glasses: !! k, female: ! k, hairStyle: k ? 0 : 2, build: 2 } );
+		const fans = [
+			{ top: TOP.jacket, color: COLOR.red, hat: HAT.capRed, build: 2, pants: 0 },
+			{ top: TOP.hoodie, color: COLOR.navy, hat: HAT.knitRed, build: 1, female: true, hairStyle: 1, pants: 0 },
+			{ top: TOP.fleece, color: COLOR.red, hat: HAT.capRed, build: 3, facial: 1, pants: 2 },
+		];
+		const put = ( look, x, z, dir, k = 1 ) => {
+
+			const [ s, d ] = W.toSD( x, z );
+			const a = this._add( look, { s, d, scale: k } );
+			if ( ! a ) return null;
+			a.up = { x, z, yaw: Walkway.yaw( dir[ 0 ], dir[ 1 ] ), y, arms: railArms( k, 0.16 ) };
+			this.up.push( a );
+			return a;
+
+		};
+
+		mine.forEach( ( b, i ) => {
+
+			// on the side facing the gate's mouth, a step in from the rail
+			const side = b.side < 0 ? 1 : - 1, o = side * ( b.width / 2 - 0.5 );
+			const at = ( t ) => [ b.a[ 0 ] + ( b.b[ 0 ] - b.a[ 0 ] ) * t + b.u[ 0 ] * o, b.a[ 1 ] + ( b.b[ 1 ] - b.a[ 1 ] ) * t + b.u[ 1 ] * o ];
+			const dir = [ b.u[ 0 ] * side, b.u[ 1 ] * side ];
+			put( usher( i ), ...at( 0.62 ), dir );
+			const f = put( fans[ i ], ...at( 0.3 ), dir, 1.01 );
+			if ( f && i === 0 ) put( fans[ 2 ], ...at( 0.36 ), dir, 0.99 );
+
+		} );
+
+	}
+
+	_updateGallery( dt, ns ) {
+
+		const t = this.time;
+		for ( const g of this.up || [] ) {
+
+			const a = g.p.pose;
+			a.walk = 0; a.lean = 0.16; a.twist = 0; a.roll = 0; a.drop = 0; a.propL = 0; a.propR = 0;
+			a.armL = g.up.arms[ 0 ].slice(); a.armR = g.up.arms[ 1 ].slice();
+			// looking down at the crowd, now this way, now that
+			a.headPitch = 0.4;
+			a.headYaw = Math.sin( t * 0.21 + g.order * 11 ) * 0.5;
+			a.blink = ( t * 0.3 + g.order ) % 1 < 0.04 ? 1 : 0;
+			if ( ns.celebrate ) {
+
+				a.armL = [ 2.6, 0.3, 0, 0.5 ]; a.armR = [ 2.6, 0.3, 0, 0.5 ]; a.lean = 0; a.headPitch = 0;
+
+			}
+
+			g.p.x = g.up.x; g.p.z = g.up.z; g.p.y = g.up.y;
+			g.p.yaw = g.up.yaw;
+
+		}
+
+	}
+	// ---- end FI1
 
 	// a direction in ( s, d ) as a world one
 	_dir( a, vs, vd ) {

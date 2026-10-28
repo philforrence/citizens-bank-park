@@ -516,27 +516,37 @@ export function seatGeometry( down = false ) {
 
 }
 
-// A deck's underside, for a surface shader (world position in.P): light grey ribbed steel deck, dark red
-// girders every 9 m and joists every 3 m across them, strip lights down the middle of each joist bay; a
-// lift for the light bounced up off the floor and the field, so a ceiling is never a black void
+// ---- FI1 (CI-1): the soffit as the 2008 photos show it (harpo42, May 2008, 129-130 by day: galvanized
+// corrugated deck on maroon steel; auds, 27 Oct 2008, behind 125 and over Brewerytown at night: the deck
+// dark, lit only near the HID domes). It was a pale self-lit office ceiling with a grid of strip lamps,
+// brightest at night. Now: no lamps and no glow of its own (the domes are real lights, Concourse.js and
+// LocalLights), just a little light bounced up off the floor after dark; the steel under the concourse
+// decks is geometry (ConcourseSteel.js), so here only the deck's ribs and the faint lines of the joists it
+// sits on, for the decks seen from afar.
+// A deck's underside, for a surface shader (world position in.P): galvanized ribbed steel deck, mottled,
+// the joists' lines every 3 m
 export const SOFFIT_WGSL = /* wgsl */`
 	{
 		let sq = in.P.xz;
 		let sfw = fwidth( sq.x ) + fwidth( sq.y ) + 0.001;
-		let gx = abs( fract( sq.x / 9.0 ) - 0.5 ) * 9.0;
-		let jz = abs( fract( sq.y / 3.0 ) - 0.5 ) * 3.0;
-		let rib = 0.82 + 0.18 * smoothstep( 0.18, 0.3, abs( fract( sq.y / 0.3 ) - 0.5 ) );
-		var sc = vec3f( 0.44, 0.42, 0.38 ) * mix( rib, 0.91, clamp( sfw * 6.0, 0.0, 1.0 ) );
-		if ( jz < 0.08 ) { sc = vec3f( 0.13, 0.04, 0.035 ); }
-		if ( gx < 0.2 ) { sc = vec3f( 0.1, 0.028, 0.024 ); }
-		let lx = abs( fract( sq.x / 4.5 + 0.25 ) - 0.5 ) * 4.5;
-		let lamp = ( 1.0 - smoothstep( 0.55, 0.62, lx ) ) * ( 1.0 - smoothstep( 0.05, 0.08, abs( jz - 1.5 ) ) ) * ( 1.0 - clamp( sfw * 3.0 - 0.5, 0.0, 0.8 ) );
+		let far = clamp( sfw * 6.0, 0.0, 1.0 );
+		// the ribs every 0.3 m: lit crests, darker troughs, their mean far off
+		let rib = 0.74 + 0.26 * smoothstep( 0.16, 0.3, abs( fract( sq.y / 0.3 ) - 0.5 ) );
+		// the galvanizing's spangle and streaks, sheet by sheet (0.9 m by 6 m)
+		let sh = fract( sin( dot( floor( sq / vec2f( 6.0, 0.9 ) ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+		var sc = vec3f( 0.27, 0.272, 0.268 ) * ( 0.84 + 0.16 * sh ) * mix( rib, 0.87, far );
+		// where the deck sits on a joist, a dark line (far off only a hint)
+		let jz = abs( fract( sq.x / 3.0 ) - 0.5 ) * 3.0;
+		sc *= 1.0 - 0.45 * ( 1.0 - smoothstep( 0.05, 0.1, jz ) ) * ( 1.0 - far * 0.7 );
 		let snk = smoothstep( 0.1, 0.7, frame.night );
 		s.albedo = sc;
-		s.roughness = 0.6;
-		s.emissive = sc * mix( 0.35, 0.18, snk ) + vec3f( 0.95, 0.97, 1.0 ) * lamp * mix( 2.0, 4.5, snk ) + vec3f( 0.9, 0.92, 1.0 ) * 0.02 * snk;
+		s.roughness = 0.5;
+		s.metalness = 0.25;
+		// what the floor bounces up: daylight off the concourse by day, the domes' light after dark
+		s.emissive = sc * mix( 0.13, 0.05, snk );
 	}
 `;
+// ---- end FI1
 
 export function standsMaterials() {
 
