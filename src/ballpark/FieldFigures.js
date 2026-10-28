@@ -225,9 +225,29 @@ function figureGeometry( pose ) {
 		}
 
 		const f = fwd;
-		const brim = [ [ - 0.078, 0.055, - 0.05 ], [ 0.078, 0.055, - 0.05 ], [ 0.07, 0.04, - 0.165 ], [ - 0.07, 0.04, - 0.165 ] ].map( ( o ) => vert( add( hc, o ), [ 0, 1, 0 ], PART.brim ) );
-		index.push( brim[ 0 ], brim[ 2 ], brim[ 1 ], brim[ 0 ], brim[ 3 ], brim[ 2 ] );
+		// (FP1, CP-1) the bill out of the crown's lower edge just above the brows, not its middle; arched,
+		// its sides lower, and an underside
+		const BR = [ [ - 0.074, 0.034, - 0.068 ], [ 0, 0.043, - 0.096 ], [ 0.074, 0.034, - 0.068 ], [ 0.066, 0.028, - 0.158 ], [ 0, 0.033, - 0.172 ], [ - 0.066, 0.028, - 0.158 ] ];
+		for ( const dy of [ 0, - 0.006 ] ) {
+
+			const b = BR.map( ( o ) => vert( add( hc, [ o[ 0 ], o[ 1 ] + dy, o[ 2 ] ] ), [ 0, dy ? - 1 : 1, - 0.1 ], PART.brim ) );
+			index.push( b[ 0 ], b[ 1 ], b[ 5 ], b[ 1 ], b[ 4 ], b[ 5 ], b[ 1 ], b[ 2 ], b[ 4 ], b[ 2 ], b[ 3 ], b[ 4 ] );
+
+		}
+
 		void f;
+
+	}
+
+	// (FP1) every triangle wound to face the way its vertices' normals do: the engine's front face is
+	// counter-clockwise and the material double sided, so the tubes, wound the other way, were lit inside out
+	for ( let i = 0; i < index.length; i += 3 ) {
+
+		const P3 = ( k ) => [ pos[ index[ i + k ] * 3 ], pos[ index[ i + k ] * 3 + 1 ], pos[ index[ i + k ] * 3 + 2 ] ];
+		const N3 = ( k ) => [ nrm[ index[ i + k ] * 3 ], nrm[ index[ i + k ] * 3 + 1 ], nrm[ index[ i + k ] * 3 + 2 ] ];
+		const fn = cross( sub( P3( 1 ), P3( 0 ) ), sub( P3( 2 ), P3( 0 ) ) );
+		const vn = add( add( N3( 0 ), N3( 1 ) ), N3( 2 ) );
+		if ( fn[ 0 ] * vn[ 0 ] + fn[ 1 ] * vn[ 1 ] + fn[ 2 ] * vn[ 2 ] < 0 ) [ index[ i + 1 ], index[ i + 2 ] ] = [ index[ i + 2 ], index[ i + 1 ] ];
 
 	}
 
@@ -335,7 +355,8 @@ function figureMaterial() {
 		c = skin; rough = 0.6;
 		// hair on the back and top, then the cap, the helmet or the hood over it
 		if ( hd.y > 0.02 ) { c = hair; rough = 0.7; }
-		if ( capped && hd.y > 0.03 ) { c = capC; }
+		// (FP1: the cap down to its band, just above the brows, the tops of the ears, low behind)
+		if ( capped && hd.y > 0.105 * ( 0.18 + 0.225 * ( - hd.z / max( length( hd.xz ), 0.001 ) ) ) ) { c = capC; }
 		if ( helmet && hd.y > -0.02 ) { c = red; rough = 0.2; }
 		if ( hood ) { c = top; rough = 0.5; }
 		// his face where the hood leaves it open
@@ -346,6 +367,8 @@ function figureMaterial() {
 	}
 	if ( part == 4 ) {
 		c = capC;
+		// (its underside in shade)
+		if ( in.N.y < - 0.25 ) { c = mix( c * 0.5, vec3f( 0.06, 0.07, 0.06 ), 0.45 ); }
 		// no brim on a helmet (it has its own) or a hood; tuck it away in the cap's colour
 		if ( hood || ! capped ) { c = select( hair, top, hood ); }
 	}

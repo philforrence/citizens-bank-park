@@ -456,11 +456,15 @@ function buildPose( pose, gear, point, { body = true } = {} ) {
 	tube( neck, add( neck, [ 0, 0.08, 0 ] ), [ 0.056, 0.052 ], [ 0.05, 0.048 ], PART.skin, 6 );
 	blob( hc, [ 0.083, 0.105, 0.1 ], PART.head, 10, 7 );
 	tube( add( hc, [ 0, 0.005, - 0.09 ] ), add( hc, [ 0, - 0.02, - 0.118 ] ), [ 0.014, 0.012 ], [ 0.01, 0.008 ], PART.skin, 4, false, true );
-	const brim = [ [ - 0.08, 0.055, - 0.05 ], [ 0.08, 0.055, - 0.05 ], [ 0.072, 0.038, - 0.168 ], [ - 0.072, 0.038, - 0.168 ] ].map( ( o ) => vert( add( hc, o ), [ 0, 1, 0 ], PART.brim ) );
-	index.push( brim[ 0 ], brim[ 2 ], brim[ 1 ], brim[ 0 ], brim[ 3 ], brim[ 2 ] );
-	// (under the brim too, so it has a dark underside from below)
-	const under = [ [ - 0.08, 0.053, - 0.05 ], [ 0.08, 0.053, - 0.05 ], [ 0.072, 0.036, - 0.168 ], [ - 0.072, 0.036, - 0.168 ] ].map( ( o ) => vert( add( hc, o ), [ 0, - 1, 0 ], PART.brim ) );
-	index.push( under[ 0 ], under[ 1 ], under[ 2 ], under[ 0 ], under[ 2 ], under[ 3 ] );
+	// (FP1, CP-1) the bill out of the crown's lower edge just above the brows (it came out of the cap's
+	// middle), arched, its sides lower; under it too, so it has a shaded underside from below
+	const BR = [ [ - 0.075, 0.034, - 0.07 ], [ 0, 0.043, - 0.099 ], [ 0.075, 0.034, - 0.07 ], [ 0.067, 0.028, - 0.162 ], [ 0, 0.033, - 0.176 ], [ - 0.067, 0.028, - 0.162 ] ];
+	for ( const dy of [ 0, - 0.006 ] ) {
+
+		const b = BR.map( ( o ) => vert( add( hc, [ o[ 0 ], o[ 1 ] + dy, o[ 2 ] ] ), [ 0, dy ? - 1 : 1, - 0.1 ], PART.brim ) );
+		index.push( b[ 0 ], b[ 1 ], b[ 5 ], b[ 1 ], b[ 4 ], b[ 5 ], b[ 1 ], b[ 2 ], b[ 4 ], b[ 2 ], b[ 3 ], b[ 4 ] );
+
+	}
 	tube( add( hc, [ 0, 0.02, 0.085 ] ), add( hc, [ 0, - 0.15, 0.13 ] ), [ 0.03, 0.025 ], [ 0.018, 0.015 ], PART.hair, 5, false, true );
 	for ( const g of gear ) if ( GEAR[ g ]?.head ) GEAR[ g ].build( { J: G, hc, tube, box, blob } );
 	headMode = 0;
@@ -705,6 +709,19 @@ export function kindGeometry( key ) {
 
 	}
 
+	// (FP1) every triangle wound to face the way its vertices' normals do: the engine's front face is
+	// counter-clockwise and the material double sided, so the tubes, wound the other way, were lit inside out
+	const index = a.index;
+	for ( let i = 0; i < index.length; i += 3 ) {
+
+		const P3 = ( k ) => [ a.pos[ index[ i + k ] * 3 ], a.pos[ index[ i + k ] * 3 + 1 ], a.pos[ index[ i + k ] * 3 + 2 ] ];
+		const N3 = ( k ) => [ a.nrm[ index[ i + k ] * 3 ], a.nrm[ index[ i + k ] * 3 + 1 ], a.nrm[ index[ i + k ] * 3 + 2 ] ];
+		const fn = cross( sub( P3( 1 ), P3( 0 ) ), sub( P3( 2 ), P3( 0 ) ) );
+		const vn = add( add( N3( 0 ), N3( 1 ) ), N3( 2 ) );
+		if ( fn[ 0 ] * vn[ 0 ] + fn[ 1 ] * vn[ 1 ] + fn[ 2 ] * vn[ 2 ] < 0 ) [ index[ i + 1 ], index[ i + 2 ] ] = [ index[ i + 2 ], index[ i + 1 ] ];
+
+	}
+
 	const g = new BufferGeometry();
 	g.setAttribute( 'position', new Float32BufferAttribute( a.pos, 3 ) );
 	g.setAttribute( 'normal', new Float32BufferAttribute( a.nrm, 3 ) );
@@ -893,7 +910,8 @@ function railMaterial() {
 		if ( hd.y > 0.02 - 0.07 * smoothstep( -0.02, 0.07, hd.z ) && ! bald ) { c = hair; rough = 0.7; }
 		// a beard on some of the men of the press and the crew
 		if ( ( o == 0 || o == 6 || o == 2 ) && h.y > 0.72 && hd.y < -0.03 && hd.z < 0.02 && ! ( hd.z < -0.08 && abs( hd.x ) < 0.022 && abs( hd.y + 0.05 ) < 0.006 ) ) { c = mix( c, hair, 0.85 ); }
-		if ( capped && hd.y > 0.03 ) { c = capC; rough = 0.8; }
+		// (FP1: the cap down to its band, just above the brows, the tops of the ears, low behind)
+		if ( capped && hd.y > 0.105 * ( 0.18 + 0.225 * ( - hd.z / max( length( hd.xz ), 0.001 ) ) ) ) { c = capC; rough = 0.8; }
 		if ( beanie && hd.y > 0.0 ) { c = select( vec3f( 0.02 ), select( red, navy, h.x > 0.5 ), h.y > 0.3 ); rough = 0.95; }
 		if ( helmet && hd.y > -0.02 ) { c = capC; rough = 0.2; }
 		// a police cap's black peak band
@@ -909,6 +927,8 @@ function railMaterial() {
 	}
 	if ( part == 4 ) {
 		c = capC;
+		// (FP1: its underside in shade, not black)
+		if ( in.N.y < - 0.25 ) { c = mix( c * 0.5, vec3f( 0.06, 0.07, 0.06 ), 0.45 ); }
 		if ( ! capped && ! helmet ) { c = select( hair, torso, hood ); }
 		if ( beanie ) { c = select( vec3f( 0.02 ), select( red, navy, h.x > 0.5 ), h.y > 0.3 ); }
 		if ( o == 9 ) { c = vec3f( 0.01 ); rough = 0.2; }
