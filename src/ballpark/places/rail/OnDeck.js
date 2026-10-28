@@ -6,6 +6,8 @@ import { mlbLogo } from '../../Details2008.js';
 import { ON_DECK, boxFor } from '../../game/Plays.js';
 import { RAIL, FLAG } from './RailFigures.js';
 import { rnd, put } from './Props.js';
+import * as Mo from '../../game/Motions.js';
+import { ROLE } from '../../game/Players.js';
 
 // The on-deck circles and the bat boys.
 //
@@ -21,6 +23,12 @@ import { rnd, put } from './Props.js';
 //   Kevin, the Phillies' bat boy, 19, from Drexel Hill, his third season (he was 13 when the park opened);
 //   Danny, a Philly kid in a Rays uniform: the visitors' bat boys are the home club's, and he's trying
 //   hard not to smile when the Phillies score.
+//
+// ---- FR2 (gauntlet r3): the bat boys are on the players' rig now (Director.extras: posed with everyone
+// else on the field, each frame, from the replay's time), in the club's uniform and a batting helmet, with
+// their own looks (Looks.js batboy, batboyAway). On the rail's low-poly figures, standing at the dugout's
+// end in every walk-up close-up from the low cameras, they were the crudest people on TV, and half see-
+// through as they came and went. The rail's figures for them stay built, hidden.
 
 const R = 0.76;
 
@@ -57,8 +65,120 @@ export class OnDeck {
 		}
 
 		this.fetches = null;
+		this._hooked = null;
 
 	}
+
+	// ---- FR2: the bat boys on the rig, at the replay's time t (Director.extras: pose() calls this before it
+	// syncs the rig, live and for a replay alike). In the dugout through the rain delay and from the last
+	// out (the rail's own figures were out there through both)
+	_actBoys( d, t ) {
+
+		if ( ! this.fetches ) this._plan( d );
+		const seg = d.segmentAt( t );
+		if ( seg === d.suspension || seg.kind === 'celebrate' || seg.kind === 'intro' || d.champsAt?.( t ) ) return;
+		for ( const team of [ 'home', 'away' ] ) {
+
+			const B = this.boys[ team ];
+			const id = 'r:batboy-' + team;
+			const extra = { who: { side: team, num: '', last: '', look: team === 'home' ? 'batboy' : 'batboyAway' }, role: ROLE.helmet };
+			const { spot, face } = B;
+			const seed = team === 'home' ? 0.31 : 0.12;
+			// (the trip under way: one that's begun, the last one's return finished first)
+			let F = null;
+			for ( const f of this.fetches ) {
+
+				if ( f.team !== team || t < f.t0 || t >= f.t0 + 14 ) continue;
+				const n = this._near( f, spot ), L = Math.hypot( n[ 0 ] - spot[ 0 ], n[ 1 ] - spot[ 1 ] );
+				if ( ! F || t - f.t0 >= 0 && t - F.t0 >= L / 3.8 + 1.3 + L / 3.3 ) F = f;
+
+			}
+
+			let x = spot[ 0 ], z = spot[ 1 ], yaw = face, pose = null;
+			if ( F ) {
+
+				const near = this._near( F, spot );
+				const dist = Math.hypot( near[ 0 ] - spot[ 0 ], near[ 1 ] - spot[ 1 ] );
+				const T1 = dist / 3.8, T2 = 1.3, T3 = dist / 3.3;
+				const tau = t - F.t0;
+				const yawOut = Math.atan2( - ( near[ 0 ] - spot[ 0 ] ), - ( near[ 1 ] - spot[ 1 ] ) ), yawBack = yawOut + Math.PI;
+				if ( tau >= 0 && tau < T1 ) {
+
+					const k = tau / T1;
+					x = spot[ 0 ] + ( near[ 0 ] - spot[ 0 ] ) * k; z = spot[ 1 ] + ( near[ 1 ] - spot[ 1 ] ) * k; yaw = yawOut;
+					pose = Mo.run( dist * k / 2.4 + seed, 0.55 );
+
+				} else if ( tau >= T1 && tau < T1 + T2 ) {
+
+					// down for it and up with it
+					const k = ( tau - T1 ) / T2, b = Math.sin( Math.PI * Math.min( 1, k * 1.1 ) );
+					x = near[ 0 ]; z = near[ 1 ]; yaw = yawOut;
+					pose = Mo.blend( Mo.stand( t ), Mo.fieldGrounder( 0 ), b );
+					if ( k > 0.5 ) pose.bat = { dir: [ 0.15, 0.2 - 0.9 * b, - 0.95 ] };
+
+				} else if ( tau >= T1 + T2 && tau < T1 + T2 + T3 ) {
+
+					const k = ( tau - T1 - T2 ) / T3;
+					x = near[ 0 ] + ( spot[ 0 ] - near[ 0 ] ) * k; z = near[ 1 ] + ( spot[ 1 ] - near[ 1 ] ) * k; yaw = yawBack;
+					pose = Mo.run( dist * k / 2.3 + seed + 0.5, 0.5 );
+					pose.bat = { dir: [ 0.25, 0.9, 0.3 ] };
+
+				}
+
+			}
+
+			// the Phillies' boy's ball runs to the plate umpire
+			if ( team === 'home' && ! F ) {
+
+				const Rn = this.runs.find( ( r ) => t >= r.t0 && t < r.t0 + 12 );
+				if ( Rn ) {
+
+					const to = [ 1.25, 2.35 ];
+					const dist = Math.hypot( to[ 0 ] - spot[ 0 ], to[ 1 ] - spot[ 1 ] );
+					const T1 = dist / 3.8, T2 = 1.4, T3 = dist / 3.4, tau = t - Rn.t0;
+					const out = Math.atan2( - ( to[ 0 ] - spot[ 0 ] ), - ( to[ 1 ] - spot[ 1 ] ) );
+					if ( tau < T1 ) {
+
+						const k = tau / T1;
+						x = spot[ 0 ] + ( to[ 0 ] - spot[ 0 ] ) * k; z = spot[ 1 ] + ( to[ 1 ] - spot[ 1 ] ) * k; yaw = out;
+						pose = Mo.run( dist * k / 2.4 + seed, 0.5 );
+
+					} else if ( tau < T1 + T2 ) {
+
+						// the umpire's to his left: he holds them out, the ump takes them
+						x = to[ 0 ]; z = to[ 1 ];
+						yaw = Math.atan2( - ( 0.35 - to[ 0 ] ), - ( 2.05 - to[ 1 ] ) );
+						pose = Mo.handOut( t, Math.sin( Math.PI * Math.min( 1, ( tau - T1 ) / T2 * 1.2 ) ) );
+
+					} else if ( tau < T1 + T2 + T3 ) {
+
+						const k = ( tau - T1 - T2 ) / T3;
+						x = to[ 0 ] + ( spot[ 0 ] - to[ 0 ] ) * k; z = to[ 1 ] + ( spot[ 1 ] - to[ 1 ] ) * k; yaw = out + Math.PI;
+						pose = Mo.run( dist * k / 2.3 + seed, 0.45 );
+
+					}
+
+				}
+
+			}
+
+			// idle at the dugout's end, watching the plate, now and then shifting his weight
+			if ( ! pose ) pose = Mo.stand( t * 0.8 + seed * 20 );
+			pose.glove = false;
+			d.act( id, x, z, yaw, pose, extra );
+
+		}
+
+	}
+
+	// where he picks the bat up: just short of it, on his way
+	_near( F, spot ) {
+
+		const l = Math.hypot( spot[ 0 ] - F.at[ 0 ], spot[ 1 ] - F.at[ 1 ] );
+		return [ F.at[ 0 ] + ( spot[ 0 ] - F.at[ 0 ] ) * 0.55 / l, F.at[ 1 ] + ( spot[ 1 ] - F.at[ 1 ] ) * 0.55 / l ];
+
+	}
+	// ---- end FR2
 
 	// the mats and the on-deck hitters' things
 	_mats( group, M ) {
@@ -178,119 +298,39 @@ export class OnDeck {
 
 	}
 
-	// the ball run: out to the plate umpire, the balls handed over, back
-	_run( B, R, t, dt ) {
-
-		const { walk, hand, spot } = B;
-		const to = [ 1.25, 2.35 ];
-		const dist = Math.hypot( to[ 0 ] - spot[ 0 ], to[ 1 ] - spot[ 1 ] );
-		const T1 = dist / 3.8, T2 = 1.4, T3 = dist / 3.4;
-		const tau = t - R.t0;
-		const out = Math.atan2( - ( to[ 0 ] - spot[ 0 ] ), - ( to[ 1 ] - spot[ 1 ] ) );
-		const walkTo = ( k, a, b, yaw, rate ) => {
-
-			walk.x = a[ 0 ] + ( b[ 0 ] - a[ 0 ] ) * k;
-			walk.z = a[ 1 ] + ( b[ 1 ] - a[ 1 ] ) * k;
-			walk.yaw = yaw;
-			B.phase += dt * rate;
-			walk.morph = Math.sin( B.phase ) * 1.2;
-			walk.y = Math.abs( Math.cos( B.phase ) ) * 0.045;
-
-		};
-
-		if ( tau < T1 ) walkTo( tau / T1, spot, to, out, 11 );
-		else if ( tau < T1 + T2 ) {
-
-			// the umpire's to his left: he holds them out, the ump takes them
-			walk.shown = false;
-			hand.shown = true;
-			hand.x = to[ 0 ]; hand.z = to[ 1 ];
-			hand.yaw = Math.atan2( - ( 0.35 - to[ 0 ] ), - ( 2.05 - to[ 1 ] ) );
-			const k = ( tau - T1 ) / T2;
-			hand.morph = Math.sin( Math.PI * Math.min( 1, k * 1.2 ) );
-			hand.flags = k > 0.55 ? FLAG.noBall : 0;
-
-		} else if ( tau < T1 + T2 + T3 ) walkTo( ( tau - T1 - T2 ) / T3, to, spot, out + Math.PI, 10 );
-
-	}
-
 	update( S, dt, director ) {
 
 		if ( ! this.fetches ) this._plan( director );
+		// ---- FR2: the boys are the Director's (on the rig): hook in once; the rail's figures stay hidden
+		if ( director && this._hooked !== director ) {
+
+			( director.extras ||= [] ).push( ( d, seg, lt, t ) => this._actBoys( d, t ) );
+			this._hooked = director;
+
+		}
+
+		// ---- end FR2
 		this.matMat.uniforms.mud.value = S.first ? 0.35 + 0.65 * S.progress : 0.08;
 		const t = S.t;
 		for ( const team of [ 'home', 'away' ] ) {
 
 			const B = this.boys[ team ];
-			// the trip under way (or the bat lying there waiting for him)
+			const { walk, bend, hand, spot, bat } = B;
+			walk.shown = bend.shown = hand.shown = false;
+			// the bat he goes for, on the ground by the plate until he has it
 			let F = null;
 			for ( const f of this.fetches ) if ( f.team === team && t >= f.drop && t < f.t0 + 14 ) F = f;
-			const { walk, bend, hand, spot, face, bat } = B;
-			walk.shown = true;
-			bend.shown = false;
-			hand.shown = false;
-			walk.flags = FLAG.noGear;
-			walk.x = spot[ 0 ]; walk.z = spot[ 1 ]; walk.y = 0; walk.yaw = face; walk.morph = 0;
-			// idle, he watches the plate: his head follows the hitter
-			walk.look[ 0 ] = 0;
 			bat.visible = false;
 			if ( F ) {
 
-				const near = [ F.at[ 0 ] + ( spot[ 0 ] - F.at[ 0 ] ) * 0.55 / Math.hypot( spot[ 0 ] - F.at[ 0 ], spot[ 1 ] - F.at[ 1 ] ), F.at[ 1 ] + ( spot[ 1 ] - F.at[ 1 ] ) * 0.55 / Math.hypot( spot[ 0 ] - F.at[ 0 ], spot[ 1 ] - F.at[ 1 ] ) ];
-				const dist = Math.hypot( near[ 0 ] - spot[ 0 ], near[ 1 ] - spot[ 1 ] );
-				const T1 = dist / 3.8, T2 = 1.3, T3 = dist / 3.3;
+				const near = this._near( F, spot );
+				const T1 = Math.hypot( near[ 0 ] - spot[ 0 ], near[ 1 ] - spot[ 1 ] ) / 3.8, T2 = 1.3;
 				const tau = t - F.t0;
-				const out = [ - ( near[ 0 ] - spot[ 0 ] ), - ( near[ 1 ] - spot[ 1 ] ) ];
-				const yawOut = Math.atan2( out[ 0 ], out[ 1 ] ), yawBack = yawOut + Math.PI;
-				// the bat on the ground until he has it
 				bat.visible = tau < T1 + T2 * 0.5;
 				bat.position.set( F.at[ 0 ], 0.032, F.at[ 1 ] );
 				bat.rotation.set( 0, F.yaw, Math.PI / 2, 'YXZ' );
-				if ( tau >= 0 && tau < T1 ) {
-
-					const k = tau / T1;
-					walk.x = spot[ 0 ] + ( near[ 0 ] - spot[ 0 ] ) * k;
-					walk.z = spot[ 1 ] + ( near[ 1 ] - spot[ 1 ] ) * k;
-					walk.yaw = yawOut;
-					B.phase += dt * 11;
-					walk.morph = Math.sin( B.phase ) * 1.25;
-					walk.y = Math.abs( Math.cos( B.phase ) ) * 0.05;
-
-				} else if ( tau >= T1 && tau < T1 + T2 ) {
-
-					// down for it and up with it
-					walk.shown = false;
-					bend.shown = true;
-					bend.x = near[ 0 ]; bend.z = near[ 1 ]; bend.yaw = yawOut;
-					const k = ( tau - T1 ) / T2;
-					bend.morph = Math.sin( Math.PI * Math.min( 1, k * 1.1 ) );
-					bend.flags = k < 0.5 ? FLAG.noGear : 0;
-
-				} else if ( tau >= T1 + T2 && tau < T1 + T2 + T3 ) {
-
-					const k = ( tau - T1 - T2 ) / T3;
-					walk.x = near[ 0 ] + ( spot[ 0 ] - near[ 0 ] ) * k;
-					walk.z = near[ 1 ] + ( spot[ 1 ] - near[ 1 ] ) * k;
-					walk.yaw = yawBack;
-					walk.flags = 0;
-					B.phase += dt * 10;
-					walk.morph = Math.sin( B.phase ) * 1.1;
-					walk.y = Math.abs( Math.cos( B.phase ) ) * 0.04;
-
-				}
 
 			}
-
-			// the Phillies' boy's ball runs to the plate umpire
-			if ( team === 'home' && ! F ) {
-
-				const Rn = this.runs.find( ( r ) => t >= r.t0 && t < r.t0 + 10 );
-				if ( Rn ) this._run( B, Rn, t, dt );
-
-			}
-
-			// wet on the 27th (he's out in it)
-			walk.wet = bend.wet = hand.wet = S.first ? S.rain * 0.7 : 0;
 
 		}
 
