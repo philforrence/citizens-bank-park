@@ -598,7 +598,8 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 				let sh = vec3f( sx * ${ f( J.shoulderR[ 0 ] ) }, ${ f( J.shoulderR[ 1 ] ) }, ${ f( J.shoulderR[ 2 ] ) } );
 				let ab = normalize( vec3f( sx * ${ f( J.elbowR[ 0 ] - J.shoulderR[ 0 ] ) }, ${ f( J.elbowR[ 1 ] - J.shoulderR[ 1 ] ) }, ${ f( J.elbowR[ 2 ] - J.shoulderR[ 2 ] ) } ) );
 				let dv = lp3 - sh;
-				lp3 -= ( dv - ab * dot( dv, ab ) ) * 0.14 * ( 1.0 - smoothstep( 0.05, 0.15, arm ) );
+				// (FY3: 0.14 -> 0.2: from the high cameras the cap of the shoulder still read as a pad)
+				lp3 -= ( dv - ab * dot( dv, ab ) ) * 0.2 * ( 1.0 - smoothstep( 0.05, 0.15, arm ) );
 			}
 			if ( leg > -0.5 && leg < 0.16 ) {
 				let w = smoothstep( -0.2, -0.7, v.normal.x * sx ) * ( 1.0 - smoothstep( 0.02, 0.16, leg ) );
