@@ -1475,6 +1475,13 @@ export class BallparkApp {
 
 		const P = this.players, m = P?.mesh;
 		if ( ! m || ! m.parent ) return;
+		// ---- SP2 (speed): the far players' figure for those small on screen (Players.lodSplit); its draw
+		// shares the near one's bounds
+		// (`_noPlayerLod`: everyone near, for an A/B)
+		if ( P.lodSplit && ! this._noPlayerLod ) P.lodSplit( this.camera, this.engine.canvas.height || 800 );
+		else if ( P.far ) P.far.count = 0;
+		const f = P.far;
+		// ---- end SP2
 		const b = m.occlusionBox || ( m.occlusionBox = new Box3() );
 		b.makeEmpty();
 		const v = this._pv || ( this._pv = new Vector3() );
@@ -1483,6 +1490,7 @@ export class BallparkApp {
 
 			m.frustumCulled = false;
 			m.occlusionBox = null;
+			if ( f ) { f.frustumCulled = false; f.occlusionBox = null; } // ---- SP2
 			return;
 
 		}
@@ -1492,6 +1500,7 @@ export class BallparkApp {
 		b.max.x += 2.5; b.max.z += 2.5; b.max.y += 3.2;
 		b.getBoundingSphere( m.boundingSphere || ( m.boundingSphere = new Sphere() ) );
 		m.frustumCulled = true;
+		if ( f ) { f.frustumCulled = true; f.occlusionBox = b; f.boundingSphere = m.boundingSphere; } // ---- SP2
 
 	}
 	// ---- end SP1
