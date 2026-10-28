@@ -16,6 +16,8 @@ import { Fair } from './alley/Fair.js';
 import { MemoryLane } from './alley/MemoryLane.js';
 import { allStarWalk } from './alley/AllStarWalk.js';
 import { Tempo } from './Tempo.js'; // ---- H
+import { StandSounds } from './Concourse3BSounds.js'; // ---- FW3 (C2W-15)
+import { nightState } from './Concourse3BPeople.js'; // ---- FW3
 
 // Ashburn Alley and the bullpens on the World Series nights, October 27 and 29, 2008: the park's living
 // room. The promenade behind center field (its bricks and the All-Star Walk in them, the Wall of Fame,
@@ -344,6 +346,20 @@ export default class AshburnAlley2008 {
 
 		}
 
+		// ---- FW3 (C2W-15): the Alley's sounds (Concourse3BSounds.js): Bull's pit hissing, the registers at
+		// the counters, the murmur, the knots at the TVs; heard while you're in the Alley
+		{
+
+			const cam = camera || this.app?.camera;
+			const cf = cam ? this.field.toField( cam.position.x, cam.position.z ) : null;
+			const camY = cam ? cam.position.y - this.field.y0 : 0;
+			const counters = ( this.app?.landmarks?.alleyStands || [] ).map( ( s ) => [ s.mid[ 0 ], s.mid[ 1 ] + 1.0 ] );
+			this.sounds ||= new StandSounds( this, 'aly' );
+			this.sounds.update( dt, nightState( director ), cf, { grills: [ [ - 71.5, - 140 ] ], counters, busy: 0.9,
+				inside: cf && camY < 14 && cf[ 0 ] > X0 - 10 && cf[ 0 ] < X1 + 10 && cf[ 1 ] < - 120 && cf[ 1 ] > - 160 } );
+
+		}
+		// ---- end FW3
 		// ---- H: while none of its people are seen, they're moved every 4th frame by that much time
 		// (Tempo.js); the pens' warm-ups (the players' rig) every frame
 		const T = this._tempo ||= new Tempo( [ this.folk?.cast ] );

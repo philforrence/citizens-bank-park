@@ -152,7 +152,7 @@ function materials() {
 
 // the tents into `group` (field frame); colliders (the walker), field (to the world). Returns their
 // lamps ( field [ x, y, z ] ) for the local lights
-export function buildTents( { group, colliders = null, field = null } ) {
+export function buildTents( { group, colliders = null, field = null, cast = null } ) { // ---- FW3: cast (C2I-4)
 
 	const M = materials();
 	const roof = new Mesher(), wall = new Mesher(), fr = new Mesher(), kit = new Mesher();
@@ -272,6 +272,58 @@ export function buildTents( { group, colliders = null, field = null } ) {
 			lamps.push( l );
 
 		}
+
+		// ---- FW3 (C2I-4): the people in them (the plaza's Cast: gate3b/Cast.js's acts). In the shops (Getty
+		// 83433586, Game 3: shoulder to shoulder at the racks under the tent roof) a clerk ringing up at the till
+		// and one at the racks in the store's red, a buyer at the till, fans going through the jackets; in the
+		// hospitality tents a bartender, the guests in knots round the tables with their drinks
+		if ( cast ) {
+
+			const at = ( a, b ) => {
+
+				const p = P( a, 0, b );
+				return [ p[ 0 ], p[ 2 ] ];
+
+			};
+			const lift = y0 - STREET - 0.15; // the Cast stands on the plaza's paving (its LIFT)
+			const till = at( 0, back * ( hw - 0.45 ) ), front = at( 0, back * ( hw - 1.7 ) );
+			if ( T.kind === 'shop' ) {
+
+				cast.add( { at: till, face: front, act: 'sell', who: 'store', y: lift } );
+				cast.add( { at: front, face: till, act: 'buy', y: lift, noRainGear: true } );
+				cast.add( { at: at( hl * 0.55, back * ( hw - 0.6 ) ), face: at( hl * 0.55, 0 ), act: 'stand', who: 'store', y: lift } );
+				// and at the front row of racks, from the open side, going through the jackets
+				for ( const a of [ - hl * 0.55, 0.4, hl * 0.6 ] ) {
+
+					const b0 = open * ( hw * 0.45 + 0.75 ), b1 = open * hw * 0.45;
+					cast.add( { at: at( a, b0 ), face: at( a, b1 ), act: 'window', y: lift, noRainGear: true } );
+
+				}
+
+				let k = 0;
+				for ( let a = - hl + 2; a <= hl - 2; a += 2.5 ) {
+
+					if ( k ++ % 2 ) continue;
+					// between the two rows of racks, looking at one
+					const b = ( - hw * 0.45 + hw * 0.25 ) / 2;
+					cast.add( { at: at( a + 0.3, b ), face: at( a + 0.3, k % 4 ? - hw * 0.45 : hw * 0.25 ), act: 'window', y: lift, noRainGear: true } );
+
+				}
+
+			} else {
+
+				cast.add( { at: till, face: front, act: 'sell', who: 'store', y: lift } );
+				for ( let a = - hl + 2.2; a <= hl - 2; a += 3 ) {
+
+					const c = at( a, - hw * 0.4 );
+					cast.group( c, 3, 1.25, { y: lift, noRainGear: true, acts: [ 'drink', 'talk', 'listen' ] } );
+
+				}
+
+			}
+
+		}
+		// ---- end FW3
 
 		// the walker can't walk through the walls
 		if ( colliders && field ) {

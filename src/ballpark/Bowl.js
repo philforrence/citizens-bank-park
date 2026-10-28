@@ -130,6 +130,11 @@ const FROW = 0.8; // and at field level (31.5 in)
 // rows by level, from the seating chart (2008): field level 37 in the infield, 16 in right, 21 in left;
 // the Hall of Fame Club 8, the Terrace 300s 8 and 400s 16, the Pavilion 12 and the Pavilion Deck 21
 const ROWS = { field: 37, right: 16, left: 21, club: 8, t300: 8, t400: 16, pavilion: 12, pavilionDeck: 21 };
+// ---- FW3 (C2W-7): the 400s over the Terrace concourse: their first row this far over its floor (the
+// fascia's foot 3 m up), a riser a row, the deck's depth under the rows, the stairs' boxes (Stands.js
+// portals: rows 2-5 of every other section). The roof over them goes up with their top row
+export const T400 = { lift: 3.9, rise: 0.55, soffit: 0.85, portals: { every: 2, row: 2, rows: 4, width: 2.4 } };
+// ---- end FW3
 
 export class Bowl {
 
@@ -417,10 +422,16 @@ export class Bowl {
 			// Terrace: the 300s over the club seats, up to the terrace walkway
 			// (behind home plate the press box takes its place: no seats there)
 			{ name: 'terrace-300', front: line( main, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1, skip: [ [ 2, 4 ] ] },
-			// ... and the 400s behind the walkway (CB-13, gauntlet r1: entered from the walkway along their
-			// front, up the aisles: no tunnels mid-section, whose flat roofs read as grey slabs scattered
-			// across the deck; Commons 2008-03-29, the 1B 400s from across the field)
-			{ name: 'terrace-400', front: line( main, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + 0.5, rows: ROWS.t400, depth: ROW, rise: 0.62, section: 14, aisle: 1.2, soffit: 1.2, back: { height: 1.1 }, base: L.terraceConcourse - 0.7 },
+			// ... and the 400s above the Terrace concourse. ---- FW3 (C2W-7): the upper deck is "split into two
+			// smaller decks" with the concourse between them, open to the field over the 300s, and "a lot of
+			// steps" from it up to the 400s (newballpark.org, June 2008; Anfony79, <= May 2008: the floor behind
+			// 332 running under the 400s' steel out to the rail at the 300s' back). The 400s' front is a white
+			// fascia ~3 m over the concourse, their rows entered by stairs coming up through boxes a few rows
+			// up, every other section (Commons 2008-03-29, the 3B decks from the left field corner: the white
+			// boxes and their rails). They sat on the walkway's back edge, the front row's feet on it.
+			// (CB-13, gauntlet r1, had taken the tunnels out when the 400s were entered from their front)
+			{ name: 'terrace-400', front: line( main, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + T400.lift, rows: ROWS.t400, depth: ROW, rise: T400.rise, section: 14, aisle: 1.2, soffit: T400.soffit, frontWall: { top: L.terraceConcourse + T400.lift + 0.75, ahead: 0.45 }, back: { height: 1.1 }, base: L.terraceConcourse + T400.lift - T400.soffit, portals: T400.portals },
+			// ---- end FW3
 			// the Arcade (233-237): down the left field line from the end of the club, ten rows on the suite
 			// level's fascia (the ribbon board runs on along it) right under the 300s
 			{ name: 'arcade', front: span( 9, 11, D.suites ), outward: [ 0, - 40 ], y0: L.suites + 0.4, rows: 10, depth: ROW, rise: 0.5, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.suites + 1.4 }, back: { height: 1.1 }, base: L.suites - 1.5 },
@@ -481,7 +492,8 @@ export class Bowl {
 			this._strip( offsetPolyline( t.front, t.rows * t.depth, [ 0, - 40 ] ), 4, yTop + 0.25, t.name + '-concourse', false );
 			const G = offsetPolyline( t.front, dBack, [ 0, - 40 ] ), yG = yTop + 4.6;
 			this._clubGlass( G, yTop + 0.25, yG, { open: true } );
-			const wq = new Quads(), yU = under( over, dBack - dOver ) + 0.3;
+			// (---- FW3 (C2W-7): under the Terrace concourse's floor, not up through it to the raised 400s)
+			const wq = new Quads(), yU = Math.min( under( over, dBack - dOver ) + 0.3, over === t400 ? L.terraceConcourse - 0.6 : Infinity );
 			for ( let i = 0; i < G.length - 1; i ++ ) {
 
 				const [ ax, az ] = G[ i ], [ bx, bz ] = G[ i + 1 ];
@@ -517,18 +529,26 @@ export class Bowl {
 
 		// the walkway between the 300s and 400s, and the club concourse behind the club seats
 		const t300 = tiers[ 2 ], club = tiers[ 1 ];
-		this._strip( line( main, D.t300Back ), 2.4, L.terraceConcourse, 'terrace-walkway', false ); // the 400s start behind it
+		// ---- FW3 (C2W-7): the Terrace concourse, from the rail at the 300s' back under the 400s to their back
+		// (places/Terrace.js fits it out); it was a 2.4 m strip with the 400s starting on its back edge
+		this._strip( line( main, D.t300Back ), D.t400Back - 0.4 - D.t300Back, L.terraceConcourse, 'terrace-walkway', true );
+		// ---- end FW3
 		this._strip( line( infieldPath, D.clubBack ), 8, L.clubConcourse, 'club-concourse' );
 		// suites: a glass front and a roof slab over them, behind the suite seats
 		this._suites( line( infieldPath, D.suites + 2 * 0.95 ), 7, L.suites, clubY - 1.2 );
 		// the roof over the 400s, and the light towers standing on it
 		const back400 = t400.rows * ROW;
-		this._roof( line( main, D.t400 + back400 * 0.35 ), back400 * 0.75, L.roof );
+		const t400Top = t400.y0 + ( t400.rows - 1 ) * t400.rise;
+		// ---- FW3 (C2W-7): the roof keeps its height over the 400s' top row (and its masts their legs), so it
+		// goes up as far as the 400s' top did (their old top: 0.5 over the concourse, 0.62 a row)
+		const roofLift = t400Top - ( L.terraceConcourse + 0.5 + ( ROWS.t400 - 1 ) * 0.62 );
+		this.roofY = L.roof + roofLift;
+		this._roof( line( main, D.t400 + back400 * 0.35 ), back400 * 0.75, this.roofY, { towerTop: LEVELS.lightTowers + roofLift } );
+		// ---- end FW3
 		// behind the top row: a parapet up to the roof; under it all, the columns carrying the decks over
 		// the open main concourse
-		const t400Top = t400.y0 + ( t400.rows - 1 ) * t400.rise;
 		this._columns( line( main, D.t400Back - 0.4 ), STREET, t400Top - 1.2, 9.5 );
-		this._rearWall( line( main, D.t400Back - 0.4 ), t400Top - 1.2, L.roof - 1.0 );
+		this._rearWall( line( main, D.t400Back - 0.4 ), t400Top - 1.2, this.roofY - 1.0 );
 		this._frame( line( main, D.t400Back - 0.4 ), [ L.suites, L.clubConcourse, L.terraceConcourse, t400Top - 1.4 ], 9.5 );
 		this._outerRing( line( main, D.t400Back - 0.4 ), [ L.clubConcourse, L.terraceConcourse ] );
 		this._columns( line( infieldPath, D.clubBack + 8 - 0.4 ), STREET, L.clubConcourse - 0.6, 9.5 );
@@ -982,7 +1002,7 @@ export class Bowl {
 
 	// The roof over the upper deck: a canopy `depth` deep behind the line P at height y, on steel trusses,
 	// with light towers on it.
-	_roof( P, depth, y, { towers = true } = {} ) {
+	_roof( P, depth, y, { towers = true, towerTop = LEVELS.lightTowers } = {} ) {
 
 		const steel = standard( { name: 'roof-steel', color: new Color( 0.155, 0.024, 0.018 ), roughness: 0.55, metalness: 0.3 } );
 		// the roof: a thin flat canopy, weathered standing-seam metal on top (seams front to back every
@@ -1165,7 +1185,7 @@ export class Bowl {
 		// light towers: masts at both ends of the roof, and a pair of broad frames rising from the street
 		// either side of the Third Base Gate and the First Base Gate, standing in the gate's stair towers at
 		// the facade, 40 m apart (Exterior: the frame gates)
-		for ( const [ x, z ] of [ B[ 0 ], B[ B.length - 1 ] ] ) this._lightTower( x, z, y, LEVELS.lightTowers, [ 9.5, 1.4 ] );
+		for ( const [ x, z ] of [ B[ 0 ], B[ B.length - 1 ] ] ) this._lightTower( x, z, y, towerTop, [ 9.5, 1.4 ] ); // ---- FW3: towerTop
 		this.gateTowers = [];
 		for ( const gate of GATES.slice( 0, 2 ) ) {
 
@@ -1572,9 +1592,21 @@ ${ open ? `	s.albedo = vec3f( 0.01 );
 		const gw = GATES.slice( 0, 2 ).map( ( g ) => this.field.toWorld( g.at[ 0 ], g.at[ 1 ] ) );
 		const mat = standard( {
 			name: 'outer-floors', color: new Color( 0.5, 0.49, 0.46 ), roughness: 0.8, side: 'double', modules: [ commonModule ],
-			uniforms: { gates: [ 'vec4f', new Vector4( gw[ 0 ].x, gw[ 0 ].z, gw[ 1 ].x, gw[ 1 ].z ) ] }, // ---- FW2
+			uniforms: { gates: [ 'vec4f', new Vector4( gw[ 0 ].x, gw[ 0 ].z, gw[ 1 ].x, gw[ 1 ].z ) ], deckY: [ 'f32', this.field.y0 + LEVELS.terraceConcourse - 0.3 ] }, // ---- FW2, FW3
 			surface: /* wgsl */`
-	if ( in.N.y > 0.6 ) {
+	if ( in.N.y > 0.6 && in.P.y > mat.deckY ) {
+		// ---- FW3 (C2W-7): the outer ring's top, seen over the Terrace concourse's back rail: a roof, not a
+		// floor. Pale single-ply membrane in 3 m sheets, their lapped seams, the dirt of the drains' ponds, a
+		// line of walkway pads
+		let sh = fract( in.P.xz / vec2f( 3.0, 9.0 ) );
+		let seam = 1.0 - 0.18 * ( 1.0 - smoothstep( 0.0, 0.012, min( sh.x, 1.0 - sh.x ) ) );
+		let pond = smoothstep( 0.25, 0.7, mx_noise_float2( in.P.xz * 0.06 ) );
+		let pad = step( abs( fract( in.P.x / 19.0 ) - 0.5 ), 0.025 ) * step( 0.5, fract( in.P.z / 1.3 ) );
+		s.albedo = mix( vec3f( 0.34, 0.335, 0.32 ), vec3f( 0.2, 0.195, 0.185 ), pond * 0.6 ) * seam * ( 0.94 + 0.06 * mx_noise_float2( in.P.xz * 1.7 ) );
+		s.albedo = mix( s.albedo, vec3f( 0.2, 0.2, 0.21 ), pad );
+		s.roughness = 0.7 - 0.25 * pond;
+		// ---- end FW3
+	} else if ( in.N.y > 0.6 ) {
 		// the concourse floor: sealed concrete
 		s.albedo = vec3f( 0.36, 0.35, 0.33 ) * ( 0.9 + 0.1 * mx_noise_float2( in.P.xz * 0.4 ) );
 		s.roughness = 0.6;
@@ -1626,7 +1658,10 @@ ${ SOFFIT_WGSL }
 			{ name: 'Main concourse', d: top + 14, y: STREET },
 			{ name: 'Suite level', d: this.D.suites + 2 * 0.95 + 3.0, y: L.suites },
 			{ name: 'Club level', d: this.D.clubBack + 4.0, y: L.clubConcourse },
-			{ name: 'Terrace', d: this.D.t300Back + 1.2, y: L.terraceConcourse },
+			// ---- FW3 (C2W-7): on the Terrace concourse, under the 400s, the doors toward the field like the
+			// other levels' (they stood at the 300s' rail with their backs to the field: Concourse.terrace() builds
+			// the core round them)
+			{ name: 'Terrace', d: this.D.t400 + 8.0, y: L.terraceConcourse },
 		];
 		const door = standard( { name: 'elevator-door', color: new Color( 0.5, 0.52, 0.55 ), roughness: 0.3, metalness: 0.8 } );
 		const sign = standard( { name: 'elevator-sign', color: new Color( 0.02, 0.1, 0.05 ), roughness: 0.5, emissive: new Color( 0.05, 0.6, 0.3 ) } );
@@ -1665,18 +1700,10 @@ ${ SOFFIT_WGSL }
 			const bank = { stops: [] };
 			for ( const lv of levels ) {
 
-				const terrace = lv.name === 'Terrace';
-				const [ sg, tt ] = terrace && seg === 5 ? [ 4, 0.2 ] : [ seg, t ];
-				let { x, z, nx, nz } = at( sg, tt, terrace ? this.D.t300Back + 0.2 : lv.d );
-				// the doors face the field side of the path (the Terrace's face the walkway)
-				if ( terrace ) {
-
-					nx = - nx; nz = - nz;
-
-				}
-
+				const { x, z, nx, nz } = at( seg, t, lv.d );
+				// the doors face the field side of the path
 				const g = new Group();
-				g.position.set( x - nx * 0.6 * ( terrace ? 0 : 1 ), lv.y, z - nz * 0.6 * ( terrace ? 0 : 1 ) );
+				g.position.set( x - nx * 0.6, lv.y, z - nz * 0.6 );
 				g.rotation.y = Math.atan2( - nx, - nz ) + Math.PI;
 				const d = new Mesh( new BoxGeometry( 2.2, 2.4, 0.15 ), door );
 				d.position.y = 1.2;

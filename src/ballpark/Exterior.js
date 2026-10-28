@@ -532,8 +532,94 @@ export class Exterior {
 		for ( let z = 20; z <= 85; z += 10 ) trees.push( [ - 130, z ] );
 		for ( const [ x, z ] of trees ) this._tree( x, z, trunk, leaves );
 		this._plazaFurniture( trunk, leaves );
+		this._leftFieldForecourt( pole, lens, discGeo ); // ---- FW3 (C2I-17)
 
 	}
+
+	// ---- FW3 (C2I-17, gauntlet r2): outside the Left Field Gate the forecourt was the bare ground plane, a
+	// featureless beige by day and a black void by night, 30 m of it between 11th Street and the gate, where
+	// every other gate has its paving. The plaza's paving here too (concrete slabs in a frame of brick bands,
+	// the 1B gate's paved loop: puckfiend 2005), 34 m out from the gate's diagonal and 22 m either side, its
+	// curb on the street side with granite bollards, two brick planters, and four of the plaza's pedestrian
+	// lamps (their light among the lamps': the forecourt lit at night)
+	_leftFieldForecourt( pole, lens, discGeo ) {
+
+		const g = GATES.find( ( G ) => G.name === 'LEFT FIELD GATE' );
+		if ( ! g ) return;
+		// the facade's diagonal there (FOOTPRINT: -119.25,-120.3 to -88.47,-150.29), outward away from the field
+		const ux = 0.716, uz = - 0.698;
+		let nx = - uz, nz = ux;
+		if ( nx * ( g.at[ 0 ] ) + nz * ( g.at[ 1 ] + 40 ) < 0 ) {
+
+			nx = - nx; nz = - nz;
+
+		}
+
+		const P = ( a, b ) => [ g.at[ 0 ] + ux * a + nx * b, g.at[ 1 ] + uz * a + nz * b ];
+		const HW = 22, OUT = 34;
+		const m = new Mesh( flatPolygon( [ P( - HW, 0.5 ), P( HW, 0.5 ), P( HW, OUT ), P( - HW, OUT ) ], [], STREET + 0.015 ), this.pavers );
+		m.name = 'left-field-forecourt';
+		m.receiveShadow = true;
+		this.group.add( m );
+		// the curb along its street edge, granite bollards a step in from it
+		const kq = new Quads();
+		const C0 = P( - HW, OUT ), C1 = P( HW, OUT );
+		kq.add( [ C0[ 0 ], STREET - 0.1, C0[ 1 ] ], [ C1[ 0 ], STREET - 0.1, C1[ 1 ] ], [ C1[ 0 ], STREET + 0.03, C1[ 1 ] ], [ C0[ 0 ], STREET + 0.03, C0[ 1 ] ], [ nx, 0, nz ] );
+		const curb = new Mesh( kq.geometry(), this.granite );
+		curb.name = 'left-field-forecourt-curb';
+		this.group.add( curb );
+		const bollard = new CylinderGeometry( 0.2, 0.24, 0.9, 10 );
+		for ( let a = - HW + 2; a <= HW - 2; a += 2.2 ) {
+
+			if ( Math.abs( a ) < 7 ) continue; // the way in, open
+			const [ x, z ] = P( a, OUT - 1.0 );
+			const b = new Mesh( bollard, this.granite );
+			b.position.set( x, STREET + 0.45, z );
+			b.castShadow = true;
+			this.group.add( b );
+			const w = this.field.toWorld( x, z );
+			this.colliders.addCylinder( w.x, w.z, 0.24, this.field.y0 + STREET, this.field.y0 + STREET + 0.9 );
+
+		}
+
+		// two planters either side of the way in: brick boxes, a hedge in each
+		for ( const a of [ - 14, 14 ] ) {
+
+			const [ x, z ] = P( a, 12 );
+			const box = new Mesh( new BoxGeometry( 4.2, 0.65, 2.0 ), this.brickPlain );
+			box.position.set( x, STREET + 0.33, z );
+			box.rotation.y = Math.atan2( - uz, ux );
+			box.castShadow = true;
+			this.group.add( box );
+			const hedge = new Mesh( new BoxGeometry( 3.9, 0.6, 1.7 ), this.copper );
+			hedge.position.set( x, STREET + 0.9, z );
+			hedge.rotation.y = box.rotation.y;
+			this.group.add( hedge );
+			const w = this.field.toWorld( x, z );
+			this.colliders.addBox( new Vector3( w.x, this.field.y0 + STREET + 0.35, w.z ), new Vector3( 2.1, 0.35, 1.0 ), this.field.group.rotation.y - Math.atan2( uz, ux ), { tag: 'planter' } );
+
+		}
+
+		// the pedestrian lamps: a 4.5 m pole, the disc head
+		for ( const [ a, b ] of [ [ - 17, 6 ], [ 17, 6 ], [ - 17, 26 ], [ 17, 26 ] ] ) {
+
+			const [ x, z ] = P( a, b ), H = 4.5;
+			const pl = new Mesh( new CylinderGeometry( 0.07, 0.1, H, 10 ), pole );
+			pl.position.set( x, STREET + H / 2, z );
+			pl.castShadow = true;
+			this.group.add( pl );
+			const d = new Mesh( discGeo, lens );
+			d.position.set( x, STREET + H + 0.04, z );
+			this.group.add( d );
+			this.lamps.push( [ x, STREET + H - 0.02, z, 0 ] );
+			// (not among the wet plaza's reflections: those are the Third Base plaza's, 32 at most)
+			const w = this.field.toWorld( x, z );
+			this.colliders.addCylinder( w.x, w.z, 0.15, this.field.y0 + STREET, this.field.y0 + STREET + H );
+
+		}
+
+	}
+	// ---- end FW3
 
 	// Round raised brick planters with cast-stone caps, shrubs and fall flowers; trees in grates; benches
 	// facing the gate; bollards along the curb. Kept off the walk from the corner to the gate.

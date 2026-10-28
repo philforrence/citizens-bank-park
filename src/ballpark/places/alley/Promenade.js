@@ -71,8 +71,12 @@ export function promenade( parent, { pit, x0, x1, zBack, near = - 126, lamps = [
 	// pale concrete by the stands): a wide concrete walk along the rail and the flower boxes, the brick in
 	// a band down the middle and the cross bands at the lamps
 	let railD = ${ ( near ).toFixed( 2 ) } - p.y;
-	var concrete = bandX > 5.3 || edgeD < 2.8 || railD < 3.8;
-	// ---- end FW2
+	// ---- FW3 (C2W-23): wider still. The walk is 20 m from the counters to the field's edge here, and the
+	// brick took the middle 13 m of it, so from the walk it filled the view. Concrete 5 m out from the
+	// counters (where the crowd walks: gf's photo by the stands) and 5 m in from the rail and the flower
+	// boxes, the cross bands 3 m wide: the brick is panels in a concrete frame down the middle
+	var concrete = bandX > 4.5 || edgeD < 5.0 || railD < 5.0;
+	// ---- end FW2, FW3
 	// the pavers: 20 x 10 cm, a running bond along the Alley; each its own shade of red and brown
 	let bu = p.x / 0.2 + 0.5 * floor( p.y / 0.1 );
 	let bv = p.y / 0.1;
