@@ -196,10 +196,13 @@ export class Details2008 {
 			ctx.font = '700 14px "Helvetica Neue", Arial, sans-serif';
 			ctx.textBaseline = 'middle';
 			ctx.textAlign = 'center';
-			for ( let x = 60, k = 0; x < w; x += 118, k ++ ) {
+			// (FB2, C2B-14: spaced so each stands clear of the next, with a dot between: at 118 px the
+			// 140 px name ran into the next one, "Citizens Bank Parkneweracap.com" across every close-up)
+			for ( let x = 90, k = 0; x < w - 60; x += 180, k ++ ) {
 
 				ctx.fillStyle = '#1d3f8f';
-				ctx.fillText( k % 2 ? 'neweracap.com' : '\u2733 Citizens Bank Park', x, sh / 2 + 1 );
+				ctx.fillText( k % 2 ? 'neweracap.com' : '\u2733 Citizens Bank Park', x, sh / 2 + 1, 150 );
+				ctx.fillRect( x + 88, sh / 2 - 1, 3, 3 );
 
 			}
 

@@ -51,16 +51,18 @@ export const POSES = {
 		elbow: [ 0.25, 1.1, 0.02 ], wrist: [ 0.17, 0.95, - 0.1 ], hand: [ 0.14, 0.92, - 0.13 ],
 		'L:knee': [ - 0.1, 0.5, - 0.06 ], 'L:ankle': [ - 0.15, 0.08, - 0.05 ], 'L:toe': [ - 0.2, 0.04, - 0.18 ],
 	},
-	// forearms folded on a rail at chest height (1.3 m above his feet, just in front of him)
+	// leaning on a rail at chest height (1.3 m above his feet, just in front of him): the forearms laid
+	// on it pointing out, the hands together over its front (FB2, C2B-11: they were folded across his
+	// chest, which from the field read as a bar held out at shoulder height)
 	lean: {
 		pelvis: [ 0, 0.88, 0.06 ], hip: [ 0.1, 0.9, 0.06 ], chest: [ 0, 1.34, - 0.08 ], neck: [ 0, 1.41, - 0.11 ], head: [ 0, 1.53, - 0.16 ],
-		shoulder: [ 0.2, 1.33, - 0.08 ], elbow: [ 0.25, 1.3, - 0.3 ], wrist: [ - 0.02, 1.33, - 0.36 ], hand: [ - 0.1, 1.33, - 0.35 ],
-		'L:elbow': [ - 0.25, 1.32, - 0.29 ], 'L:wrist': [ 0.03, 1.35, - 0.33 ], 'L:hand': [ 0.11, 1.35, - 0.32 ],
+		shoulder: [ 0.19, 1.33, - 0.08 ], elbow: [ 0.2, 1.3, - 0.24 ], wrist: [ 0.07, 1.33, - 0.43 ], hand: [ 0.03, 1.3, - 0.5 ],
 	},
-	// both hands on the rail, arms straight, looking out
+	// both hands on top of the rail, the elbows bent, looking out (FB2, C2B-11: the hands were a hand's
+	// length below the rail, the arms held out straight)
 	rail: {
 		chest: [ 0, 1.37, - 0.04 ], neck: [ 0, 1.44, - 0.06 ], head: [ 0, 1.56, - 0.09 ],
-		shoulder: [ 0.2, 1.36, - 0.04 ], elbow: [ 0.25, 1.18, - 0.2 ], wrist: [ 0.26, 1.02, - 0.34 ], hand: [ 0.26, 0.98, - 0.4 ],
+		shoulder: [ 0.2, 1.36, - 0.04 ], elbow: [ 0.27, 1.13, - 0.12 ], wrist: [ 0.24, 1.33, - 0.3 ], hand: [ 0.23, 1.35, - 0.38 ],
 	},
 	// on the bench, upright, hands on his thighs (the seat 0.46 m up)
 	sit: sitPose( 0.46, ( H ) => ( {
@@ -267,7 +269,7 @@ function figureMaterial() {
 	const m = standard( {
 		name: 'field-figures', roughness: 0.75, side: 'double',
 		attributes: { aPart: 'f32', aWho: 'vec4f' },
-		varyings: { vPart: 'f32', vWho: 'vec4f', vLocal: 'vec3f' },
+		varyings: { vPart: 'f32', vWho: 'vec4f', vLocal: 'vec3f', vHd: 'vec3f' },
 		vertex: /* wgsl */`
 	// who: x the outfit, y a seed, z wet (the rain on him, 0..1), w unused
 	let who = v.aWho;
@@ -284,6 +286,10 @@ function figureMaterial() {
 	o.vPart = v.aPart;
 	o.vWho = who;
 	o.vLocal = p;
+	// (FB2, C2B-11: on the head, the point's place on it, from the head's own centre: the head sits
+	// elsewhere in every pose, and measured from the standing pose's the seated and leaning men had no
+	// cap and no hair, bare heads along the track)
+	o.vHd = v.normal * vec3f( 0.083, 0.105, 0.1 );
 	v.position = p;
 `,
 		surface: /* wgsl */`
@@ -310,7 +316,8 @@ function figureMaterial() {
 	var pin = false;
 	if ( o == 0 ) { top = red; pants = white; pin = true; }
 	if ( o == 1 ) { top = white; pants = white; pin = true; }
-	if ( o == 2 ) { top = navy; pants = grey; capC = navy; }
+	// (the Rays' bench on the 27th: some in the hoods of their navy jackets, FOX US 1yP3u4ik2gs)
+	if ( o == 2 ) { top = navy; pants = grey; capC = navy; hood = frame.wet > 0.3 && h.x > 0.45; }
 	if ( o == 3 ) { top = grey; pants = grey; capC = navy; }
 	if ( o == 4 ) { top = vec3f( 0.02, 0.03, 0.07 ); pants = vec3f( 0.03, 0.03, 0.035 ); capC = top; hood = h.x > 0.3; rough = 0.45; shoe = vec3f( 0.05, 0.04, 0.03 ); }
 	if ( o == 5 ) { top = vec3f( 0.012 ); pants = vec3f( 0.02, 0.022, 0.03 ); capC = vec3f( 0.01 ); rough = 0.5; capped = h.y > 0.3; }
@@ -351,7 +358,7 @@ function figureMaterial() {
 	}
 	if ( part == 2 ) { c = skin; rough = 0.6; }
 	if ( part == 3 ) {
-		let hd = L - vec3f( ${ BASE.head.join( ', ' ) } );
+		let hd = in.vs.vHd;
 		c = skin; rough = 0.6;
 		// hair on the back and top, then the cap, the helmet or the hood over it
 		if ( hd.y > 0.02 ) { c = hair; rough = 0.7; }

@@ -28,7 +28,15 @@ export class Drips {
 	let across = 1.0 - smoothstep( 0.1, 0.35, abs( fract( in.uv.x / 0.025 ) - 0.5 ) );
 	// along the edge itself, the water gathering before it lets go
 	let lip = ( 1.0 - smoothstep( 0.0, 0.03, 1.0 - y ) ) * 0.5;
-	s.alpha = clamp( ( streak * across * dripping + lip * across * step( h, mat.rain * 0.8 ) ) * 0.55, 0.0, 1.0 );
+	// ---- FB2 (C2B-12): through a long lens focused 20 m out on the batter, a drip a metre or two off the
+	// low camera's glass is a blur that isn't there, not a beaded rod across him: faded by its distance
+	// against where the lens is focused (as game/Rain.js does its near drops); a wide lens sees them
+	let tanHalf = 1.0 / frame.proj[ 1 ][ 1 ];
+	let focus = clamp( 0.9 / tanHalf - 1.5, 0.0, 40.0 );
+	let dcam = length( in.P - frame.cameraPos );
+	let inFocus = smoothstep( 0.35 * focus, 0.6 * focus + 0.5, dcam );
+	// ---- end FB2
+	s.alpha = clamp( ( streak * across * dripping + lip * across * step( h, mat.rain * 0.8 ) ) * 0.55, 0.0, 1.0 ) * inFocus;
 	s.albedo = mat.color;
 	s.emissive = mat.color * smoothstep( 0.2, 0.8, frame.night ) * 0.25;
 ` } );
