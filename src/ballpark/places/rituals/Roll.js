@@ -69,7 +69,8 @@ export class Roll {
 		this.pos = g.getAttribute( 'position' ).array;
 		this.nrm = g.getAttribute( 'normal' ).array;
 		this.geo = g;
-		this.mat = standard( { name: 'tarp-roll-out', color: new Color( 0.36, 0.37, 0.38 ), roughness: 0.3, modules: [ commonModule ],
+		// (CB-9: the sheet's own white vinyl, as Details2008's tarp is, coming off the roll)
+		this.mat = standard( { name: 'tarp-roll-out', color: new Color( 0.86, 0.87, 0.85 ), roughness: 0.3, modules: [ commonModule ],
 			uniforms: { turn: [ 'f32', 0 ], bare: [ 'f32', 0 ], rOut: [ 'f32', R_FULL ], len: [ 'f32', 44 ] },
 			surface: /* wgsl */`
 	let wetK = frame.wet;

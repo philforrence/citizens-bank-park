@@ -341,7 +341,10 @@ export class Details2008 {
 		if ( nrm.array[ 1 ] < 0 ) for ( let i = 0; i < nrm.array.length; i ++ ) nrm.array[ i ] = - nrm.array[ i ];
 		g.computeBoundingSphere();
 		// ---- W4 (rail): it comes off the roll on the third base side: u = 0 is the third base edge
-		this.tarpMat = standard( { name: 'tarp', color: new Color( 0.62, 0.64, 0.6 ), roughness: 0.3, side: 'double', modules: [ commonModule ],
+		// CB-9 (gauntlet r1): under the lights the sheet was bright white vinyl, the brightest thing on the
+		// field, a few long wrinkles and its seams, water only as a sheen in the low folds (Getty 84081873,
+		// 83458710; Commons, the delay from the left field upper deck): not mid-grey with dark leopard spots
+		this.tarpMat = standard( { name: 'tarp', color: new Color( 0.86, 0.87, 0.85 ), roughness: 0.3, side: 'double', modules: [ commonModule ],
 			uniforms: { pull: [ 'f32', 0 ], rollY: [ 'f32', 0.55 ] }, // ---- R: rollY, the roll's axis height (game/TarpPlan.js)
 			vertex: /* wgsl */`
 	// the part not yet pulled out is the roll, lying along the sheet's leading edge as it crosses
@@ -358,11 +361,20 @@ export class Details2008 {
 	v.prevWorldPos = v.worldPos;
 `,
 			surface: /* wgsl */`
-	// pale vinyl, seams every 4 m, water standing in the low folds
+	// white vinyl, seams every 4 m; long wrinkles; water standing in the low folds (the sheet's own folds,
+	// as the geometry has them) as a sheen, hardly darker
 	let seam = step( 0.97, fract( in.uv.x * 11.0 ) );
-	let pud = smoothstep( 0.55, 0.75, mx_noise_float2( in.P.xz * 0.25 ) * 0.5 + 0.5 );
-	s.albedo = mat.color * ( 1.0 - 0.15 * seam ) * ( 1.0 - 0.3 * pud ) * ( 0.92 + 0.1 * mx_noise_float2( in.P.xz * 2.0 ) );
-	s.roughness = mix( 0.3, 0.04, pud );
+	let lx = ( in.uv.x - 0.5 ) * ${ S.toFixed( 1 ) }; let lz = ( in.uv.y - 0.5 ) * ${ S.toFixed( 1 ) };
+	let fold = 0.06 * sin( lx * 0.9 + sin( lz * 0.4 ) * 2.0 ) + 0.04 * sin( lz * 1.3 );
+	let low = smoothstep( - 0.03, - 0.08, fold );
+	let pud = low * smoothstep( 0.58, 0.75, mx_noise_float2( vec2f( lx * 0.6, lz * 0.12 ) ) * 0.5 + 0.5 );
+	let wrinkle = mx_noise_float2( vec2f( lx * 0.35, lz * 2.4 ) );
+	s.albedo = mat.color * ( 1.0 - 0.12 * seam ) * ( 1.0 - 0.06 * pud ) * ( 0.95 + 0.05 * wrinkle ) * ( 0.96 + 0.05 * mx_noise_float2( in.P.xz * 2.0 ) );
+	s.normal = normalize( s.normal + vec3f( 0.06 * wrinkle, 0.0, 0.0 ) );
+	// (the water glossy enough to catch the banks' glow, not a mirror of the black sky)
+	s.roughness = mix( 0.32, 0.12, pud );
+	// under the lights the brightest thing on the field: every bank lights it
+	s.emissive = s.albedo * smoothstep( 0.2, 0.8, frame.night ) * 0.25;
 ` } );
 		this.tarpMat.underwaterLighting = 'none';
 		this.tarpMat.setDefine( 'DRY', 1 );
@@ -524,7 +536,7 @@ export class Details2008 {
 	}
 
 	// The out-of-town scoreboard built into the right field wall, 208 ft long from the 398 corner toward
-	// the pole: game cells (dark during the Series), the count panel for this game's pitcher, and ads.
+	// the pole: game cells (dark during the Series), two lit panels (this game's pitcher on one), and ads.
 	_outOfTownBoard() {
 
 		const at = ( i ) => fencePoint( OUTFIELD[ i ][ 0 ], OUTFIELD[ i ][ 1 ] );
@@ -850,8 +862,12 @@ function adMaterial( big, small, bg, fg ) {
 
 }
 
-// The out-of-town board: Turkey Hill at the left end, game cells (dark: no other games during the
-// Series), this game's pitcher with balls / strikes / total, the MLB notes, Majestic, more cells.
+// The out-of-town board as it stood through the Series (CB-8, gauntlet r1: Flickr 74085116N00 2981641556
+// on the 27th, the board legible from the left field upper deck; the 27th at dusk from the Alley; Getty
+// 84082684 on the 29th). With no other games its two rows of game cells were dark, each a black panel with
+// a thin white diamond outlined on it (painted, not lit); only two panels were lit, with Majestic's logo
+// between them: the one in the middle carried this game's pitcher and his count, small, the one by the
+// pole stood blank white. Turkey Hill's cream sign at the 398 end, Modell's by the pole.
 function drawOutOfTown( ctx, w, h, st ) {
 
 	ctx.fillStyle = '#0a0b0d';
@@ -859,7 +875,6 @@ function drawOutOfTown( ctx, w, h, st ) {
 	ctx.fillStyle = '#0f3d2a';
 	ctx.fillRect( 0, 0, w, 8 );
 	ctx.fillRect( 0, h - 8, w, 8 );
-	const amber = '#ffab2e';
 	// Turkey Hill
 	ctx.fillStyle = '#e9dcc1';
 	ctx.fillRect( 12, 14, 150, h - 28 );
@@ -870,100 +885,60 @@ function drawOutOfTown( ctx, w, h, st ) {
 	ctx.font = 'italic 700 38px Georgia, serif';
 	ctx.fillText( 'Graham', 87, 118, 140 );
 	ctx.fillText( 'Slam', 87, 156, 140 );
-	// the cells: no other games during the Series, so the board shows the Series itself: each game's
-	// final (white team names, amber digits; the unlit segments faintly there), and Game 5 live
-	const amberC = '#ffab2e';
-	const seg = ( t, x, y, size, lit = true ) => {
+	// the dark cells, two rows: black, a grey seam between them, the diamond outline (grey enough that it
+	// isn't taken for a lamp: the material lights only what's bright)
+	const cells = ( x0, x1, n ) => {
 
-		ctx.font = `700 ${ size }px "Courier New", monospace`;
-		ctx.textAlign = 'center';
-		ctx.fillStyle = 'rgba( 255, 171, 46, 0.1 )';
-		ctx.fillText( '8'.repeat( t.length ), x, y );
-		if ( ! lit ) return;
-		ctx.fillStyle = amberC;
-		ctx.shadowColor = amberC;
-		ctx.shadowBlur = 5;
-		ctx.fillText( t, x, y );
-		ctx.shadowBlur = 0;
+		const cw = ( x1 - x0 ) / n, ch = ( h - 32 ) / 2;
+		for ( let i = 0; i < n; i ++ ) for ( let r = 0; r < 2; r ++ ) {
 
-	};
+			const x = x0 + i * cw, y = 16 + r * ch;
+			ctx.fillStyle = '#2a2c2e';
+			ctx.fillRect( x, y, cw, ch );
+			ctx.fillStyle = '#060708';
+			ctx.fillRect( x + 3, y + 3, cw - 6, ch - 6 );
+			const cx = x + cw / 2, cy = y + ch / 2, d = ch * 0.3;
+			ctx.strokeStyle = '#7c7c7a';
+			ctx.lineWidth = 3;
+			ctx.beginPath(); ctx.moveTo( cx, cy - d ); ctx.lineTo( cx + d * 1.15, cy ); ctx.lineTo( cx, cy + d ); ctx.lineTo( cx - d * 1.15, cy ); ctx.closePath(); ctx.stroke();
 
-	const cell = ( x, head, away, home, status ) => {
-
-		ctx.fillStyle = '#0d0e10';
-		ctx.fillRect( x, 16, 150, h - 32 );
-		ctx.fillStyle = '#e8e8e4';
-		ctx.font = '700 22px "Helvetica Neue", Arial, sans-serif';
-		ctx.textAlign = 'center';
-		ctx.fillText( head, x + 75, 40 );
-		ctx.textAlign = 'left';
-		ctx.font = '800 30px "Helvetica Neue", Arial, sans-serif';
-		ctx.fillText( 'TB', x + 12, 92 );
-		ctx.fillText( 'PHI', x + 12, 146 );
-		seg( away == null ? '' : String( away ).padStart( 2, ' ' ), x + 116, 92, 36, away != null );
-		seg( home == null ? '' : String( home ).padStart( 2, ' ' ), x + 116, 146, 36, home != null );
-		ctx.fillStyle = '#e8e8e4';
-		ctx.font = '700 18px "Helvetica Neue", Arial, sans-serif';
-		ctx.textAlign = 'center';
-		ctx.fillText( status, x + 75, h - 26 );
+		}
 
 	};
-
-	const series = [ [ 'GAME 1', 2, 3, 'FINAL' ], [ 'GAME 2', 4, 2, 'FINAL' ], [ 'GAME 3', 4, 5, 'FINAL' ], [ 'GAME 4', 2, 10, 'FINAL' ] ];
-	series.forEach( ( [ hd, a, b, stt ], i ) => cell( 180 + i * 160, hd, a, b, stt ) );
-	// the count panel
-	const px = 840, pw = 520;
-	ctx.fillStyle = '#120c04';
-	ctx.fillRect( px, 16, pw, h - 32 );
-	const glow = ( t, x, y, size, align = 'left' ) => {
-
-		ctx.fillStyle = amber;
-		ctx.shadowColor = amber;
-		ctx.shadowBlur = 6;
-		ctx.font = `700 ${ size }px "Courier New", monospace`;
-		ctx.textAlign = align;
-		ctx.fillText( t, x, y );
-		ctx.shadowBlur = 0;
-
-	};
-
+	cells( 172, 940, 6 );
+	cells( 1414, 2050, 5 );
+	// the lit panel in the middle: white, this game's pitcher and count small in the corner of it
+	ctx.fillStyle = '#f2f3f4';
+	ctx.fillRect( 950, 16, 300, h - 32 );
 	const pit = st?.pitcher;
-	glow( pit ? `${ pit.num } ${ pit.last }` : 'WORLD SERIES', px + 20, 58, 36 );
-	glow( 'BALLS', px + 30, 104, 24 );
-	glow( 'STRIKES', px + 190, 104, 24 );
-	glow( 'TOTAL', px + 380, 104, 24 );
+	ctx.fillStyle = '#16264f';
+	ctx.textAlign = 'center';
+	ctx.font = '800 26px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( pit ? `${ pit.num } ${ pit.last }` : 'WORLD SERIES', 1100, 76, 270 );
 	if ( pit ) {
 
-		glow( String( pit.balls ), px + 70, 162, 52, 'center' );
-		glow( String( pit.strikes ), px + 250, 162, 52, 'center' );
-		glow( String( pit.balls + pit.strikes ), px + 430, 162, 52, 'center' );
+		ctx.font = '700 24px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillText( `B ${ pit.balls }   S ${ pit.strikes }   P ${ pit.balls + pit.strikes }`, 1100, 128, 270 );
 
 	}
 
-	// MLB notes and Majestic
-	ctx.fillStyle = '#b3121d';
-	ctx.fillRect( px + pw + 12, 16, 250, h - 32 );
-	ctx.fillStyle = '#ffffff';
-	ctx.font = '800 30px "Helvetica Neue", Arial, sans-serif';
-	ctx.textAlign = 'center';
-	ctx.fillText( 'MAJOR LEAGUE', px + pw + 137, 88 );
-	ctx.fillText( 'BASEBALL NOTES', px + pw + 137, 128 );
+	// Majestic
 	ctx.fillStyle = '#e8e4dc';
-	ctx.fillRect( px + pw + 276, 16, 200, h - 32 );
+	ctx.fillRect( 1262, 16, 140, h - 32 );
 	ctx.fillStyle = '#b3121d';
-	ctx.font = 'italic 800 44px "Helvetica Neue", Arial, sans-serif';
-	ctx.fillText( 'Majestic', px + pw + 376, h / 2 + 14 );
-	// Game 5 live, the Series standing, and dark cells
-	const sc = st?.score;
-	cell( 1640, 'GAME 5', sc ? sc.away : 0, sc ? sc.home : 0, st ? `${ st.half === 'top' ? 'TOP' : 'BOT' } ${ st.inning }` : 'TONIGHT' );
-	ctx.fillStyle = '#0d0e10';
-	ctx.fillRect( 1800, 16, 310, h - 32 );
-	ctx.fillStyle = '#e8e8e4';
-	ctx.font = '800 30px "Helvetica Neue", Arial, sans-serif';
-	ctx.textAlign = 'center';
-	ctx.fillText( 'WORLD SERIES', 1955, 64 );
-	seg( 'PHI LEADS 3-1', 1955, 130, 34 );
-	for ( let i = 0; i < 2; i ++ ) cell( 2120 + i * 160, '', null, null, '' );
+	ctx.font = 'italic 800 34px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( 'Majestic', 1332, h / 2 + 12, 128 );
+	// the blank lit panel by the pole, and Modell's
+	ctx.fillStyle = '#eef0f2';
+	ctx.fillRect( 2060, 16, 200, h - 32 );
+	ctx.fillStyle = '#d8d4ca';
+	ctx.fillRect( 2270, 16, 122, h - 32 );
+	ctx.fillStyle = '#c4161c';
+	ctx.font = '900 26px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillText( "MODELL'S", 2331, 92, 114 );
+	ctx.font = 'italic 700 16px "Helvetica Neue", Arial, sans-serif';
+	ctx.fillStyle = '#1a1a1a';
+	ctx.fillText( "Gotta Go To Mo's", 2331, 128, 114 );
 	ctx.textAlign = 'left';
 
 }
