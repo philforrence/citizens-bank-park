@@ -1,5 +1,8 @@
-import { InstancedMesh, BufferGeometry, Float32BufferAttribute, Matrix4, Quaternion, Vector3 } from '../engine/index.js';
+import { InstancedMesh, BufferGeometry, Float32BufferAttribute, Matrix4, Quaternion, Vector3, Vector4 } from '../engine/index.js';
 import { StorageBuffer } from '../engine/gpu/Texture.js';
+import { ComputeKernel } from '../engine/gpu/Compute.js';
+import { UniformBlock } from '../engine/gpu/Uniforms.js';
+import { nightState } from './places/Concourse3BPeople.js';
 import { standard } from '../materials/Materials.js';
 import { tierSections, rowHeights } from './Stands.js';
 import { offsetPolyline } from './Bowl.js';
@@ -26,8 +29,8 @@ export const ROLE = { fan: 0, staff: 1, security: 2, usher: 3, police: 4 };
 // the figure's joints, standing (origin on the ground between the feet, facing -z)
 const STAND = {
 	hip: [ 0.1, 0.9, 0.0 ], knee: [ 0.11, 0.5, - 0.02 ], ankle: [ 0.12, 0.07, 0.0 ],
-	pelvis: [ 0, 0.88, 0.02 ], chest: [ 0, 1.38, 0.03 ], neck: [ 0, 1.45, 0.03 ], head: [ 0, 1.57, 0.02 ],
-	shoulder: [ 0.2, 1.37, 0.03 ], elbow: [ 0.23, 1.1, 0.06 ], wrist: [ 0.22, 0.86, 0.02 ], hand: [ 0.21, 0.77, 0.01 ],
+	pelvis: [ 0, 0.88, 0.02 ], chest: [ 0, 1.43, 0.03 ], neck: [ 0, 1.5, 0.03 ], head: [ 0, 1.62, 0.02 ],
+	shoulder: [ 0.19, 1.355, 0.03 ], elbow: [ 0.23, 1.09, 0.06 ], wrist: [ 0.22, 0.86, 0.02 ], hand: [ 0.21, 0.77, 0.01 ],
 };
 // mid-stride, left foot forward: the legs apart, the arms swung the other way (the cycle swings it both
 // ways: position + walk * sin( phase ))
@@ -118,12 +121,42 @@ function figureGeometry() {
 
 	};
 
-	// the trunk (the vest over it for the staff who wear one: the shader decides), the neck
-	tube( 'pelvis', 'chest', 1, [ 0.17, 0.12 ], [ 0.2, 0.11 ], P.shirt, 8, true );
-	tube( 'chest', 'neck', 1, [ 0.12, 0.09 ], [ 0.055, 0.05 ], P.shirt, 8 );
+	// the trunk (the vest over it for the staff who wear one: the shader decides): a jacket lofted from
+	// the hem past the waist and the chest to shoulders that slope in to a collar round the neck (FP1,
+	// CP-2: it was the crowd's flat-topped drum with a bare cone for a neck); rings [ y, half width, half
+	// depth, z ]
+	{
+
+		const rings = [ [ 0.82, 0.17, 0.12, 0.01 ], [ 1.05, 0.158, 0.11, 0.01 ], [ 1.27, 0.17, 0.116, 0.018 ], [ 1.36, 0.166, 0.104, 0.025 ],
+			[ 1.43, 0.14, 0.092, 0.03 ], [ 1.47, 0.086, 0.075, 0.03 ], [ 1.53, 0.068, 0.062, 0.03 ] ];
+		const n = 8, first = pos.length / 3;
+		rings.forEach( ( [ y, rx, rz, z ], r ) => {
+
+			for ( let k = 0; k < n; k ++ ) {
+
+				const a = ( k / n ) * Math.PI * 2 + Math.PI / n;
+				// the normal tilted by the slope to the next ring (the shoulders face up)
+				const nb = rings[ Math.min( r + 1, rings.length - 1 ) ], pb = rings[ Math.max( r - 1, 0 ) ];
+				const slope = ( pb[ 1 ] - nb[ 1 ] ) / Math.max( 0.02, nb[ 0 ] - pb[ 0 ] );
+				vert( [ Math.cos( a ) * rx, y, Math.sin( a ) * rz + z ], norm( [ Math.cos( a ), slope * 0.8, Math.sin( a ) ] ), P.shirt );
+
+			}
+
+		} );
+		for ( let r = 0; r < rings.length - 1; r ++ ) for ( let k = 0; k < n; k ++ ) {
+
+			const a = first + r * n + k, b = first + r * n + ( k + 1 ) % n;
+			index.push( a, b + n, b, a, a + n, b + n );
+
+		}
+
+		const top = first + ( rings.length - 1 ) * n;
+		for ( let k = 1; k < n - 1; k ++ ) index.push( top, top + k + 1, top + k );
+
+	}
 	for ( const s of [ - 1, 1 ] ) {
 
-		tube( 'shoulder', 'elbow', s, [ 0.06, 0.06 ], [ 0.05, 0.05 ], P.shirt );
+		tube( 'shoulder', 'elbow', s, [ 0.058, 0.058 ], [ 0.05, 0.05 ], P.shirt );
 		tube( 'elbow', 'wrist', s, [ 0.05, 0.05 ], [ 0.042, 0.042 ], P.shirt );
 		tube( 'wrist', 'hand', s, [ 0.035, 0.02 ], [ 0.03, 0.018 ], P.skin );
 		tube( 'hip', 'knee', s, [ 0.085, 0.085 ], [ 0.06, 0.06 ], P.pants );
@@ -134,13 +167,15 @@ function figureGeometry() {
 	// the head, a cap's brim
 	{
 
-		const W = 8, H = 5, r = [ 0.082, 0.105, 0.098 ], hc = STAND.head;
+		const W = 8, H = 6, r = [ 0.082, 0.105, 0.098 ], hc = STAND.head;
 		const first = pos.length / 3;
 		for ( let j = 0; j <= H; j ++ ) for ( let i = 0; i < W; i ++ ) {
 
 			const th = j / H * Math.PI, ph = i / W * Math.PI * 2;
 			const d = [ Math.sin( th ) * Math.cos( ph ), Math.cos( th ), Math.sin( th ) * Math.sin( ph ) ];
-			vert( add( hc, [ d[ 0 ] * r[ 0 ], d[ 1 ] * r[ 1 ], d[ 2 ] * r[ 2 ] ] ), d, P.head );
+			// (the jaw narrower than the skull)
+			const jaw = Math.max( 0, Math.min( 1, ( - d[ 1 ] - 0.15 ) / 0.7 ) );
+			vert( add( hc, [ d[ 0 ] * r[ 0 ] * ( 1 - 0.16 * jaw ), d[ 1 ] * r[ 1 ], d[ 2 ] * r[ 2 ] ] ), d, P.head );
 
 		}
 
@@ -152,8 +187,23 @@ function figureGeometry() {
 
 		}
 
-		const brim = [ [ - 0.075, 0.055, - 0.06 ], [ 0.075, 0.055, - 0.06 ], [ 0.07, 0.045, - 0.16 ], [ - 0.07, 0.045, - 0.16 ] ].map( ( o ) => vert( add( hc, o ), [ 0, 1, 0 ], P.brim ) );
-		index.push( brim[ 0 ], brim[ 2 ], brim[ 1 ], brim[ 0 ], brim[ 3 ], brim[ 2 ] );
+		// a cap's bill, out of the crown's lower edge just above the brows (FP1, CP-1: it came out of the
+		// cap's middle), its sides a little lower
+		const brim = [ [ - 0.072, 0.034, - 0.066 ], [ 0, 0.043, - 0.093 ], [ 0.072, 0.034, - 0.066 ], [ 0.064, 0.028, - 0.15 ], [ 0, 0.033, - 0.165 ], [ - 0.064, 0.028, - 0.15 ] ].map( ( o ) => vert( add( hc, o ), [ 0, 1, - 0.1 ], P.brim ) );
+		index.push( brim[ 0 ], brim[ 1 ], brim[ 5 ], brim[ 1 ], brim[ 4 ], brim[ 5 ], brim[ 1 ], brim[ 2 ], brim[ 4 ], brim[ 2 ], brim[ 3 ], brim[ 4 ] );
+
+	}
+
+	// every triangle wound to face the way its vertices' normals do (FP1: the engine's front face is
+	// counter-clockwise and the material double sided, so the tubes, wound the other way, were lit inside
+	// out)
+	for ( let i = 0; i < index.length; i += 3 ) {
+
+		const P3 = ( k ) => [ pos[ index[ i + k ] * 3 ], pos[ index[ i + k ] * 3 + 1 ], pos[ index[ i + k ] * 3 + 2 ] ];
+		const N3 = ( k ) => [ nrm[ index[ i + k ] * 3 ], nrm[ index[ i + k ] * 3 + 1 ], nrm[ index[ i + k ] * 3 + 2 ] ];
+		const fn = cross( sub( P3( 1 ), P3( 0 ) ), sub( P3( 2 ), P3( 0 ) ) );
+		const vn = add( add( N3( 0 ), N3( 1 ) ), N3( 2 ) );
+		if ( fn[ 0 ] * vn[ 0 ] + fn[ 1 ] * vn[ 1 ] + fn[ 2 ] * vn[ 2 ] < 0 ) [ index[ i + 1 ], index[ i + 2 ] ] = [ index[ i + 2 ], index[ i + 1 ] ];
 
 	}
 
@@ -169,17 +219,25 @@ function figureGeometry() {
 
 }
 
-function peopleMaterial( info, moved ) {
+function peopleMaterial( info, moved, throng = null ) {
 
 	const mat = standard( {
 		name: 'people', roughness: 0.8, side: 'double',
-		storage: { pplInfo: info, pplMoved: moved },
+		storage: throng ? { thrOut: throng } : { pplInfo: info, pplMoved: moved },
+		defines: { THRONG: throng ? 1 : 0 },
 		attributes: { aWalk: 'vec3f', aReach: 'vec3f', aPart: 'f32' },
 		varyings: { vPart: 'f32', vInfo: 'vec4f', vLocal: 'vec3f' },
 		vertex: /* wgsl */`
 	// info: x the stride's phase (radians), y how much he's walking (0..1), z the role + a seed (its
 	// fraction), w how much he's reaching
+#if THRONG
+	// (the throng: where he is and was, from its pass: [ x, y, z, yaw ], the info, last frame's place)
+	let thrAt = thrOut[ v.instance * 3u ];
+	let inf = thrOut[ v.instance * 3u + 1u ];
+	let thrWas = thrOut[ v.instance * 3u + 2u ];
+#else
 	let inf = pplInfo[ v.instance ];
+#endif
 	let walkK = inf.y;
 	let reachK = inf.w;
 	let seedV = fract( inf.z );
@@ -189,11 +247,31 @@ function peopleMaterial( info, moved ) {
 	p.y += abs( cos( inf.x ) ) * 0.03 * walkK;
 	p.x += sin( frame.time * 0.7 + seedV * 30.0 ) * 0.01 * ( 1.0 - walkK ) * ( p.y - 0.4 );
 	let cap = fract( seedV * 7.0 ) < 0.45 || inf.z >= 1.0;
+	// (FP1, CP-1) a cap: the head fuller above its band and a little taller, the crown's shape
+	if ( cap && v.aPart > 2.5 && v.aPart < 3.5 ) {
+		let hc = vec3f( ${ STAND.head.join( ', ' ) } );
+		let d = ( p - hc ) / vec3f( 0.082, 0.105, 0.098 );
+		let front = - d.z / max( length( d.xz ), 0.001 );
+		p = hc + ( p - hc ) * ( 1.0 + 0.075 * smoothstep( 0.06 + 0.225 * front, 0.26 + 0.225 * front, d.y ) ) + vec3f( 0.0, 0.014 * smoothstep( 0.55, 1.0, d.y ), 0.0 );
+	}
 	let lp = select( vec4f( 0.0, 0.0, 0.0, 1.0 ), vec4f( p, 1.0 ), v.aPart < 3.5 || v.aPart > 4.5 || cap );
 	v.useWorld = true;
+#if THRONG
+	// placed on the concourse by the throng's pass, facing his way, his size; nobody there: folded away
+	let sc = select( 0.92 + 0.12 * fract( seedV * 91.0 ), 0.0, inf.w < - 0.5 );
+	let ca = cos( thrAt.w );
+	let sa = sin( thrAt.w );
+	let cb = cos( thrWas.w );
+	let sb = sin( thrWas.w );
+	let q = lp.xyz * sc;
+	v.worldPos = ( v.model * vec4f( thrAt.xyz + vec3f( q.x * ca + q.z * sa, q.y, - q.x * sa + q.z * ca ), 1.0 ) ).xyz;
+	v.prevWorldPos = ( v.model * vec4f( thrWas.xyz + vec3f( q.x * cb + q.z * sb, q.y, - q.x * sb + q.z * cb ), 1.0 ) ).xyz;
+	v.worldNormal = normalize( ( v.model * vec4f( v.normal.x * ca + v.normal.z * sa, v.normal.y, - v.normal.x * sa + v.normal.z * ca, 0.0 ) ).xyz );
+#else
 	v.worldPos = ( v.model * lp ).xyz;
 	v.worldNormal = normalize( ( v.model * vec4f( v.normal, 0.0 ) ).xyz );
 	v.prevWorldPos = v.worldPos - pplMoved[ v.instance ].xyz;
+#endif
 	o.vPart = v.aPart;
 	o.vInfo = inf;
 	o.vLocal = p;
@@ -204,17 +282,18 @@ function peopleMaterial( info, moved ) {
 	let role = i32( floor( inf.z ) );
 	let seed = fract( inf.z );
 	let h = fract( sin( vec4f( seed * 12.9898, seed * 78.233, seed * 39.346, seed * 11.135 ) ) * 43758.5453 );
-	// a fan's jacket: mostly Phillies red, then black, grey, white, navy
+	// a fan's jacket (FP1, CP-11: 2008's sea of red, as the crowd's): red, the home whites, black, navy,
+	// charcoal and grey, maroon; the powder blue a rare throwback
 	var shirt = mix( vec3f( 0.22, 0.012, 0.016 ), vec3f( 0.36, 0.022, 0.028 ), h.x );
 	let u = h.y;
-	if ( u > 0.46 ) { shirt = vec3f( 0.5, 0.49, 0.46 ) * mix( 0.8, 1.0, h.x ); }
-	if ( u > 0.54 ) { shirt = vec3f( 0.014, 0.014, 0.016 ); }
-	if ( u > 0.68 ) { shirt = vec3f( 0.12, 0.12, 0.125 ) * mix( 0.7, 1.4, h.x ); }
-	if ( u > 0.77 ) { shirt = vec3f( 0.015, 0.022, 0.06 ); }
-	if ( u > 0.84 ) { shirt = vec3f( 0.12, 0.018, 0.025 ); }
-	if ( u > 0.9 ) { shirt = vec3f( 0.22, 0.33, 0.48 ); }
+	if ( u > 0.6 ) { shirt = vec3f( 0.62, 0.61, 0.58 ); }
+	if ( u > 0.66 ) { shirt = vec3f( 0.014, 0.014, 0.016 ); }
+	if ( u > 0.8 ) { shirt = vec3f( 0.015, 0.022, 0.06 ); }
+	if ( u > 0.86 ) { shirt = vec3f( 0.12, 0.12, 0.125 ) * mix( 0.5, 1.5, h.x ); }
+	if ( u > 0.94 ) { shirt = vec3f( 0.12, 0.018, 0.025 ); }
+	if ( u > 0.99 ) { shirt = vec3f( 0.22, 0.33, 0.48 ); }
 	var pants = select( select( vec3f( 0.03, 0.045, 0.1 ), vec3f( 0.28, 0.22, 0.15 ), h.z > 0.72 ), vec3f( 0.02 ), h.z > 0.86 );
-	var capC = select( vec3f( 0.02, 0.03, 0.1 ), vec3f( 0.42, 0.015, 0.02 ), h.w < 0.7 );
+	var capC = select( vec3f( 0.014, 0.02, 0.07 ), vec3f( 0.33, 0.014, 0.02 ), h.w < 0.7 );
 	var vest = false;
 	// the staff: concession workers in red polos and black caps; event security in a hi-vis vest over
 	// a black jacket; ushers and ticket takers in Phillies red jackets, khakis, red caps; police in navy
@@ -245,9 +324,12 @@ function peopleMaterial( info, moved ) {
 		c = skin; rough = 0.6;
 		let capped = fract( seed * 7.0 ) < 0.45 || role > 0;
 		if ( hd.y > 0.03 - 0.06 * smoothstep( -0.02, 0.06, hd.z ) ) { c = hair; rough = 0.7; }
-		if ( capped && hd.y > 0.025 ) { c = capC; }
+		// (the cap down to its band: just above the brows, the tops of the ears, low behind)
+		let front = - hd.z / max( length( hd.xz ), 0.001 );
+		if ( capped && hd.y > 0.105 * ( 0.18 + 0.225 * front ) ) { c = capC; }
 	}
-	if ( part == 4 ) { c = capC; }
+	// the bill, its underside in shade
+	if ( part == 4 ) { c = select( capC, mix( capC * 0.5, vec3f( 0.06, 0.07, 0.06 ), 0.45 ), in.N.y < - 0.25 ); }
 	s.albedo = c;
 	s.roughness = rough;
 	s.emissive = e + c * smoothstep( 0.15, 0.7, frame.night ) * 0.1;
@@ -264,6 +346,90 @@ const rnd = ( s ) => {
 	return x - Math.floor( x );
 
 };
+
+// ---- FP1 (CI-2): the throng. A sold-out World Series night's concourse was a crush (the 3B gate at
+// 19:01 on the 27th shoulder to shoulder, the AP's fans "six or seven deep behind home plate" in the rain
+// delay), and the places' own people are a few hundred. So a crowd that costs no CPU per person: up to
+// THRONG figures on the concourse's walking line, each placed by a compute pass from his own hash and
+// the time (walking it one way or the other at his own pace, or standing about at its edges), as many
+// out as the replay's clock says (nightState's busy: the gates before the game, between innings, the
+// Rays batting, wall to wall in the delay; few in the 9th; at the rail for the last out). Not drawn
+// within a few metres of the camera (the places' detailed people are there) nor far off, and not at all
+// when the camera's away from the concourse (the TV's cameras).
+const THRONG = 1600;
+const THRONG_NEAR = 5.5, THRONG_FAR = 130;
+const throngCode = /* wgsl */`
+fn thrHash( n: u32 ) -> u32 {
+	var x = n * 747796405u + 2891336453u;
+	x = ( ( x >> ( ( x >> 28u ) + 4u ) ) ^ x ) * 277803737u;
+	return ( x >> 22u ) ^ x;
+}
+
+// line k at s metres along it: the point and its direction
+fn thrLine( k: u32, s: f32 ) -> vec4f {
+	let ln = thrLines[ k ];
+	var lo = u32( ln.x + 0.5 );
+	var hi = lo + u32( ln.y + 0.5 ) - 1u;
+	for ( var k = 0u; k < 8u; k ++ ) {
+		if ( lo >= hi ) { break; }
+		let mid = ( lo + hi + 1u ) / 2u;
+		if ( thrSeg[ mid * 2u + 1u ].x <= s ) { lo = mid; } else { hi = mid - 1u; }
+	}
+	let a = thrSeg[ lo * 2u ];
+	let c = thrSeg[ lo * 2u + 1u ];
+	let f = clamp( ( s - c.x ) / max( c.y, 0.001 ), 0.0, 1.0 );
+	return vec4f( mix( a.xy, a.zw, f ), c.zw );
+}
+
+struct ThrPlace { at: vec4f, phase: f32 };
+
+// where he is at time t: a walker goes back and forth along the line at his own pace, in his lane; a
+// stander keeps his spot at one edge, turning a little now and then
+fn thrPlace( h: vec4f, standing: bool, t: f32, k: u32 ) -> ThrPlace {
+	let L = thrLines[ k ].z;
+	let laneW = select( thr.mode.z, 7.0, k > 0u );
+	let speed = select( 0.8 + 0.65 * h.z, 0.0, standing );
+	let dir = select( - 1.0, 1.0, h.w > 0.5 );
+	let u = fract( h.x + dir * speed * t / ( 2.0 * L ) ) * 2.0 * L;
+	let back = u > L;
+	let s = select( u, 2.0 * L - u, back );
+	let heading = select( dir, - dir, back );
+	let a = thrLine( k, s );
+	let side = select( - 1.0, 1.0, fract( h.z * 7.3 ) > 0.5 );
+	let lane = select( ( fract( h.y * 7.3 ) - 0.5 ) * laneW, side * ( 0.5 * laneW + 0.9 * fract( h.w * 5.1 ) ), standing );
+	var o: ThrPlace;
+	var yaw = atan2( - a.z * heading, - a.w * heading );
+	if ( standing ) { yaw = h.z * 6.2832 + 0.5 * sin( t * 0.15 + h.x * 20.0 ); }
+	o.at = vec4f( a.x - a.w * lane, ${ STREET.toFixed( 3 ) }, a.y + a.z * lane, yaw );
+	o.phase = s * 5.2 * heading;
+	return o;
+}
+
+@compute @workgroup_size( WG_X, 1, 1 )
+fn main( @builtin( global_invocation_id ) gid: vec3u ) {
+	let i = gid.x;
+	if ( i >= ${ THRONG }u ) { return; }
+	let h = vec4f( f32( thrHash( i ) ), f32( thrHash( i + 7001u ) ), f32( thrHash( i + 14002u ) ), f32( thrHash( i + 21003u ) ) ) / 4294967296.0;
+	let standing = fract( h.y * 3.1 + h.w ) < 0.36;
+	// the concourse's loop (line 0) for most, the rest through the gates (lines 1..)
+	let nLines = u32( thr.misc.w + 0.5 );
+	let gate = i >= ${ Math.round( THRONG * 0.72 ) }u && nLines > 1u;
+	let k = select( 0u, 1u + ( i % max( 1u, nLines - 1u ) ), gate );
+	let t = thr.misc.x;
+	let cur = thrPlace( h, standing, t, k );
+	let was = thrPlace( h, standing, t - thr.misc.y, k );
+	// out tonight? (the clock's share of the walkers and of the standers, and of the gates' people)
+	let out = fract( h.x * 17.3 + h.z * 5.1 ) < select( select( thr.mode.x, thr.mode.y, standing ), thr.mode.w, gate );
+	let d = cur.at.xyz - thr.cam.xyz;
+	let d2 = dot( d, d );
+	let shown = out && d2 > thr.cam.w && d2 < ${ ( THRONG_FAR * THRONG_FAR ).toFixed( 1 ) };
+	let seed = fract( h.w * 13.7 + h.x * 3.3 ) * 0.999;
+	thrOut[ i * 3u ] = cur.at;
+	thrOut[ i * 3u + 1u ] = vec4f( cur.phase, select( 1.0, 0.0, standing ), seed, select( - 1.0, 0.0, shown ) );
+	thrOut[ i * 3u + 2u ] = was.at;
+}
+`;
+// ---- end FP1
 
 export class People {
 
@@ -299,6 +465,8 @@ export class People {
 		this._aisles( bowl );
 		this._gates( exterior );
 		this._police( bowl );
+		this._exterior = exterior;
+		this._throng();
 
 	}
 
@@ -373,6 +541,125 @@ export class People {
 		}
 
 	}
+
+	// ---- FP1 (CI-2): the throng's mesh (People's figure, placed on the GPU) and its pass (see THRONG)
+	_throng() {
+
+		if ( ! this.walkLine ) return;
+		// the lines: the concourse's loop, then one through each gate (from the plaza, through its
+		// turnstiles, into the atrium: the crush before the game)
+		const lines = [ this.walkLine.seg.map( ( g ) => [ g.a, g.b ] ) ];
+		const gates = new Map();
+		for ( const lane of this._exterior?.lanes || [] ) {
+
+			const G = gates.get( lane.gate ) || gates.set( lane.gate, { x: 0, z: 0, fx: 0, fz: 0, n: 0 } ).get( lane.gate );
+			G.x += lane.entry[ 0 ]; G.z += lane.entry[ 2 ]; G.fx += lane.face[ 0 ]; G.fz += lane.face[ 1 ]; G.n ++;
+
+		}
+
+		for ( const G of gates.values() ) {
+
+			const x = G.x / G.n, z = G.z / G.n, l = Math.hypot( G.fx, G.fz ) || 1, fx = G.fx / l, fz = G.fz / l;
+			const p = [ [ x + fx * 14, z + fz * 14 ], [ x, z ], [ x - fx * 9, z - fz * 9 ], [ x - fx * 20, z - fz * 20 ] ];
+			lines.push( [ [ p[ 0 ], p[ 1 ] ], [ p[ 1 ], p[ 2 ] ], [ p[ 2 ], p[ 3 ] ] ] );
+
+		}
+
+		const nSeg = lines.reduce( ( n, l ) => n + l.length, 0 );
+		const S = new Float32Array( nSeg * 8 ), Ls = new Float32Array( Math.max( 1, lines.length ) * 4 );
+		let i = 0;
+		lines.forEach( ( line, k ) => {
+
+			const first = i;
+			let s = 0;
+			for ( const [ a, b ] of line ) {
+
+				const l = Math.max( 1e-3, Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] ) );
+				S.set( [ a[ 0 ], a[ 1 ], b[ 0 ], b[ 1 ], s, l, ( b[ 0 ] - a[ 0 ] ) / l, ( b[ 1 ] - a[ 1 ] ) / l ], i * 8 );
+				s += l;
+				i ++;
+
+			}
+
+			Ls.set( [ first, line.length, s, 0 ], k * 4 );
+
+		} );
+		const L = this.walkLine.L, seg = this.walkLine.seg;
+		this.thrSeg = new StorageBuffer( { label: 'throng segments', count: nSeg * 2, type: 'vec4f', data: S } );
+		// (the camera's distance to any of the lines decides whether the throng is drawn at all)
+		this._thrNear = lines.flat().map( ( [ a, b ] ) => ( { a, b, l: Math.max( 1e-3, Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] ) ) } ) );
+		this.thrLines = new StorageBuffer( { label: 'throng lines', count: lines.length, type: 'vec4f', data: Ls } );
+		this.thrOut = new StorageBuffer( { label: 'throng', count: THRONG * 3, type: 'vec4f' } );
+		this.thrParams = new UniformBlock( 'ThrongParams', {
+			misc: [ 'vec4f', new Vector4( 0, 0.016, L, lines.length ) ], cam: [ 'vec4f', new Vector4( 0, - 100, 0, THRONG_NEAR * THRONG_NEAR ) ], mode: [ 'vec4f', new Vector4( 0.5, 0.5, 4.6, 0 ) ],
+		} );
+		this.thrKernel = new ComputeKernel( {
+			label: 'throng', workgroupSize: [ 64, 1, 1 ],
+			bindings: { thr: { uniform: this.thrParams }, thrSeg: { storage: this.thrSeg }, thrLines: { storage: this.thrLines }, thrOut: { storage: this.thrOut, access: 'read_write' } },
+			code: throngCode,
+		} );
+		this.throng = new InstancedMesh( this.mesh.geometry, peopleMaterial( null, null, this.thrOut ), THRONG );
+		this.throng.name = 'people-throng';
+		this.throng.frustumCulled = false;
+		this.throng.castShadow = false;
+		this.throng.receiveShadow = true;
+		this.throng.visible = false;
+		this.mesh.add( this.throng );
+		this.thrShare = [ 0.5, 0.5, 0.3 ];
+		void seg;
+		this._thrCam = new Vector3( 0, - 1000, 0 );
+		this._thrInv = new Matrix4();
+		// the camera, as the people are drawn (the main view's; the people cast no shadows), in the field's frame
+		this.mesh.onBeforeRender = ( r, s, camera ) => {
+
+			if ( camera ) this._thrCam.setFromMatrixPosition( camera.matrixWorld ).applyMatrix4( this._thrInv.copy( this.field.group.matrixWorld ).invert() );
+
+		};
+
+	}
+
+	_throngUpdate( dt, d ) {
+
+		if ( ! this.throng ) return;
+		// the clock: the share of the walkers and the standers out on the concourse
+		const ns = nightState( d );
+		let w = ns.top ? 0.62 : 0.32, s = ns.top ? 0.5 : 0.3, g = 0.08;
+		if ( ns.between ) w = 1, s = 0.8;
+		// (before the first pitch, the gates: the replay opens on the walk-in)
+		if ( ns.seg?.kind === 'intro' || ( ns.inning === 1 && ns.half === 'top' && ( ns.snap?.outs || 0 ) === 0 ) ) g = 1;
+		if ( ns.suspended ) w = 0.8, s = 1, g = 0.3;
+		if ( ns.inning === 9 && ! ns.celebrate ) w *= 0.5, s *= 0.5;
+		if ( ns.celebrate ) w = 0.12, s = 0.5, g = 0;
+		// (easing in and out over a few seconds; a jump in the replay starts on the new moment)
+		const jump = d && this._thrT !== undefined && Math.abs( d.t - this._thrT - dt ) > 2;
+		this._thrT = d ? d.t : undefined;
+		const k = jump ? 1 : 1 - Math.exp( - dt * 0.5 );
+		this.thrShare[ 0 ] += ( w - this.thrShare[ 0 ] ) * k;
+		this.thrShare[ 1 ] += ( s - this.thrShare[ 1 ] ) * k;
+		this.thrShare[ 2 ] += ( g - this.thrShare[ 2 ] ) * k;
+		// only when the camera's on the concourse (not the TV's cameras, not from the seats)
+		const c = this._thrCam;
+		let near = Infinity;
+		for ( const g of this._thrNear ) {
+
+			const ux = ( g.b[ 0 ] - g.a[ 0 ] ) / g.l, uz = ( g.b[ 1 ] - g.a[ 1 ] ) / g.l;
+			const f = Math.max( 0, Math.min( g.l, ( c.x - g.a[ 0 ] ) * ux + ( c.z - g.a[ 1 ] ) * uz ) );
+			near = Math.min( near, Math.hypot( g.a[ 0 ] + ux * f - c.x, g.a[ 1 ] + uz * f - c.z ) );
+
+		}
+
+		// (on the concourse's level: walking it, at the gates; not from the seats, the suites or the press box)
+		this.throng.visible = near < 40 && Math.abs( c.y - STREET - 1.6 ) < 4;
+		if ( ! this.throng.visible ) return;
+		const U = this.thrParams.fields;
+		U.misc.value.x = this.time;
+		U.misc.value.y = Math.max( 1e-3, dt );
+		U.cam.value.set( c.x, c.y, c.z, THRONG_NEAR * THRONG_NEAR );
+		U.mode.value.set( this.thrShare[ 0 ], this.thrShare[ 1 ], 4.6, this.thrShare[ 2 ] );
+		this.thrKernel.dispatch( Math.ceil( THRONG / 64 ) );
+
+	}
+	// ---- end FP1
 
 	_alongWalk( s ) {
 
@@ -643,6 +930,7 @@ export class People {
 		this.mesh.instanceMatrix.needsUpdate = true;
 		this.infoBuffer.write( this.info );
 		this.movedBuffer.write( this.moved );
+		this._throngUpdate( dt, d );
 
 	}
 
