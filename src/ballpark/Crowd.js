@@ -83,6 +83,12 @@ const LODS = [
 	{ name: 'near', trunk: 6, rings: TRUNK.near, limb: 4, head: [ 8, 5 ], neck: false, hands: 4, joints: true, extras: false, hair: true, crown: null, bill: 4, shoes: false, nose: false, pom: null, sign: true },
 	{ name: 'mid', trunk: 6, rings: TRUNK.mid, limb: 3, head: [ 6, 4 ], neck: false, hands: 0, joints: true, extras: false, hair: true, crown: null, bill: 0, shoes: false, nose: false, pom: null },
 	{ name: 'far', trunk: 4, rings: TRUNK.far, limb: 3, head: [ 5, 3 ], neck: false, hands: 0, joints: false, extras: false, hair: false, crown: null, bill: 0, shoes: false, nose: false, pom: null },
+	// ---- SP2 (speed): the distant one, for fans under ~8 px tall (the bowl from the 400s, the outfield's
+	// stands from home): the far one's shapes on three sides and a smaller head grid. At that size a side
+	// is a fraction of a pixel; what shows is the colours and the arms, which it keeps. Its triangles are
+	// most of the time spent on the whole bowl in view, and each one shades whole 2 x 2 pixel quads
+	{ name: 'distant', trunk: 3, rings: TRUNK.far, limb: 3, head: [ 4, 2 ], neck: false, hands: 0, joints: false, extras: false, hair: false, crown: null, bill: 0, shoes: false, nose: false, pom: null },
+	// ---- end SP2
 ];
 // where a cap's crown comes down to on the head (d.y, the head's unit sphere), by how far round to the
 // front: just above the brows in front (they're at 0.3), over the ears at the sides, low behind
@@ -1154,7 +1160,7 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 	const call = ( prev ) => `cwVertex( v.position, v.normal, v.aStand, v.aStandN, v.aSitUp, v.aStandUp, v.aSitFace, v.aStandFace, v.aInfo, fan, ${ prev }, ${ lod }u )`;
 	const mat = standard( {
 		// (the near ones are all 'crowd-near' to the rain: Night.js's FABRIC)
-		name: 'crowd-' + [ 'near', 'near', 'mid', 'far' ][ lod ], roughness: 0.8, side: 'double',
+		name: 'crowd-' + [ 'near', 'near', 'mid', 'far', 'far' ][ lod ], roughness: 0.8, side: 'double', // (SP2: the distant one is 'far' too)
 		modules: [ crowdModule ],
 		defines: { CROWD_LOD: lod },
 		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf, cwIds: idsBuf },
@@ -1305,7 +1311,7 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		let ax = abs( d.x );
 		c = skin;
 		rough = 0.55;
-#if CROWD_LOD != 3
+#if CROWD_LOD < 3
 		// how big a pixel is on the face: the features fade out when they would only flicker
 		let fw = fwidth( d.x ) + fwidth( d.y );
 		let near = 1.0 - smoothstep( 0.15, 0.4, fw );
@@ -1578,6 +1584,9 @@ export class Crowd {
 	constructor() {
 
 		this.geometries = LODS.map( ( _, k ) => fanGeometry( k ) );
+		// ---- SP2: where the distant level takes over (lod()'s d: half the screen's height in metres at
+		// the chunk: 60 is a seated fan ~8 px tall of 800)
+		this.distant = 60;
 		// who each fan is and where he sits (written once, when the stands are done), and what the compute
 		// pass works out for him each frame (see cwHashModule)
 		this.idsBuf = new StorageBuffer( { label: 'crowd ids', count: MAX_FANS, type: 'vec4u' } );
@@ -1689,7 +1698,7 @@ export class Crowd {
 
 		};
 
-		this.chunks.push( { near: make( 0, '-crowd' ), lods: [ first, make( 1, '-crowd-near' ), make( 2, '-crowd-mid' ), make( 3, '-crowd-far' ) ], ids, base } );
+		this.chunks.push( { near: make( 0, '-crowd' ), lods: [ first, make( 1, '-crowd-near' ), make( 2, '-crowd-mid' ), make( 3, '-crowd-far' ), make( 4, '-crowd-distant' ) ], ids, base } ); // ---- SP2: distant
 		this.count += mats.length;
 
 	}
@@ -1718,8 +1727,9 @@ export class Crowd {
 			const d = Math.max( 0, dist - R, ( lat - R ) / kd ) * k;
 			// (close up the whole figure, under ~4 m of the screen's half height: a fan over a sixth of it;
 			// never through a long lens, whose fans are all far off)
-			const level = d < 4 && k > 0.17 ? 0 : d < 11 ? 1 : d < 30 ? 2 : 3;
-			for ( let k = 0; k < 4; k ++ ) ch.lods[ k ].visible = level === k;
+			// ---- SP2: and the distant one beyond DISTANT (fans under ~8 px)
+			const level = d < 4 && k > 0.17 ? 0 : d < 11 ? 1 : d < 30 ? 2 : d < this.distant ? 3 : 4;
+			for ( let k = 0; k < ch.lods.length; k ++ ) ch.lods[ k ].visible = level === k;
 
 		}
 
