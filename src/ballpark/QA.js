@@ -120,7 +120,8 @@ export class QA {
 	}
 
 	// GPU time per frame and the costliest passes (timestamp queries, captured as core/Bench.js does):
-	// `warm` frames to settle, then `frames` measured back to back, the replay paused. For the
+	// `warm` frames to settle, then `frames` measured back to back, the replay paused (the wall from
+	// `frames` without timestamps, the GPU's from `frames` more with them: SP3). For the
 	// coordinator, under the GPU lock's exclusive mode (a desk job with "exclusive": true): with anything
 	// else rendering the numbers are noise.
 	async profile( { frames = 120, warm = 40, dt = 1 / 60, top = 14 } = {} ) {
@@ -133,12 +134,21 @@ export class QA {
 		try {
 
 			await b._frames( warm, dt );
-			b.frames = [];
-			b._capture = true;
+			// ---- SP3 (speed): the wall from frames without the timestamps, then the GPU's passes from as many
+			// with them. Writing each pass's timestamps and reading them back every frame (resolve, copy,
+			// mapAsync) costs the wall 5-6 ms on the M2 (the 400s seat: 23.6 ms a frame without, 28.9 with,
+			// 24.7 written but not read back), and nothing in play writes them (only ?profile). `wallTs` is
+			// the old figure, the wall with them
 			const t0 = performance.now();
 			await b._frames( frames, dt );
 			const wall = ( performance.now() - t0 ) / frames;
+			b.frames = [];
+			b._capture = true;
+			const t1 = performance.now();
+			await b._frames( frames, dt );
+			const wallTs = ( performance.now() - t1 ) / frames;
 			b._capture = false;
+			// ---- end SP3
 			for ( let k = 0; k < 50 && b.frames.length < frames; k ++ ) await new Promise( ( r ) => setTimeout( r, 20 ) );
 			const fs = b.frames.slice();
 			const gpus = fs.map( ( f ) => f.gpu ).sort( ( x, y ) => x - y );
@@ -146,7 +156,7 @@ export class QA {
 			for ( const f of fs ) for ( const [ k, v ] of f.passes ) passes.set( k, ( passes.get( k ) || 0 ) + v / fs.length );
 			const r2 = ( v ) => Math.round( v * 100 ) / 100;
 			return {
-				gpu: r2( gpus.reduce( ( x, y ) => x + y, 0 ) / gpus.length ), gpuMedian: r2( gpus[ gpus.length >> 1 ] ), wall: r2( wall ), cpu: r2( this.app.cpuMs ), frames: fs.length,
+				gpu: r2( gpus.reduce( ( x, y ) => x + y, 0 ) / gpus.length ), gpuMedian: r2( gpus[ gpus.length >> 1 ] ), wall: r2( wall ), wallTs: r2( wallTs ), cpu: r2( this.app.cpuMs ), frames: fs.length, // ---- SP3: wallTs
 				passes: Object.fromEntries( [ ...passes ].sort( ( x, y ) => y[ 1 ] - x[ 1 ] ).slice( 0, top ).map( ( [ k, v ] ) => [ k, r2( v ) ] ) ),
 			};
 
