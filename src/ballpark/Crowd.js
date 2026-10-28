@@ -65,8 +65,9 @@ const HEAD_R = [ 0.082, 0.105, 0.098 ];
 // chest, the armpits, the shoulders sloping in to a collar round the neck (a seated 47 degree crowd
 // zipped to the chin), not a drum (CP-2: Getty 83893023, the 27th)
 const TRUNK = {
-	close: [ [ - 0.08, 0.17, 0.122, 0, 2.2 ], [ 0.1, 0.166, 0.118, 0, 2.2 ], [ 0.36, 0.156, 0.11, - 0.004, 2.2 ], [ 0.64, 0.168, 0.118, - 0.01, 2.4 ],
-		[ 0.84, 0.17, 0.114, - 0.004, 2.5 ], [ 0.95, 0.165, 0.104, 0.002, 2.4 ], [ 1.0, 0.142, 0.094, 0.004, 2.2 ], [ 1.35, 0.09, 0.078, 0, 2 ], [ 1.9, 0.072, 0.066, 0, 2 ] ],
+	// (FW6, C4W-1: close up the shoulders round in plan and falling to the collar, not squared to a shelf)
+	close: [ [ - 0.08, 0.17, 0.122, 0, 2.2 ], [ 0.1, 0.166, 0.118, 0, 2.2 ], [ 0.36, 0.156, 0.11, - 0.004, 2.2 ], [ 0.64, 0.168, 0.118, - 0.01, 2.25 ],
+		[ 0.84, 0.168, 0.113, - 0.004, 2.15 ], [ 0.95, 0.158, 0.103, 0.002, 2.05 ], [ 1.0, 0.138, 0.094, 0.004, 2.0 ], [ 1.35, 0.09, 0.078, 0, 2 ], [ 1.9, 0.072, 0.066, 0, 2 ] ],
 	near: [ [ - 0.08, 0.17, 0.122, 0, 2.2 ], [ 0.4, 0.158, 0.11, - 0.004, 2.2 ], [ 0.8, 0.17, 0.116, - 0.008, 2.4 ],
 		[ 1.0, 0.142, 0.094, 0.004, 2.2 ], [ 1.4, 0.088, 0.077, 0, 2 ], [ 1.9, 0.072, 0.066, 0, 2 ] ],
 	mid: [ [ - 0.05, 0.172, 0.12, 0, 2 ], [ 0.85, 0.18, 0.112, - 0.004, 2 ], [ 1.4, 0.1, 0.08, 0, 2 ] ],
@@ -1482,8 +1483,15 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), female );
 		c = mix( c, mix( lip, vec3f( 0.06, 0.02, 0.02 ), smoothstep( 0.3, 0.7, open ) ), smoothstep( 1.0, 0.7, mo ) * front );
 		// a moustache, a goatee, a beard (soft at its edges, broken up, not a mask: CP-13), stubble
-		if ( facial == 1u || facial == 3u ) { c = mix( c, hairC, smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.3 ) * front ); }
-		if ( facial == 2u ) { c = mix( c, hairC, ( smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.28 ) + step( d.y, - 0.5 ) * step( ax, 0.24 ) ) * front ); }
+		// ---- FW6 (C4W-16): a moustache and a goatee in the hair's own colour, a little darker, their edges
+		// soft and broken into stubble, the skin through them (hard black cut-outs with ruler edges)
+		let fstub = 0.75 + 0.25 * sin( d.x * 211.0 + sin( d.y * 97.0 ) * 3.0 ) * sin( d.y * 183.0 + d.x * 41.0 );
+		let fcol = mix( c, hairC * 0.8, 0.85 );
+		let moust = smoothstep( 0.06, 0.02, abs( d.y + 0.33 + 0.04 * ax * ax ) ) * smoothstep( 0.33, 0.24, ax );
+		let goat = smoothstep( - 0.47, - 0.53, d.y ) * smoothstep( 0.27, 0.19, ax ) * smoothstep( 0.0, - 0.2, d.z );
+		if ( facial == 1u || facial == 3u ) { c = mix( c, fcol, clamp( moust * fstub * 1.15, 0.0, 0.92 ) * front ); }
+		if ( facial == 2u ) { c = mix( c, fcol, clamp( max( moust, goat ) * fstub * 1.15, 0.0, 0.92 ) * front ); }
+		// ---- end FW6
 		if ( facial == 3u ) {
 			// ---- FW4 (C3W-4): on the jaw and the cheeks below the cheekbone's line, up to the sideburns in front
 			// of the ears, thinning at its edges, the skin through it (it ran round the side of the head to the

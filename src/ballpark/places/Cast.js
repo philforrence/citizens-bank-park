@@ -796,18 +796,23 @@ export function figureGeometry( lod = 0 ) {
 			// rows: [ height, half width, half depth, how far round from the back ]
 			const rows = fine ? [ [ 0.075, 0.062, 0.075, 2.2 ], [ - 0.02, 0.088, 0.106, 2.1 ], [ - 0.11, 0.096, 0.12, 1.95 ], [ - 0.19, 0.106, 0.14, 1.6 ], [ - 0.26, 0.116, 0.156, 1.25 ] ]
 				: [ [ 0.075, 0.062, 0.075, 2.2 ], [ - 0.11, 0.096, 0.12, 1.95 ], [ - 0.26, 0.116, 0.156, 1.25 ] ];
-			const cols = fine ? F( 9, 7 ) : tiny ? 3 : 5, R0 = [];
+			const cols = fine ? F( 13, 7 ) : tiny ? 3 : 5, R0 = [];
 			// (FW4, C3W-12: the ends in locks, each its own length, and turned out a little where they lie on
 			// the collar; the strands are the shaders'. Its bottom was one straight edge: a plank)
-			const lock = [ 0.0, 0.022, 0.008, 0.03, 0.004, 0.026, 0.012, 0.018, 0.0 ];
+			// (FW6, C4W-6: close up five or six locks of their own lengths and widths, the hollows between them
+			// up to 6 cm higher (it was an even sawtooth); the lower rows out over the collar and the back,
+			// up onto the shoulders at the sides, not hung straight down)
+			const lock = fine && ! mid ? [ 0.0, 0.03, 0.055, 0.012, 0.0, 0.04, 0.06, 0.02, 0.004, 0.035, 0.05, 0.018, 0.0 ] : [ 0.0, 0.022, 0.008, 0.03, 0.004, 0.026, 0.012, 0.018, 0.0 ];
 			for ( const [ ri, [ y, rx, rz, span ] ] of rows.entries() ) {
 
-				const ring = [], last = ri === rows.length - 1;
+				const ring = [], last = ri === rows.length - 1, low = fine && ri >= rows.length - 2;
 				for ( let i = 0; i < cols; i ++ ) {
 
-					const ph = ( i / ( cols - 1 ) * 2 - 1 ) * span;
-					const dy = fine && last ? - lock[ Math.round( i / ( cols - 1 ) * 8 ) ] : 0, flip = fine && last ? 1.04 : 1;
-					ring.push( vert( add( h, [ Math.sin( ph ) * rx * flip, y + dy, Math.cos( ph ) * rz * flip ] ), [ Math.sin( ph ), 0.15, Math.cos( ph ) ], B.head, PART.hairCard ) );
+					const u = i / ( cols - 1 ) * 2 - 1, ph = u * span;
+					const dy = fine && last ? - lock[ Math.round( ( i / ( cols - 1 ) ) * ( lock.length - 1 ) ) ] : 0, flip = fine && last ? 1.04 : 1;
+					const sh = low ? 0.03 * Math.pow( Math.abs( u ), 3 ) * ( last ? 1 : 0.5 ) : 0;
+					const out = low ? 1 + 0.06 * Math.max( 0, Math.cos( ph ) ) : 1;
+					ring.push( vert( add( h, [ Math.sin( ph ) * rx * flip * ( 1 + sh * 2 ), y + dy + sh, Math.cos( ph ) * rz * flip * out ] ), [ Math.sin( ph ), 0.15, Math.cos( ph ) ], B.head, PART.hairCard ) );
 
 				}
 
@@ -931,9 +936,11 @@ export function figureGeometry( lod = 0 ) {
 	// (FP1, CP-6: it hangs from the shoulders over the arms, not a bell from a tight collar)
 	// (FW1, C2W-16: to mid-thigh, closer to the body front and back, more rings and sides close up: the
 	// shaders hang its sides on the arms, sag its corners and fold it; it was a stiff bell to the knees)
-	loft( B.spine, PART.poncho, fine ? [ [ 0.7, 0.33, 0.2, 0.02 ], [ 0.82, 0.335, 0.2, 0.02 ], [ 0.98, 0.335, 0.19, 0.018 ], [ 1.14, 0.33, 0.175, 0.018 ],
-		[ 1.27, 0.32, 0.158, 0.022 ], [ 1.35, 0.3, 0.14, 0.026 ], [ 1.41, 0.265, 0.115, 0.03 ], [ 1.45, 0.175, 0.088, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ]
-		: [ [ 0.7, 0.33, 0.2, 0.02 ], [ 0.98, 0.335, 0.19, 0.018 ], [ 1.27, 0.32, 0.158, 0.022 ], [ 1.41, 0.265, 0.115, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ],
+	// (FW6, C4W-4: narrower, over the narrower shoulders: it stood 9 cm out from the arms at the elbow, a
+	// bell 0.67 m across)
+	loft( B.spine, PART.poncho, fine ? [ [ 0.7, 0.305, 0.195, 0.02 ], [ 0.82, 0.305, 0.195, 0.02 ], [ 0.98, 0.302, 0.185, 0.018 ], [ 1.14, 0.296, 0.172, 0.018 ],
+		[ 1.27, 0.288, 0.156, 0.022 ], [ 1.35, 0.272, 0.138, 0.026 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.45, 0.163, 0.088, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ]
+		: [ [ 0.7, 0.305, 0.195, 0.02 ], [ 0.98, 0.302, 0.185, 0.018 ], [ 1.27, 0.288, 0.156, 0.022 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ],
 	fine ? F( 18, 12 ) : tiny ? 5 : 8, false, false, fine );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
 	if ( ! tiny ) loft( B.spine, PART.apron, [ [ 0.55, 0.19, 0.13, 0.0 ], [ 0.8, 0.178, 0.125, 0.004 ], [ 1.02, 0.172, 0.122, 0.004 ] ], fine ? F( 12, 9 ) : 7, false, false );
@@ -981,7 +988,8 @@ export function figureGeometry( lod = 0 ) {
 			const part = 32 + id;
 			if ( id === PROP.beer || id === PROP.soda ) {
 
-				cyl( bone, part, g, 0.034, 0.045, 0.15, 8 );
+				// (FW6, C4W-15: close up a 12-sided cup flaring to its rim)
+				cyl( bone, part, g, 0.034, 0.045, 0.15, id === PROP.beer && fine ? F( 12, 6 ) : 8 );
 				if ( id === PROP.soda && fine ) tube( bone, part, add( g, [ 0.01, 0.14, 0 ] ), add( g, [ 0.018, 0.22, 0.004 ] ), [ 0.004, 0.004 ], [ 0.004, 0.004 ], 4 );
 
 			} else if ( id === PROP.beers ) {
@@ -1616,6 +1624,9 @@ function castMaterial( pool ) {
 		q = vec3f( axc.x + ( q.x - axc.x ) * ( 1.0 + fl ), q.y, axc.y + ( q.z - axc.y ) * ( 1.0 + fl ) );
 	}
 	if ( build == 2u && ( ( bone >= 3u && bone <= 6u ) || bone >= 11u ) ) { q.x += select( - 0.012, 0.012, bone == 4u || bone == 6u || bone == 12u ); }
+	// (C4W-4: under a poncho the sleeves are the film over the arm, a little fuller: an arm brought out
+	// to a beer or a phone takes the plastic with it, not the jacket's sleeve out through a hole in it)
+	if ( part == ${ PART.sleeve }u && poncho > 0u && poncho < 7u ) { q += n * 0.014; }
 	// ---- end FW6
 	if ( part == ${ PART.poncho }u ) {
 		// one poncho for two (poncho 7): it hangs from his shoulders and spreads out over the one on his left
@@ -1655,12 +1666,17 @@ function castMaterial( pool ) {
 		}
 		// ---- end FW1
 		// a long coat hangs straighter than a poncho, and stops at the knee
+		// ---- FW6 (C4W-4): its own skirt from the waist (the coat's body and sleeves are the trunk's and the
+		// arms'), straight down to the knee, flaring a little, clear of the hands: it was the poncho's bell from
+		// the shoulders, the sleeves stuck on its sides
 		if ( poncho == 0u ) {
-			let hang = 1.0 - smoothstep( 0.95, 1.3, q.y );
-			q.x *= 1.0 - 0.3 * hang;
-			q.z = ( q.z - 0.015 ) * ( 1.0 - 0.3 * hang ) + 0.015;
-			q.y = select( q.y, 0.86 - ( 0.86 - q.y ) * 1.5, q.y < 0.86 );
+			let a = atan2( q.x, q.z - 0.015 );
+			let yk = 1.04 - ( 1.485 - q.y ) / 0.785 * 0.56;
+			let fl = smoothstep( 0.92, 0.5, yk );
+			q = vec3f( sin( a ) * ( 0.172 + 0.024 * fl ), yk, cos( a ) * ( 0.118 + 0.016 * fl ) + 0.015 );
+			n = normalize( vec3f( sin( a ) / 0.18, 0.04, cos( a ) / 0.125 ) );
 		}
+		// ---- end FW6
 	}
 	let headC = ${ f3( J.head ) };
 	if ( bone == 2u && part != ${ PART.neck }u ) {
@@ -1800,14 +1816,26 @@ function castMaterial( pool ) {
 	var r0 = c3Rig( q, n, bone, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Hang( c3Pose[ armRow ], armOut ), c3Pose[ k + 6u ], a7.x );
 	// ---- FW1 (C2W-16): a poncho's sides go where the arms do (rigged with the upper arm too, and blended:
 	// over the arm it's the arm's, the hem and the middle the trunk's), swinging as they swing walking
-	let wArm = select( 0.0, smoothstep( 0.17, 0.27, abs( q.x ) ) * smoothstep( 0.86, 1.1, q.y ), part == ${ PART.poncho }u && poncho > 0u && poncho < 7u );
+	let wArm = select( 0.0, smoothstep( 0.17, 0.27, abs( q.x ) ) * smoothstep( 0.82, 1.06, q.y ), part == ${ PART.poncho }u && poncho > 0u && poncho < 7u );
 	let armB = select( 3u, 4u, q.x > 0.0 );
 	let armR2 = k + select( 4u, 5u, q.x > 0.0 );
+	// ---- FW6 (C4W-4): and its lower sides the forearm's, so a beer held up, a phone at the ear, hands on
+	// the rail lift the film over the arm and the hand comes out from under its edge (the forearm came out
+	// through the plastic at mid-height, the hand a paddle sticking out of a bell)
+	let wFore = smoothstep( 1.2, 1.0, q.y );
 	if ( wArm > 0.0 ) {
 		let ra = c3Rig( q, n, armB, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Hang( c3Pose[ armR2 ], armOut ), c3Pose[ k + 6u ], a7.x );
-		r0.p = mix( r0.p, ra.p, wArm );
-		r0.n = normalize( mix( r0.n, ra.n, wArm ) );
+		var ap = ra.p;
+		var an = ra.n;
+		if ( wFore > 0.0 ) {
+			let rf = c3Rig( q, n, armB + 2u, part, at, c3Pose[ k + 1u ], c3Pose[ k + 2u ], a3.x, c3Hang( c3Pose[ armR2 ], armOut ), c3Pose[ k + 6u ], a7.x );
+			ap = mix( ap, rf.p, wFore );
+			an = normalize( mix( an, rf.n, wFore ) );
+		}
+		r0.p = mix( r0.p, ap, wArm );
+		r0.n = normalize( mix( r0.n, an, wArm ) );
 	}
+	// ---- end FW6
 	// ---- end FW1
 	// ---- FW6 (C4W-7): the sleeve's head (the deltoid over the joint) belongs to the shoulder as much as to
 	// the arm: blended toward the spine's rig from 10 cm under the joint up, so an arm brought forward or
@@ -1826,7 +1854,11 @@ function castMaterial( pool ) {
 	if ( lod == 0u || lod == 3u ) {
 		// the near ones (and the middle ones) rigged again in last frame's pose: the arms' and legs' own motion for the TAA
 		var r1 = c3Rig( q, n, bone, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Hang( c3Prev[ armRow ], armOut ), c3Prev[ k + 6u ], c3Prev[ k + 7u ].x );
-		if ( wArm > 0.0 ) { r1.p = mix( r1.p, c3Rig( q, n, armB, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Hang( c3Prev[ armR2 ], armOut ), c3Prev[ k + 6u ], c3Prev[ k + 7u ].x ).p, wArm ); }
+		if ( wArm > 0.0 ) {
+			var ap1 = c3Rig( q, n, armB, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Hang( c3Prev[ armR2 ], armOut ), c3Prev[ k + 6u ], c3Prev[ k + 7u ].x ).p;
+			if ( wFore > 0.0 ) { ap1 = mix( ap1, c3Rig( q, n, armB + 2u, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Hang( c3Prev[ armR2 ], armOut ), c3Prev[ k + 6u ], c3Prev[ k + 7u ].x ).p, wFore ); }
+			r1.p = mix( r1.p, ap1, wArm );
+		}
 		if ( wSh > 0.0 ) { r1.p = mix( r1.p, c3Rig( q, n, 1u, part, c3Prev[ k ], c3Prev[ k + 1u ], c3Prev[ k + 2u ], c3Prev[ k + 3u ].x, c3Prev[ armRow ], c3Prev[ k + 6u ], c3Prev[ k + 7u ].x ).p, wSh ); }
 		v.prevWorldPos = ( v.prevModel * vec4f( r1.p, 1.0 ) ).xyz;
 	} else {
@@ -1992,6 +2024,13 @@ function castMaterial( pool ) {
 		if ( top == ${ TOP.raincoat }u ) { printC = vec3f( 0.02 ); }
 		if ( chest == ${ CHEST.ws }u && onFront ) { printC = select( vec3f( 0.75, 0.6, 0.2 ), vec3f( 0.72, 0.71, 0.68 ), dot( topC, vec3f( 0.33 ) ) < 0.2 ); }
 		if ( chest == ${ CHEST.bulls }u && onFront ) { printC = vec3f( 0.75, 0.55, 0.15 ); }
+		// ---- FW6 (C4W-13): further off, where a pixel spans a letter's stroke, the print fades to a pale tint
+		// over its cell (its mean coverage), not the atlas's low mip, which averaged the name and the number
+		// into one solid block: a white bib on every back at 8-20 m
+		let pfar = smoothstep( 0.0035, 0.009, length( fwidth( L ) ) );
+		let pcell = back > 0u && onBack && L.y > 1.0 && L.y < 1.38 && abs( L.x ) < 0.15;
+		printA = mix( printA, select( 0.0, 0.28, pcell || printA > 0.001 ), pfar );
+		// ---- end FW6
 		c = mix( c, printC, printA );
 		// ---- B (home): a ticket lanyard (the Diamond Club's, heston 2986440011): a white strap from the
 		// sides of the neck down to a clear pouch on the chest with the ticket in it (look.z bit 18)
@@ -2089,8 +2128,15 @@ function castMaterial( pool ) {
 		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), female );
 		c = mix( c, mix( lip, vec3f( 0.06, 0.02, 0.02 ), smoothstep( 0.3, 0.7, open ) ), smoothstep( 1.0, 0.7, mo ) * front );
 		// a moustache, a goatee, a beard, stubble (the stubble a shadow, the beard a softer band)
-		if ( facial == 1u || facial == 3u ) { c = mix( c, hairC, smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.3 ) * front ); }
-		if ( facial == 2u ) { c = mix( c, hairC, ( smoothstep( 0.05, 0.02, abs( d.y + 0.33 ) ) * step( ax, 0.28 ) + step( d.y, - 0.5 ) * step( ax, 0.24 ) ) * front ); }
+		// ---- FW6 (C4W-16): a moustache and a goatee in the hair's own colour, a little darker, their edges
+		// soft and broken into stubble, the skin through them (hard black cut-outs with ruler edges)
+		let fstub = 0.75 + 0.25 * sin( d.x * 211.0 + sin( d.y * 97.0 ) * 3.0 ) * sin( d.y * 183.0 + d.x * 41.0 );
+		let fcol = mix( c, hairC * 0.8, 0.85 );
+		let moust = smoothstep( 0.06, 0.02, abs( d.y + 0.33 + 0.04 * ax * ax ) ) * smoothstep( 0.33, 0.24, ax );
+		let goat = smoothstep( - 0.47, - 0.53, d.y ) * smoothstep( 0.27, 0.19, ax ) * smoothstep( 0.0, - 0.2, d.z );
+		if ( facial == 1u || facial == 3u ) { c = mix( c, fcol, clamp( moust * fstub * 1.15, 0.0, 0.92 ) * front ); }
+		if ( facial == 2u ) { c = mix( c, fcol, clamp( max( moust, goat ) * fstub * 1.15, 0.0, 0.92 ) * front ); }
+		// ---- end FW6
 		// (FP1, CP-13: the beard soft at its edges and broken up, not a black mask)
 		if ( facial == 3u ) {
 			// ---- FW4: the jaw and the cheeks below the cheekbone, up to the sideburns, the skin through its
@@ -2236,12 +2282,18 @@ function castMaterial( pool ) {
 	if ( part == ${ PART.hairCard }u ) {
 		// (FP2: its strands, darker in among them and toward the ends)
 		let hl = L - ${ f3( J.head ) };
-		c = hairC * ( 0.82 + 0.18 * sin( atan2( hl.x, hl.z ) * 70.0 + hl.y * 30.0 ) ) * mix( 1.0, 0.8, smoothstep( - 0.05, - 0.25, hl.y ) );
+		// (FW6, C4W-6: the strands broken and uneven, not a corrugated sheet; lighter at the ends where the
+		// light gets through them and at the crown, darker in among the locks)
+		let sa0 = atan2( hl.x, hl.z );
+		let sw = sa0 + 0.08 * sin( sa0 * 9.0 + hl.y * 23.0 + seed * 40.0 );
+		c = hairC * ( 0.8 + 0.2 * sin( sw * 70.0 + hl.y * 30.0 + 2.0 * sin( sw * 13.0 ) ) ) * mix( 1.0, 0.8, smoothstep( - 0.05, - 0.2, hl.y ) );
+		c *= mix( 1.0, 1.3, smoothstep( - 0.17, - 0.29, hl.y ) ) * mix( 1.0, 1.15, smoothstep( 0.05, 0.1, hl.y ) );
+		c *= 0.82 + 0.18 * smoothstep( - 0.5, 0.5, sin( sw * 11.0 + seed * 17.0 ) );
 		rough = 0.7;
 		// ---- FW4 (C3W-12): the strands lit as strands: the normal turned across them by locks of a few
 		// centimetres and finer, so the light breaks along them (it lay on the shell as on a board)
-		let sa = atan2( hl.x, hl.z );
-		let st = 0.22 * sin( sa * 23.0 + hl.y * 9.0 ) + 0.1 * sin( sa * 61.0 - hl.y * 14.0 );
+		let sa = sw;
+		let st = 0.24 * sin( sa * 11.0 + hl.y * 7.0 + seed * 17.0 ) + 0.12 * sin( sa * 37.0 - hl.y * 14.0 + 1.7 * sin( sa * 5.0 ) ) + 0.06 * sin( sa * 97.0 + hl.y * 30.0 );
 		s.normal = normalize( s.normal + st * vec3f( cos( sa ), 0.0, - sin( sa ) ) );
 		rough = 0.62;
 		// ---- end FW4
@@ -2309,7 +2361,10 @@ function castMaterial( pool ) {
 		if ( ( abs( L.y - 1.06 ) < 0.02 || abs( L.y - 1.18 ) < 0.02 ) && top != ${ TOP.hawker }u ) { c = vec3f( 0.65 ); rough = 0.3; }
 		e = c * 0.06;
 	}
-	if ( part == ${ PART.poncho }u ) {
+	// ---- FW6 (C4W-4): a poncho wearer's sleeves are the film over the arm (the jacket's sleeve under it)
+	let filmSleeve = part == ${ PART.sleeve }u && poncho > 0u && poncho < 7u;
+	if ( filmSleeve ) { printA = 0.0; }
+	if ( part == ${ PART.poncho }u || filmSleeve ) {
 		if ( poncho == 0u ) {
 			// a long coat's skirt: the coat's own cloth, open down the front
 			c = topC * select( 1.0, 0.8, L.z < - 0.1 && abs( L.x ) < 0.025 );
@@ -2322,12 +2377,16 @@ function castMaterial( pool ) {
 			// ones a silvery haze over the jacket, whiter in the creases and edge on; the white ones a milky
 			// film with the jacket faint under it (a sheet, a ghost); the trash bag grey and dull, crinkled
 			// big (a black balloon)
-			let cr = filmCrumple( L * select( 1.0, 0.7, poncho == 6u ), length( fwidth( L ) ) );
-			s.normal = filmTilt( s.normal, cr.xyz );
+			// ---- FW6 (C4W-4): the clear film nearly invisible but for its creases and its edges: the jacket
+			// under it at 0.9 (it was 0.72 under a 20% grey: an opaque grey shell), the folds' tilt halved and
+			// their size each poncho's own (it was an even hammered dimpling, grey metal)
+			let cr = filmCrumple( L * select( 0.8 + 0.45 * g.z, 0.7, poncho == 6u ), length( fwidth( L ) ) );
+			s.normal = filmTilt( s.normal, cr.xyz * select( 0.35, 0.8, poncho > 1u ) );
 			let fres = pow( 1.0 - abs( dot( s.normal, normalize( in.V ) ) ), 2.0 );
-			let under = topC * 0.72;
+			let under = select( topC, c, filmSleeve ) * 0.9;
 			let haze = vec3f( 0.44, 0.46, 0.5 );
-			var pc = mix( under, haze, 0.2 + 0.04 * cr.w + 0.32 * fres );
+			var pc = mix( under, haze, 0.08 + 0.06 * cr.w + 0.3 * fres );
+			// ---- end FW6
 			let lit = 0.96 + 0.06 * cr.w;
 			if ( poncho == 2u ) { pc = vec3f( 0.36, 0.02, 0.03 ) * lit; }
 			if ( poncho == 3u ) { pc = mix( under, vec3f( 0.56, 0.57, 0.58 ), 0.58 + 0.04 * cr.w ); }
@@ -2365,9 +2424,19 @@ function castMaterial( pool ) {
 		let pl = L;
 		if ( id == ${ PROP.beer }u || id == ${ PROP.beers }u ) {
 			// a clear plastic cup of lager with its head of foam
-			c = vec3f( 0.55, 0.33, 0.04 );
-			rough = 0.1;
-			if ( in.N.y > 0.7 ) { c = vec3f( 0.75, 0.72, 0.62 ); rough = 0.9; }
+			// ---- FW6 (C4W-15): a 20 oz clear cup (dottcom 2931484933): the lager pale gold, lighter edge on
+			// where the light comes through it; a white head of foam under a band of empty clear plastic and
+			// the rolled rim's bright line (it was an opaque saturated tube with a cream lid)
+			let cy = pl.y - ${ ( J.hand[ 1 ] - 0.06 ).toFixed( 3 ) };
+			let edge = pow( 1.0 - abs( dot( normalize( in.N ), normalize( in.V ) ) ), 1.5 );
+			c = mix( vec3f( 0.5, 0.31, 0.05 ), vec3f( 0.78, 0.6, 0.2 ), 0.55 * edge );
+			e = vec3f( 0.25, 0.17, 0.04 ) * edge * 0.25;
+			rough = 0.08;
+			if ( cy > 0.11 ) { c = vec3f( 0.74, 0.72, 0.64 ); rough = 0.85; e = vec3f( 0.0 ); }
+			if ( cy > 0.135 ) { c = mix( vec3f( 0.74, 0.72, 0.64 ) * 0.7, vec3f( 0.8 ), edge ); rough = 0.06; }
+			if ( cy > 0.146 ) { c = vec3f( 0.85 ); rough = 0.2; }
+			if ( in.N.y > 0.7 ) { c = vec3f( 0.75, 0.72, 0.62 ); rough = 0.9; e = vec3f( 0.0 ); }
+			// ---- end FW6
 		}
 		if ( id == ${ PROP.soda }u ) { c = select( vec3f( 0.7, 0.68, 0.64 ), vec3f( 0.45, 0.03, 0.03 ), fract( pl.y / 0.05 ) < 0.45 ); rough = 0.5; }
 		if ( id == ${ PROP.cocoa }u ) {
@@ -3004,6 +3073,10 @@ class Pool {
 		const hidden = this.hidden;
 		const inv = _inv.copy( G.matrixWorld ).invert();
 		const gone = _gone;
+		// ---- FW6 (C4W-5): the camera in the field frame (people step aside from it)
+		const IE = inv.elements;
+		const fcx = IE[ 0 ] * cx + IE[ 4 ] * cy + IE[ 8 ] * cz + IE[ 12 ], fcy = IE[ 1 ] * cx + IE[ 5 ] * cy + IE[ 9 ] * cz + IE[ 13 ], fcz = IE[ 2 ] * cx + IE[ 6 ] * cy + IE[ 10 ] * cz + IE[ 14 ];
+		// ---- end FW6
 
 		for ( const t of this.troupes ) {
 
@@ -3079,6 +3152,27 @@ class Pool {
 
 				}
 
+				// ---- FW6 (C4W-5): people make way: within a metre of the eye (the walker's, at about head height
+				// over the same floor) a person steps aside, away from it, easing there and back over a second
+				// (the places' own steering doesn't know where you are: you walked through lines and the rail's
+				// crowd, and the eye ended up inside heads). The walker's push reads the same offsets (_ax, _az)
+				{
+
+					const ex = x - fcx, ez = z - fcz, e2 = ex * ex + ez * ez, up = fcy - y;
+					const near = e2 < 1.44 && up > 0.4 && up < 2.4;
+					if ( near || p._ax ) {
+
+						const e = Math.sqrt( e2 ) || 1;
+						const k = near ? Math.min( 1, ( 1.2 - e ) / 0.7 ) * 0.42 : 0;
+						p._ax = ( p._ax || 0 ) + ( ex / e * k - ( p._ax || 0 ) ) * 0.08;
+						p._az = ( p._az || 0 ) + ( ez / e * k - ( p._az || 0 ) ) * 0.08;
+						if ( Math.abs( p._ax ) + Math.abs( p._az ) < 0.002 && ! near ) p._ax = p._az = 0;
+						x += p._ax; z += p._az;
+
+					}
+
+				}
+				// ---- end FW6
 				// seen: the pose packed
 				const sl = p.slot, o4 = sl * POSE * 4;
 				P[ o4 ] = x; P[ o4 + 1 ] = y; P[ o4 + 2 ] = z; P[ o4 + 3 ] = yaw;
