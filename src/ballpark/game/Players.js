@@ -1249,7 +1249,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume 
 		let yc = 0.024 + 0.03 * smoothstep( -0.15, 0.06, fz );
 		let st = 0.0035 + 0.0065 * smoothstep( -0.17, -0.02, fz ) * ( 1.0 - smoothstep( 0.03, 0.075, fz ) );
 		let fst = max( fwidth( fy ), 1e-4 );
-		c = mix( c, accent, smoothstep( 0.35, 0.6, abs( Nb.x ) ) * clamp( ( st - abs( fy - yc ) ) / fst + 0.5, 0.0, 1.0 ) * smoothstep( -0.19, -0.16, fz ) );
+		c = mix( c, accent, smoothstep( 0.35, 0.6, abs( Nb.x ) ) * clamp( ( st - abs( fy - yc ) ) / fst + 0.5, 0.0, 1.0 ) * smoothstep( -0.19, -0.16, fz ) * select( 1.0, 0.0, ump ) );
 		let lace = ( 1.0 - smoothstep( 0.011, 0.015, abs( fx ) ) ) * smoothstep( 0.45, 0.65, Nb.y ) * smoothstep( -0.14, -0.12, fz ) * ( 1.0 - smoothstep( 0.0, 0.02, fz ) );
 		c = mix( c, mix( upper * 1.8 + vec3f( 0.025 ), upper * 0.3, step( 0.62, fract( fz * 75.0 ) ) ), lace );
 		c = mix( c, vec3f( 0.7, 0.69, 0.66 ), ( 1.0 - smoothstep( 0.0025, 0.0045, abs( fy - 0.016 ) ) ) * select( 0.6, 1.0, redShoe ) );
