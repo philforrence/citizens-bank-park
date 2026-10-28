@@ -25,8 +25,9 @@ const TOWER = 16.4; // the brick towers' tops (the facade's height here)
 
 export default class Entrance {
 
-	constructor( { field } ) {
+	constructor( { app, field } ) {
 
+		this.app = app;
 		this.field = field;
 		this.group = new Group();
 		this.group.name = 'entrance';
@@ -284,7 +285,9 @@ export default class Entrance {
 
 		if ( ! this.reach || ! camera ) return;
 		const [ cx, cz ] = this.field.toField( camera.position.x, camera.position.z );
-		this.reach.update( [ cx, camera.position.y - this.field.y0, cz ] );
+		// (FOX's cameras are all inside the park, facing the field)
+		const tv = this.app?.camMode && this.app.camMode !== 'walk';
+		this.reach.update( tv ? [ 1e4, 0, 0 ] : [ cx, camera.position.y - this.field.y0, cz ] );
 
 	}
 

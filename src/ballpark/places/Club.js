@@ -796,7 +796,8 @@ export default class Club {
 		// club's front (the field and the lower seats looking up); not from the suites or the concourse
 		// under it, nor from behind its back wall
 		const d = backFrom( this.G, cx, cz );
-		const sees = d < DEPC + 0.5 && ( cy > this.y - 4 || d < - 9.5 );
+		const tv = this.app?.camMode && this.app.camMode !== 'walk';
+		const sees = ! tv && d < DEPC + 0.5 && ( cy > this.y - 4 || d < - 9.5 );
 		const any = this.reach.update( sees ? [ cx, cy, cz ] : [ 1e4, 0, 0 ] );
 		if ( this.farMat ) this.farMat.uniforms.nearOn.value = sees ? 1 : 0;
 		if ( this.tvs ) this.tvs.visible = any;

@@ -855,7 +855,9 @@ export default class Suites {
 		// only from where you could see in: not from behind the corridor's wall, nor from under the floor
 		// (the main concourse, FI1's walkway: the rooms over them were drawn for nothing)
 		const d = backFrom( this.A, cx, cz );
-		const sees = d < 7.5 && ! ( cy < this.y - 0.3 && d > - 2.5 );
+		// (and never from FOX's cameras: none of them looks into a suite)
+		const tv = this.app?.camMode && this.app.camMode !== 'walk';
+		const sees = ! tv && d < 7.5 && ! ( cy < this.y - 0.3 && d > - 2.5 );
 		const any = this.reach.update( sees ? [ cx, cy, cz ] : [ 1e4, 0, 0 ] );
 		if ( this.tvs ) this.tvs.visible = any;
 		this.nearGlass.visible = any;
