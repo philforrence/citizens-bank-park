@@ -70,6 +70,7 @@ export class MeshRenderer {
 		this.occlusion = null;
 		this.occlusionEnabled = typeof location === 'undefined' || ! /[?&]noOcclusion\b/.test( location.search );
 		this.cutLast = true; // ---- SP2: alpha-tested / discarding materials last in the opaque layer (collect())
+		this.leanVaryings = true; // ---- SP3: only the varyings that vary (MeshShader.js); false for the old shaders
 
 	}
 
@@ -547,9 +548,9 @@ export class MeshRenderer {
 		this._beginFrame();
 		pass = {
 			kind: 'main', late: false, colorFormats: [], depthFormat: null, depthCompare: 'greater-equal',
-			frameBlock: FrameUniforms, layerMask: 0xffffffff, ...pass,
+			frameBlock: FrameUniforms, layerMask: 0xffffffff, leanVaryings: this.leanVaryings, ...pass, // ---- SP3: leanVaryings
 		};
-		pass.passKey = `${ pass.kind }.${ pass.late ? 1 : 0 }.${ pass.colorFormats.join( ',' ) }.${ pass.depthFormat }.${ pass.depthCompare }.${ pass.cullOverride || '' }.${ pass.defines ? JSON.stringify( pass.defines ) : '' }`;
+		pass.passKey = `${ pass.kind }.${ pass.late ? 1 : 0 }.${ pass.colorFormats.join( ',' ) }.${ pass.depthFormat }.${ pass.depthCompare }.${ pass.cullOverride || '' }.${ pass.defines ? JSON.stringify( pass.defines ) : '' }.${ pass.leanVaryings ? 1 : 0 }${ pass.pixelMotion ? 1 : 0 }`; // ---- SP3
 		// occlusion culling: only a main pass with a camera and a depth buffer, collected here
 		let occ = null;
 		if ( pass.occlusion && this.occlusionEnabled && ! this.precompiling && ! pass.items && pass.camera && pass.depthView ) {
