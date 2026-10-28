@@ -686,7 +686,7 @@ export function figureGeometry( lod = 0 ) {
 	// in front than the waist, which comes in under it, the jacket easing out again over the hips. The
 	// sleeve's head is the deltoid that rounds the shoulder off below the trunk's slope)
 	loft( B.spine, PART.torso, fine ? [
-		[ 0.805, 0.166, 0.112, 0.012 ], [ 0.83, 0.174, 0.12, 0.012 ], [ 0.9, 0.171, 0.116, 0.011 ], [ 0.98, 0.16, 0.11, 0.009 ],
+		[ 0.805, 0.166, 0.112, 0.012, 2.35 ], [ 0.83, 0.174, 0.12, 0.012, 2.35 ], [ 0.9, 0.174, 0.116, 0.011, 2.3 ], [ 0.98, 0.166, 0.11, 0.009, 2.2 ],
 		[ 1.06, 0.155, 0.108, 0.008, 2.1 ], [ 1.14, 0.162, 0.113, 0.006, 2.15 ], [ 1.22, 0.172, 0.119, 0.006, 2.25 ], [ 1.3, 0.179, 0.118, 0.011, 2.2 ],
 		[ 1.35, 0.184, 0.111, 0.018, 2.05 ], [ 1.385, 0.181, 0.1, 0.023 ], [ 1.41, 0.171, 0.09, 0.026 ], [ 1.43, 0.152, 0.081, 0.028 ],
 		[ 1.452, 0.12, 0.07, 0.029 ], [ 1.472, 0.086, 0.062, 0.03 ],
@@ -901,7 +901,10 @@ export function figureGeometry( lod = 0 ) {
 			sweep( B.farm[ L ], PART.hand, add( add( wr, mul( ax, 0.03 ) ), add( mul( ac, 0.022 ), mul( dp, 0.006 * curl ) ) ), tAx, norm( cross( tAx, [ s, 0, 0 ] ) ),
 				[ [ 0, 0.013, 0.012 ], [ 0.03, 0.011, 0.01 ], [ 0.05, 0.009, 0.009 ] ], F( 6, 4 ), 0, 0.008 );
 			// the thigh, the knee, the shin and the trousers' hem
-			limb( B.thigh[ L ], PART.pants, add( hp, [ 0, 0.05, 0 ] ), kn, [ [ 0, 0.088, 0.09 ], [ 0.45, 0.079, 0.082 ], [ 1, 0.062, 0.064 ] ] );
+			// (FW6: the thigh's top inside the jacket's hips, and the jacket fuller over them at its front
+			// corners, as a jacket hangs over the hips: the thighs' fronts came through the jacket's elliptical
+			// skirt, a patch of trousers either side of a flap of jacket)
+			limb( B.thigh[ L ], PART.pants, add( hp, [ 0, 0.02, 0 ] ), kn, [ [ 0, 0.07, 0.078 ], [ 0.3, 0.076, 0.078 ], [ 0.6, 0.073, 0.075 ], [ 1, 0.062, 0.064 ] ] );
 			ellipsoid( B.shin[ L ], PART.pants, kn, [ 0.06, 0.058, 0.061 ], F( 10, 8 ), F( 5, 4 ) );
 			limb( B.shin[ L ], PART.pants, kn, add( an, [ 0, 0.02, 0 ] ), [ [ 0, 0.06, 0.062 ], [ 0.32, 0.057, 0.06 ], [ 0.82, 0.049, 0.051 ], [ 1, 0.054, 0.056 ] ] );
 			// the shoe: a last swept from the heel to the toe (the heel's round, the instep up to the ankle,
