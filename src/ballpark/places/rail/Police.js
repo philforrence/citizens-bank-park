@@ -22,14 +22,15 @@ export class Police {
 	constructor( { group, figs, M, bowl, people, field } ) {
 
 		this.figs = figs;
-		// ---- all game, a Philadelphia officer on the track at each dugout's end, where the roof meets the
-		// photographers' well, facing the field (heston 2986442231 / 2986442413, Game 3;
-		// puffygreenjacket 2983578054, the 27th)
+		// ---- all game, a Philadelphia officer on the track at each dugout's end, facing the field
+		// (heston 2986442231 / 2986442413, Game 3; puffygreenjacket 2983578054, the 27th). (FB2, C2B-1: past
+		// the photographers' well, against the wall, not where the roof meets it: there he stood 1.5 m in
+		// front of FOX's low base line camera, on its line to the mound and the plate.)
 		this.cops = [];
 		for ( const d of field?.dugouts || [] ) {
 
 			const { a, ux, uz, nx, nz } = d;
-			const s = d.roof[ 1 ] + 0.3, t = - 1.25;
+			const s = d.len + 1.3, t = - 0.75;
 			const x = a[ 0 ] + ux * s + nx * t, z = a[ 1 ] + uz * s + nz * t;
 			const yaw = Math.atan2( nx, nz ) + ( d.side === 'first' ? 0.5 : - 0.5 );
 			const f = figs.add( 'police', { x, z, yaw, outfit: RAIL.police, seed: d.side === 'first' ? 0.77 : 0.28, flags: FLAG.cap, stout: 0.6, scale: 1.02 } );
@@ -123,7 +124,12 @@ export class Police {
 			const stand = figs.add( bike ? 'bikeStand' : 'police', { x: p[ 0 ], z: p[ 1 ], yaw: bike ? along : Math.atan2( - cx, - cz ), outfit: bike ? RAIL.bikeCop : RAIL.police, seed, flags: bike ? FLAG.helmet : flags, scale, stout, shown: false } );
 			// from the nearer corner: the right field one for the first base half, the left for the rest
 			const fromStart = s < L / 2;
-			this.line.push( { walk, stand, s, fromStart, phase: rnd( k ) * 6, bike, crowdYaw: Math.atan2( - cx, - cz ) } );
+			// (FB2, C2B-4: the stretch behind the plate between the low home cameras' wells is the TV's
+			// picture, the backstop behind the batter in every center field frame; FOX's frame of the last
+			// pitch has the crowd standing behind an empty track there. The few for it come out after the
+			// last out.)
+			const late = Math.abs( p[ 0 ] ) < 16 && p[ 1 ] > 3;
+			this.line.push( { walk, stand, s, fromStart, late, phase: rnd( k ) * 6, bike, crowdYaw: Math.atan2( - cx, - cz ) } );
 
 		}
 
@@ -178,14 +184,15 @@ export class Police {
 
 			const seg = director.segments.find( ( s ) => s.snap && s.snap.inning === 9 && s.snap.half === 'top' && s.kind === 'switch' );
 			this.t0 = seg ? seg.t0 + 40 : ( director.segments.find( ( s ) => s.kind === 'celebrate' )?.t0 ?? 1e9 ) - 120;
+			this.tLate = ( director.segments.find( ( s ) => s.kind === 'celebrate' )?.t0 ?? 1e9 ) + 12;
 
 		}
 
-		const tau = S.t - this.t0;
 		for ( const o of this.line ) {
 
 			o.walk.shown = false;
 			o.stand.shown = false;
+			const tau = S.t - ( o.late ? this.tLate : this.t0 );
 			if ( tau < o.delay ) continue;
 			// walking in single file along the track from their corner (the bikes riding in), then turned
 			// to face the stands
