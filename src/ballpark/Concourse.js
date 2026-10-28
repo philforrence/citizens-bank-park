@@ -629,8 +629,13 @@ const ROOMS_WGSL = /* wgsl */`
 	var hitK = 0;
 	if ( rd.y < 0.0 ) { let tf = - y / rd.y; if ( tf < t ) { t = tf; hitK = 1; } }
 	if ( rd.y > 0.0 ) { let tc = ( ceilY - y ) / rd.y; if ( tc < t ) { t = tc; hitK = 2; } }
-	if ( rd.x < 0.0 ) { let tl = - xl / rd.x; if ( tl < t ) { t = tl; hitK = 3; } }
-	if ( rd.x > 0.0 ) { let tr = ( w - xl ) / rd.x; if ( tr < t ) { t = tr; hitK = 4; } }
+	// ---- FW5 (C3W-11, gauntlet r3): an office (the ticket windows, guest services) runs on past its window
+	// either side, as a room behind a hole in its wall does: walking past at 60-70 degrees the ray met the
+	// window's own sides at once and the window went blank cream; now it goes in past the counter and the
+	// clerks to the office's far side
+	let ext = select( 0.0, 2.6, room == 6 );
+	if ( rd.x < 0.0 ) { let tl = ( - ext - xl ) / rd.x; if ( tl < t ) { t = tl; hitK = 3; } }
+	if ( rd.x > 0.0 ) { let tr = ( w + ext - xl ) / rd.x; if ( tr < t ) { t = tr; hitK = 4; } }
 	let h = vec3f( xl, y, 0.0 ) + rd * t;
 	let hx = h.x;
 	let hy = h.y;
@@ -656,6 +661,8 @@ const ROOMS_WGSL = /* wgsl */`
 		// the sides: tile, or painted in the rooms
 		col = select( vec3f( 0.6, 0.58, 0.54 ) * ( 1.0 - 0.18 * step( 0.44, max( abs( fract( hz / 0.15 ) - 0.5 ), tileG.y ) ) ), vec3f( 0.55, 0.53, 0.5 ), room >= 6 );
 		if ( hy < 0.9 && room < 5 ) { col = vec3f( 0.33, 0.34, 0.35 ); }
+		// (---- FW5: the office's far side: a filing cabinet's grey, a door, a calendar)
+		if ( room == 6 ) { col = vec3f( 0.36, 0.37, 0.39 ); if ( hy < 1.3 && fract( hz / 0.9 ) > 0.1 ) { col = vec3f( 0.24, 0.25, 0.27 ) * ( 0.85 + 0.15 * step( 0.5, fract( hy / 0.33 ) ) ); } }
 	} else {
 		if ( room == 0 ) {
 			if ( hy < 0.9 ) { col = vec3f( 0.33, 0.34, 0.35 ) * ( 0.85 + 0.15 * step( 0.5, fract( hx * 1.4 ) ) ); }
@@ -842,7 +849,8 @@ const ROOMS_WGSL = /* wgsl */`
 		}
 		if ( length( vec2f( fract( xl / 1.1 ) * 1.1 - 0.55, y - 1.55 ) ) < 0.06 ) { col = vec3f( 0.22 ); e = vec3f( 0.0 ); }
 		let fres = pow( 1.0 - max( dot( - Vd, Nw ), 0.0 ), 4.0 );
-		col = col * 0.8 + vec3f( 0.08 ) * fres;
+		// (---- FW5: the glass takes over toward grazing: the concourse's lights and dark in it)
+		col = mix( col * 0.8, vec3f( 0.16, 0.17, 0.19 ) * ( 0.7 + 0.6 * step( 0.5, fract( ( in.P.x + in.P.z ) * 0.35 + y * 0.2 ) ) ), fres * 0.7 );
 	}
 	// ---- end FW2
 	s.albedo = col * 0.25;
@@ -1943,9 +1951,24 @@ export class Concourse {
 				if ( o.k !== 'family' ) {
 
 					const px = o.c + ( o.c > 0 ? 1.15 : - 1.15 );
-					props.use( 'yellow' );
-					props.add( P( px - 0.16, 0, 0.55 ), P( px + 0.16, 0, 0.55 ), P( px + 0.12, 0.62, 0.42 ), P( px - 0.12, 0.62, 0.42 ), [ n[ 0 ], 0.2, n[ 1 ] ] );
-					props.add( P( px + 0.16, 0, 0.29 ), P( px - 0.16, 0, 0.29 ), P( px - 0.12, 0.62, 0.42 ), P( px + 0.12, 0.62, 0.42 ), [ - n[ 0 ], 0.2, - n[ 1 ] ] );
+					// ---- FW5 (C3W-10, gauntlet r3): an A-frame, both its panels' faces (seen from the side it was
+					// two bare quads edge on: a mustard slab standing out of the floor), CAUTION in a black band
+					// across the top of each outer face, the slipping figure under it, a black hinge
+					for ( const [ zb, sg ] of [ [ 0.55, 1 ], [ 0.29, - 1 ] ] ) {
+
+						const Q = ( x, t, off = 0 ) => P( px + x * ( 1 - t * 0.25 ), 0.62 * t, zb + ( 0.42 - zb ) * t + sg * off );
+						const N = [ n[ 0 ] * sg, 0.2, n[ 1 ] * sg ], Nb = [ - n[ 0 ] * sg, - 0.2, - n[ 1 ] * sg ];
+						props.use( 'yellow' );
+						props.add( Q( - 0.16, 0 ), Q( 0.16, 0 ), Q( 0.16, 1 ), Q( - 0.16, 1 ), N );
+						props.add( Q( 0.16, 0, - 0.012 ), Q( - 0.16, 0, - 0.012 ), Q( - 0.16, 1, - 0.012 ), Q( 0.16, 1, - 0.012 ), Nb );
+						props.use( 'black' );
+						props.add( Q( - 0.16, 0.74, 0.003 ), Q( 0.16, 0.74, 0.003 ), Q( 0.16, 0.86, 0.003 ), Q( - 0.16, 0.86, 0.003 ), N );
+						props.add( Q( - 0.05, 0.3, 0.003 ), Q( 0.06, 0.3, 0.003 ), Q( 0.04, 0.6, 0.003 ), Q( - 0.03, 0.6, 0.003 ), N );
+
+					}
+
+					lbox( props.use( 'black' ), P, a, n, px, 0.62, 0.42, 0.26, 0.025, 0.03 );
+					// ---- end FW5
 
 				}
 

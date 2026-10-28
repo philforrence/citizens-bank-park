@@ -20,7 +20,7 @@ export const PALETTE = [
 	[ 'cardboard', [ 0.42, 0.29, 0.16 ], 0.85, 0 ], [ 'cartRed', [ 0.38, 0.02, 0.03 ], 0.32, 0.1 ], [ 'chrome', [ 0.8, 0.8, 0.82 ], 0.15, 1 ],
 	[ 'grey', [ 0.2, 0.2, 0.21 ], 0.6, 0 ], [ 'rubber', [ 0.015, 0.015, 0.016 ], 0.8, 0 ], [ 'yellow', [ 0.78, 0.56, 0.02 ], 0.4, 0 ],
 	[ 'lamp', [ 0.8, 0.78, 0.72 ], 0.5, 0, [ 1.0, 0.86, 0.66 ] ], [ 'redLamp', [ 0.4, 0.05, 0.02 ], 0.4, 0, [ 1.0, 0.25, 0.08 ] ], [ 'green', [ 0.05, 0.3, 0.08 ], 0.5, 0 ],
-	[ 'floss', [ 0.8, 0.35, 0.5 ], 1.0, 0, [ 0.1, 0.03, 0.05 ] ], [ 'cherry', [ 0.6, 0.03, 0.05 ], 0.3, 0 ], [ 'lemon', [ 0.75, 0.62, 0.08 ], 0.3, 0 ],
+	[ 'floss', [ 0.8, 0.35, 0.5 ], 1.0, 0, [ 0.1, 0.03, 0.05 ] ], [ 'blueFloss', [ 0.28, 0.48, 0.85 ], 1.0, 0, [ 0.03, 0.05, 0.1 ] ], // ---- FW5 [ 'cherry', [ 0.6, 0.03, 0.05 ], 0.3, 0 ], [ 'lemon', [ 0.75, 0.62, 0.08 ], 0.3, 0 ],
 	[ 'blueIce', [ 0.1, 0.3, 0.7 ], 0.3, 0 ], [ 'cocoa', [ 0.12, 0.06, 0.03 ], 0.3, 0 ], [ 'glass', [ 0.04, 0.05, 0.06 ], 0.05, 0.3 ],
 	[ 'wood', [ 0.3, 0.18, 0.09 ], 0.7, 0 ], [ 'enamel', [ 0.72, 0.71, 0.68 ], 0.4, 0 ], [ 'navy', [ 0.012, 0.02, 0.06 ], 0.5, 0 ],
 	[ 'foil', [ 0.7, 0.7, 0.72 ], 0.25, 1 ], [ 'popcorn', [ 0.85, 0.7, 0.35 ], 0.8, 0, [ 0.3, 0.22, 0.08 ] ], [ 'screen', [ 0.02, 0.03, 0.03 ], 0.2, 0, [ 0.12, 0.5, 0.3 ] ],
@@ -367,6 +367,49 @@ export class Kit {
 
 	}
 
+	// ---- FW5 (C3W-12, gauntlet r3): a bag of cotton candy as it hangs on the vendor's pole: a soft pillow of
+	// floss in a clear bag, lumpy, round at the bottom, pinched to its twist tie at the top, a white printed
+	// band round its middle (pompomflipflop, Sept 2007; Getty, Aug 2009: the bags on the pole). It was an
+	// octagonal can. In frame P: hung from ( x, y1, z ), h tall, w wide, dp deep, turned by yaw
+	pillow( P, x, z, y1, h, w, dp, yaw = 0, seed = 1 ) {
+
+		const n = 12, m = 8, k0 = this.k;
+		const prof = ( t ) => t < 0.12 ? 0.5 + 0.5 * Math.sin( t / 0.12 * Math.PI / 2 ) : t < 0.62 ? 1 : Math.max( 0.12, Math.cos( ( t - 0.62 ) / 0.38 * Math.PI / 2 ) );
+		const c = Math.cos( yaw ), sn = Math.sin( yaw );
+		const lump = ( i, j ) => 1 + 0.1 * Math.sin( i * 2.7 + j * 1.9 + seed * 5.1 ) + 0.06 * Math.sin( i * 5.3 - j * 3.1 + seed );
+		const pt = ( i, j ) => {
+
+			const t = j / m, a = i / n * Math.PI * 2, k = prof( t ) * ( j > 0 && j < m ? lump( i, j ) : 1 );
+			const lx = Math.cos( a ) * w / 2 * k, lz = Math.sin( a ) * dp / 2 * k;
+			return [ P( x + lx * c + lz * sn, y1 - h + h * t, z - lx * sn + lz * c ), P.dir( Math.cos( a ) * c * dp + Math.sin( a ) * sn * w, ( prof( Math.max( 0, t - 0.1 ) ) - prof( Math.min( 1, t + 0.1 ) ) ) * 0.6, - Math.cos( a ) * sn * dp + Math.sin( a ) * c * w ) ];
+
+		};
+		for ( let j = 0; j < m; j ++ ) for ( let i = 0; i < n; i ++ ) {
+
+			const [ a, na ] = pt( i, j ), [ b, nb ] = pt( i + 1, j ), [ cc, nc ] = pt( i + 1, j + 1 ), [ d, nd ] = pt( i, j + 1 );
+			// the printed band (white) round the middle, the floss above and below it
+			this.k = j === 4 ? PAL.white : k0;
+			this.tri( a, b, cc, na, nb, nc );
+			this.tri( a, cc, d, na, nc, nd );
+
+		}
+
+		// the bottom closed, the twist tie
+		for ( let i = 0; i < n; i ++ ) {
+
+			const [ a, na ] = pt( i, 0 ), [ b, nb ] = pt( i + 1, 0 );
+			this.k = k0;
+			this.tri( P( x, y1 - h - 0.005, z ), b, a, [ 0, - 1, 0 ], nb, na );
+
+		}
+
+		this.k = PAL.white;
+		this.box( P, x, y1 + 0.012, z, 0.018, 0.03, 0.018 );
+		this.k = k0;
+
+	}
+	// ---- end FW5
+
 	// a printed sheet, both faces reading right way round: centre ( x, y, z ), w wide, h tall, facing +z
 	// (and -z); `sag` droops its middle (a bedsheet on twine)
 	sheet( P, x, y, z, w, h, print, sag = 0 ) {
@@ -553,10 +596,13 @@ export function cart( K, P, kind, r, barrel = false ) {
 		K.use( 'popcorn' ).box( P, 0.45, H + 0.14, - 0.05, 0.46, 0.18, 0.41 );
 		K.use( 'cartRed' ).box( P, 0.45, H + 0.58, - 0.05, 0.54, 0.06, 0.48 );
 		K.use( 'chrome' ).cyl( P, - 0.45, - 0.1, H, H + 0.95, 0.015, 0.015, 6 );
-		for ( let i = 0; i < 8; i ++ ) {
+		// (---- FW5, C3W-12: the bags on hooks round the pole in two tiers, pink and blue, each its own lumpy
+		// pillow; they were octagonal cans)
+		for ( let i = 0; i < 10; i ++ ) {
 
-			const a = i / 8 * Math.PI * 2, y = H + 0.55 + ( i % 2 ) * 0.22;
-			K.use( i % 3 ? 'floss' : 'blueIce' ).cyl( P, - 0.45 + Math.cos( a ) * 0.13, - 0.1 + Math.sin( a ) * 0.13, y, y + 0.2, 0.07, 0.06, 8 );
+			const a = i / 5 * Math.PI * 2 + ( i >= 5 ? 0.6 : 0 ), y = H + ( i >= 5 ? 0.62 : 0.92 ), r = 0.14;
+			K.use( 'chrome' ).box( P, - 0.45 + Math.cos( a ) * 0.06, y + 0.02, - 0.1 + Math.sin( a ) * 0.06, 0.012, 0.012, 0.012 );
+			K.use( i % 3 ? 'floss' : 'blueFloss' ).pillow( P, - 0.45 + Math.cos( a ) * r, - 0.1 + Math.sin( a ) * r, y, 0.27, 0.19, 0.11, - a + Math.PI / 2, i + 1 );
 
 		}
 
