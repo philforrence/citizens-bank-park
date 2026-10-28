@@ -303,13 +303,16 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 	// to its bottom edge, rounded at the front and back
 	const flap = ( p0, pl ) => {
 
-		const NU = S( 10 ), NV = S( 5, 3 ), t0 = Math.PI * 0.6, tl = Math.PI * 0.17;
+		// (down to the ear's lobe, not the jaw, and flaring off the cheek toward the bottom as a flap does:
+		// carried on round the ellipsoid it came in to the jaw in two points)
+		const NU = S( 10 ), NV = S( 5, 3 ), t0 = Math.PI * 0.6, tl = Math.PI * 0.135;
 		const P = [], N = [], I = [];
 		for ( let iv = 0; iv <= NV; iv ++ ) for ( let iu = 0; iu <= NU; iu ++ ) {
 
-			const u = iu / NU, phi = p0 + u * pl;
-			const th = t0 + iv / NV * tl * Math.sqrt( Math.max( 0.15, 1 - 0.75 * ( 2 * u - 1 ) ** 2 ) );
-			const x = - Math.cos( phi ) * Math.sin( th ), y = Math.cos( th ), z = Math.sin( phi ) * Math.sin( th );
+			const u = iu / NU, phi = p0 + u * pl, v = iv / NV;
+			const th = t0 + v * tl * Math.sqrt( Math.max( 0.3, 1 - 0.6 * ( 2 * u - 1 ) ** 2 ) );
+			const flare = 1 + 0.1 * v * v;
+			const x = - Math.cos( phi ) * Math.sin( th ) * flare, y = Math.cos( th ), z = Math.sin( phi ) * Math.sin( th );
 			P.push( x, y, z );
 			N.push( x, y, z );
 
