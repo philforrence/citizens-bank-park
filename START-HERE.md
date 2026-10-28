@@ -1,5 +1,7 @@
 # 🛑 START HERE: where we are
 
+**Wednesday 2026-10-28: step 9 is under way** as little-worlds wave 4, outlined in [STEP9.md](docs/notes/worlds/STEP9.md): the right field corner, the upper deck, the club and suites, photoreal surfaces, and wave 3's record fixes. Running in a loop while the owner is away; it stops for their review before anything is published.
+
 **Sunday 2026-09-27, night: little-worlds wave 3 is merged** (wound down early: the owner was low on compute). Branch `ballpark`.
 
 - **Waves 1–3 are merged:** ten places, one people system, the Phanatic, the park's soundscape, the night's rituals and celebration, light and night, and Harry the K's.

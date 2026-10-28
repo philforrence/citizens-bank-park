@@ -53,6 +53,17 @@ The shared space is `.claude/wave3/`.
 
 **Status:** wound down early for compute and merged (2026-09-27); the summary is in [WAVE3.md](WAVE3.md).
 
+## Wave 4 (launched 2026-10-28: step 9, outlined in [STEP9.md](STEP9.md))
+
+| Key | Work | Module |
+|---|---|---|
+| E | The right field corner, the Pavilion and the RF gate | `places/RightField.js` (`rightfield`) |
+| F | The upper deck, the 300 and 400 levels | `places/UpperDeck.js` (`upper`) |
+| G | The Hall of Fame Club and the suites | `places/Club.js` (`club`) |
+| T | Photoreal surfaces (CC0 scans, "one wall, three ways") | the material recipe, then Exterior.js and the concourse floors |
+
+The shared space is `.claude/wave4/`. The owner asked for it to run in a loop while they're away; it still stops for their review before step 9 is published.
+
 ## Candidates for the next waves
 
 - **Harry the K's and the left field corner:**
