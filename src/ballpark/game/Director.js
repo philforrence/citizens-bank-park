@@ -207,6 +207,8 @@ export class Director {
 				cues: [ [ 0.8, { say: `Now batting, number ${ who.num }, ${ who.name }.`, pa: true } ] ],
 			} );
 
+			// time an in-play plan takes beyond the clock's (borrowed from the result after it)
+			let borrow = 0;
 			// which pitch each steal / passed ball belongs to
 			const evs = p.events;
 			const runnerActs = {};
@@ -282,7 +284,14 @@ export class Director {
 				st.balls = e.count[ 0 ]; st.strikes = e.count[ 1 ];
 				if ( hasPlay ) {
 
+					// The replay's clock stays as it was voiced (the radio call is one track on it,
+					// public/audio/radio/game5.mp3): the play keeps the length the old plan gave it, and
+					// a play that needs longer now (the tag at the plate, the cut-off throw) borrows it
+					// from the result after it, so nothing later moves
 					const plan = this._planInPlay( p, e, defense, st );
+					const clock = legacyInPlayDur( g, p, e, defense );
+					borrow = Math.min( PACE.result - 0.6, Math.max( 0, plan.dur - clock ) );
+					plan.dur = clock + borrow;
 					push( 'inplay', plan.dur, { pi, ev: e, snap: snap( { ...base, defense } ), plan, cues: plan.cues } );
 
 				}
@@ -302,7 +311,7 @@ export class Director {
 			st.outs = Math.min( 3, outsNow );
 			st.desc = p.result.desc;
 			const isLast = pi === g.plays.length - 1;
-			push( 'result', isLast ? 1.2 : PACE.result, {
+			push( 'result', isLast ? 1.2 : PACE.result - borrow, {
 				pi, before, moves: p.hit ? [] : finalMoves, snap: snap( { ...base, defense } ),
 				cues: [ [ 0.2, { say: p.result.desc + ( scored > 0 ? ' ' + scoreLine( g, st.score ) + '.' : '' ), result: p.result, scored, batting } ] ],
 			} );
@@ -1714,6 +1723,80 @@ function foulBall( seed ) {
 	const to = back ? [ side * 4 * hash( seed + 3 ), 16 ] : [ side * ( 25 + 20 * hash( seed + 5 ) ), 5 - 25 * hash( seed + 9 ) ];
 	const bb = battedBall( back ? 'line_drive' : 'fly_ball', 'medium', [ 0, - 0.4 ], to, seed );
 	return ( t ) => t < bb.time ? bb.at( t ) : null;
+
+}
+
+// How long a ball in play lasted on the replay's clock before the gauntlet's fixes (step 8's
+// _planInPlay, its arithmetic only): the radio call was voiced to that clock, so the timeline keeps it.
+// (It read outBase 0, home, as no base, as the old plan did.)
+function legacyInPlayDur( g, p, e, defense ) {
+
+	const h = p.hit;
+	const contact = [ ( p.bats === 'L' ? 0.25 : - 0.25 ), - 0.55 ];
+	const to = h.x != null ? sprayToField( h.x, h.y ) : [ 0, - 60 ];
+	const hr = /home_run/.test( p.result.type );
+	const traj = h.traj || 'fly_ball';
+	const bb = battedBall( traj, h.hard, contact, to, p.i );
+	const posOf = ( id ) => Object.keys( defense ).find( ( k ) => defense[ k ] === id );
+	const idAt = ( pos ) => defense[ pos ];
+	let tBall = bb.time;
+	const moves = p.runners.filter( ( r ) => r.k === e.k );
+	const credits = moves.flatMap( ( r ) => r.credits );
+	const locPos = POS_ORDER[ Number( h.loc ) - 1 ];
+	const first = credits.find( ( c ) => /fielded|assist|putout|error/.test( c[ 1 ] ) );
+	let fielderPos = first ? first[ 0 ] : locPos;
+	if ( ! idAt( fielderPos ) ) fielderPos = locPos || 'CF';
+	const fielder = idAt( fielderPos );
+	const home = POSITIONS[ fielderPos ];
+	const airOut = ! hr && moves.some( ( r ) => r.start === 0 && r.out && r.credits.some( ( c ) => c[ 1 ] === 'f_putout' && c[ 0 ] === fielderPos ) ) && traj !== 'ground_ball' && traj !== 'bunt_grounder';
+	const tOut = new Map();
+	if ( ! hr ) {
+
+		const reach = dist( home, to ) / RUN;
+		const tArrive = airOut ? Math.max( bb.time - 0.2, Math.min( bb.time, reach ) ) : Math.max( bb.time, reach + 0.3 );
+		tBall = Math.max( bb.time, tArrive ) + 0.5;
+		let holder = { id: fielder, at: to };
+		const outs = moves.filter( ( r ) => r.out && r.outBase ).sort( ( a, b ) => ( a.outNumber ?? 9 ) - ( b.outNumber ?? 9 ) );
+		for ( const r of outs ) {
+
+			const put = r.credits.find( ( c ) => c[ 1 ] === 'f_putout' );
+			if ( ! put ) continue;
+			const target = idAt( put[ 0 ] ) || put[ 2 ];
+			if ( target === holder.id && airOut ) continue;
+			const baseAt = BASES[ r.outBase % 4 ];
+			if ( target === holder.id ) tBall += dist( holder.at, baseAt ) / RUN;
+			else tBall += 0.3 + throwPath( holder.at, baseAt ).time;
+			tOut.set( r, tBall );
+			holder = { id: target, at: baseAt };
+
+		}
+
+		if ( ! outs.length && ! airOut ) {
+
+			const cover = idAt( to[ 0 ] > 0 ? '2B' : 'SS' );
+			if ( cover && cover !== holder.id ) tBall += 0.35 + throwPath( holder.at, BASES[ 2 ], 26 ).time;
+
+		}
+
+	}
+
+	let tEnd = tBall;
+	for ( const r of moves ) {
+
+		const from = r.start || 0;
+		const toBase = r.out ? ( r.outBase || from + 1 ) : ( r.to ?? from );
+		const start = from === 0 ? 0.55 : 0.2;
+		const len = Math.max( 0, toBase - from ) * 27.43;
+		let tArrive = start + len / ( RUN * ( r.id === p.batter ? 0.95 : 1 ) );
+		if ( airOut && r.id !== p.batter ) tArrive = start;
+		if ( r.out && tOut.has( r ) && len > 0 ) tArrive = Math.max( tOut.get( r ) + 0.25, tArrive );
+		if ( airOut && r.id === p.batter ) tArrive = Math.min( tArrive, bb.time );
+		tEnd = Math.max( tEnd, tArrive );
+
+	}
+
+	void g; void posOf;
+	return Math.max( tEnd, tBall ) + 2.2 + ( hr ? 6 : 0 );
 
 }
 
