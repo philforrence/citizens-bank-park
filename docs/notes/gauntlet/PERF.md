@@ -79,3 +79,23 @@ FI3 cost nothing measurable (under the stands is cheaper: no discard, no local l
 | 14:56 | SP3, only the varyings that vary (SP3's own standard run: the 400s seat 28.3) | - | - | - | - | - | - | 25.4 |
 
 **A correction to the metric:** SP3 found that the "wall" in every row above includes ~5-6 ms of the profiler itself (resolving, copying and reading back the GPU timestamps every frame). A player never runs that (only `?profile` does), so a player's frame is about the GPU column, 5-6 ms under the wall column. Every view has always had that much more room than this table shows. From SP3's next commit on, `wall` is measured without the timestamps and the old figure is kept as `wallTs`.
+
+## From 15:05: what a player gets
+
+`wall` is now measured without the profiler's timestamps (SP3, aecde12); `wallTs` is the old figure.
+
+| When | Merged | View | wall (ms) | fps | wallTs | GPU |
+|---|---|---|---|---|---|---|
+| 15:05 | SP3's varyings, the new metric | TV center, the 27th | 17.0 | 59 | 20.1 | 16.9 |
+| | | TV high, the 29th | 17.8 | 56 | 21.5 | 17.6 |
+| | | TV high, the 27th's rain | 18.7 | 53 | 22.7 | 18.5 |
+| | | TV follow | 13.7 | 73 | 17.3 | 13.7 |
+| | | The 3B concourse | 14.7 | 68 | 18.5 | 14.5 |
+| | | Under the stands (the lounge) | 11.3 | 88 | 16.1 | 11.3 |
+| | | A real 3B field seat | 16.6 | 60 | 20.6 | 16.6 |
+| | | The 3B plaza, the 27th | 16.5 | 61 | 20.9 | 16.2 |
+| | | Left field, Harry the K's | 20.8 | 48 | 24.9 | 20.4 |
+| | | **A real 400s seat behind home** | **23.5** | **43** | 29.1 | 23.7 |
+| | | The celebration, TV high / TV center | 18.6 / 18.2 | 54 / 55 | 22.5 / 22.1 | 18.3 / 18.4 |
+
+Every view is at 43 fps or better. Step 8's baseline, by the same honest measure, was its GPU column (21.6-27.6 ms, 36-46 fps), with a fraction of today's detail.
