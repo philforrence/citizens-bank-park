@@ -42,7 +42,8 @@ export function dressBoth( r, o = {} ) {
 	const wet = { ...base };
 	if ( o.poncho !== 0 && r() < ( o.ponchoOdds ?? 0.58 ) ) {
 
-		wet.poncho = o.poncho || Number( pick( r, { 1: 44, 4: 22, 2: 12, 3: 8, 5: 6, 6: 5 } ) );
+		// (FW4, C3W-5: the clear ones more, the white fewer: Getty 83457911, the backstop's rows)
+		wet.poncho = o.poncho || Number( pick( r, { 1: 52, 4: 20, 2: 11, 5: 6, 6: 7, 3: 4 } ) );
 		if ( ( wet.hat === HAT.none || wet.hat === HAT.capBack ) && r() < 0.7 ) wet.hat = HAT.hood;
 
 	} else if ( ( base.top === TOP.hoodie || base.top === TOP.puffer || base.top === TOP.fleece ) && r() < 0.6 ) wet.hat = HAT.hood;

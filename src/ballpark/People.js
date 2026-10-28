@@ -510,8 +510,9 @@ function peopleMaterial( info, moved, throng = null ) {
 		// white, blue, orange; creased
 		let fres = pow( 1.0 - abs( dot( normalize( in.N ), normalize( in.V ) ) ), 2.5 );
 		let crease = 0.9 + 0.1 * sin( atan2( L.x, L.z ) * 11.0 + L.y * 7.0 );
-		c = select( thrPal[ ${ THR_PONCHO_COLOR }u + ponchoK ].xyz, mix( shirt * 0.8, vec3f( 0.42, 0.44, 0.47 ), 0.03 + 0.35 * fres ), ponchoK == 1u ) * crease;
-		rough = select( 0.2, 0.06, ponchoK == 1u );
+		// (FW4, C3W-5: the clear film a haze over the jacket, not a gloss on it)
+		c = select( thrPal[ ${ THR_PONCHO_COLOR }u + ponchoK ].xyz, mix( shirt * 0.72, vec3f( 0.44, 0.46, 0.5 ), 0.2 + 0.35 * fres ), ponchoK == 1u ) * crease;
+		rough = select( select( 0.26, 0.22, ponchoK == 1u ), 0.45, ponchoK == 6u );
 	}
 	if ( part == 9 ) { c = vec3f( 0.012, 0.014, 0.03 ); rough = 0.4; }
 #else
@@ -622,7 +623,8 @@ function throngPalette() {
 	P.pants.forEach( ( c, i ) => put( PAL_AT.pants + i, c ) );
 	P.shoes.forEach( ( c, i ) => put( PAL_AT.shoes + i, c ) );
 	// the Cast's ponchos: (none), clear, red, white, yellow, orange, a grey trash bag
-	[ [ 0, 0, 0 ], [ 0.42, 0.44, 0.47 ], [ 0.36, 0.02, 0.03 ], [ 0.62, 0.62, 0.6 ], [ 0.65, 0.5, 0.03 ], [ 0.62, 0.2, 0.02 ], [ 0.06, 0.065, 0.07 ], [ 0.42, 0.44, 0.47 ] ].forEach( ( c, i ) => put( THR_PONCHO_COLOR + i, c ) );
+	// (FW4, C3W-5: the white a milky film, the trash bag grey, not black: Cast.js's)
+	[ [ 0, 0, 0 ], [ 0.42, 0.44, 0.47 ], [ 0.36, 0.02, 0.03 ], [ 0.5, 0.51, 0.52 ], [ 0.65, 0.5, 0.03 ], [ 0.62, 0.2, 0.02 ], [ 0.15, 0.155, 0.16 ], [ 0.42, 0.44, 0.47 ] ].forEach( ( c, i ) => put( THR_PONCHO_COLOR + i, c ) );
 	return a;
 
 }
@@ -667,7 +669,9 @@ function throngDress( i ) {
 	const u = r();
 	if ( u < 0.4 ) {
 
-		L.poncho = Number( pick( r, { 1: 55, 2: 15, 3: 10, 4: 15, 5: 5 } ) );
+		// (FW4, C3W-5: mostly clear, then yellow, red and orange, a few garbage bags, the odd white one: the
+		// 27th's photos, Getty 83891095 and 83457911; the white ones read as sheets, a ghost's costume)
+		L.poncho = Number( pick( r, { 1: 62, 4: 13, 2: 10, 5: 6, 6: 6, 3: 3 } ) );
 		wear |= WEAR.poncho;
 		// (the Cast puts a poncho's hood up by the seed: the same here)
 		if ( fract( ( L.seed / 65536 ) * 13.1 ) > 0.35 ) wear |= WEAR.hood;
@@ -1499,14 +1503,23 @@ export class People {
 		if ( kind === 1 ) {
 
 			// at the rail: leaning on it, a beer on the shelf; or arms folded, hands in the pockets
-			if ( u < 0.6 && ! kid ) {
+			// ---- FW4 (C3W-7): the front row at the rail leans on it, nearly all of them, a beer on the shelf
+			// for half (auds 2987724987: the SRO rail, leaning, all night); the row behind them stands, a beer
+			// in hand, arms folded, hands in the pockets, a phone (the front row stood upright, arms down)
+			const front = W[ i * 8 + 7 ] <= 0.5;
+			if ( front && u < 0.9 && ! kid ) {
 
-				set( railArms( D.scale ) );
-				a.lean = 0.3;
-				if ( r() < 0.45 ) a.propR = PROP.beer;
+				const lean = 0.24 + 0.12 * r();
+				set( railArms( D.scale, lean ) );
+				a.lean = lean;
+				if ( r() < 0.5 ) a.propR = PROP.beer;
 
-			} else if ( u < 0.8 ) set( GESTURE.fold );
-			else { set( GESTURE.pockets ); a.propL = a.propR = PROP.pocket; }
+			} else if ( front ) set( GESTURE.fold );
+			else if ( u < 0.4 && ! kid ) { set( GESTURE.carry ); a.propR = PROP.beer; }
+			else if ( u < 0.65 ) set( GESTURE.fold );
+			else if ( u < 0.85 ) { set( GESTURE.pockets ); a.propL = a.propR = PROP.pocket; }
+			else if ( ! kid ) { set( GESTURE.phone ); a.propR = PROP.phone; }
+			// ---- end FW4
 
 		} else if ( kind === 2 ) {
 
