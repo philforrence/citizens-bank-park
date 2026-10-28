@@ -105,3 +105,21 @@ Every view is at 43 fps or better. Step 8's baseline, by the same honest measure
 | 16:42 | FB4, the broadcast and rituals | TV center 17.3, TV high 18.1, rain 18.9, follow 13.9, concourse 14.2, lounge 11.6, real 3B seat 17.5, plaza 16.1, left field 20.0, **the 400s seat 23.7** (42 fps), celebration 18.9 / 18.8; no console errors | | | | |
 | 17:28 | FX2 (continuity), the mood fix, FY3 (the players up close) | TV center 17.6, TV high 17.9, rain 18.8, follow 14.1, concourse 15.3, lounge 11.6, real 3B seat 17.4, plaza 16.6, left field 20.0, **the 400s seat 23.8** (42 fps), celebration 18.9 / 18.9; no console errors | | | | |
 | 17:30 | FW6, the people and the walker | TV center 18.7 (+1.1: the middle Cast's rig passes under FOX's long lens), TV high 18.1, rain 19.0, follow 14.2, concourse 14.8, lounge 12.1, real 3B seat 17.6, plaza 16.8, left field 20.5, **the 400s seat 24.3** (41 fps), celebration 19.1 / 20.0; no console errors | | | | |
+
+## Step 9 as published (17:58, everything merged)
+
+| View | Frame (ms) | fps |
+|---|---|---|
+| TV center, the 27th | 19.8 | 51 |
+| TV high, the 29th | 19.1 | 52 |
+| TV high, the 27th's rain | 20.1 | 50 |
+| TV follow | 15.0 | 67 |
+| The 3B plaza, the 27th | 17.7 | 57 |
+| The 3B concourse | 15.6 | 64 |
+| Under the stands (the lounge) | 12.6 | 80 |
+| A real 3B field seat | 18.8 | 53 |
+| Left field, Harry the K's | 21.6 | 46 |
+| **A real 400s seat behind home** | **25.4** | **39** |
+| The celebration, TV high / TV center | 20.0 / 20.6 | 50 / 48 |
+
+No console errors; 12.9 s to load. Every view at 39 fps or better against the 30 fps floor. (Step 8's, by the same measure, were its GPU column above: 21.6-27.6 ms, 36-46 fps, with its walking views lit at 4 pm.)
