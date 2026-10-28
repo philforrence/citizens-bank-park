@@ -1700,7 +1700,10 @@ fn bpBox( p: vec2f, lo: vec2f, hi: vec2f, w: f32, fw: f32 ) -> f32 {
 		}
 		rub = max( rub, 1.0 - smoothstep( 0.1, 0.45 + 0.4 * cw, length( ( hq - vec2f( 0.0, 1.35 ) ) * vec2f( 0.7, 1.0 ) ) ) );
 		let brk = mx_noise_float2( p * 11.0 ) * 0.5 + 0.5;
-		let erase = clamp( rub * ( 0.4 + 1.5 * cw ) + cw * 0.75 * ( mx_noise_float2( p * 2.5 + 7.0 ) * 0.5 + 0.5 ) - brk * 0.4, 0.0, 1.0 );
+		// (FB2, C2B-18: by the 9th the boxes mostly gone but their front corners, the foul lines crisp:
+		// Flickr bub56 2995607460 at the last pitch; the wear was too light to read from center field)
+		let foulLine = ( 1.0 - smoothstep( 0.06, 0.14, min( abs( b - lw ), abs( a - lw ) ) ) ) * step( 1.6, max( a, b ) );
+		let erase = clamp( rub * ( 0.4 + 1.8 * cw ) + cw * 1.05 * ( mx_noise_float2( p * 2.5 + 7.0 ) * 0.5 + 0.5 ) * ( 1.0 - foulLine ) - brk * 0.4, 0.0, 1.0 );
 		chalk = chalk * ( 1.0 - erase );
 		chalkMud = clamp( cw * 0.6 + erase * 0.5, 0.0, 1.0 );
 	}
