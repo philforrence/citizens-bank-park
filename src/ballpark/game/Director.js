@@ -120,6 +120,19 @@ export class Director {
 
 	}
 
+	// ---- FR2: the champions, from strike three: { seg: the celebrate segment, lt: seconds since the strike }
+	// from lastOut.tStrike on, else null. What celebrates in the park keys off this, not the celebrate
+	// segment's start 3.6 s later (the Liberty Bell, the stands, Ashburn Alley, the boards); the replay's
+	// clock (the segments, the radio's sync) is untouched
+	champsAt( t = this.t ) {
+
+		const L = this.lastOut;
+		if ( ! L || this.oldCelebration || t < L.tStrike ) return null;
+		return { seg: L.cel, lt: t - L.tStrike };
+
+	}
+	// ---- end FR2
+
 	// Which night it is at t: the 27th runs from the first pitch to SPLIT of the way into the suspension
 	// (the tarp, the delay, the park emptying), the 29th from there (the tarp off, the park filling, the
 	// resumption, the last out). susp: in the suspension's break; k: how far (0..1) into this night's
@@ -769,6 +782,9 @@ export class Director {
 		const L = this.lastOut;
 		if ( L && ! this.oldCelebration && ( seg === L.result || ( seg === L.pitch && t >= L.tStrike ) ) ) showLastOut( this, L.cel, t - L.tStrike );
 		// ---- end FB3
+		// ---- FR2: the people the places put on the rig themselves, at this t (the bat boys: rail/OnDeck.js)
+		if ( this.extras ) for ( const f of this.extras ) f( this, seg, lt, t );
+		// ---- end FR2
 		this._sync();
 
 	}

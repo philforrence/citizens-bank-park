@@ -434,7 +434,7 @@ export class Fascia {
 		// (CB-7: through the Series the ribbon was mostly red: the World Series graphics with the line
 		// score and the batter set into them in black boxes, Getty 84080911; between innings THERE'S ONLY
 		// ONE OCTOBER on red, 83571001; blue 2008 graphics for the intros, 163678267)
-		if ( seg.kind === 'celebrate' ) design = 'champs';
+		if ( seg.kind === 'celebrate' || d.champsAt?.( d.t ) ) design = 'champs'; // ---- FR2: from strike three
 		else if ( seg.kind === 'intro' ) design = 'ws';
 		else if ( seg.kind === 'switch' || seg.kind === 'walkup' ) design = 'game';
 		else if ( seg.kind === 'change' ) design = 'october';
