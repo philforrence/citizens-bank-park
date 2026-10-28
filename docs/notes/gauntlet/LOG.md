@@ -71,3 +71,5 @@ Every merge, what it fixed, and where its evidence is. The critics' findings are
 ## Round 4
 
 - **C4R, random shots everywhere** (launched 14:32): the owner's own method, ~60 random views across the whole park and its surroundings, both nights.
+- **FR2, the field's and the rituals' leftovers** (notes [FR2.md](FR2.md)): the 27th's tarp as photographed (the roll pushed out folded in three, the crew pulling the sheet in, the 29th backwards), the pile's divers leaping in arcs onto a grounded pile, the Liberty Bell, the crowd, the Alley, PhanaVision and the ribbon on strike three (`Director.champsAt`), the bat boys on the players' rig, the stage carried in, the tees handed out, the trophy's acrylic pedestal. Not done: C3B-15 (it would break Utley's play or the camera's calibration), champagne on fans (it happened after the clubhouse, outside the 300 s). Shots: `.claude/gauntlet/r3/FR2/`.
+- **C4B, the broadcast and the rituals, round 4** (launched 14:51).
