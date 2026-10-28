@@ -1237,6 +1237,32 @@ export class ConcoursePeople {
 
 		}
 
+		// ---- FX1 (FW4's note, C3W's j2-06): the standing rows behind home stepped up to the drink rail when
+		// a place on it in front of them came free, to lean on it; they were left standing a metre back
+		// from an empty rail. The front row looks every second or three; the rows behind fill in as before
+		if ( f.standing && spot.row === 0 && ( f._up = ( f._up ?? this.r() * 2 ) - dt ) <= 0 ) {
+
+			f._up = 1 + this.r() * 2;
+			this._railHome ??= this.rail.filter( ( q ) => q.s < 24 );
+			let q = null;
+			for ( const r of this._railHome ) if ( ! r.who && Math.abs( r.s - spot.s ) < 0.9 && ( ! q || Math.abs( r.s - spot.s ) < Math.abs( q.s - spot.s ) ) ) q = r;
+			if ( q ) {
+
+				spot.who = null;
+				q.who = f;
+				f.spot = q;
+				f.standing = false;
+				f.mode = 'walk';
+				f.phase = 'in';
+				f.side = 0; f.stuck = 0; f.tried = false;
+				f.lane = q.d;
+				return;
+
+			}
+
+		}
+		// ---- end FX1
+
 		f.s = spot.s; f.d = spot.d;
 		// ---- H: a spot's point on the walkway looked up once
 		if ( ! spot._w || spot._ws !== spot.s || spot._wd !== spot.d ) {
