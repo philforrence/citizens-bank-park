@@ -131,7 +131,20 @@ No console errors; 12.9 s to load. Every view at 39 fps or better against the 30
 | 17:58 | step 9 as published | 19.8 | 19.1 | 15.0 | 15.6 | 12.6 | 18.8 | 17.7 | 21.6 | **25.4** | 20.0 / 20.6 |
 | 19:58 | FF1, the fans' MakeHuman heads | 20.2 | 19.4 | 15.4 | 15.8 | 12.9 | 19.0 | 17.3 | 21.4 | **25.3** (40 fps) | 19.8 / 20.3 |
 | 20:21 | FF2, the fans' faces move | 20.1 | 19.1 | 14.9 | 15.8 | 13.2 | 20.0 | 18.6 | 22.0 | **26.9** (37 fps) | 21.0 / 21.6 |
+| 20:39 | FA1, the Pavilion reached (the full run, noisy: see below) | 20.9 | 19.9 | 15.8 | 16.5 | 15.0 | 21.9 | 19.8 | 24.5 | **40.4** | 23.6 / 23.8 |
 
 FF1 cost ~0.3 ms in TV center and nothing measurable elsewhere; no console errors.
 
 FF2 (the expressions, smooth normals, the painted mouth and lids) cost ~1.6 ms in the 400s seat (25.3 → 26.9 ms, 37 fps), ~1.2 ms in the celebration and plaza, ~1 ms in the real 3B seat; the TV views are unchanged. Still clear of the floor, but the margin is down to 6.4 ms: if FF3 adds as much again, a speed track goes on the crowd's head vertex stage. No console errors.
+
+**After FA1 (20:39-20:50): the laptop went on battery, and the readings went noisy.** The full run read the 400s seat at 40.4 ms. But its screen-space passes, which don't depend on the scene, were 2-3× their usual time (TAAU 1.92 → 2.51, bloom down 0.22 → 0.76), so the GPU was clocked down or shared. A re-check minutes later read TV center at 29 ms. An A/B on the same machine settles it, pre-FA1 (the FF2 worktree, `src` identical to `ballpark` before the merge) against post-FA1, run A, B, A, B under exclusive:
+
+| | TV center | **400s seat** | TAAU in the 400s |
+|---|---|---|---|
+| pre-FA1, run 1 | 22.8 | **27.6** | 1.91 |
+| post-FA1, run 1 | 20.1 | **26.1** | 1.86 |
+| pre-FA1, run 2 | 20.6 | **27.6** | 2.09 |
+| post-FA1, run 2 | 21.4 | **30.4** | 2.54 |
+
+FA1 costs nothing measurable. Its stair, tower and portals add about 6,400 static, batched triangles. The spread comes from the machine: the post-FA1 run 2 has a TAAU of 2.54. **From 20:30 the laptop is on battery and the agents keep the load average near 5, so rows from here aren't comparable with the earlier ones.** Judge a merge by an A/B against its parent, run back to back, until the machine is on AC again.
+
