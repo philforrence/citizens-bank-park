@@ -37,13 +37,16 @@ export const PALETTE = [
 	// glow is the light through the glass: amber whiskey, green gin and beer, clear vodka, brown rum, the blue
 	// of a gin, a red aperitif); the labels and the foil; the elevator's stainless (brushed, not a mirror);
 	// the ramp's HID lens (lit, not blown out); the shelves' glass and their strip light
-	[ 'glassAmber', [ 0.09, 0.035, 0.005 ], 0.06, 0, [ 0.55, 0.24, 0.04 ] ], [ 'glassGreen', [ 0.012, 0.05, 0.016 ], 0.06, 0, [ 0.08, 0.3, 0.07 ] ],
-	[ 'glassClear', [ 0.1, 0.11, 0.11 ], 0.04, 0, [ 0.32, 0.31, 0.27 ] ], [ 'glassBrown', [ 0.035, 0.014, 0.004 ], 0.06, 0, [ 0.24, 0.09, 0.015 ] ],
-	[ 'glassBlue', [ 0.01, 0.03, 0.09 ], 0.06, 0, [ 0.06, 0.16, 0.42 ] ], [ 'glassRed', [ 0.12, 0.008, 0.01 ], 0.06, 0, [ 0.5, 0.03, 0.03 ] ],
-	[ 'label', [ 0.66, 0.6, 0.48 ], 0.7, 0 ], [ 'labelBlack', [ 0.02, 0.02, 0.02 ], 0.5, 0 ], [ 'foil', [ 0.55, 0.42, 0.14 ], 0.25, 1 ],
-	[ 'stainless', [ 0.4, 0.41, 0.42 ], 0.42, 0.85 ], [ 'lens', [ 0.7, 0.66, 0.58 ], 0.3, 0, [ 0.62, 0.5, 0.34 ] ],
+	[ 'glassAmber', [ 0.07, 0.028, 0.004 ], 0.05, 0, [ 0.42, 0.17, 0.03 ] ], [ 'glassGreen', [ 0.01, 0.04, 0.013 ], 0.05, 0, [ 0.06, 0.22, 0.05 ] ],
+	[ 'glassClear', [ 0.07, 0.075, 0.075 ], 0.04, 0, [ 0.2, 0.2, 0.17 ] ], [ 'glassBrown', [ 0.03, 0.012, 0.003 ], 0.05, 0, [ 0.18, 0.07, 0.012 ] ],
+	[ 'glassBlue', [ 0.008, 0.024, 0.075 ], 0.05, 0, [ 0.045, 0.12, 0.32 ] ], [ 'glassRed', [ 0.1, 0.006, 0.008 ], 0.05, 0, [ 0.36, 0.02, 0.02 ] ],
+	// (the labels catch the room's light: a little glow of their own)
+	[ 'label', [ 0.62, 0.56, 0.44 ], 0.7, 0, [ 0.09, 0.08, 0.06 ] ], [ 'labelBlack', [ 0.02, 0.02, 0.02 ], 0.5, 0 ], [ 'foil', [ 0.55, 0.42, 0.14 ], 0.25, 1 ],
+	[ 'stainless', [ 0.3, 0.31, 0.32 ], 0.45, 0.7 ], [ 'lens', [ 0.6, 0.56, 0.5 ], 0.3, 0, [ 0.42, 0.34, 0.23 ] ],
 	[ 'shelfGlass', [ 0.05, 0.06, 0.06 ], 0.05, 0.2 ], [ 'strip', [ 0.8, 0.7, 0.55 ], 0.5, 0, [ 1.0, 0.72, 0.42 ] ],
 	[ 'callLamp', [ 0.5, 0.45, 0.35 ], 0.4, 0, [ 0.9, 0.85, 0.7 ] ], [ 'rodBlack', [ 0.03, 0.03, 0.032 ], 0.45, 0.6 ],
+	[ 'labelWhite', [ 0.7, 0.7, 0.68 ], 0.6, 0, [ 0.1, 0.1, 0.095 ] ], [ 'labelRed', [ 0.4, 0.03, 0.03 ], 0.5, 0, [ 0.06, 0.005, 0.005 ] ],
+	[ 'labelNavy', [ 0.02, 0.03, 0.1 ], 0.5, 0, [ 0.004, 0.006, 0.02 ] ],
 	// ---- end FX3
 ];
 export const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
@@ -89,6 +92,12 @@ function kitMaterial() {
 		s.roughness = rm[ k ].x;
 		s.metalness = rm[ k ].y;
 		s.emissive = glo[ k ] * mix( 0.7, 1.7, nk );
+		// ---- FX3 (AD1-9): the bottles' glass, lit from behind: bright through its middle, dark at the edges
+		// where you look through more of it at a slant (and the room's reflections there)
+		if ( k >= ${ PAL.glassAmber }u && k <= ${ PAL.glassRed }u ) {
+			let f = abs( dot( normalize( in.N ), normalize( frame.cameraPos - in.P ) ) );
+			s.emissive *= 0.12 + 0.88 * f * f * f;
+		}
 		// wear where hands and feet get at things
 		s.albedo *= 1.0 - 0.05 * mx_noise_float3( in.P * 7.0 );
 	}

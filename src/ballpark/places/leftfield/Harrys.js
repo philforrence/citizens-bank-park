@@ -169,10 +169,10 @@ export function buildHarrys( place, F, H ) {
 		let along = dot( in.P.xz, vec2f( ${ WD[ 0 ].toFixed( 4 ) }, ${ WD[ 1 ].toFixed( 4 ) } ) );
 		let rib = smoothstep( 0.36, 0.46, abs( fract( along / 0.3 ) - 0.5 ) ) * ( 1.0 - clamp( fwidth( along ) / 0.3 * 2.0, 0.0, 1.0 ) );
 		let beamLine = 1.0 - smoothstep( 0.08, 0.13, abs( fract( along / 3.0 ) - 0.5 ) * 3.0 );
-		s.albedo = vec3f( 0.085, 0.074, 0.064 ) * ( 0.88 + 0.12 * mx_noise_float2( in.P.xz * 2.3 ) ) * ( 1.0 - 0.3 * rib ) * ( 1.0 - 0.35 * beamLine );
+		s.albedo = vec3f( 0.072, 0.064, 0.056 ) * ( 0.88 + 0.12 * mx_noise_float2( in.P.xz * 2.3 ) ) * ( 1.0 - 0.18 * rib ) * ( 1.0 - 0.3 * beamLine );
 		s.roughness = 0.85;
-		let pool = exp( - rc * rc / 0.3 ) * 0.7 + exp( - rc * rc / 1.4 ) * 0.25;
-		s.emissive = vec3f( 1.0, 0.8, 0.55 ) * ( can * ( 2.0 + 2.0 * nk ) + s.albedo * pool * ( 1.5 + 2.5 * nk ) );
+		let pool = exp( - rc * rc / 0.25 ) * 0.6 + exp( - rc * rc / 1.2 ) * 0.15;
+		s.emissive = vec3f( 1.0, 0.8, 0.55 ) * ( can * ( 2.0 + 2.0 * nk ) + s.albedo * pool * ( 0.8 + 1.2 * nk ) );
 	}
 `,
 	} );
@@ -612,7 +612,7 @@ export function chair( K, P, x, z, y, a ) {
 // triangles a bottle. x0..x1 along the wall at zWall (the board frame's z), the floor at y, the mirror's top
 // and height as its panel (the shelves at its painted lines, SHELF_PX)
 const GLASS = [ [ 'glassAmber', 0.34 ], [ 'glassClear', 0.2 ], [ 'glassGreen', 0.15 ], [ 'glassBrown', 0.13 ], [ 'glassBlue', 0.07 ], [ 'glassRed', 0.06 ], [ 'glassAmber', 0.05 ] ];
-const LABELS = [ 'label', 'label', 'labelBlack', 'white', 'red', 'cream', 'foil', 'navy' ];
+const LABELS = [ 'label', 'label', 'labelBlack', 'labelWhite', 'labelRed', 'label', 'foil', 'labelNavy' ];
 const CAPS = [ 'foil', 'black', 'red', 'chrome', 'brass', 'foil', 'black' ];
 // a bottle's shape: body radius, height, the body's height, the shoulder's, the neck's radius, the label's
 // band (fifth, a tall liqueur, vodka, a squat rum or cognac, the well's liter)

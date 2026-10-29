@@ -203,6 +203,8 @@ const PALETTE = [
 	[ 'grey', [ 0.2, 0.2, 0.21 ], 0.6, 0.2 ], [ 'glass', [ 0.04, 0.05, 0.06 ], 0.05, 0.3 ], [ 'redlamp', [ 0.4, 0.05, 0.02 ], 0.4, 0, [ 1.0, 0.25, 0.08 ] ],
 	[ 'foil', [ 0.7, 0.7, 0.72 ], 0.25, 1 ], [ 'brown', [ 0.16, 0.08, 0.03 ], 0.6, 0 ], [ 'pink', [ 0.8, 0.35, 0.5 ], 0.6, 0 ],
 	[ 'orange', [ 0.8, 0.25, 0.02 ], 0.5, 0 ], [ 'cream', [ 0.7, 0.62, 0.45 ], 0.6, 0 ], [ 'powder', [ 0.3, 0.45, 0.68 ], 0.6, 0 ],
+	// ---- FX3 (AD1-5): a stand's service door, painted grey, in its wall pack's light
+	[ 'doorlit', [ 0.17, 0.175, 0.18 ], 0.5, 0.15, [ 0.075, 0.068, 0.058 ] ],
 ];
 const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
 const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;
@@ -1393,7 +1395,7 @@ export class Concourse {
 
 			const z = - DEPTH;
 			lbox( props.use( 'steel' ), P, U.a, U.n, lx, 1.1, z - 0.01, 1.1, 2.24, 0.05 );
-			lbox( props.use( 'grey' ), P, U.a, U.n, lx, 1.06, z - 0.03, 0.94, 2.12, 0.03 );
+			lbox( props.use( 'doorlit' ), P, U.a, U.n, lx, 1.06, z - 0.03, 0.94, 2.12, 0.03 );
 			lbox( props.use( 'steel' ), P, U.a, U.n, lx, 0.15, z - 0.047, 0.92, 0.28, 0.006 );
 			lbox( props.use( 'steel' ), P, U.a, U.n, lx, 1.0, z - 0.07, 0.75, 0.05, 0.05 );
 			lbox( props.use( 'black' ), P, U.a, U.n, lx + ( lx > 0 ? 0.38 : - 0.38 ), 1.0, z - 0.05, 0.05, 0.12, 0.03 );

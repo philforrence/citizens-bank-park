@@ -262,27 +262,35 @@ export function drawAtlas( ctx ) {
 		const g = ctx.createLinearGradient( x, y, x, y + h );
 		g.addColorStop( 0, '#120d0a' ); g.addColorStop( 1, '#070504' );
 		ctx.fillStyle = g; ctx.fillRect( x, y, w, h );
-		ctx.save();
-		ctx.filter = 'blur( 2.5px )';
+		// (drawn sharp on a canvas of its own and blurred once onto the atlas: a filter on every fill was 4 s
+		// of the load)
+		const M = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas( w, h ) : null, mc = M ? M.getContext( '2d' ) : ctx, ox = M ? 0 : x, oy = M ? 0 : y;
 		for ( const [ sy, top ] of [ [ SHELF_PX[ 0 ], 4 ], [ SHELF_PX[ 1 ], SHELF_PX[ 0 ] + 4 ], [ h, SHELF_PX[ 1 ] + 4 ] ] ) {
 
 			// the strip's light on the mirror over each shelf, and the bottles' backs in it
-			const gl = ctx.createLinearGradient( x, y + top, x, y + sy );
+			const gl = mc.createLinearGradient( ox, oy + top, ox, oy + sy );
 			gl.addColorStop( 0, 'rgba( 255, 180, 110, 0.0 )' ); gl.addColorStop( 1, 'rgba( 255, 180, 110, 0.22 )' );
-			ctx.fillStyle = gl; ctx.fillRect( x, y + top, w, sy - top );
-			let bx = x + 6;
-			while ( bx < x + w - 12 ) {
+			mc.fillStyle = gl; mc.fillRect( ox, oy + top, w, sy - top );
+			let bx = ox + 6;
+			while ( bx < ox + w - 12 ) {
 
 				const bw = 9 + r() * 7, bh = Math.min( sy - top - 4, 40 + r() * 22 );
-				ctx.fillStyle = [ 'rgba( 120, 62, 14, 0.35 )', 'rgba( 30, 70, 30, 0.3 )', 'rgba( 150, 150, 140, 0.22 )', 'rgba( 70, 36, 10, 0.35 )' ][ Math.floor( r() * 4 ) ];
-				ctx.fillRect( bx, y + sy - bh, bw, bh );
-				ctx.fillRect( bx + bw / 2 - 2, y + sy - bh - 10, 4, 10 );
+				mc.fillStyle = [ 'rgba( 120, 62, 14, 0.35 )', 'rgba( 30, 70, 30, 0.3 )', 'rgba( 150, 150, 140, 0.22 )', 'rgba( 70, 36, 10, 0.35 )' ][ Math.floor( r() * 4 ) ];
+				mc.fillRect( bx, oy + sy - bh, bw, bh );
+				mc.fillRect( bx + bw / 2 - 2, oy + sy - bh - 10, 4, 10 );
 				bx += bw + 2 + r() * 4;
 
 			}
 
 		}
-		ctx.restore();
+		if ( M ) {
+
+			ctx.save();
+			ctx.filter = 'blur( 2.5px )';
+			ctx.drawImage( M, x, y );
+			ctx.restore();
+
+		}
 		// the mirror's panels: a bevelled seam every so often
 		ctx.fillStyle = 'rgba( 255, 230, 200, 0.06 )';
 		for ( let sx = x + 128; sx < x + w; sx += 128 ) ctx.fillRect( sx, y, 2, h );
