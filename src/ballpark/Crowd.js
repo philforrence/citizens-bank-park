@@ -1042,14 +1042,14 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 	let bp = 2.8 + 3.2 * fract( h.z * 7.7 );
 	let bt = fract( t / bp + h.w * 3.1 ) * bp;
 	let blink = smoothstep( 0.0, 0.05, bt ) * ( 1.0 - smoothstep( 0.1, 0.2, bt ) );
-	let face = u32( clamp( opn, 0.0, 1.0 ) * 63.0 + 0.5 ) | ( u32( clamp( smile, 0.0, 1.0 ) * 15.0 + 0.5 ) << 6u ) | ( u32( blink * 15.0 + 0.5 ) << 10u );
+	let faceQ = u32( clamp( opn, 0.0, 1.0 ) * 63.0 + 0.5 ) | ( u32( clamp( smile, 0.0, 1.0 ) * 15.0 + 0.5 ) << 6u ) | ( u32( blink * 15.0 + 0.5 ) << 10u );
 	// ---- end FF2
 
 	var o: CwFanPose;
 	o.r0 = vec4f( st, aUL, aUR, fL ); // (FS1: fL, fR, opn)
 	o.r1 = vec4f( fR, tw, th, yaw );
 	o.r2 = vec4f( max( 0.0, sin( t * 8.0 + h.w * 30.0 ) ) * 0.14 * jump, sin( t * 0.6 + h.z * 20.0 ) * 0.012, sin( t * 9.0 + h.w * 50.0 ) * 0.16, cos( t * 7.0 + h.z * 20.0 ) * 0.06 );
-	o.r3 = vec4f( wide, sc, f32( face ), f32( flags ) ); // (FF2: the mouth, the smile and the blink packed)
+	o.r3 = vec4f( wide, sc, f32( faceQ ), f32( flags ) ); // (FF2: the mouth, the smile and the blink packed)
 	// ---- FW1 (C2W-6): what he does with his hands sitting (on his lap; arms folded; in his pockets; clasped
 	// between his knees: more of them in the cold rain; a cup in hand keeps them on the lap), his towel when
 	// it's not up (draped over a knee, bunched in his fist, turned his own way), the cut of a woman's hair,
