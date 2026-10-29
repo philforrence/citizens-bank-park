@@ -116,7 +116,8 @@ export default class LeftField {
 		g.computeBoundingBox();
 		g.computeBoundingSphere();
 		const mat = standard( {
-			name: 'harrys-glass-front', color: new Color( 0.02, 0.025, 0.03 ), roughness: 0.04, metalness: 0.2, transparent: true, depthWrite: false, modules: [ commonModule ],
+			// (---- FX3, step 11, AD1-1: both faces, now that the room can see out through it)
+			name: 'harrys-glass-front', color: new Color( 0.02, 0.025, 0.03 ), roughness: 0.04, metalness: 0.2, transparent: true, depthWrite: false, side: 'double', modules: [ commonModule ],
 			surface: /* wgsl */`
 	let N = normalize( in.N );
 	let V = normalize( frame.cameraPos - in.P );

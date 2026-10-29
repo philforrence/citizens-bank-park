@@ -20,6 +20,7 @@ export const CELLS = {
 	backbar: [ 0, 256, 1024, 256 ], menuDown: [ 1024, 0, 512, 384 ], menuUp: [ 1536, 0, 512, 384 ],
 	specials: [ 1024, 384, 256, 128 ], gulf: [ 1280, 384, 128, 128 ], bubba: [ 1408, 384, 256, 64 ], porchSign: [ 1408, 448, 256, 64 ],
 	exit: [ 1664, 384, 128, 64 ], tvDark: [ 1792, 384, 128, 64 ],
+	liftUp: [ 1664, 448, 192, 64 ], liftDown: [ 1856, 448, 192, 64 ], liftFloor: [ 1920, 384, 64, 32 ], // ---- FX3 (AD1-6)
 	// printed (y >= 512)
 	photos: [ 0, 512, 1024, 256 ], plaque: [ 1024, 512, 512, 128 ], pennants: [ 1536, 512, 512, 128 ],
 	plates: [ 1024, 640, 1024, 96 ], lineup: [ 0, 768, 1152, 256 ], rules: [ 1152, 736, 512, 96 ], phanatic: [ 1664, 736, 384, 288 ],
@@ -33,6 +34,9 @@ PLATES.forEach( ( n, i ) => CELLS[ 'plate' + n ] = [ 1024 + i * 64, 640, 64, 96 
 export const LINEUP = [ [ 'ROLLINS', 'SS', 11 ], [ 'WERTH', 'RF', 28 ], [ 'UTLEY', '2B', 26 ], [ 'HOWARD', '1B', 6 ], [ 'BURRELL', 'LF', 5 ],
 	[ 'VICTORINO', 'CF', 8 ], [ 'FELIZ', '3B', 7 ], [ 'RUIZ', 'C', 51 ], [ 'HAMELS', 'P', 35 ] ];
 LINEUP.forEach( ( _, i ) => CELLS[ 'card' + i ] = [ i * 128, 768, 128, 256 ] );
+// ---- FX3 (step 11, AD1-9): the back bar's two shelves, in the mirror's cell (px from its top): Harrys.js
+// stands its glass shelves at these heights
+export const SHELF_PX = [ 101, 189 ];
 
 const SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
 const COND = '"Arial Narrow", "Helvetica Neue Condensed Bold", "Helvetica Neue", Arial, sans-serif';
@@ -249,53 +253,41 @@ export function drawAtlas( ctx ) {
 	}
 
 	// ---- the back bar: two glass shelves of bottles lit from under them against a dark mirror, the taps'
-	// handles below
+	// handles below. ---- FX3 (step 11, AD1-9): the bottles are built in front of it now (Harrys.js
+	// backBar, on shelves at SHELF_PX); this is the mirror behind them: smoked glass, warm where the strips
+	// light it, the bottles' backs in it soft and dim, its bevelled panels' seams
 	{
 
 		const [ x, y, w, h ] = cell( 'backbar' );
 		const g = ctx.createLinearGradient( x, y, x, y + h );
-		g.addColorStop( 0, '#1b130d' ); g.addColorStop( 1, '#0b0806' );
+		g.addColorStop( 0, '#120d0a' ); g.addColorStop( 1, '#070504' );
 		ctx.fillStyle = g; ctx.fillRect( x, y, w, h );
-		// the mirror's glow and the shelves
-		for ( const sy of [ 104, 204 ] ) {
+		ctx.save();
+		ctx.filter = 'blur( 2.5px )';
+		for ( const [ sy, top ] of [ [ SHELF_PX[ 0 ], 4 ], [ SHELF_PX[ 1 ], SHELF_PX[ 0 ] + 4 ], [ h, SHELF_PX[ 1 ] + 4 ] ] ) {
 
-			const gl = ctx.createLinearGradient( x, y + sy - 90, x, y + sy );
-			gl.addColorStop( 0, 'rgba( 255, 190, 120, 0.02 )' ); gl.addColorStop( 1, 'rgba( 255, 190, 120, 0.3 )' );
-			ctx.fillStyle = gl; ctx.fillRect( x + 6, y + sy - 90, w - 12, 90 );
-			// bottles: a dozen shapes, glass and labels
-			let bx = x + 12;
-			while ( bx < x + w - 24 ) {
+			// the strip's light on the mirror over each shelf, and the bottles' backs in it
+			const gl = ctx.createLinearGradient( x, y + top, x, y + sy );
+			gl.addColorStop( 0, 'rgba( 255, 180, 110, 0.0 )' ); gl.addColorStop( 1, 'rgba( 255, 180, 110, 0.22 )' );
+			ctx.fillStyle = gl; ctx.fillRect( x, y + top, w, sy - top );
+			let bx = x + 6;
+			while ( bx < x + w - 12 ) {
 
-				const kind = r();
-				const bw = kind < 0.3 ? 16 : kind < 0.7 ? 20 : 26, bh = 50 + r() * 34;
-				const glass = [ '#1d4a24', '#6b3a10', '#a36a1f', '#cfd6d2', '#3a2410', '#7c1a1a', '#274a6a' ][ Math.floor( r() * 7 ) ];
-				ctx.fillStyle = glass;
+				const bw = 9 + r() * 7, bh = Math.min( sy - top - 4, 40 + r() * 22 );
+				ctx.fillStyle = [ 'rgba( 120, 62, 14, 0.35 )', 'rgba( 30, 70, 30, 0.3 )', 'rgba( 150, 150, 140, 0.22 )', 'rgba( 70, 36, 10, 0.35 )' ][ Math.floor( r() * 4 ) ];
 				ctx.fillRect( bx, y + sy - bh, bw, bh );
-				// the neck and the cap
-				ctx.fillRect( bx + bw / 2 - 3, y + sy - bh - 16, 6, 16 );
-				ctx.fillStyle = '#c9b27a'; ctx.fillRect( bx + bw / 2 - 3, y + sy - bh - 20, 6, 5 );
-				// the label
-				ctx.fillStyle = [ '#efe6d0', '#1a1a1a', '#b31b1b', '#e8d27a', '#ffffff' ][ Math.floor( r() * 5 ) ];
-				ctx.fillRect( bx + 2, y + sy - bh * 0.62, bw - 4, bh * 0.3 );
-				// the light through the glass
-				ctx.fillStyle = 'rgba( 255, 220, 160, 0.25 )'; ctx.fillRect( bx + 2, y + sy - bh + 4, 3, bh - 8 );
-				bx += bw + 3 + r() * 5;
+				ctx.fillRect( bx + bw / 2 - 2, y + sy - bh - 10, 4, 10 );
+				bx += bw + 2 + r() * 4;
 
 			}
 
-			ctx.fillStyle = '#d8c7a0'; ctx.fillRect( x, y + sy, w, 4 );
-
 		}
-
-		// the taps' handles, a row across the bottom
-		for ( let k = 0; k < 14; k ++ ) {
-
-			const tx = x + 70 + k * 64;
-			ctx.fillStyle = [ '#c8102e', '#1b4f9c', '#e8c16a', '#2b6b2b', '#1a1a1a', '#e8e1d0' ][ k % 6 ];
-			rr( ctx, tx - 7, y + 214, 14, 36, 4 ); ctx.fill();
-			ctx.fillStyle = '#c0c0c0'; ctx.fillRect( tx - 2, y + 248, 4, 8 );
-
-		}
+		ctx.restore();
+		// the mirror's panels: a bevelled seam every so often
+		ctx.fillStyle = 'rgba( 255, 230, 200, 0.06 )';
+		for ( let sx = x + 128; sx < x + w; sx += 128 ) ctx.fillRect( sx, y, 2, h );
+		ctx.fillStyle = '#2a1c12';
+		for ( const sy of SHELF_PX ) ctx.fillRect( x, y + sy, w, 3 );
 
 	}
 
@@ -417,6 +409,38 @@ export function drawAtlas( ctx ) {
 		ctx.fillStyle = g; ctx.fillRect( x, y, w, h );
 
 	}
+
+	// ---- FX3 (step 11, AD1-6): the elevator behind 141's sign over its doors at each stop, as the park's own
+	// elevator signs (Concourse.js, FI1 after ZoeR's April 2008 photo by the Home Stand): cream, ELEVATOR in
+	// the park's dark letters with the car pictogram, a red band under it saying where it goes; and the floor
+	// indicator's dot-matrix over the doors
+	for ( const [ k, where ] of [ [ 'liftUp', '↑  SCOREBOARD PORCH  241–245' ], [ 'liftDown', '↓  MAIN CONCOURSE' ] ] ) {
+
+		const [ x, y, w, h ] = cell( k );
+		ctx.fillStyle = '#efe4c4'; ctx.fillRect( x, y, w, h );
+		ctx.fillStyle = '#9e1b2a'; ctx.fillRect( x, y + h - 20, w, 20 );
+		ctx.strokeStyle = '#232a4d'; ctx.lineWidth = 3; ctx.strokeRect( x + 1.5, y + 1.5, w - 3, h - 3 );
+		ctx.fillStyle = '#1f1b33'; ctx.fillRect( x + 12, y + 9, 18, 26 );
+		ctx.fillStyle = '#efe4c4'; ctx.fillRect( x + 16, y + 13, 10, 18 );
+		ctx.fillStyle = '#1f1b33'; ctx.fillRect( x + 20.5, y + 13, 1, 18 );
+		ctx.font = `800 25px ${ SANS }`;
+		ctx.fillText( 'ELEVATOR', x + w / 2 + 14, y + 23, w - 56 );
+		ctx.fillStyle = '#efe4c4'; ctx.font = `700 11px ${ SANS }`;
+		ctx.fillText( where, x + w / 2, y + h - 9.5, w - 12 );
+
+	}
+	{
+
+		const [ x, y, w, h ] = cell( 'liftFloor' );
+		ctx.fillStyle = '#070707'; ctx.fillRect( x, y, w, h );
+		// the hall lantern: up and down, the one the car's coming to lit
+		ctx.fillStyle = '#ff5a1a';
+		ctx.beginPath(); ctx.moveTo( x + w * 0.3, y + 7 ); ctx.lineTo( x + w * 0.42, y + 25 ); ctx.lineTo( x + w * 0.18, y + 25 ); ctx.closePath(); ctx.fill();
+		ctx.fillStyle = '#3a2a22';
+		ctx.beginPath(); ctx.moveTo( x + w * 0.7, y + 25 ); ctx.lineTo( x + w * 0.82, y + 7 ); ctx.lineTo( x + w * 0.58, y + 7 ); ctx.closePath(); ctx.fill();
+
+	}
+	// ---- end FX3
 
 	// ---- printed: the photographs on Harry's walls, in their black frames and mats
 	const photo = ( i, draw, caption ) => {
