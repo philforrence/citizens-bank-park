@@ -130,5 +130,8 @@ No console errors; 12.9 s to load. Every view at 39 fps or better against the 30
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 17:58 | step 9 as published | 19.8 | 19.1 | 15.0 | 15.6 | 12.6 | 18.8 | 17.7 | 21.6 | **25.4** | 20.0 / 20.6 |
 | 19:58 | FF1, the fans' MakeHuman heads | 20.2 | 19.4 | 15.4 | 15.8 | 12.9 | 19.0 | 17.3 | 21.4 | **25.3** (40 fps) | 19.8 / 20.3 |
+| 20:21 | FF2, the fans' faces move | 20.1 | 19.1 | 14.9 | 15.8 | 13.2 | 20.0 | 18.6 | 22.0 | **26.9** (37 fps) | 21.0 / 21.6 |
 
 FF1 cost ~0.3 ms in TV center and nothing measurable elsewhere; no console errors.
+
+FF2 (the expressions, smooth normals, the painted mouth and lids) cost ~1.6 ms in the 400s seat (25.3 → 26.9 ms, 37 fps), ~1.2 ms in the celebration and plaza, ~1 ms in the real 3B seat; the TV views are unchanged. Still clear of the floor, but the margin is down to 6.4 ms: if FF3 adds as much again, a speed track goes on the crowd's head vertex stage. No console errors.
