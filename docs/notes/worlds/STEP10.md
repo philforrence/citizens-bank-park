@@ -19,3 +19,18 @@ Every place a fan could walk in Citizens Bank Park in 2008 should be walkable he
 | FF1 | The fans' faces from the players' MakeHuman head |
 | WA1 | Walkability audit: a flood fill of the whole park |
 | WA2 | Walkability audit: the outfield seats and the inner bowl against the real stadium |
+
+## Rounds 2 and 3 (19:56-20:54)
+
+| Key | Work | Notes |
+|---|---|---|
+| FF2 | The fans' faces move: expressions, blinks, smooth close heads | [FF2.md](../gauntlet/FF2.md) |
+| FF3 | The players' faces from the same MakeHuman targets; the players' expressions; the fans' open mouths | [FF3.md](../gauntlet/FF3.md) |
+| FA1 | The Pavilion and its Deck reached from Ashburn Alley; the Alley's edges | [FA1.md](../gauntlet/FA1.md) |
+| FA2 | The left side: the Porch, Harry's upstairs, the LF ramp and escalator, the Arcade, Monty's 146-148 | [FA2.md](../gauntlet/FA2.md) |
+| FA3 | The inner bowl and its edges: the field closed, the 400s' stairs, the rails, the cracks, the Diamond Club | [FA3.md](../gauntlet/FA3.md) |
+| FA4 | Elevators both ways; the 1B side's ways up planned | [FA4.md](../gauntlet/FA4.md) |
+
+## Where it stands (2026-10-28, 21:05)
+
+The owner stopped it for the night. Everything is merged on `ballpark`; not tagged or published. The walker now reaches 85% of the seated fans (it was 64%), and the falls it takes are down from 3,131 to 466. One regression: the club concourse and the club seats are cut off. The details, and what to do tomorrow in order, are at the end of [../gauntlet/STEP10-LOG.md](../gauntlet/STEP10-LOG.md).
