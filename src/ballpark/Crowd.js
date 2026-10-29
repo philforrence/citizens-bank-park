@@ -1032,11 +1032,24 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 	let flags = keep | select( 0u, 1u << 12u, hood ) | select( 0u, 1u << 13u, ( hat == 3u || hat == 7u ) && ! bare ) | select( 0u, 1u << 14u, hairStyle == 3u ) | select( 0u, 1u << ${ PONCHO_BIT }u, poncho )
 		| select( 0u, 1u << 16u, pom ) | select( 0u, 1u << 17u, hoodie && ! hood ) | select( 0u, 1u << 18u, scarf && ! poncho ) | select( 0u, 1u << 19u, bare );
 
+	// ---- FF2 (step 10): his face (the close and near levels' MakeHuman head: FanHead.js's expressions). A
+	// smile when they cheer, his own size of one, the whole park's from strike three (the Rays' fans none),
+	// less in the cold rain, none in the song; a blink every three to six seconds by his own clock. Packed
+	// with the mouth's opening in r3.z: the mouth in 6 bits, the smile and the blink in 4 each
+	var smile = select( M.y, A3.y, isRays ) * ( 0.45 + 0.55 * fract( h.w * 23.3 ) );
+	if ( cel >= 0.0 && ! isRays ) { smile = max( smile, 0.55 + 0.45 * fract( h.z * 19.1 ) ); }
+	smile *= ( 1.0 - sol ) * ( 1.0 - 0.6 * rain );
+	let bp = 2.8 + 3.2 * fract( h.z * 7.7 );
+	let bt = fract( t / bp + h.w * 3.1 ) * bp;
+	let blink = smoothstep( 0.0, 0.05, bt ) * ( 1.0 - smoothstep( 0.1, 0.2, bt ) );
+	let face = u32( clamp( opn, 0.0, 1.0 ) * 63.0 + 0.5 ) | ( u32( clamp( smile, 0.0, 1.0 ) * 15.0 + 0.5 ) << 6u ) | ( u32( blink * 15.0 + 0.5 ) << 10u );
+	// ---- end FF2
+
 	var o: CwFanPose;
 	o.r0 = vec4f( st, aUL, aUR, fL ); // (FS1: fL, fR, opn)
 	o.r1 = vec4f( fR, tw, th, yaw );
 	o.r2 = vec4f( max( 0.0, sin( t * 8.0 + h.w * 30.0 ) ) * 0.14 * jump, sin( t * 0.6 + h.z * 20.0 ) * 0.012, sin( t * 9.0 + h.w * 50.0 ) * 0.16, cos( t * 7.0 + h.z * 20.0 ) * 0.06 );
-	o.r3 = vec4f( wide, sc, opn, f32( flags ) );
+	o.r3 = vec4f( wide, sc, f32( face ), f32( flags ) ); // (FF2: the mouth, the smile and the blink packed)
 	// ---- FW1 (C2W-6): what he does with his hands sitting (on his lap; arms folded; in his pockets; clasped
 	// between his knees: more of them in the cold rain; a cup in hand keeps them on the lap), his towel when
 	// it's not up (draped over a knee, bunched in his fist, turned his own way), the cut of a woman's hair,
@@ -1493,7 +1506,18 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 	let fhi = u32( v.aInfo.z + 0.5 );
 	if ( ( u32( v.aInfo.x + 0.5 ) & 15u ) == 3u && v.aInfo.y < 1.5 && fhi > 0u ) {
 		let fc = fhUnpack( cwIds[ fan ].w );
-		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ] );
+		// ---- FF2: his expression (the compute pass's: the mouth, the smile, the blink); close up his lids'
+		// own rest, a little down (more on the old), and the blink (near, at FOX's 30-60 px, the mouth and the
+		// smile only: the lids are a pixel)
+		let eq = u32( cwPoseBuf[ fan * ${ POSE_N * 2 }u + 3u ].z + 0.5 );
+		var ex = vec3f( f32( eq & 63u ) / 63.0, f32( ( eq >> 6u ) & 15u ) / 15.0, 0.0 );
+#if CROWD_LOD == 0
+		let fid = cwIds[ fan ];
+		let lidRest = 0.1 + 0.22 * fract( f32( fid.x & 0xffffu ) * 0.618034 ) + select( 0.0, 0.12, ( ( fid.y >> 21u ) & 3u ) == 1u );
+		ex.z = max( f32( ( eq >> 10u ) & 15u ) / 15.0, lidRest * ( 1.0 - 0.6 * ex.y ) );
+#endif
+		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ], ex );
+		// ---- end FF2
 		pos0 += fh.dp;
 		stp0 += fh.dp;
 		nrm0 = normalize( nrm0 + fh.dn );
@@ -1680,19 +1704,40 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 			c = mix( c, irisC, smoothstep( 0.08, 0.065, length( ey ) ) );
 		}
 		// ---- end FF1
-		let white = smoothstep( 0.1, 0.075, length( ey * vec2f( 1.0, 1.9 ) ) ) * near * front;
+		// (---- FF2: close up the white and the pupil on the eyeball alone: the lids are skin, and they close
+		// over it in a blink; painted on the lids too, the eyes stared, and stayed open through a blink)
+		var onEye = 1.0;
+#if CROWD_LOD == 0
+		onEye = select( 0.0, 1.0, eyeball );
+		c *= mix( 1.0, 0.8, smoothstep( 0.16, 0.1, length( ey * vec2f( 1.0, 1.6 ) ) ) * ( 1.0 - onEye ) * front );
+#endif
+		let white = smoothstep( 0.1, 0.075, length( ey * vec2f( 1.0, 1.9 ) ) ) * near * front * onEye;
 		c = mix( c, vec3f( 0.55, 0.53, 0.5 ), white );
-		c = mix( c, vec3f( 0.02, 0.015, 0.01 ), smoothstep( 0.05, 0.035, length( ey ) ) * near * front );
+		c = mix( c, vec3f( 0.02, 0.015, 0.01 ), smoothstep( 0.05, 0.035, length( ey ) ) * near * front * onEye );
 		let brow = smoothstep( 0.05, 0.02, abs( d.y - 0.3 + 0.05 * ax ) ) * step( 0.1, ax ) * step( ax, select( 0.56, 0.5, female ) ) * front;
 		c = mix( c, hairC, brow * select( 0.85, 0.55, female ) );
 		// the nose: its ridge catching the light, the shadow under it
 		c *= 1.0 + 0.1 * smoothstep( 0.1, 0.03, ax ) * step( - 0.18, d.y ) * step( d.y, 0.22 ) * front;
 		c *= mix( 1.0, 0.72, smoothstep( 0.1, 0.03, length( vec2f( d.x * 0.8, d.y + 0.24 ) ) ) * front );
 		// the mouth: lips (redder on the women), open when he shouts
-		let open = r3.z;
+		let open = f32( u32( r3.z + 0.5 ) & 63u ) / 63.0; // (FF2: packed with the smile and the blink)
+#if CROWD_LOD == 0
+		// ---- FF2: close up the MakeHuman head's mouth opens itself (the expression's jaw): the lips keep
+		// their own size and colour, and inside them (the paint's d.z marks the mouth's inside) it's dark, the
+		// upper teeth under the upper lip, only as it opens
+		let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / 0.05 ) );
+		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), female );
+		c = mix( c, lip, smoothstep( 1.0, 0.7, mo ) * front );
+		let inM = smoothstep( - 1.08, - 1.4, d.z ) * smoothstep( 0.12, 0.08, abs( d.y + 0.45 ) ) * smoothstep( 0.32, 0.26, ax ) * smoothstep( 0.05, 0.35, open );
+		let teeth = smoothstep( - 0.452, - 0.44, d.y ) * smoothstep( - 0.395, - 0.41, d.y ) * smoothstep( 0.14, 0.1, ax );
+		c = mix( c, mix( vec3f( 0.05, 0.012, 0.012 ), vec3f( 0.4, 0.38, 0.33 ), teeth ), inM );
+		if ( inM > 0.5 ) { rough = mix( 0.3, 0.45, teeth ); }
+		// ---- end FF2
+#else
 		let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / ( 0.05 + 0.13 * open ) ) );
 		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), female );
 		c = mix( c, mix( lip, vec3f( 0.06, 0.02, 0.02 ), smoothstep( 0.3, 0.7, open ) ), smoothstep( 1.0, 0.7, mo ) * front );
+#endif
 		// a moustache, a goatee, a beard (soft at its edges, broken up, not a mask: CP-13), stubble
 		// ---- FW6 (C4W-16): a moustache and a goatee in the hair's own colour, a little darker, their edges
 		// soft and broken into stubble, the skin through them (hard black cut-outs with ruler edges)

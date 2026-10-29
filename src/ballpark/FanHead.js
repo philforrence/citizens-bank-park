@@ -9,8 +9,10 @@ import { FAN_HEAD } from './game/data/fanHead.js';
 //                               egg's centre, facing -z, +x his right), normals, the index, and each vertex's
 //                               record in the shared buffer (rec: its first record's number)
 //   fanHeadBuffer()             the records of every level (the paint's frame, the ears' fold, the blend
-//                               shapes and their normals), a storage buffer of vec4u, 7 a vertex
-//   fanHeadModule               WGSL: fhBlend( record, cA, cB ) (the vertex moved by his weights),
+//                               shapes and their normals; FF2: the expressions), a storage buffer of
+//                               vec4u, 9 a vertex
+//   fanHeadModule               WGSL: fhBlend( record, cA, cB, ex ) (the vertex moved by his weights; FF2:
+//                               and by his expression's, ex: the mouth open, the smile, the lids shut),
 //                               fhUnpack( w ) (the crowd's packed weights), fhCoefs( ... ) (the Cast's, from
 //                               who he is and his seed); the material binds the buffer as fhRec
 //   faceWeights( who, seed )    a fan's K weights (the crowd works them out once, on the CPU), and
@@ -25,7 +27,7 @@ import { FAN_HEAD } from './game/data/fanHead.js';
 
 export const FH = FAN_HEAD;
 export const FH_K = FAN_HEAD.K;
-const REC = 7;
+const REC = FAN_HEAD.REC || 7; // (FF2: 9, the expressions' two)
 
 const dec = ( s, T ) => {
 
@@ -159,6 +161,27 @@ export const fanHeadModule = new ShaderModule( {
 	code: /* wgsl */`
 struct FhOut { dp: vec3f, dn: vec3f, d: vec3f, fold: vec3f };
 
+// ---- FF2 (step 10): the expressions (MakeHuman's own units: tools/build-fanhead.mjs), by their weights
+// ex: the mouth open (a shout, a cheer, a song: the jaw down, the lips parted, the brows up), the smile (the
+// mouth's corners up and back, the cheeks up into the lids), the lids shut (a blink, and their own rest).
+// Read only when any is on: the face's two records more
+fn fhExpr( b: u32, ex: vec3f, o: ptr<function, FhOut> ) {
+	if ( all( ex == vec3f( 0.0 ) ) ) { return; }
+	let r7 = fhRec[ b + 7u ];
+	let r8 = fhRec[ b + 8u ];
+	let a = unpack2x16float( r7.x );
+	let c = unpack2x16float( r7.y );
+	let e = unpack2x16float( r7.z );
+	let g = unpack2x16float( r7.w );
+	( *o ).dp += vec3f( a.x, a.y, c.x ) * ex.x + vec3f( c.y, e.x, e.y ) * ex.y + vec3f( 0.0, g.x, g.y ) * ex.z;
+	let an = unpack2x16float( r8.x );
+	let cn = unpack2x16float( r8.y );
+	let en = unpack2x16float( r8.z );
+	let gn = unpack2x16float( r8.w );
+	( *o ).dn += vec3f( an.x, an.y, cn.x ) * ex.x + vec3f( cn.y, en.x, en.y ) * ex.y + vec3f( 0.0, gn.x, gn.y ) * ex.z;
+}
+// ---- end FF2
+
 // eight halves (one per blend shape) against the weights
 fn fh8( u: vec4u, cA: vec4f, cB: vec4f ) -> f32 {
 	return dot( vec4f( unpack2x16float( u.x ), unpack2x16float( u.y ) ), cA ) + dot( vec4f( unpack2x16float( u.z ), unpack2x16float( u.w ) ), cB );
@@ -166,7 +189,7 @@ fn fh8( u: vec4u, cA: vec4f, cB: vec4f ) -> f32 {
 
 // a vertex of the head (its record i) moved by a face's weights: the move, the normal's change, where it
 // is in the paint's frame, and its ear's fold (zero off the ears)
-fn fhBlend( i: u32, cA: vec4f, cB: vec4f ) -> FhOut {
+fn fhBlend( i: u32, cA: vec4f, cB: vec4f, ex: vec3f ) -> FhOut { // (FF2: ex, the expressions' weights)
 	let b = i * ${ REC }u;
 	let r0 = fhRec[ b ];
 	let pz = unpack2x16float( r0.y );
@@ -175,6 +198,7 @@ fn fhBlend( i: u32, cA: vec4f, cB: vec4f ) -> FhOut {
 	o.fold = vec3f( unpack2x16float( r0.z ), unpack2x16float( r0.w ).x ) * pz.y;
 	o.dp = vec3f( fh8( fhRec[ b + 1u ], cA, cB ), fh8( fhRec[ b + 2u ], cA, cB ), fh8( fhRec[ b + 3u ], cA, cB ) );
 	o.dn = vec3f( fh8( fhRec[ b + 4u ], cA, cB ), fh8( fhRec[ b + 5u ], cA, cB ), fh8( fhRec[ b + 6u ], cA, cB ) );
+	fhExpr( b, ex, &o ); // ---- FF2
 	return o;
 }
 
