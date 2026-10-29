@@ -53,3 +53,13 @@ The plan is [../worlds/STEP11.md](../worlds/STEP11.md). Every merge is here with
   - from CR1: CR1-5 (foreheads through caps), -12, -14, -21, -6, -22, -23, -24, -13, -15;
   - from AD1: AD1-10;
   - SK1's F1-F3 and the squint.
+- **FX3, left field, the police and the concourse** (returned 09:09; notes in its branch's `docs/notes/gauntlet/FX3.md`; shots in `.claude/gauntlet/s11/r1/FX3/`):
+  - **Harry the K's:** see-through from inside, upstairs and down; 3D back bars with ~700 bottles; a painted ceiling deck.
+  - **The 141 elevator:** stainless doors and the park's ELEVATOR sign with where it goes; the Porch sign on posts; the walkway's concrete.
+  - **The ramp's lights** are the photo's bell domes.
+  - **The police:** never inside the rail; they now stand 0.85-1.6 m clear of it, read from the seating.
+  - **The black block** was McFadden's back: every stand's back now has a service door, a plaque and a painted wall light.
+  - **For the coordinator:**
+    - the standard view `walk-concourse3b` stands outside FI1's one-sided hall wall, looking through it (`ConcourseSteel.js`);
+    - FA3's rail on the 3B dugout roof isn't in the 2008 photo (`Stands.js`).
+- **SK3, the third skeptic** (launched 09:09): trying to refute FX3. Harry's from outside, every stand back, the police at other moments, the counts, and FX3's unexplained +137k triangles in TV center.
