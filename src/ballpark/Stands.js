@@ -466,7 +466,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const { S } = p;
 		const w = PO.width / 2 + 0.3;
 		const dF = S0 + p.r0 * D, dB = S0 + p.r1 * D;
-		const yF = ys[ Math.max( 0, p.r0 - 1 ) ], yTop = ys[ Math.min( tier.rows - 1, p.r1 - 1 ) ] + 1.1;
+		// (---- FA1: an open portal is a vomitory flush with the rows round it, its top a landing level with its
+		// last row, railed: the 2008 photos of the Pavilion Deck show no boxes standing out of its rows)
+		const yF = ys[ Math.max( 0, p.r0 - 1 ) ], yTop = ys[ Math.min( tier.rows - 1, p.r1 - 1 ) ] + ( PO.open ? 0.05 : 1.1 );
 		const at = ( s, d, y ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, y, S.a[ 1 ] + S.uz * s + S.nz * d ];
 		const f = [ - S.nx, 0, - S.nz ];
 		// the face: concrete round the mouth (2.3 m high, the portal's width less the cheeks)
@@ -499,6 +501,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 				box( p.s - w, p.s + w, dm + hw, dB, yF - 0.3, yF, { walkable: true, tag: tier.name + '-portal' } );
 				for ( const e of [ - 1, 1 ] ) box( p.s + e * w - 0.1, p.s + e * w + 0.1, dF, dB, yF - 0.3, yTop, { tag: tier.name + '-portal-cheek' } );
 				box( p.s - w, p.s + w, dB, dB + 0.15, yF - 0.3, yTop, { tag: tier.name + '-portal-back' } );
+				// its top a landing in the rows (walkable), its rail over the mouth solid
+				box( p.s - w, p.s + w, dF, dB, yTop - 0.2, yTop, { walkable: true, tag: tier.name + '-portal-top' } );
+				box( p.s - w, p.s + w, dF, dF + 0.1, yTop, yTop + 1.1, { tag: tier.name + '-portal-rail' } );
 
 			}
 
