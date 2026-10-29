@@ -1,6 +1,7 @@
 import { BufferGeometry, Float32BufferAttribute, BoxGeometry, CylinderGeometry, SphereGeometry, LatheGeometry, TorusGeometry, Matrix3, Matrix4, Vector2, Vector3, Quaternion, Euler } from '../../engine/index.js';
 import { BODY } from './data/body.js';
 import { BODY_LOD, BODY_MID } from './data/bodyLod.js'; // ---- SP2
+import { headOf } from './Faces.js'; // ---- FF3
 
 // A ballplayer's body: 17 bones and one continuous skinned mesh (data/body.js: the MakeHuman base mesh
 // shaped into a 6'2" athlete, the fingers closed in a grip, every vertex weighted to up to four of our
@@ -33,7 +34,9 @@ export const PART = { skin: 0, jersey: 1, pants: 2, socks: 3, shoes: 4, cap: 5, 
 	flapL: 16, flapR: 17, ccap: 18, maskPad: 19, mittC: 20, mitt1B: 21, bag: 22, rake: 23, hood: 24, phHead: 25, snout: 26, phEye: 27, glasses: 28,
 	// the rest of the Phanatic's costume: the fur body under the jersey, the neck, the lids, the hair, his
 	// cap on backwards, the shag round his mouth and the mouth itself
-	phBody: 29, phNeck: 30, phLid: 31, phHair: 32, phCap: 33, phRing: 34, phMouth: 35 };
+	phBody: 29, phNeck: 30, phLid: 31, phHair: 32, phCap: 33, phRing: 34, phMouth: 35,
+	// ---- FF3: the mouth's inside (the body's own: the bag the lips curl into, which the open jaw shows)
+	mouth: 36 };
 // the optional pieces (left out of statues)
 export const OPTIONAL = [ 10, 11, 12, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 ];
 // the Phanatic's own pieces (only he wears them)
@@ -105,7 +108,7 @@ function decode( b64, Type ) {
 // ---------------------------------------------------------------- the mesh
 
 // Attributes: position and normal (bind pose), aBones / aWeights (vec4), aPart, aField (the body's
-// distance along the arm and along the leg, -1 elsewhere).
+// distance along the arm and along the leg, -1 elsewhere; ---- FF3: and its head vertex, Faces.js).
 // ---- SP2 (speed): `lod`: the far players' figure (Players.js, under 128 px tall): the body simplified to
 // a sixth (data/bodyLod.js, tools/build-body-lod.mjs: its vertices are the body's own, so the uniform,
 // the skinning and the shader's shaping are unchanged), the rigid pieces with half their segments, and
@@ -150,8 +153,12 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 
 			}
 
-			part.push( G[ i ] ? PART.eye : PART.body );
-			field.push( F[ i * 2 ] / Q, F[ i * 2 + 1 ] / Q );
+			part.push( G[ i ] === 1 ? PART.eye : G[ i ] === 2 ? PART.mouth : PART.body ); // (---- FF3: the mouth's inside)
+			// (---- FF3: aField.z, the vertex's head vertex, Faces.js: -1 off the head, +65536 on the middle and far
+			// figures. His face, baked when he comes on, is on every figure, the expressions only on the near one.
+			// A third number in aField, not an attribute of its own: the draw has the 8 vertex buffers it may)
+			const h = headOf( i );
+			field.push( F[ i * 2 ] / Q, F[ i * 2 + 1 ] / Q, h < 0 ? - 1 : h + ( lod ? 65536 : 0 ) );
 
 		}
 
@@ -180,7 +187,7 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 			bones.push( b, 0, 0, 0 );
 			weights.push( 1, 0, 0, 0 );
 			part.push( p );
-			field.push( mark, - 1 );
+			field.push( mark, - 1, - 1 ); // (---- FF3: no head vertex)
 
 		}
 
@@ -210,7 +217,7 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 			}
 
 			part.push( p );
-			field.push( mark, - 1 );
+			field.push( mark, - 1, - 1 ); // (---- FF3: no head vertex)
 
 		}
 
@@ -497,7 +504,7 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 	g.setAttribute( 'aBones', new Float32BufferAttribute( bones, 4 ) );
 	g.setAttribute( 'aWeights', new Float32BufferAttribute( weights, 4 ) );
 	g.setAttribute( 'aPart', new Float32BufferAttribute( part, 1 ) );
-	g.setAttribute( 'aField', new Float32BufferAttribute( field, 2 ) );
+	g.setAttribute( 'aField', new Float32BufferAttribute( field, 3 ) ); // (---- FF3: 3, the head vertex)
 	g.setIndex( index );
 	g.computeBoundingSphere();
 	return g;

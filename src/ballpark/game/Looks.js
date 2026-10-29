@@ -297,6 +297,115 @@ const headOf = ( f ) => 1 + 0.012 * ( ( f.full || 0 ) + ( f.neck || 0 ) );
 const keySeed = ( id ) => typeof id === 'number' ? id * 0.00731 : [ ...String( id ) ].reduce( ( a, c ) => ( a * 31 + c.charCodeAt( 0 ) ) % 9973, 7 ) * 0.0917;
 // ---- end FY4
 
+// ---- FF3 (step 10): every man's face from MakeHuman's own targets (Faces.js; tools/build-body.mjs), as the
+// fans' are: `mh`, his weights on MakeHuman's face modifiers (-1 the decrease's end, 1 the increase's), its
+// head shapes (0..1), and the macros' share of the face: his African and Asian shares, his age (MakeHuman's
+// old is about 90), his weight. FY4's sixteen numbers come across as the modifiers that do what they did
+// (the lower face's length as the chin's height, the cheeks' flesh as their volume and the head's fat,
+// the bridge as the nose's hump and Greek line, ...), each a little short of MakeHuman's caricature at its
+// end; then the faces from the Series' photos on top (FF3_MH): Getty's 2008-10-29 set in .claude/ref/rituals/
+// (Lidge 83485858 and 83485929, Feliz 83483794, Upton 83484235, Manuel 83483743, Howard 83884253, Rollins
+// 94863165, Hamels 83486314, Balfour 83485159, Jenkins 83486414, Ruiz 83485955, Werth 83912493, Victorino
+// 83571325, Burrell 83571337), FOX's (`.claude/ref/gauntlet/play/`) and the men's well-known looks
+const ETH_OF = new Map( [ [ S.fair, [ 0.0, 0.0 ] ], [ S.light, [ 0.01, 0.01 ] ], [ S.ruddy, [ 0.0, 0.0 ] ], [ S.olive, [ 0.08, 0.04 ] ],
+	[ S.tan, [ 0.3, 0.12 ] ], [ S.latin, [ 0.42, 0.06 ] ], [ S.brown, [ 0.72, 0.03 ] ], [ S.dark, [ 0.86, 0.02 ] ], [ S.deep, [ 0.92, 0.02 ] ], [ S.asian, [ 0.03, 0.88 ] ] ] );
+function mhOf( o ) {
+
+	const f = o.face || {}, v = ( k ) => f[ k ] || 0;
+	const [ af, as ] = ETH_OF.get( o.skin ) || [ 0.2, 0.1 ];
+	const mh = {
+		african: af, asian: as,
+		// (the look's age: 0 a rookie of 22 .. 1 Manuel's 64)
+		old: Math.max( 0, ( 22 + 42 * ( o.age ?? 0.2 ) - 25 ) / 65 ),
+		weight: Math.max( - 1, Math.min( 1, ( ( o.girth || 1 ) - 1 ) * 3 + ( o.belly || 0 ) * 0.6 ) ),
+		'chin-height': 0.75 * v( 'jawL' ), 'chin-out': 0.8 * v( 'chin' ), 'chin-width': 0.75 * v( 'chinW' ),
+		cheekbones: 0.8 * v( 'cheek' ), cheeks: 0.7 * v( 'full' ), 'head-fat': 0.45 * v( 'full' ),
+		'brow-ridge': 0.55 * v( 'brow' ), 'nose-length': 0.6 * v( 'noseL' ), 'nose-out': 0.35 * v( 'noseL' ),
+		'nose-width': 0.6 * v( 'noseW' ), 'nose-nostrils': 0.45 * v( 'noseW' ), 'nose-flare': 0.3 * v( 'noseW' ),
+		'nose-hump': 0.35 * v( 'bridge' ), 'nose-greek': 0.45 * v( 'bridge' ), 'eye-spacing': 0.6 * v( 'eyes' ),
+		'ear-size': 0.55 * v( 'ears' ), 'ear-out': 0.35 * v( 'ears' ), 'neck-width': 0.45 * v( 'neck' ),
+		'lip-upper': 0.55 * v( 'lips' ), 'lip-lower': 0.7 * v( 'lips' ), 'mouth-width': 0.6 * v( 'mouthW' ),
+		'eye-deep': 0.7 * v( 'deep' ), jaw: 0.65 * v( 'gonion' ),
+	};
+	// age's own, past the macro's: the lids' bags, the lobes, the neck's fold
+	const aged = Math.max( 0, ( o.age ?? 0.2 ) - 0.45 ) / 0.55;
+	if ( aged > 0 ) Object.assign( mh, { 'eye-bag': 0.5 * aged, 'ear-lobe': 0.4 * aged, 'neck-double': 0.35 * aged * Math.max( 0.3, mh.weight + 0.5 ) } );
+	return Object.assign( mh, o.mhFit || {} );
+
+}
+// the men from the photos: what FY4's numbers can't say (his face's mix, the eyes' fold and lids, the nose's
+// line, the mouth's set, the head's shape)
+const FF3_MH = {
+	// Lidge: a long, lean face with a strong, jutting chin under the goatee, deep-set eyes under a straight
+	// brow, a long straight nose, thin lips (Getty 83485858, 83485929)
+	400058: { 'shape-rectangular': 0.45, 'nose-curve': - 0.2, 'mouth-height': - 0.2, 'eye-fold': 0.3, 'brow-angle': - 0.25, prognathism: 0.2, 'cheek-inner': - 0.3 },
+	// Ruiz: Panamanian; a broad, round face, heavy-lidded eyes, a wide nose, full lips (83485955)
+	434563: { african: 0.38, asian: 0.06, 'shape-round': 0.55, 'eye-size': - 0.3, 'eye-fold': 0.4, 'nose-height': - 0.2, 'cheek-height': - 0.2 },
+	// Hinske: a big round head, the red beard over a heavy jaw, small eyes
+	400134: { 'shape-round': 0.4, 'eye-size': - 0.35, 'nose-volume': 0.3, 'neck-double': 0.3 },
+	// Utley: angular, high cheekbones over hollow cheeks, a heavy brow, a flared jaw, narrow-set eyes, a
+	// straight nose (83485866; johnpaulendicott 2987990948)
+	400284: { 'shape-diamond': 0.35, 'cheek-inner': - 0.5, 'eye-size': - 0.2, 'nose-curve': - 0.15, 'mouth-angles': - 0.2 },
+	// Howard: a big round face, broad nose and full lips, heavy cheeks, a thick neck (83884253)
+	429667: { 'shape-round': 0.6, 'eye-size': - 0.15, 'nose-height': - 0.25, 'mouth-out': 0.3, 'neck-double': 0.25 },
+	// Rollins: a narrow face, high cheekbones, a small chin, a wide nose, big ears (94863165)
+	276519: { 'shape-invertedtriangular': 0.5, 'nose-height': - 0.2, 'mouth-out': 0.35, 'eye-size': 0.15 },
+	// Werth: a long face, a long nose with a hump, hooded eyes (83912493)
+	150029: { 'shape-oval': 0.4, 'nose-curve': 0.35, 'eye-fold': 0.4, 'nose-tip': - 0.25 },
+	// Feliz: Dominican; broad cheekbones and a broad nose, a heavy jaw, sleepy lids (83483794)
+	150268: { african: 0.5, asian: 0.04, 'shape-square': 0.35, 'eye-fold': 0.45, 'nose-height': - 0.2, 'mouth-out': 0.25 },
+	// Burrell: a square jaw and heavy brow, dark deep-set eyes, a strong nose (83571337)
+	150100: { 'shape-square': 0.6, 'nose-curve': 0.2, 'brow-angle': - 0.3, 'eye-fold': 0.25 },
+	// Hamels: narrow and fine, big eyes, a straight nose, a soft chin (83486314)
+	430935: { 'shape-oval': 0.5, 'eye-size': 0.35, 'nose-point': - 0.3, 'cheek-inner': - 0.2, 'forehead-vert': 0.2 },
+	// Victorino: Hawaiian, of Portuguese, Japanese and native Hawaiian descent; a round face, wide
+	// cheekbones, narrow eyes, a broad nose (83571325)
+	425664: { african: 0.18, asian: 0.42, 'shape-round': 0.35, 'eye-epicanthus': 0.35, 'eye-size': - 0.2, 'eye-fold': 0.3 },
+	// Jenkins: a long face, a square chin, a straight nose (83486414)
+	132961: { 'shape-rectangular': 0.4, 'nose-curve': - 0.1, 'eye-fold': 0.2 },
+	// Madson: long and lean, a long chin, a narrow nose
+	425492: { 'shape-oval': 0.45, 'nose-point': - 0.3, 'cheek-inner': - 0.35 },
+	// Crawford: a lean face, high cheekbones, a broad nose and full lips
+	408307: { african: 0.9, 'shape-diamond': 0.25, 'mouth-out': 0.3, 'nose-height': - 0.15 },
+	// Longoria: Mexican-American; a square jaw, a heavy brow, a strong straight nose
+	446334: { african: 0.06, asian: 0.08, 'shape-square': 0.55, 'nose-curve': 0.1, 'eye-fold': 0.3 },
+	// Upton: a long, lean face, high cheekbones, a wide nose (83484235)
+	425834: { african: 0.8, 'shape-oval': 0.5, 'cheek-inner': - 0.3, 'mouth-out': 0.3 },
+	// Pena: Dominican; a broad, heavy face, a big nose, the brow heavy
+	150289: { african: 0.35, asian: 0.04, 'shape-square': 0.45, 'nose-volume': 0.35, 'nose-curve': 0.2, 'eye-fold': 0.3 },
+	// Bartlett: a narrow, pointed face, small eyes
+	430583: { 'shape-triangular': 0.4, 'eye-size': - 0.25, 'nose-point': - 0.2 },
+	// Navarro: Venezuelan; round and fleshy, a broad nose, a small chin
+	425900: { african: 0.25, asian: 0.08, 'shape-round': 0.65, 'neck-double': 0.35, 'eye-size': - 0.2 },
+	// Price: a long face, a broad nose and full lips, big ears
+	456034: { african: 0.85, 'shape-oval': 0.45, 'mouth-out': 0.3, 'eye-size': 0.1 },
+	// Balfour: a square, rugged face, a heavy brow, a broken boxer's nose (83485159)
+	346797: { 'shape-square': 0.5, 'nose-curve': 0.25, 'nose-hump': 0.4, 'brow-angle': - 0.35, 'eye-fold': 0.35 },
+	// Iwamura: a flat bridge and wide cheekbones, the eyes' epicanthic fold
+	493127: { asian: 0.95, african: 0.0, 'shape-round': 0.3, 'eye-epicanthus': 0.6, 'eye-fold': 0.6, 'nose-greek': - 0.4 },
+	// Baldelli: a long Italian face, a strong nose
+	408306: { 'shape-oval': 0.35, 'nose-curve': 0.3, 'eye-fold': 0.25 },
+	// Kazmir: youthful, a soft round chin, big eyes
+	431148: { 'shape-oval': 0.3, 'eye-size': 0.3, 'cheeks': 0.2 },
+	// Aybar and Fernando Perez: Dominican
+	430632: { african: 0.5, 'shape-square': 0.3, 'eye-fold': 0.35 },
+	445010: { african: 0.7, 'shape-oval': 0.35 },
+	// the umpires and the coaches: older faces
+	'-1': { 'shape-round': 0.4 }, '-2': { 'shape-rectangular': 0.4, 'nose-curve': 0.3 }, '-3': { african: 0.75, 'shape-round': 0.3 },
+	'-4': { 'shape-oval': 0.45, 'nose-curve': 0.2 }, '-5': { 'shape-square': 0.5 }, '-6': { 'shape-diamond': 0.3, 'eye-fold': 0.3 },
+	// Manuel: big and heavy, the big fleshy nose, jowls, big ears, heavy lids (83483743)
+	manuel: { 'shape-square': 0.4, 'nose-volume': 0.6, 'nose-flare': 0.4, 'eye-fold': 0.55, 'eye-size': - 0.25, 'neck-double': 0.6, 'mouth-angles': - 0.3 },
+	// Maddon: a long face behind his glasses, a long nose
+	maddon: { 'shape-oval': 0.4, 'nose-curve': 0.3, 'eye-bag': 0.6 },
+	lopes: { african: 0.8, 'shape-oval': 0.3 }, hendrick: { african: 0.88, 'shape-rectangular': 0.35 },
+	smith: { 'shape-square': 0.3 }, foley: { 'shape-round': 0.3 }, 'r:moyer': { 'shape-oval': 0.4, 'eye-fold': 0.3 }, 'r:hickey': { 'shape-square': 0.3 },
+};
+// the ball girls: young women's faces (the body's a man's)
+FF3_MH.ballgirl = { female: 0.9, 'shape-oval': 0.4, 'eye-size': 0.2 };
+FF3_MH.ballgirl2 = { female: 0.9, 'shape-round': 0.3, 'eye-size': 0.15, african: 0.12 };
+for ( const [ id, m ] of Object.entries( FF3_MH ) ) ( LOOKS[ id ] || STAFF[ id ] ).mhFit = m;
+// ---- end FF3
+
 const CREW_SKINS = [ S.light, S.brown, S.ruddy, S.latin, S.fair, S.dark, S.tan, S.olive ];
 const CREW_HAIR = [ H.brown, H.black, H.sandy, H.black, H.dark, H.black, H.dark, H.brown ];
 
@@ -310,6 +419,8 @@ export function look( id, seed = 0 ) {
 		Object.assign( o, L );
 		if ( ! o.face ) o.face = seededFace( keySeed( id ), /^ballgirl/.test( id ) ); // ---- FY4
 		o.head ??= headOf( o.face ); // ---- FY4
+		o.id = id; // ---- FF3
+		o.mh = mhOf( o ); // ---- FF3
 		return o;
 
 	}
@@ -334,6 +445,7 @@ export function look( id, seed = 0 ) {
 	o.age = r( 8 );
 	o.face = seededFace( seed + 0.5 + ( id != null ? keySeed( id ) : 0 ) ); // ---- FY4 (the coaches with no notes share a seed)
 	o.head = headOf( o.face ); // ---- FY4
+	o.mh = mhOf( o ); // ---- FF3
 	return o;
 
 }
