@@ -4,6 +4,8 @@ import { offsetPolyline } from '../../Bowl.js';
 import { alongPolyline, segLen } from '../../geo.js';
 import { RAIL, FLAG } from './RailFigures.js';
 import { put, rnd } from './Props.js';
+import { tierSections } from '../../Stands.js'; // ---- FX3
+import { DUGOUT_WIDTH } from '../../Field.js'; // ---- FX3
 
 // Security on the warning track, and the police at the end.
 //
@@ -46,9 +48,16 @@ export class Police {
 			if ( d.side !== 'third' ) continue;
 			const { a, ux, uz, nx, nz } = d;
 			const s0 = d.roof[ 0 ] + 0.6, s1 = d.roof[ 1 ] - 0.6, n = 9;
+			// ---- FX3 (step 11, AD1-2): how far back they stand, from the rail on the roof's back edge (FA3's,
+			// Stands.js: the dugout's section's ledge, read here so it can't drift from it): spread over the
+			// back half of the roof, as the photo has them (some near the back, some halfway out), 0.85 to 1.6 m
+			// clear of the rail. They stood 2.05-2.38 m out, hard against it (0.5 m: elbows in the pipe, and it
+			// read through them from the field)
+			const tRail = railLine( bowl, d ) ?? DUGOUT_WIDTH + 0.27;
 			for ( let k = 0; k < n; k ++ ) {
 
-				const s = s0 + ( s1 - s0 ) * ( k + 0.5 ) / n, t = 2.2 + ( rnd( k * 7.7 ) - 0.5 ) * 0.4;
+				const s = s0 + ( s1 - s0 ) * ( k + 0.5 ) / n, t = Math.max( 0.5, tRail - 0.85 - rnd( k * 7.7 ) * 0.75 );
+				// ---- end FX3
 				this.roof.push( figs.add( 'police', { x: a[ 0 ] + ux * s + nx * t, y: 1.75, z: a[ 1 ] + uz * s + nz * t, yaw: Math.atan2( - nx, - nz ) + ( rnd( k * 3.9 ) - 0.5 ) * 0.4, outfit: RAIL.police, seed: rnd( k * 6.1 + 3 ), flags: FLAG.cap, stout: rnd( k * 1.7 ) * 0.9, scale: 0.96 + rnd( k * 2.9 ) * 0.1, shown: false } ) );
 
 			}
@@ -224,6 +233,33 @@ export class Police {
 	}
 
 }
+
+// ---- FX3 (step 11, AD1-2): the rail along the back of the dugout's roof, as its distance back from the
+// dugout's front line (d's frame): the field level's sections over a dugout start their rows behind it, and
+// carry a ledge forward to `tier.ledge` from their front with the rail on it (Stands.js, FA3). Null if
+// there's no such section over this dugout.
+function railLine( bowl, d ) {
+
+	let best = null;
+	for ( const tier of bowl?.tiers || [] ) {
+
+		if ( ! tier?.ledge ) continue;
+		for ( const S of tierSections( tier ) ) {
+
+			if ( ! S.skipRows || S.nx * d.nx + S.nz * d.nz < 0.99 ) continue;
+			// the section's ledge front at its middle, in the dugout's frame
+			const x = S.a[ 0 ] + S.ux * S.len / 2 + S.nx * tier.ledge, z = S.a[ 1 ] + S.uz * S.len / 2 + S.nz * tier.ledge;
+			const s = ( x - d.a[ 0 ] ) * d.ux + ( z - d.a[ 1 ] ) * d.uz, t = ( x - d.a[ 0 ] ) * d.nx + ( z - d.a[ 1 ] ) * d.nz;
+			if ( s < - 2 || s > d.len + 2 || t < 0 || t > 6 ) continue;
+			if ( best === null || t < best ) best = t;
+
+		}
+
+	}
+	return best;
+
+}
+// ---- end FX3
 
 const wrap = ( a ) => {
 

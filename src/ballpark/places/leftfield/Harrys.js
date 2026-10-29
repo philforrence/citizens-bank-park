@@ -2,7 +2,8 @@ import { Mesh, Group, Color } from '../../../engine/index.js';
 import { standard } from '../../../materials/Materials.js';
 import { commonModule } from '../../../engine/render/wgsl/common.js';
 import { Quads } from '../../Stands.js';
-import { Kit } from './Kit.js';
+import { Kit, atlasUV } from './Kit.js';
+import { SHELF_PX } from './Atlas.js'; // ---- FX3
 import { STREET } from './Frame.js';
 import { porchBackLine } from './Access.js'; // ---- FA2
 
@@ -86,6 +87,15 @@ export function buildHarrys( place, F, H ) {
 
 	// ---- the rooms: walls, floors and ceilings (one material: panelled wood, tile, carpet, the dark
 	// ceiling with its cans of light, told apart by uv.x as in the Kit)
+	// (---- FX3: the board frame's x in the world, for the ceiling's ribs and the walkway's joints)
+	const WD = ( () => {
+
+		const fd = place.field;
+		if ( ! fd?.toWorld ) return [ 1, 0 ];
+		const a = fd.toWorld( ...F.field( 0, 0 ) ), b = fd.toWorld( ...F.field( 1, 0 ) ), l = Math.hypot( b.x - a.x, b.z - a.z ) || 1;
+		return [ ( b.x - a.x ) / l, ( b.z - a.z ) / l ];
+
+	} )();
 	const room = new Quads();
 	const RQ = ( kind, a, b, c, d, n ) => {
 
@@ -94,7 +104,7 @@ export function buildHarrys( place, F, H ) {
 		room.tri( a, c, d, n, [ kind, 0 ], [ kind, 1 ], [ kind, 0 ] );
 
 	};
-	const box = ( kind, x0, x1, y0, y1, z0, z1 ) => {
+	const box = ( kind, x0, x1, y0, y1, z0, z1, O ) => {
 
 		// the inside of a box: its floor (kind 0), ceiling (2), walls (1)
 		RQ( 0, P( x0, y0, z0 ), P( x1, y0, z0 ), P( x1, y0, z1 ), P( x0, y0, z1 ), [ 0, 1, 0 ] );
@@ -102,16 +112,28 @@ export function buildHarrys( place, F, H ) {
 		RQ( kind, P( x1, y0, z1 ), P( x0, y0, z1 ), P( x0, y1, z1 ), P( x1, y1, z1 ), D( 0, - 1 ) );
 		RQ( kind, P( x0, y0, z1 ), P( x0, y0, z0 ), P( x0, y1, z0 ), P( x0, y1, z1 ), D( 1, 0 ) );
 		RQ( kind, P( x1, y0, z0 ), P( x1, y0, z1 ), P( x1, y1, z1 ), P( x1, y1, z0 ), D( - 1, 0 ) );
-		// the inside of the front wall, above and beside the opening
-		RQ( kind, P( x0, y0, z0 ), P( x1, y0, z0 ), P( x1, y1, z0 ), P( x0, y1, z0 ), D( 0, 1 ) );
+		// the inside of the front wall, above and beside the opening O. ---- FX3 (step 11, AD1-1): only round
+		// it. This quad ran across the whole front, the opening too, so from inside both bars the glass and the
+		// open front were a red-and-wood wall (from outside, one-sided, it didn't show)
+		const front = ( xa, xb, ya, yb ) => {
+
+			if ( xb - xa > 0.01 && yb - ya > 0.01 ) RQ( kind, P( xa, ya, z0 ), P( xb, ya, z0 ), P( xb, yb, z0 ), P( xa, yb, z0 ), D( 0, 1 ) );
+
+		};
+		const ox0 = Math.max( x0, O.x0 ), ox1 = Math.min( x1, O.x1 ), oy1 = Math.min( y1, O.y1 );
+		front( x0, ox0, y0, y1 );
+		front( ox1, x1, y0, y1 );
+		front( ox0, ox1, oy1, y1 );
+		front( ox0, ox1, y0, Math.max( y0, O.y0 ) );
+		// ---- end FX3
 
 	};
 	// upstairs: 8.4 m deep, the ceiling at 3.5 m
 	const UR = { x0: UP.x0, x1: UP.x1, y0: PY, y1: PY + 3.5, z0: FZ + T, z1: FZ + T + 8.1 };
-	box( 1, UR.x0, UR.x1, UR.y0, UR.y1, UR.z0, UR.z1 );
+	box( 1, UR.x0, UR.x1, UR.y0, UR.y1, UR.z0, UR.z1, UP );
 	// downstairs: the bar and the kitchen's pass, 5 m deep
 	const DR = { x0: DN.x0, x1: DN.x1, y0: STREET, y1: DN.y1 + 0.2, z0: FZ + T, z1: FZ + T + 5 };
-	box( 3, DR.x0, DR.x1, DR.y0, DR.y1, DR.z0, DR.z1 );
+	box( 3, DR.x0, DR.x1, DR.y0, DR.y1, DR.z0, DR.z1, DN );
 	out.UR = UR; out.DR = DR;
 	const roomMat = standard( {
 		name: 'harrys-room', roughness: 0.6, modules: [ commonModule ],
@@ -137,11 +159,20 @@ export function buildHarrys( place, F, H ) {
 		// the warm wash of the lamps along the top of the walls
 		s.emissive = s.albedo * ( 0.6 + 0.8 * nk ) * smoothstep( 1.6, 3.2, h ) * 0.8;
 	} else {
-		// the ceiling: dark, with cans of light every 1.8 m
+		// the ceiling: cans of light every 1.8 m. ---- FX3 (step 11, AD1-9): in the deck over the room, painted
+		// out a dark warm grey as bars paint them (the lower level's ceiling is the deck's own steel, maroon,
+		// NLCS 2009), its ribs every 0.3 m across the room, a hanger's shadow line at each beam, and the soft
+		// pool each can throws on the paint round it. It was albedo 0.025: a black void with the cans in it
 		let g = fract( in.P.xz / 1.8 ) - 0.5;
-		let can = 1.0 - smoothstep( 0.05, 0.08, length( g ) );
-		s.albedo = vec3f( 0.025 );
-		s.emissive = vec3f( 1.0, 0.8, 0.55 ) * can * ( 2.0 + 2.0 * nk );
+		let rc = length( g ) * 1.8;
+		let can = 1.0 - smoothstep( 0.09, 0.144, rc );
+		let along = dot( in.P.xz, vec2f( ${ WD[ 0 ].toFixed( 4 ) }, ${ WD[ 1 ].toFixed( 4 ) } ) );
+		let rib = smoothstep( 0.36, 0.46, abs( fract( along / 0.3 ) - 0.5 ) ) * ( 1.0 - clamp( fwidth( along ) / 0.3 * 2.0, 0.0, 1.0 ) );
+		let beamLine = 1.0 - smoothstep( 0.08, 0.13, abs( fract( along / 3.0 ) - 0.5 ) * 3.0 );
+		s.albedo = vec3f( 0.072, 0.064, 0.056 ) * ( 0.88 + 0.12 * mx_noise_float2( in.P.xz * 2.3 ) ) * ( 1.0 - 0.18 * rib ) * ( 1.0 - 0.3 * beamLine );
+		s.roughness = 0.85;
+		let pool = exp( - rc * rc / 0.25 ) * 0.6 + exp( - rc * rc / 1.2 ) * 0.15;
+		s.emissive = vec3f( 1.0, 0.8, 0.55 ) * ( can * ( 2.0 + 2.0 * nk ) + s.albedo * pool * ( 0.8 + 1.2 * nk ) );
 	}
 `,
 	} );
@@ -166,6 +197,11 @@ export function buildHarrys( place, F, H ) {
 	// the back bar: counter, the lit shelves of bottles, the taps along the bar top
 	K.use( 'mahogany' ).box( Pk, ( barX0 + barX1 ) / 2, PY + 0.45, UR.z1 - 0.3, barX1 - barX0 + 1, 0.9, 0.5 );
 	K.panel( Pk, ( barX0 + barX1 ) / 2, PY + 1.55, UR.z1 - 0.04, barX1 - barX0 + 1, 1.25, 'backbar' );
+	// ---- FX3 (AD1-9): the bottles and their bays in a mesh of their own (the Kit's material: one more draw,
+	// and only where the bars can be seen: its box is the bars', not the whole corner's, so the TV's cameras
+	// and most of the park cull it; kept out of the static batching, which would fold it back in)
+	const KB = new Kit(), PkB = KB.frame( F );
+	backBar( KB, PkB, barX0 - 0.5, barX1 + 0.5, UR.z1, PY, PY + 2.175, 1.25, 11 );
 	for ( let k = 0; k < 8; k ++ ) {
 
 		const tx = barX0 + 1.5 + k * ( barX1 - barX0 - 3 ) / 7;
@@ -229,7 +265,18 @@ export function buildHarrys( place, F, H ) {
 	}
 
 	// the beer signs hung in the windows, facing out
-	for ( const [ x, cell, w ] of [ [ - 15.5, 'neonBud', 1.3 ], [ - 6.4, 'neonYuengling', 1.2 ], [ 3.8, 'neonMiller', 1.2 ], [ 12.4, 'neonBud', 1.3 ] ] ) K.panel( Pk, x, GY - 0.55, FZ + 0.2, w, w * ( cell === 'neonMiller' ? 0.25 : 0.375 ), cell );
+	for ( const [ x, cell, w ] of [ [ - 15.5, 'neonBud', 1.3 ], [ - 6.4, 'neonYuengling', 1.2 ], [ 3.8, 'neonMiller', 1.2 ], [ 12.4, 'neonBud', 1.3 ] ] ) {
+
+		const h = w * ( cell === 'neonMiller' ? 0.25 : 0.375 ), y = GY - 0.55;
+		K.panel( Pk, x, y, FZ + 0.2, w, h, cell );
+		// ---- FX3 (AD1-1): and from inside, the same tubes read backwards (the room can see out now); the
+		// chains they hang from
+		K.quad( Pk( x + w / 2, y - h / 2, FZ + 0.21 ), Pk( x - w / 2, y - h / 2, FZ + 0.21 ), Pk( x - w / 2, y + h / 2, FZ + 0.21 ), Pk( x + w / 2, y + h / 2, FZ + 0.21 ), Pk.dir( 0, 0, 1 ),
+			[ atlasUV( cell, 0, 1 ), atlasUV( cell, 1, 1 ), atlasUV( cell, 1, 0 ), atlasUV( cell, 0, 0 ) ] );
+		for ( const s of [ - 0.4, 0.4 ] ) K.use( 'rodBlack' ).bar( Pk( x + s * w, y + h / 2, FZ + 0.205 ), Pk( x + s * w, GY - 0.03, FZ + 0.205 ), 0.008 );
+		// ---- end FX3
+
+	}
 
 	// -- the glass: mullions (bronze) every 2.7 m and a transom bar
 	const nM = Math.round( ( UP.x1 - UP.x0 ) / 2.7 );
@@ -283,8 +330,30 @@ export function buildHarrys( place, F, H ) {
 	const porchBack = porchLine || ( ( x ) => - 16.9 - 0.1866 * ( x - 24.5 ) );
 	out.porchBack = porchBack;
 	out.porchLine = porchLine;
+	// ---- FX3 (step 11, AD1-6): the walkway's concrete as the park's other decks have it (the Porch from the 3B
+	// side, Commons 2008-03-29: a broom-finished slab with its joints, and four seasons of wear): saw-cut joints
+	// every 2.4 m along the board and 1.5 m across it, the broom's grain across, darker where feet go along
+	// the rail over the top row and in the joints' grime, gum and spills. It was one flat grey
 	const slabMat = standard( { name: 'harrys-walkway', color: new Color( 0.3, 0.29, 0.27 ), roughness: 0.9, modules: [ commonModule ],
-		surface: 's.albedo = mat.color * ( 0.85 + 0.15 * mx_noise_float2( in.P.xz * 0.9 ) );' } );
+		surface: /* wgsl */`
+	let U = vec2f( ${ WD[ 0 ].toFixed( 4 ) }, ${ WD[ 1 ].toFixed( 4 ) } );
+	let p = vec2f( dot( in.P.xz, U ), dot( in.P.xz, vec2f( - U.y, U.x ) ) );
+	let jv = abs( fract( p / vec2f( 2.4, 1.5 ) ) - 0.5 );
+	let fw = fwidth( p ) / vec2f( 2.4, 1.5 );
+	let cut = max( step( 0.4955, jv.x ) * ( 1.0 - clamp( fw.x * 60.0, 0.0, 1.0 ) ), step( 0.4925, jv.y ) * ( 1.0 - clamp( fw.y * 40.0, 0.0, 1.0 ) ) );
+	let broom = 0.5 + 0.5 * sin( p.y * 95.0 + mx_noise_float2( p * vec2f( 0.6, 3.0 ) ) * 3.0 );
+	let fb = clamp( fwidth( p.y ) * 30.0, 0.0, 1.0 );
+	let grime = smoothstep( 0.1, 0.9, mx_noise_float2( p * 0.35 ) * 0.5 + 0.5 );
+	let edge = 1.0 - smoothstep( 0.0, 0.05, min( jv.x * 2.4, jv.y * 1.5 ) );
+	let gum = step( 0.72, mx_noise_float2( p * 7.0 ) ) * step( 0.5, mx_noise_float2( p * 0.9 + 7.0 ) ) * ( 1.0 - fb );
+	var c = mat.color * ( 0.85 + 0.15 * mx_noise_float2( in.P.xz * 0.9 ) ) * ( 0.96 + 0.04 * mix( broom, 0.5, fb ) );
+	c *= 1.0 - 0.16 * grime - 0.12 * edge;
+	c = mix( c, vec3f( 0.06, 0.055, 0.05 ), cut * 0.85 );
+	c = mix( c, vec3f( 0.08, 0.075, 0.07 ), gum * 0.8 );
+	s.albedo = c;
+	s.roughness = 0.9 - 0.1 * grime;
+` } );
+	// ---- end FX3
 	slabMat.underwaterLighting = 'none';
 	out.slabMat = slabMat;
 	out.rainRoof = [];
@@ -324,6 +393,7 @@ export function buildHarrys( place, F, H ) {
 	K.use( 'brass' ).box( Pk, ( DN.x0 + DN.x1 ) / 2, STREET + 0.2, bz - 0.4, DN.x1 - DN.x0 - 2, 0.05, 0.05 );
 	K.use( 'mahogany' ).box( Pk, ( DN.x0 + DN.x1 ) / 2, STREET + 0.45, DR.z1 - 0.3, DN.x1 - DN.x0 - 1, 0.9, 0.5 );
 	K.panel( Pk, ( DN.x0 + DN.x1 ) / 2 - 4, STREET + 1.5, DR.z1 - 0.04, 12, 1.2, 'backbar' );
+	backBar( KB, PkB, ( DN.x0 + DN.x1 ) / 2 - 10, ( DN.x0 + DN.x1 ) / 2 + 2, DR.z1, STREET, STREET + 2.1, 1.2, 23 ); // ---- FX3 (AD1-9)
 	K.panel( Pk, ( DN.x0 + DN.x1 ) / 2 + 6.5, STREET + 1.6, DR.z1 - 0.04, 1.6, 1.2, 'menuDown' );
 	// the kitchen's pass at the right-hand end: a steel shelf under heat lamps, a swing door
 	K.use( 'steel' ).box( Pk, DN.x1 - 2.2, STREET + 1.25, DR.z1 - 0.35, 2.4, 0.05, 0.4 );
@@ -455,8 +525,32 @@ export function buildHarrys( place, F, H ) {
 	for ( const [ n, x ] of [ [ '143', 16 ], [ '144', 4 ], [ '145', - 8 ], [ '146', - 20 ] ] ) K.panel( Pk, x, STREET + 2.9, back140( x ) - 0.3, 0.55, 0.8, 'plate' + n );
 	for ( const [ n, x ] of [ [ '242', 12 ], [ '243', 1 ], [ '244', - 10 ] ] ) K.panel( Pk, x, PY + 1.9, porchBack( x ) + 0.1, 0.5, 0.72, 'plate' + n, true );
 	K.panel( Pk, XR + 3.6, PY + 2.2, porchBack( XR + 3.6 ) + 0.4, 2.1, 0.52, 'porchSign', true );
+	// ---- FX3 (step 11, AD1-6): the sign stood on nothing, 2 m up over the walkway. Now it's a sign cabinet on
+	// two black-painted pipe posts off the walkway's slab on their base plates (the park's own wayfinding
+	// signs stand so), its face printed both ways (the walkway's side and the Porch's), a cap along its top
+	{
+
+		const sx = XR + 3.6, sz = porchBack( sx ) + 0.4;
+		K.use( 'navy' ).box( Pk, sx, PY + 2.2, sz - 0.035, 2.16, 0.58, 0.06 );
+		K.panel( Pk, sx, PY + 2.2, sz - 0.071, 2.1, 0.52, 'porchSign' );
+		K.use( 'rodBlack' ).box( Pk, sx, PY + 2.5, sz - 0.035, 2.2, 0.03, 0.08 );
+		for ( const s of [ - 0.75, 0.75 ] ) {
+
+			K.use( 'rodBlack' ).cyl( Pk, sx + s, sz - 0.1, PY, PY + 2.48, 0.032, 0.032, 8 );
+			K.use( 'rodBlack' ).box( Pk, sx + s, PY + 0.008, sz - 0.1, 0.2, 0.016, 0.2 );
+			for ( const y of [ PY + 2.0, PY + 2.4 ] ) K.use( 'rodBlack' ).box( Pk, sx + s, y, sz - 0.08, 0.08, 0.04, 0.04 );
+
+		}
+
+	}
+	// ---- end FX3
 
 	// (the Kit's mesh is made by the place once everything's in it)
+	// ---- FX3 (AD1-9): the back bars' own mesh
+	const bars = KB.mesh( 'harrys-backbars' );
+	bars.userData.dynamic = true;
+	hg.add( bars );
+	// ---- end FX3
 	out.hg = hg;
 	return out;
 
@@ -517,6 +611,146 @@ export function chair( K, P, x, z, y, a ) {
 	K.use( 'iron' ).box( P, x + ux * 0.2, y + 0.72, z + uz * 0.2, Math.abs( uz ) > 0.5 ? 0.4 : 0.03, 0.5, Math.abs( uz ) > 0.5 ? 0.03 : 0.4 );
 
 }
+
+// ---- FX3 (step 11, AD1-9): the back bar in three dimensions. The lit panel behind it (Atlas.js) is the
+// mirror now; in front of it, between mahogany pilasters, bays of two glass shelves with a strip of light
+// under each front edge, and on them and on the counter the bottles themselves: shaped glass (a shoulder, a
+// neck, a cap or foil), coloured as what's in them and lit through by the strips, labelled; the well's
+// liter bottles on the counter with their chrome pour spouts; here and there a register, a pyramid of pint
+// glasses. Only the half of each bottle that faces the room is built (the mirror's behind them): 39
+// triangles a bottle. x0..x1 along the wall at zWall (the board frame's z), the floor at y, the mirror's top
+// and height as its panel (the shelves at its painted lines, SHELF_PX)
+const GLASS = [ [ 'glassAmber', 0.34 ], [ 'glassClear', 0.2 ], [ 'glassGreen', 0.15 ], [ 'glassBrown', 0.13 ], [ 'glassBlue', 0.07 ], [ 'glassRed', 0.06 ], [ 'glassAmber', 0.05 ] ];
+const LABELS = [ 'label', 'label', 'labelBlack', 'labelWhite', 'labelRed', 'label', 'foil', 'labelNavy' ];
+const CAPS = [ 'foil', 'black', 'red', 'chrome', 'brass', 'foil', 'black' ];
+// a bottle's shape: body radius, height, the body's height, the shoulder's, the neck's radius, the label's
+// band (fifth, a tall liqueur, vodka, a squat rum or cognac, the well's liter)
+const SHAPES = [
+	{ r: 0.041, h: 0.3, hb: 0.19, hs: 0.035, rn: 0.014, l0: 0.06, l1: 0.15 },
+	{ r: 0.036, h: 0.34, hb: 0.2, hs: 0.075, rn: 0.012, l0: 0.05, l1: 0.13 },
+	{ r: 0.039, h: 0.32, hb: 0.23, hs: 0.025, rn: 0.015, l0: 0.08, l1: 0.17 },
+	{ r: 0.05, h: 0.25, hb: 0.13, hs: 0.05, rn: 0.017, l0: 0.035, l1: 0.105 },
+];
+const LITER = { r: 0.044, h: 0.31, hb: 0.21, hs: 0.04, rn: 0.015, l0: 0.06, l1: 0.16, spout: true };
+
+export function backBar( K, P, x0, x1, zWall, y, top, h, seed = 1 ) {
+
+	let s = seed >>> 0;
+	const rnd = () => ( s = ( s * 16807 + 11 ) % 2147483647 ) / 2147483647;
+	const pick = ( list ) => {
+
+		let u = rnd();
+		for ( const [ k, w ] of list ) if ( ( u -= w ) <= 0 ) return k;
+		return list[ 0 ][ 0 ];
+
+	};
+	const shelves = SHELF_PX.map( ( px ) => top - px / 256 * h );
+	const yc = y + 0.9, PIL = 0.24, BAY = 2.3;
+	const n = Math.max( 1, Math.round( ( x1 - x0 - PIL ) / ( BAY + PIL ) ) ), bw = ( x1 - x0 - PIL ) / n - PIL;
+	// the pilasters, the cornice over them
+	for ( let i = 0; i <= n; i ++ ) K.use( 'mahogany' ).box( P, x0 + PIL / 2 + i * ( bw + PIL ), ( yc + top + 0.06 ) / 2, zWall - 0.17, PIL, top + 0.06 - yc, 0.3 );
+	K.use( 'mahogany' ).box( P, ( x0 + x1 ) / 2, top + 0.11, zWall - 0.19, x1 - x0 + 0.06, 0.1, 0.36 );
+	K.use( 'brass' ).box( P, ( x0 + x1 ) / 2, top + 0.055, zWall - 0.36, x1 - x0, 0.012, 0.012 );
+	// along the counter's back, the strip that lights the first row
+	K.use( 'strip' ).box( P, ( x0 + x1 ) / 2, yc + 0.005, zWall - 0.07, x1 - x0 - 0.1, 0.01, 0.02 );
+	for ( let i = 0; i < n; i ++ ) {
+
+		const b0 = x0 + PIL + i * ( bw + PIL ), b1 = b0 + bw;
+		// the shelves: glass, the strip under each front edge
+		for ( const sy of shelves ) {
+
+			K.use( 'shelfGlass' ).box( P, ( b0 + b1 ) / 2, sy - 0.006, zWall - 0.17, bw, 0.012, 0.25 );
+			K.use( 'strip' ).box( P, ( b0 + b1 ) / 2, sy - 0.018, zWall - 0.285, bw - 0.04, 0.01, 0.015 );
+			row( b0 + 0.05, b1 - 0.05, sy, zWall - 0.17, false );
+
+		}
+		// the counter: the well's bottles, or the register, or the pints
+		const what = i % 3 === 1 ? 'register' : rnd() < 0.3 ? 'pints' : 'well';
+		if ( what === 'register' ) {
+
+			const cx = ( b0 + b1 ) / 2;
+			K.use( 'black' ).box( P, cx, yc + 0.06, zWall - 0.32, 0.42, 0.12, 0.38 );
+			K.use( 'black' ).box( P, cx, yc + 0.2, zWall - 0.26, 0.05, 0.16, 0.05 );
+			K.use( 'screen' ).box( P, cx, yc + 0.32, zWall - 0.29, 0.32, 0.22, 0.03 );
+			row( b0 + 0.05, cx - 0.35, yc, zWall - 0.38, true );
+			row( cx + 0.35, b1 - 0.05, yc, zWall - 0.38, true );
+
+		} else if ( what === 'pints' ) {
+
+			// upturned pints, stacked in a pyramid on a bar mat
+			const cx = b0 + bw * ( 0.3 + 0.4 * rnd() );
+			K.use( 'rubber' ).box( P, cx, yc + 0.004, zWall - 0.33, 0.62, 0.008, 0.3 );
+			for ( let r = 0; r < 3; r ++ ) for ( let k = 0; k < 4 - r; k ++ ) {
+
+				const gx = cx + ( k - ( 3 - r ) / 2 ) * 0.088, gy = yc + 0.008 + r * 0.145;
+				K.use( 'glassClear' ).cyl( P, gx, zWall - 0.33, gy, gy + 0.145, 0.03, 0.043, 7, { top: false } );
+
+			}
+			row( b0 + 0.05, cx - 0.4, yc, zWall - 0.38, true );
+			row( cx + 0.4, b1 - 0.05, yc, zWall - 0.38, true );
+
+		} else row( b0 + 0.05, b1 - 0.05, yc, zWall - 0.38, true );
+
+	}
+
+	// a row of bottles from xa to xb standing at height yy, their axis at z (the well's: liters, spouts)
+	function row( xa, xb, yy, z, well ) {
+
+		let x = xa;
+		while ( true ) {
+
+			const S = well && rnd() < 0.75 ? LITER : SHAPES[ Math.floor( rnd() * SHAPES.length ) ];
+			const sc = 0.92 + rnd() * 0.16;
+			if ( x + S.r * 2 * sc > xb ) break;
+			x += S.r * sc;
+			// now and then one's gone (poured out, or behind the bar being poured)
+			if ( rnd() > 0.06 ) bottle( K, P, x, z + ( rnd() - 0.5 ) * 0.03, yy, S, sc, pick( GLASS ), LABELS[ Math.floor( rnd() * LABELS.length ) ], CAPS[ Math.floor( rnd() * CAPS.length ) ] );
+			x += S.r * sc + 0.006 + rnd() * 0.022;
+
+		}
+
+	}
+
+}
+
+// one bottle (its front half, a 3-sided lathe of the shape S scaled sc), standing at ( x, y, z ) in frame P
+export function bottle( K, P, x, z, y, S, sc, glass, label, cap ) {
+
+	const r = S.r * sc, h = S.h * sc, hb = S.hb * sc, hs = S.hs * sc, rn = S.rn * sc;
+	const hc = S.spout ? h - 0.012 : h - 0.024 * sc;
+	const segs = [
+		[ 0, S.l0 * sc, r, r, glass ], [ S.l0 * sc, S.l1 * sc, r * 1.004, r * 1.004, label ], [ S.l1 * sc, hb, r, r, glass ],
+		[ hb, hb + hs, r, rn, glass ], [ hb + hs, hc, rn, rn, glass ],
+		S.spout ? [ hc, h + 0.035, rn * 0.9, 0.004, 'chrome' ] : [ hc, h, rn * 1.25, rn * 1.2, cap ],
+	];
+	const N = 3, ring = ( t, rr, yy, slope ) => [ P( x + Math.cos( t ) * rr, y + yy, z + Math.sin( t ) * rr ), P.dir( Math.cos( t ), slope, Math.sin( t ) ) ];
+	for ( const [ ya, yb, ra, rb, pal ] of segs ) {
+
+		K.use( pal );
+		const slope = ( ra - rb ) / ( yb - ya || 1 );
+		for ( let k = 0; k < N; k ++ ) {
+
+			const ta = Math.PI + k * Math.PI / N, tb = Math.PI + ( k + 1 ) * Math.PI / N;
+			const [ a, na ] = ring( ta, ra, ya, slope ), [ b, nb ] = ring( tb, ra, ya, slope ), [ c, nc ] = ring( tb, rb, yb, slope ), [ d, nd ] = ring( ta, rb, yb, slope );
+			K.tri( a, b, c, na, nb, nc );
+			K.tri( a, c, d, na, nc, nd );
+
+		}
+
+	}
+	// the cap's top
+	const [ , , , rt, pt ] = segs[ segs.length - 1 ];
+	K.use( pt );
+	const yt = segs[ segs.length - 1 ][ 1 ];
+	for ( let k = 0; k < N; k ++ ) {
+
+		const ta = Math.PI + k * Math.PI / N, tb = Math.PI + ( k + 1 ) * Math.PI / N;
+		K.tri( P( x, y + yt, z ), ring( tb, rt, yt, 0 )[ 0 ], ring( ta, rt, yt, 0 )[ 0 ], [ 0, 1, 0 ], [ 0, 1, 0 ], [ 0, 1, 0 ] );
+
+	}
+
+}
+// ---- end FX3
 
 // a patio heater: a steel post on a round base, the burner and its reflector hood up top (lit at night:
 // the glow under the hood)

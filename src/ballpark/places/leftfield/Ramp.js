@@ -120,7 +120,30 @@ export function buildRamp( place, K ) {
 
 	const I = ( a, b, c ) => [ a, b, c ];
 	I.dir = I;
-	for ( const [ x, y, z ] of lamps ) K.use( 'lamp' ).box( I, x, y, z, 0.5, 0.18, 0.5 );
+	// ---- FX3 (step 11, AD1-15): the fixtures as the March 29, 2008 photo of this ramp has them (Commons,
+	// the left field corner from the 3B side): under each run, small bell domes of grey metal on short
+	// stems, their lenses facing down; on top, the poles' flat round heads on an arm. Both were 0.5 m boxes of
+	// the bar's lamp glow, blown out to white over the walkway
+	lamps.forEach( ( [ x, y, z ], i ) => {
+
+		if ( i < 3 ) {
+
+			// a pole's head: the arm off the pole, the flat disc, its lens under it, a cap
+			beam( steel, [ X0 + W + 0.2, y, z ], [ x, y, z ], 0.08 );
+			K.use( 'dome' ).cyl( I, x, z, y - 0.06, y + 0.04, 0.38, 0.34, 14, { top: true, bottom: false } );
+			K.use( 'dome' ).cyl( I, x, z, y + 0.04, y + 0.1, 0.12, 0.06, 8, { top: true } );
+			K.use( 'lens' ).cyl( I, x, z, y - 0.075, y - 0.06, 0.31, 0.33, 14, { top: false, bottom: true } );
+			return;
+
+		}
+		// a bell dome under the run: the stem from the deck's underside, the dome, its lens
+		K.use( 'rodBlack' ).cyl( I, x, z, y + 0.07, y + 0.2, 0.012, 0.012, 5, { top: false } );
+		K.use( 'dome' ).cyl( I, x, z, y + 0.03, y + 0.07, 0.07, 0.05, 8, { top: true } );
+		K.use( 'dome' ).cyl( I, x, z, y - 0.16, y + 0.03, 0.21, 0.08, 10, { top: false } );
+		K.use( 'lens' ).cyl( I, x, z, y - 0.17, y - 0.16, 0.2, 0.21, 10, { top: false, bottom: true } );
+
+	} );
+	// ---- end FX3
 	// the Gulf disc on the top landing's rail, facing home, and the BUBBA burger boxes on the ramp's
 	// field-side face (lit at night)
 	// ---- FB1 (gauntlet r1, CB's cross-zone note): the disc hung under the west end of the left field

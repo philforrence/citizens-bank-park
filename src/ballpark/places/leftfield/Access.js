@@ -390,11 +390,35 @@ export function buildPorchAccess( place, K, F, H, slabMat ) {
 		K.use( 'concrete' ).box( Pk, xc, yT + 0.1, zc, w + 0.2, 0.2, d + 0.2 );
 		for ( const y of [ STREET, PY ] ) {
 
-			// the doors (brushed steel), the frame, the green sign over them, facing the walkway (local -x)
-			K.use( 'steel' ).box( Pk, xc - w / 2 - 0.02, y + 1.15, zc, 0.04, 2.3, 1.3 );
-			K.use( 'black' ).box( Pk, xc - w / 2 - 0.01, y + 1.15, zc, 0.03, 2.42, 1.5 );
-			K.use( 'green' ).box( Pk, xc - w / 2 - 0.04, y + 2.65, zc, 0.03, 0.3, 1.3 );
-			K.use( 'lamp' ).box( Pk, xc - w / 2 - 0.05, y + 2.65, zc, 0.01, 0.12, 0.9 );
+			// the doors, facing the walkway (local -x). ---- FX3 (step 11, AD1-6): as the park's own on the
+			// concourse (Concourse.js, FI1's): two brushed stainless leaves meeting on a dark line, in a
+			// stainless frame (jambs, head) proud of the cladding, the sill; the hall lantern over the head,
+			// the call plate beside them lit; the sign over it all in the park's elevator colours, lettered
+			// with where it goes. They were a pale slab under a blank green bar
+			const xf = xc - w / 2, OH = 2.25, up = y > STREET + 1;
+			K.use( 'black' ).box( Pk, xf - 0.005, y + 1.17, zc, 0.01, 2.38, 1.44 );
+			for ( const s of [ - 1, 1 ] ) {
+
+				K.use( 'stainless' ).box( Pk, xf - 0.06, y + ( OH + 0.06 ) / 2, zc + s * 0.68, 0.16, OH + 0.06, 0.07 );
+				K.use( 'stainless' ).box( Pk, xf - 0.035, y + OH / 2, zc + s * 0.3225, 0.03, OH, 0.64 );
+				// a leaf's edge, worn by hands
+				K.use( 'steel' ).box( Pk, xf - 0.052, y + 1.05, zc + s * 0.03, 0.004, 0.5, 0.05 );
+
+			}
+			K.use( 'black' ).box( Pk, xf - 0.051, y + OH / 2, zc, 0.004, OH, 0.012 );
+			K.use( 'stainless' ).box( Pk, xf - 0.06, y + OH + 0.03, zc, 0.16, 0.06, 1.43 );
+			K.use( 'galv' ).box( Pk, xf - 0.15, y + 0.008, zc, 0.3, 0.016, 1.3 );
+			// the hall lantern
+			K.use( 'black' ).box( Pk, xf - 0.015, y + OH + 0.25, zc, 0.03, 0.17, 0.36 );
+			K.panelAt( Pk( xf - 0.031, y + OH + 0.19, zc - 0.15 ), Pk.dir( 0, 0, 1 ), [ 0, 1, 0 ], 0.3, 0.12, Pk.dir( - 1, 0, 0 ), 'liftFloor' );
+			// the call plate on the cladding beside the doors
+			K.use( 'stainless' ).box( Pk, xf - 0.01, y + 1.1, zc + 0.95, 0.02, 0.28, 0.13 );
+			// (one button at each end of the run: up at the bottom, down at the top)
+			K.use( 'callLamp' ).box( Pk, xf - 0.022, y + ( up ? 1.06 : 1.14 ), zc + 0.95, 0.01, 0.045, 0.045 );
+			// the sign
+			K.use( 'black' ).box( Pk, xf - 0.02, y + 3.0, zc, 0.04, 0.5, 1.46 );
+			K.panelAt( Pk( xf - 0.041, y + 3.0 - 0.233, zc - 0.7 ), Pk.dir( 0, 0, 1 ), [ 0, 1, 0 ], 1.4, 0.467, Pk.dir( - 1, 0, 0 ), up ? 'liftDown' : 'liftUp' );
+			// ---- end FX3
 			out.stops.push( { name: y > STREET + 1 ? 'Scoreboard Porch' : 'main concourse', at: L( xc - w / 2 - 0.9, zc ), y, face: F.dir( - 1, 0 ) } );
 
 		}
