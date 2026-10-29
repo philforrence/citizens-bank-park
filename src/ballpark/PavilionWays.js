@@ -87,6 +87,63 @@ export function pavilionWays( bowl, { pav, deck } ) {
 
 	}
 
+	// ---------------------------------------------------------------- the Deck's row-7 entrances
+	// From the Pavilion's concourse a steel stair runs along it under the Deck and up through each open portal
+	// (Stands.js: rows 8-12 cut out of every other section, the box over them, its mouth on row 7): 40
+	// risers of 18 cm, its well railed on the box's floor, stepped off sideways at the top and out through
+	// the mouth onto row 7 (a cross-aisle in that section) to the aisles. Each climbs the way that keeps its
+	// foot on the concourse
+	{
+
+		const nearPav = ( x, z ) => {
+
+			let best = Infinity;
+			const P = pav.front;
+			for ( let i = 0; i < P.length - 1; i ++ ) {
+
+				const [ ax, az ] = P[ i ], [ bx, bz ] = P[ i + 1 ], dx = bx - ax, dz = bz - az;
+				const t = Math.max( 0, Math.min( 1, ( ( x - ax ) * dx + ( z - az ) * dz ) / ( dx * dx + dz * dz || 1 ) ) );
+				best = Math.min( best, Math.hypot( ax + dx * t - x, az + dz * t - z ) );
+
+			}
+			return best;
+
+		};
+		for ( const p of deck._portals || [] ) {
+
+			const dm = ( p.dF + p.dB ) / 2, hw = 0.7, rise = p.yF - yPav, n = Math.round( rise / 0.18 ), r = rise / n;
+			const along = ( s, d ) => [ p.a[ 0 ] + p.u[ 0 ] * s + p.n[ 0 ] * d, p.a[ 1 ] + p.u[ 1 ] * s + p.n[ 1 ] * d ];
+			// the stair's frame: its "d" along the section, its "s" across it (the deck's depth)
+			const F = { at: ( x, y ) => along( y, x ), n: p.u, u: p.n };
+			let dir = 0;
+			for ( const k of [ 1, - 1 ] ) {
+
+				const top = p.s + k * ( p.w - 0.1 ), foot = top - k * n * RUN;
+				const ok = [ foot, ( foot + top ) / 2 ].every( ( s ) => {
+
+					const q = along( s, dm ), dd = nearPav( q[ 0 ], q[ 1 ] );
+					return dd - hw > dPav + 0.1 && dd + hw < dPav + 3.2;
+
+				} );
+				if ( ok ) { dir = k; break; }
+
+			}
+			if ( ! dir ) continue;
+			const top = p.s + dir * ( p.w - 0.1 ), foot = top - dir * n * RUN;
+			K.flight( F, { s0: dm - hw, s1: dm + hw, d0: foot, dir, y0: yPav, n, r, open0: 4 } );
+			// the well's rails on the box's floor: behind it the whole way, in front up to the last treads
+			const s0 = p.s - dir * ( p.w - 0.05 ), s1 = top - dir * 4 * RUN;
+			K.rail( along( s0, dm + hw + 0.06 ), along( p.s + dir * ( p.w - 0.05 ), dm + hw + 0.06 ), p.yF );
+			K.rail( along( s0, dm - hw - 0.06 ), along( s1, dm - hw - 0.06 ), p.yF );
+			// (where it goes, for the walks: its foot, its top, the floor beside the top, the mouth, row 7)
+			( deck._stairs ||= [] ).push( { foot: along( foot - dir * 0.8, dm ), top: along( top - dir * 0.3, dm ), off: along( top - dir * 0.3, dm - hw - 0.5 ), mouth: along( p.s, p.dF - 0.4 ), y: p.yF } );
+			// the well under the deck: dark round the hole
+			K.well( along, p.s - p.w, p.s + p.w, dm - hw - 0.05, dm + hw + 0.05, ( d ) => deck.y0 - deck.soffit + d * ( ( deck.rows - 1 ) * deck.rise ) / ( deck.rows * deck.depth ) - 0.05 );
+
+		}
+
+	}
+
 	K.build( bowl.group );
 	return { banks };
 
@@ -195,7 +252,7 @@ class Kit {
 	// r from y0. Galvanized treads with a dark nosing strip, open risers, two maroon channel stringers, a
 	// galvanized handrail and mid rail each side on posts every fourth tread; walkable treads and solid
 	// sides (in pieces that follow the slope, so a flight beside it passes)
-	flight( F, { s0, s1, d0, dir, y0, n, r } ) {
+	flight( F, { s0, s1, d0, dir, y0, n, r, open0 = 0 } ) {
 
 		const P = ( s, d, y ) => {
 
@@ -237,7 +294,8 @@ class Kit {
 			// the side: solid in pieces of four treads, each from under its low end to a rail over its high end
 			for ( let k = 0; k < n; k += 4 ) {
 
-				const k1 = Math.min( n, k + 4 ), da = d0 + dir * k * RUN, db = d0 + dir * k1 * RUN;
+				const k1 = Math.min( n, k + 4, s < s1 && open0 ? n - open0 : n ), da = d0 + dir * k * RUN, db = d0 + dir * k1 * RUN;
+				if ( k1 <= k ) continue;
 				this.box( F.at( s, ( da + db ) / 2 ), dirV, Math.abs( db - da ) / 2, 0.05, y0 + k * r - 0.3, y0 + k1 * r + 1.1, { tag: 'fa1-stair-side' } );
 
 			}
@@ -278,6 +336,21 @@ class Kit {
 			this.colliders.addCylinder( w.x, w.z, 0.18, this.field.y0 + STREET, this.field.y0 + y - 0.3, { tag: 'fa1-post' } );
 
 		}
+
+	}
+
+	// a dark well under a hole in a deck: its lining down from the soffit (yU( d ): the soffit's height d back)
+	well( along, sa, sb, da, db, yU ) {
+
+		const P = ( s, d, dy = 0 ) => {
+
+			const p = along( s, d );
+			return [ p[ 0 ], yU( d ) + dy, p[ 1 ] ];
+
+		};
+		this.dark ||= new Quads();
+		this.dark.add( P( sa, da, - 0.3 ), P( sb, da, - 0.3 ), P( sb, da ), P( sa, da ), [ 0, 1, 0 ] );
+		this.dark.add( P( sb, db, - 0.3 ), P( sa, db, - 0.3 ), P( sa, db ), P( sb, db ), [ 0, 1, 0 ] );
 
 	}
 
@@ -339,6 +412,7 @@ class Kit {
 			[ this.treads, M( 'fa1-treads', [ 0.32, 0.33, 0.34 ], 0.6, 0.6 ), 'fa1-treads' ],
 			[ this.pipe, M( 'fa1-pipe', [ 0.5, 0.51, 0.52 ], 0.42, 0.55 ), 'fa1-pipe' ],
 			[ this.precast, M( 'fa1-precast', [ 0.55, 0.52, 0.46 ], 0.8, 0 ), 'fa1-precast' ],
+			[ this.dark || new Quads(), M( 'fa1-well', [ 0.02, 0.02, 0.022 ], 0.9, 0 ), 'fa1-well' ],
 		];
 		for ( const [ q, m, name ] of mats ) {
 
