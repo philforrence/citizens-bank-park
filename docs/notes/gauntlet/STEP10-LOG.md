@@ -23,3 +23,14 @@ Every agent, merge and measurement in step 10 ([STEP10.md](../worlds/STEP10.md))
   - Cells reached: the Pavilion's rows 0 → 1,026, its concourse 0 → 2,446, the Deck's rows 0 → 1,697, the Deck's walkway 0 → 2,449, the bleachers' roof 0 → 675. Falls at street level 139 → 104. npm test and continuity (801248349 / 3785.503) pass.
   - Left: the 1B side's own ways up, a 4.8 m fall at the RF pole (row-collider slivers), and the rooftop bleachers' benches.
 - **FA4, the 1B side's ways up, elevators both ways, and things you walk through** (launched 20:58).
+- **Wind-down (the owner, 20:5x: "wind down and finish up and merge everything and push and publish").** The loop stopped, and the four running fixers were told to commit what works and return.
+- **FA2, the left side** (notes [FA2.md](FA2.md); shots in its worktree's `.claude/fa2/shots2/`; merged 21:0x):
+  - The Scoreboard Porch has a walkway behind its top row, reached by stairs from the Alley's west end (X-braced maroon steel, as the 2008 photo has it) and from the corner, and by the elevator behind 141.
+  - Harry the K's upstairs, its patio and its bars are solid and walkable.
+  - The Left Field ramp is walkable to the Arcade, and the escalator carries you up; a bridge joins the Arcade's walkway to it.
+  - 146-148 over Monty's Angle are three sections of 12 rows up to a standing-room rail (447 fans).
+  - The LF wall's top is floored and railed.
+  - Also fixed: a zero-length rail's NaN that culled the whole left-field Kit mesh.
+  - Cells reached: the LF deck 0 → 217, 146-148 26 → 255.
+  - The walk audit's elevator code (FA1's and FA2's) is merged by hand: banks of any size, plus a place's own `to`.
+- **FA4, elevators both ways** (notes [FA4.md](FA4.md); merged 21:1x): E rides up a floor and Shift+E down, and the prompt names both floors. The 1B Gate's escalators and ramp, the elevator behind 112, the rooftop bleachers and the WA1-13 walk-throughs are researched and planned in FA4.md, not built.
