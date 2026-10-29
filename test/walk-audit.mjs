@@ -362,7 +362,9 @@ function fill( seeds, { jumps = false, known = null } = {} ) {
 
 			const it = D.inter[ k ];
 			if ( Math.hypot( it.x - x, it.z - z ) >= it.r || Math.abs( it.y - y ) >= 1.5 ) continue;
-			const bank = Math.floor( k / 4 ), stop = D.elev[ bank ][ ( k % 4 + 1 ) % 4 ];
+			// (---- FA2: a stop of a place's own elevator carries where it goes, `to`; the bowl's banks are 4 stops each)
+			const stop = it.to || D.elev[ Math.floor( k / 4 ) ]?.[ ( k % 4 + 1 ) % 4 ];
+			if ( ! stop ) continue;
 			const [ wx, wz ] = toWorld( stop.x, stop.z );
 			let wy = FY0 + stop.y;
 			wy = Math.max( wy, groundAt( wx, wz, wy + STEP + 0.05 ) );
@@ -625,7 +627,7 @@ const elevReport = D.inter.map( ( it, k ) => {
 	// is the stop's own spot reached at all?
 	let reachedNear = false;
 	for ( let id = 0; id < W.N.x.length && ! reachedNear; id ++ ) if ( Math.hypot( W.N.x[ id ] - it.x, W.N.z[ id ] - it.z ) < it.r && Math.abs( W.N.y[ id ] - it.y ) < 1.5 ) reachedNear = true;
-	const bank = Math.floor( k / 4 ), stop = D.elev[ bank ][ k % 4 ];
+	const bank = Math.floor( k / 4 ), stop = D.elev[ bank ]?.[ k % 4 ] || { name: it.text, x: fx, z: fz, y: it.y - FY0 }; // (---- FA2: a place's own stop)
 	const [ wx, wz ] = toWorld( stop.x, stop.z );
 	const g = groundAt( wx, wz, FY0 + stop.y + STEP + 0.05 );
 	const st = standable( wx, Math.max( g, FY0 + stop.y ), wz );

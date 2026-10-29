@@ -240,7 +240,7 @@ export default class LeftField {
 			const next = stops[ ( i + 1 ) % stops.length ];
 			const w = F.toWorld( stop.at[ 0 ], stop.at[ 1 ] );
 			W.interactables.push( {
-				x: w.x, y: F.y0 + stop.y, z: w.z, radius: 2.0,
+				x: w.x, y: F.y0 + stop.y, z: w.z, radius: 2.0, to: { x: next.at[ 0 ], y: next.y, z: next.at[ 1 ] },
 				text: () => `Elevator to ${ next.name === 'main concourse' ? 'the main concourse' : 'the ' + next.name }`,
 				action: () => {
 

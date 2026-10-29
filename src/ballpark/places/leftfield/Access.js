@@ -379,13 +379,14 @@ export function buildPorchAccess( place, K, F, H, slabMat ) {
 	out.east = stairTower( K, Pk, CL, F, { xf: xE, dir: 1, za0: bE + 3.0 + STAIR_W + 0.25, zb0: bE + 3.0, y0: STREET, y1: PY, tag: 'porch-stair-east' } );
 	out.west = stairTower( K, Pk, CL, F, { xf: xW, dir: - 1, za0: bW + 3.0 + STAIR_W + 0.25, zb0: bW + 3.0, y0: STREET, y1: PY, tag: 'porch-stair-west' } );
 
-	// ---- the elevator behind 141: a brick core past the walkway's west end, its doors onto the walkway and,
+	// ---- the elevator behind 141: a maroon-clad shaft past the walkway's west end, its doors onto the walkway and,
 	// under them, onto the concourse
 	{
 
 		const w = 2.6, d = 2.8, xc = W.x1 + w / 2, zc = back( W.x1 ) + 1.5;
 		const yT = PY + 3.4;
-		K.use( 'red' ).box( Pk, xc, ( STREET + yT ) / 2, zc, w, yT - STREET, d );
+		// (the park's steel maroon: the shaft's cladding)
+		K.use( 'maroon' ).box( Pk, xc, ( STREET + yT ) / 2, zc, w, yT - STREET, d );
 		K.use( 'concrete' ).box( Pk, xc, yT + 0.1, zc, w + 0.2, 0.2, d + 0.2 );
 		for ( const y of [ STREET, PY ] ) {
 
