@@ -1511,12 +1511,17 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		// smile only: the lids are a pixel)
 		let eq = u32( cwPoseBuf[ fan * ${ POSE_N * 2 }u + 3u ].z + 0.5 );
 		var ex = vec3f( f32( eq & 63u ) / 63.0, f32( ( eq >> 6u ) & 15u ) / 15.0, 0.0 );
+		var rest = 0.0;
 #if CROWD_LOD == 0
 		let fid = cwIds[ fan ];
 		let lidRest = 0.1 + 0.22 * fract( f32( fid.x & 0xffffu ) * 0.618034 ) + select( 0.0, 0.12, ( ( fid.y >> 21u ) & 3u ) == 1u );
-		ex.z = max( f32( ( eq >> 10u ) & 15u ) / 15.0, lidRest * ( 1.0 - 0.6 * ex.y ) );
+		// (---- FF3: a fan with nothing on his face but the lids' rest takes it from the first record, without
+		// the expressions' two: FF2 read them for every close fan every frame, the lids' rest keeping ex on)
+		let blinkW = f32( ( eq >> 10u ) & 15u ) / 15.0;
+		if ( ex.x > 0.0 || ex.y > 0.0 || blinkW > 0.0 ) { ex.z = max( blinkW, lidRest * ( 1.0 - 0.6 * ex.y ) ); }
+		else { rest = lidRest; }
 #endif
-		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ], ex );
+		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ], ex, rest );
 		// ---- end FF2
 		pos0 += fh.dp;
 		stp0 += fh.dp;
@@ -1721,15 +1726,20 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		c *= mix( 1.0, 0.72, smoothstep( 0.1, 0.03, length( vec2f( d.x * 0.8, d.y + 0.24 ) ) ) * front );
 		// the mouth: lips (redder on the women), open when he shouts
 		let open = f32( u32( r3.z + 0.5 ) & 63u ) / 63.0; // (FF2: packed with the smile and the blink)
-#if CROWD_LOD == 0
-		// ---- FF2: close up the MakeHuman head's mouth opens itself (the expression's jaw): the lips keep
+#if CROWD_LOD <= 1
+		// ---- FF2: close up (FF3: and near) the MakeHuman head's mouth opens itself (the expression's jaw): the lips keep
 		// their own size and colour, and inside them (the paint's d.z marks the mouth's inside) it's dark, the
 		// upper teeth under the upper lip, only as it opens
 		let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / 0.05 ) );
 		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), female );
 		c = mix( c, lip, smoothstep( 1.0, 0.7, mo ) * front );
 		let inM = smoothstep( - 1.04, - 1.3, d.z ) * smoothstep( 0.16, 0.11, abs( d.y + 0.45 ) ) * smoothstep( 0.32, 0.26, ax ) * smoothstep( 0.05, 0.35, open );
-		let teeth = smoothstep( - 0.435, - 0.425, d.y ) * smoothstep( - 0.39, - 0.4, d.y ) * smoothstep( 0.13, 0.09, ax ) * 0.8;
+		var teeth = smoothstep( - 0.435, - 0.425, d.y ) * smoothstep( - 0.39, - 0.4, d.y ) * smoothstep( 0.13, 0.09, ax ) * 0.8;
+		// (---- FF3: and on the near level, the 90-triangle head, whose jaw opens too: its inside now keeps a
+		// vertex or two, marked; the teeth are under a pixel there)
+#if CROWD_LOD == 1
+		teeth = 0.0;
+#endif
 		c = mix( c, mix( vec3f( 0.035, 0.008, 0.008 ), vec3f( 0.36, 0.34, 0.29 ), teeth ), inM );
 		if ( inM > 0.5 ) { rough = mix( 0.3, 0.45, teeth ); }
 		// ---- end FF2

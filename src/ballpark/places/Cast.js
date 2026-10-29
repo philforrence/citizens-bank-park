@@ -1735,7 +1735,7 @@ function castMaterial( pool ) {
 		let mouthK = clamp( a3.y, 0.0, 1.0 );
 		let smileK = max( 0.25 * fr.x * fr.x, mouthK * ( 0.15 + 0.7 * fr.y ) ) * select( 1.0, 0.5, age == 1u );
 		let lidRest = 0.1 + 0.2 * fr.z + select( 0.0, 0.12, age == 1u );
-		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ], vec3f( mouthK, smileK, max( clamp( a7.z, 0.0, 1.0 ), lidRest * ( 1.0 - 0.6 * smileK ) ) ) );
+		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ], vec3f( mouthK, smileK, max( clamp( a7.z, 0.0, 1.0 ), lidRest * ( 1.0 - 0.6 * smileK ) ) ), 0.0 ); // (---- FF3: no rest of its own: ex has it)
 		// ---- end FF2
 		q += fh.dp * hk;
 		n = normalize( n + fh.dn );

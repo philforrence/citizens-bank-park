@@ -558,6 +558,31 @@ const LOCKS = [], ALWAYS = [];
 
 	}
 
+	// ---- FF3: a few of the mouth's inside kept at every level (FF2: the 400-triangle head's open mouth showed
+	// the floor of the mouth as pale skin, its inside gone in the collapses; the 90-triangle head had none):
+	// the deepest in the middle above and below the lips' line at every level, and one each side but the last
+	{
+
+		const my = LM.mouthY * R[ 1 ];
+		const deepest = ( test ) => {
+
+			let b = null;
+			for ( const i of mouthIn ) if ( test( P[ i ] ) && ( ! b || P[ i ][ 2 ] > b[ 2 ] ) ) b = P[ i ];
+			return b;
+
+		};
+		const up = deepest( ( p ) => Math.abs( p[ 0 ] ) < 0.004 && p[ 1 ] > my ), lo = deepest( ( p ) => Math.abs( p[ 0 ] ) < 0.004 && p[ 1 ] <= my );
+		for ( const p of [ up, lo ] ) if ( p ) ALWAYS.push( p );
+		for ( const sx of [ - 1, 1 ] ) {
+
+			const q = deepest( ( p ) => p[ 0 ] * sx > 0.008 && p[ 0 ] * sx < 0.017 );
+			if ( q ) LOCKS.push( q );
+
+		}
+
+	}
+	// ---- end FF3
+
 	console.log( 'locked landmarks:', LOCKS.length, '+', ALWAYS.length );
 
 }
@@ -1337,13 +1362,18 @@ levelTris.forEach( ( T0, li ) => {
 		// (---- FF2: the mouth's inside: d.z -1.9, a mark for the paint; nothing else on the face comes so far
 		// forward, the nose's tip -1.25 and on another line. Not on the last level: its few triangles join
 		// what's left of the inside to the lips' front)
-		if ( inMouth.has( v ) && li < 2 ) pd[ 2 ] = - 1.9;
-		const ef = earFold[ j ], ew = len( ef ) > 1e-5 ? 1 : 0;
+		// (---- FF3: the last level too, now that the inside keeps a vertex or two there)
+		if ( inMouth.has( v ) ) pd[ 2 ] = - 1.9;
+		const ef = earFold[ j ];
 		const o = i * REC4;
+		// (---- FF3: the record's two spare halves carry the blink's move, y and z: the lids' own rest, read
+		// without the expressions' two records: FanHead.js fhBlend's rest. The ears' fold is zero off the ears,
+		// so its flag went)
+		const ebm = exprs[ 2 ].D;
 		rec[ o ] = pack2( pd[ 0 ], pd[ 1 ] );
-		rec[ o + 1 ] = pack2( pd[ 2 ], ew );
+		rec[ o + 1 ] = pack2( pd[ 2 ], ebm[ v * 3 + 1 ] );
 		rec[ o + 2 ] = pack2( ef[ 0 ], ef[ 1 ] );
-		rec[ o + 3 ] = pack2( ef[ 2 ], 0 );
+		rec[ o + 3 ] = pack2( ef[ 2 ], ebm[ v * 3 + 2 ] );
 		for ( let ax = 0; ax < 3; ax ++ ) for ( let k = 0; k < K; k += 2 ) {
 
 			rec[ o + 4 + ax * 4 + k / 2 ] = pack2( comps[ k ][ j * 3 + ax ], comps[ k + 1 ][ j * 3 + ax ] );

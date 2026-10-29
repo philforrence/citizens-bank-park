@@ -1357,7 +1357,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 				let teeth = max( upT, loT ) * smoothstep( 0.0015, 0.004, dz ) * ( 1.0 - smoothstep( 0.009, 0.013, dz ) ) * ( 1.0 - smoothstep( 0.016, 0.022, ax ) );
 				mc = mix( mc, vec3f( 0.5, 0.47, 0.4 ) * ( 0.75 + 0.25 * smoothstep( 0.015, 0.0, ax ) ), teeth );
 				mc = mix( mc, vec3f( 0.09, 0.02, 0.02 ), smoothstep( -0.004, -0.009, dy ) * deep * ( 1.0 - teeth ) );
-				let mk = smoothstep( 0.3, 0.85, mouthIn );
+				// (only as far as the mouth is open, and well inside the mark: shut, the lips' line took the
+				// mark's soft edge, a pale rim between dark outlines on every closed mouth)
+				let openW = f32( u32( in.vs.vInfo.y + 0.5 ) & 255u ) / 255.0;
+				let mk = smoothstep( 0.55, 0.95, mouthIn ) * smoothstep( 0.02, 0.15, openW );
 				c = mix( c, mc, mk );
 				rough = mix( rough, mix( 0.3, 0.45, teeth ), mk );
 				s.translucency = s.translucency * ( 1.0 - mk );
