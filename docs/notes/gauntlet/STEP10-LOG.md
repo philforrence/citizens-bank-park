@@ -15,3 +15,11 @@ Every agent, merge and measurement in step 10 ([STEP10.md](../worlds/STEP10.md))
 - **FA3, the inner bowl and the edges** (launched 20:10): the jump, the fronts onto the field, the 400s' stairs, the unrailed edges, the seat floors' cracks, the hollow, the Diamond Club's separation, the dugout slot, drink rails; WA1's outfield findings went to FA1 and FA2.
 - **FF2, the faces' second round** (notes [FF2.md](FF2.md); critique `.claude/step10/FF2-critique.md`; merged 20:19): the fans' faces move. Jaws open, smiles push the cheeks into the lids, and blinks come from MakeHuman's own expression targets, mixed by the crowd's shares. Fans cheer from strike three (not the Rays fans, less in the rain, none in God Bless America). There's a painted mouth inside, teeth, lids that close over the eyeball, and the close heads are shaded with the full head's normals. Shots: `.claude/gauntlet/s10/FF2/` (b0 before, a2-a4 after).
 - **FF3, the players share the fans' face targets** (launched 20:21): the players' faces fitted from MakeHuman's identity targets to the real men, the players' expressions, and the fans' open mouths and chins.
+- **FA1, the right side and Ashburn Alley** (notes [FA1.md](FA1.md); shots and fill maps in `.claude/step10/fa1/`; merged 20:55): the Pavilion and its Deck can be reached at last.
+  - A two-flight steel stair (56 risers) and an elevator tower go from the Alley to the Pavilion's concourse.
+  - The Deck is entered at row 7 through open portals in every other section, with steel stairs climbing from the concourse under the deck.
+  - The Pavilion concourse's back is solid (no more 10 m fall through the stands).
+  - The Alley's edges, the Wall of Fame parapet and the roof decks are railed.
+  - Cells reached: the Pavilion's rows 0 → 1,026, its concourse 0 → 2,446, the Deck's rows 0 → 1,697, the Deck's walkway 0 → 2,449, the bleachers' roof 0 → 675. Falls at street level 139 → 104. npm test and continuity (801248349 / 3785.503) pass.
+  - Left: the 1B side's own ways up, a 4.8 m fall at the RF pole (row-collider slivers), and the rooftop bleachers' benches.
+- **FA4, the 1B side's ways up, elevators both ways, and things you walk through** (launched 20:58).
