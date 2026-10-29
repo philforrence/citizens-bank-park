@@ -1728,7 +1728,7 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / 0.05 ) );
 		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), female );
 		c = mix( c, lip, smoothstep( 1.0, 0.7, mo ) * front );
-		let inM = smoothstep( - 1.04, - 1.3, d.z ) * smoothstep( 0.22, 0.16, abs( d.y + 0.45 ) ) * smoothstep( 0.32, 0.26, ax ) * smoothstep( 0.05, 0.35, open );
+		let inM = smoothstep( - 1.04, - 1.3, d.z ) * smoothstep( 0.16, 0.11, abs( d.y + 0.45 ) ) * smoothstep( 0.32, 0.26, ax ) * smoothstep( 0.05, 0.35, open );
 		let teeth = smoothstep( - 0.435, - 0.425, d.y ) * smoothstep( - 0.39, - 0.4, d.y ) * smoothstep( 0.13, 0.09, ax ) * 0.8;
 		c = mix( c, mix( vec3f( 0.035, 0.008, 0.008 ), vec3f( 0.36, 0.34, 0.29 ), teeth ), inM );
 		if ( inM > 0.5 ) { rough = mix( 0.3, 0.45, teeth ); }

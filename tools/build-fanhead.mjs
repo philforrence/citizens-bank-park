@@ -1318,6 +1318,16 @@ levelTris.forEach( ( T0, li ) => {
 	// x, y, z (8 halves each) and their normals' x, y, z; (FF2) then the expressions: [ open x y | open z,
 	// smile x | smile y z | blink y z ] and their normals' the same
 	const rec = new Uint32Array( vs.length * REC4 );
+	// (---- FF2: the mouth's mark only where this level's triangles keep it in the mouth: a marked vertex
+	// joined to the chin or a cheek darkened that whole triangle, at 400 triangles a dark mask round the
+	// open mouth)
+	const inMouth = new Set( vs.filter( ( v ) => mouthIn.has( v ) ) );
+	{
+
+		const nearMouth = ( v ) => { const d = paintOf( P[ v ] ); return Math.abs( d[ 0 ] ) < 0.3 && Math.abs( d[ 1 ] + 0.45 ) < 0.13; };
+		for ( const t of T0 ) if ( t.some( ( v ) => mouthIn.has( v ) ) && t.some( ( v ) => ! mouthIn.has( v ) && ! nearMouth( v ) ) ) for ( const v of t ) inMouth.delete( v );
+
+	}
 	vs.forEach( ( v, i ) => {
 
 		const j = vix.get( v );
@@ -1327,7 +1337,7 @@ levelTris.forEach( ( T0, li ) => {
 		// (---- FF2: the mouth's inside: d.z -1.9, a mark for the paint; nothing else on the face comes so far
 		// forward, the nose's tip -1.25 and on another line. Not on the last level: its few triangles join
 		// what's left of the inside to the lips' front)
-		if ( mouthIn.has( v ) && li < 2 ) pd[ 2 ] = - 1.9;
+		if ( inMouth.has( v ) && li < 2 ) pd[ 2 ] = - 1.9;
 		const ef = earFold[ j ], ew = len( ef ) > 1e-5 ? 1 : 0;
 		const o = i * REC4;
 		rec[ o ] = pack2( pd[ 0 ], pd[ 1 ] );
