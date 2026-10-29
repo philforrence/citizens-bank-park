@@ -43,3 +43,13 @@ The plan is [../worlds/STEP11.md](../worlds/STEP11.md). Every merge is here with
   - **Not done:** the 1,200-triangle head at arm's length.
   - **Counts:** +1.8% triangles in the 400s seat, +1.0% in TV center, the same draws.
 - **SK2, the second skeptic** (launched 09:03): trying to refute FX4. A/B on both trees, mid-game crowds, the rain, the detail levels' swaps, the counts.
+- **SK1's verdict on FX1: merge with follow-ups** (`.claude/gauntlet/s11/SK1.md`, 46 shots on both trees, no console errors):
+  - **Claims:** five of six upheld (the rounding bug confirmed on `ballpark`; the dark cavity strongly; teeth never through the lips; the middle figure's jaw no longer pops; every pompom on its crown). Lidge's eyes are partly upheld: no squint.
+  - **Counts:** draws and pipelines are identical; triangles +0.1% in TV center, +1.7-2.7% in the close crowd views (the pompoms).
+  - **Regressions, none blocking:** two dark-red marks on the upper lip over open mouths (FF3's flag, on both trees); Lidge's face changes in one frame; teeth vanish at the near-to-middle swap; a 12-sided pompom under 1 m; no pompom on the near crowd level.
+  - **Follow-ups:** F1-F3 (Lidge's jaw and lip, the lip marks, easing in and out) go to FX5; F4-F5 (the pompom's fluff, a near-level pompom) are queued.
+- **FX1 merged** (09:06). `npm test` passes and the clock is kept (801248349 / 3785.503).
+- **FX5, the players** (launched 09:06):
+  - from CR1: CR1-5 (foreheads through caps), -12, -14, -21, -6, -22, -23, -24, -13, -15;
+  - from AD1: AD1-10;
+  - SK1's F1-F3 and the squint.
