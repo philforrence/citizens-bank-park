@@ -32,3 +32,14 @@ The plan is [../worlds/STEP11.md](../worlds/STEP11.md). Every merge is here with
   - **The "box"** was a fan's six-sided striped pompom in the row in front of the camera, floating over the MakeHuman crown. It's now a 12 × 7 yarn pompom sat in the crown. The pile already read right.
   - At a look: Lidge's shout now reads as Getty 83485858 does.
 - **SK1, the first skeptic** (launched 08:40): trying to refute FX1 before it merges. A/B on both trees, the players and crowd FX1 didn't shoot, the counts.
+- **FX4, the seated crowd** (returned 09:03; notes in its branch's `docs/notes/gauntlet/FX4.md`; shots in `.claude/gauntlet/s11/r1/FX4/`; `Crowd.js` only):
+  - **Done:**
+    - real hands (fists, a finger up, open hands, grips, gloves), and four ways to raise an arm per fan per moment;
+    - the open mouth dark, with no fangs;
+    - each fan's own brows, five 2008 glasses styles on 11%, soft hairlines;
+    - expressions by the moment (each act of the celebration, grim in the rain, tense at two strikes);
+    - seated postures.
+  - **Partly done:** women's and old faces (paint only), hoods, cloth towels close up, chest prints.
+  - **Not done:** the 1,200-triangle head at arm's length.
+  - **Counts:** +1.8% triangles in the 400s seat, +1.0% in TV center, the same draws.
+- **SK2, the second skeptic** (launched 09:03): trying to refute FX4. A/B on both trees, mid-game crowds, the rain, the detail levels' swaps, the counts.
