@@ -1,7 +1,7 @@
-import { Mesh, Color } from '../../../engine/index.js';
+import { Mesh, Color, Vector3 } from '../../../engine/index.js';
 import { commonModule } from '../../../engine/render/wgsl/common.js';
 import { standard } from '../../../materials/Materials.js';
-import { Quads, tierSections } from '../../Stands.js';
+import { Quads, tierSections, portalS, portalDir } from '../../Stands.js';
 import { offsetPolyline } from '../../Bowl.js';
 import { canvasTexture } from '../../geo.js';
 import { LEVELS } from '../../layout.js';
@@ -37,6 +37,16 @@ export function buildTerrace( group, bowl ) {
 	const dRail = D.t300Back, dBack = D.t400Back - 0.4;
 	const q = new Pal(), up = [ 0, 1, 0 ];
 	const lamps = [];
+	// ---- FA3 (step 10, the walk): colliders in the field frame (Bowl's ctx: world x and z, y over the field)
+	const C = bowl.ctx.colliders, toW = bowl.ctx.toWorld, yaw0 = bowl.ctx.worldYaw;
+	// a box centred at c ([ x, y, z ], field frame), lu along u ([ x, z ]), lv tall, lw across
+	const cbox = ( c, u, lu, lv, lw, o = {} ) => {
+
+		const w = toW( c[ 0 ], c[ 2 ] );
+		C.addBox( new Vector3( w.x, c[ 1 ], w.z ), new Vector3( lu / 2, lv / 2, lw / 2 ), yaw0 - Math.atan2( u[ 1 ], u[ 0 ] ), o );
+
+	};
+	// ---- end FA3
 	const out = { lamps, meshes: [] };
 
 	// ---------------------------------------------------------------- the floor
@@ -271,6 +281,12 @@ export function buildTerrace( group, bowl ) {
 				pipe( q, P( r0, Y + 0.34 ), P( r1, Y + 0.34 ), 0.015, 4 );
 				const n = Math.max( 1, Math.round( ( r1 - r0 ) / 1.5 ) );
 				for ( let k = 0; k <= n; k ++ ) pipe( q, P( r0 + ( r1 - r0 ) * k / n, Y + 0.3 ), P( r0 + ( r1 - r0 ) * k / n, Y + 1.07 ), 0.022, 4 );
+				// ---- FA3 (WA1-5): a wall (it was drawn only): you stepped over it into the 300s' top row, and behind
+				// home onto the press box's roof and off its front, 19 m down to the 100s (W06). Up to a jump's reach
+				// over the top rail
+				const c = P( ( r0 + r1 ) / 2, Y + 0.6 );
+				cbox( c, [ ux, uz ], r1 - r0, 1.2, 0.22, { tag: 'terrace-300-back-rail' } );
+				// ---- end FA3
 
 			}
 
@@ -362,12 +378,12 @@ export function buildTerrace( group, bowl ) {
 		secs.forEach( ( S, k ) => {
 
 			if ( ! PO || ! S.seats || S.len < PO.width + 3 || ( S.pk ?? k ) % PO.every !== Math.floor( PO.every / 2 ) ) return;
-			const s0 = S.len / 2;
+			const s0 = portalS( t400, S, k ); // ---- FA3: beside the aisle it climbs toward
 			const dF = PO.row * Dd, dB = ( PO.row + PO.rows ) * Dd, dm = ( dF + dB ) / 2;
 			const yF = t400.y0 + ( PO.row - 1 ) * t400.rise;
 			const at = ( s, d, y ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, y, S.a[ 1 ] + S.uz * s + S.nz * d ];
 			// alternate which way they climb
-			const dir = k % 4 < 2 ? 1 : - 1;
+			const dir = portalDir( k );
 			const rise = yF - Y, nSteps = Math.round( rise / 0.18 ), r = rise / nSteps, run = 0.28;
 			const sTop = s0 + dir * 0.9, sFoot = sTop - dir * nSteps * run;
 			const W = 1.5;
@@ -401,6 +417,63 @@ export function buildTerrace( group, bowl ) {
 			q.use( 'maroon' );
 			const mid = ( sFoot + sTop ) / 2;
 			wide( q, at( mid, dm, Y + 0.02 ), at( mid, dm, Y + rise / 2 - 0.2 ), [ S.nx, 0, S.nz ], 0.2, 0.2 );
+			// ---- FA3 (WA1-2, WA2-9): the stair climbs (it was drawn only: you walked through it at the concourse's
+			// level, W11). A walkable box under each tread, its handrails walls in four runs up each side, the post
+			// a pillar. At its top, inside the box, a landing at row 1's height round the stair's well (Stands.js
+			// leaves the rows over the box open), out through the mouth onto row 1 beside the aisle
+			const u2 = [ S.ux * dir, S.uz * dir ];
+			for ( let j = 0; j < nSteps; j ++ ) {
+
+				const sj = sFoot + dir * ( j + 0.5 ) * run, yj = Y + ( j + 1 ) * r;
+				cbox( at( sj, dm, yj - 0.15 ), u2, run + 0.01, 0.3, W, { walkable: true, tag: 'terrace-400-stair' } );
+
+			}
+			// (the rails up to the well's edge: inside the box the landing is either side of the stair's head)
+			const tWell = Math.max( 0.2, Math.min( 1, Math.abs( s0 - dir * ( PO.width / 2 + 0.3 ) - sFoot ) / Math.abs( sTop - sFoot ) ) );
+			for ( const e of [ - 1, 1 ] ) for ( let k4 = 0; k4 < 4; k4 ++ ) {
+
+				const ta = tWell * k4 / 4, tb = tWell * ( k4 + 1 ) / 4, sa = sFoot + ( sTop - sFoot ) * ta, sb = sFoot + ( sTop - sFoot ) * tb;
+				const ya = Y + rise * ta - 0.3, yb = Y + rise * tb + 1.05;
+				const c = at( ( sa + sb ) / 2, dm + e * ( W / 2 + 0.06 ), ( ya + yb ) / 2 );
+				cbox( c, u2, Math.abs( sb - sa ) + 0.05, yb - ya, 0.1, { tag: 'terrace-400-stair-rail' } );
+
+			}
+			{
+
+				const w = at( mid, dm, 0 ), ww = toW( w[ 0 ], w[ 2 ] );
+				C.addBox( new Vector3( ww.x, Y + ( rise / 2 - 0.2 ) / 2, ww.z ), new Vector3( 0.12, ( rise / 2 - 0.2 ) / 2, 0.12 ), yaw0, { tag: 'terrace-400-stair-post' } );
+
+			}
+			const wB = PO.width / 2 + 0.3, sEnd = s0 + dir * wB, dS0 = dm - W / 2, dS1 = dm + W / 2;
+			// round the stair's opening in the landing a guard rail, from the well's edge to where the stair is
+			// within a step of the landing (off the landing you stepped down into the stair's lower treads)
+			{
+
+				const tR = 1 - 0.55 / rise, sa = sFoot + ( sTop - sFoot ) * tWell, sb = sFoot + ( sTop - sFoot ) * tR;
+				if ( tR > tWell ) for ( const e of [ - 1, 1 ] ) {
+
+					const dd = dm + e * ( W / 2 + 0.06 ), ya = Y + rise * tWell - 0.3;
+					cbox( at( ( sa + sb ) / 2, dd, ( ya + yF + 1.05 ) / 2 ), u2, Math.abs( sb - sa ) + 0.05, yF + 1.05 - ya, 0.1, { tag: 'terrace-400-stair-rail' } );
+					q.use( 'galv' );
+					pipe( q, at( sa, dd, yF + 1.0 ), at( sb, dd, yF + 1.0 ), 0.022, 5 );
+					for ( const ss of [ sa, ( sa + sb ) / 2, sb ] ) pipe( q, at( ss, dd, yF ), at( ss, dd, yF + 1.0 ), 0.02, 4 );
+
+				}
+
+			}
+			const landing = ( sa, sb, da, db ) => {
+
+				if ( Math.abs( sb - sa ) < 0.05 || db - da < 0.05 ) return;
+				const c = at( ( sa + sb ) / 2, ( da + db ) / 2, yF - 0.15 );
+				cbox( c, [ S.ux, S.uz ], Math.abs( sb - sa ), 0.3, db - da, { walkable: true, tag: 'terrace-400-landing' } );
+				q.use( 'concrete' );
+				obox( q, at( ( sa + sb ) / 2, ( da + db ) / 2, yF - 0.06 ), [ S.ux, 0, S.uz ], Math.abs( sb - sa ), up, 0.12, [ S.nx, 0, S.nz ], db - da );
+
+			};
+			landing( s0 - wB, s0 + wB, dF, dS0 ); // in front of the stair, to the mouth
+			landing( s0 - wB, s0 + wB, dS1, dB ); // behind it
+			landing( sTop, sEnd, dS0, dS1 ); // at its head
+			// ---- end FA3
 			// the well through the deck: dark under the hole, its lining showing a little below the soffit
 			const yU = ( d ) => t400.y0 - t400.soffit + d * rake - 0.07; // (under the deck: terrace-deck)
 			const w2 = PO.width / 2 + 0.3;

@@ -1,4 +1,4 @@
-import { tierSections, rowHeights, SEAT_W } from '../../Stands.js';
+import { tierSections, rowHeights, SEAT_W, parapetMouth } from '../../Stands.js';
 
 // The seats behind home plate, exactly where the stands put them (Stands.buildTier's own walk along
 // the field level's sections, rows and aisles, portals and all), so the place can empty the ones it
@@ -10,7 +10,8 @@ import { tierSections, rowHeights, SEAT_W } from '../../Stands.js';
 //   E  D  C  on the backstop's face (D dead centre, x -2.3 .. 2.3)
 //   B  A     on the third base side's (A by the visitors' dugout)
 // their rows climbing back to the main concourse at z ~45 (behind the club's own rows, the chart's
-// 122-125; the stands are one sweep of rows here).
+// 122-125). ---- FA3 (WA2-4): the club's eighteen rows end at a parapet with glass on it (Stands.js
+// tier.parapet), its tunnels' mouths under it in F and B, their approaches cut into rows 14-17.
 // Each seat: { sec (the letter), row (0 = the front), i (along the row from its section's start), n,
 // x, y (the tread), z, yaw (facing the field), ux, uz (along the row, toward i + 1), rx, rz (the
 // figure's right side), nx, nz (back, away from the field), occupied (a crowd fan would sit here: the
@@ -66,6 +67,7 @@ export class SeatMap {
 			const rows = this.bySec[ L ] = [];
 			const at = ( s, d ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, S.a[ 1 ] + S.uz * s + S.nz * d ];
 			const yaw = Math.atan2( S.nx, S.nz );
+			const mouth = parapetMouth( tier, secs, S ); // ---- FA3 (WA2-4)
 			for ( let r = 0; r < tier.rows; r ++ ) {
 
 				const d0 = S0 + r * D;
@@ -81,6 +83,7 @@ export class SeatMap {
 
 					const s = start + i * W;
 					if ( portals.length && inPortal( S, s, r ) ) continue;
+					if ( mouth && r >= mouth.r0 && r < mouth.r1 && Math.abs( s - mouth.s ) < mouth.w + 0.3 ) continue; // ---- FA3
 					const [ x, z ] = at( s, dSeat );
 					const y = tier.rowY ? tier.rowY( S, r, ys0[ r ] ) : ys0[ r ];
 					// the seat's matrix elements the crowd hashes (its translation)
