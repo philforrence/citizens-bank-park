@@ -114,6 +114,48 @@ export default class AshburnAlley2008 {
 
 		// the landing across to the bleachers' building, and the stringers, posts and rails
 		const yT = STREET + 4.65;
+		// ---- FA1 (step 10, WA1-8): the landing walkable (it was drawn only: the stair ended in a 4.5 m fall into
+		// the gap between the buildings), onto the roof's box; rails along the stair's sides and the landing's
+		// open edge, and along each roof deck's front over the Alley (its picket rail, Landmarks, was drawn only)
+		{
+
+			const add = ( x0, x1, z0, z1, y0, y1, o ) => {
+
+				const w = this.field.toWorld( ( x0 + x1 ) / 2, ( z0 + z1 ) / 2 );
+				this.colliders.addBox( new Vector3( w.x, this.field.y0 + ( y0 + y1 ) / 2, w.z ), new Vector3( ( x1 - x0 ) / 2, ( y1 - y0 ) / 2, Math.abs( z1 - z0 ) / 2 ), this.field.group.rotation.y, o );
+
+			};
+			// (beside the top treads and past their end: over them it would be a wall in the stair's way)
+			add( x1, 36.4, zTop - 0.3, zTop + 1.2, yT - 0.3, yT, { tag: 'roof-stair-landing', walkable: true } );
+			add( x0, x1, zTop - 0.3, zTop, yT - 0.3, yT, { tag: 'roof-stair-landing', walkable: true } );
+			add( x0 - 0.12, x0 - 0.02, zTop - 0.3, zTop + 1.2, yT - 0.2, yT + 1.1, { tag: 'roof-stair-rail' } );
+			add( x1 + 0.12, 36.0, zTop + 1.15, zTop + 1.25, yT - 0.2, yT + 1.1, { tag: 'roof-stair-rail' } );
+			for ( const x of [ x0 - 0.07, x1 + 0.07 ] ) for ( let k = 0; k < n; k += 4 ) {
+
+				const k1 = Math.min( n, k + 4 );
+				if ( x > x1 && k1 * Math.abs( run ) > Math.abs( zTop + 1.25 - this.zFront ) ) continue; // (the landing's side: open)
+				add( x - 0.04, x + 0.04, this.zFront + k1 * run, this.zFront + k * run, STREET + k * rise - 0.3, STREET + k1 * rise + 1.1, { tag: 'roof-stair-rail' } );
+
+			}
+			for ( const [ a, b ] of [ [ - 62, - 40 ], [ - 34, - 8 ], [ 2, 30 ], [ 36, 60 ] ] ) add( a, b, - 143.12, - 142.98, STREET + 4.5, STREET + 4.5 + 1.2, { tag: 'alley-roof-rail' } );
+			// the bleachers' roof the landing gives onto: railed round its other three sides (a pipe rail drawn
+			// as the stair's), the way on from the landing open
+			const yR = STREET + 4.5, zB = - 150.45;
+			const rail = ( ax, az, bx, bz ) => {
+
+				add( Math.min( ax, bx ) - 0.05, Math.max( ax, bx ) + 0.05, Math.min( az, bz ) - 0.05, Math.max( az, bz ) + 0.05, yR, yR + 1.2, { tag: 'alley-roof-rail' } );
+				beam( rq, [ ax, yR + 1.07, az ], [ bx, yR + 1.07, bz ], 0.05 );
+				const n = Math.max( 1, Math.round( Math.hypot( bx - ax, bz - az ) / 1.5 ) );
+				for ( let k = 0; k <= n; k ++ ) beam( rq, [ ax + ( bx - ax ) * k / n, yR, az + ( bz - az ) * k / n ], [ ax + ( bx - ax ) * k / n, yR + 1.07, az + ( bz - az ) * k / n ], 0.045 );
+
+			};
+			rail( 36.05, zTop + 1.25, 36.05, - 143.1 );
+			rail( 36.4, zB, 59.95, zB );
+			rail( 59.95, zB, 59.95, - 143.1 );
+			add( x0 - 0.05, 36.4, zB - 0.1, zB, yT - 0.2, yT + 1.1, { tag: 'roof-stair-rail' } );
+
+		}
+		// ---- end FA1
 		tq.add( [ x0, yT, zTop ], [ 36.2, yT, zTop ], [ 36.2, yT, zTop - 0.3 ], [ x0, yT, zTop - 0.3 ], [ 0, 1, 0 ] );
 		tq.add( [ x0, yT, zTop + 1.2 ], [ 36.2, yT, zTop + 1.2 ], [ 36.2, yT, zTop ], [ x0, yT, zTop ], [ 0, 1, 0 ] );
 		for ( const x of [ x0 - 0.05, x1 + 0.05 ] ) {
@@ -227,6 +269,34 @@ export default class AshburnAlley2008 {
 			[ w1, e1, N, 'rail', true ],
 			[ e1, e2, U, 'rail', false ],
 		];
+		// ---- FA1 (step 10, WA2-3): east of the pens the Alley's edge runs on along the pit to 101's back (the
+		// 398 corner), and the rail with its window boxes on to the seats, as the 2008 photos have it (Commons
+		// 2371236009: the rail and the flowers unbroken from the pens to the corner seats); it stopped at the
+		// pens' end and you walked off into the gap between the upper pen and 101 (a 7 m fall)
+		{
+
+			// the pit's edge from the pens' east end to the seats' corner (Bowl._pitOutline): its two points
+			// nearest e2 and beyond toward the right field seats
+			let best = null;
+			for ( let i = 0; i < pit.length; i ++ ) {
+
+				const p = pit[ i ], q = pit[ ( i + 1 ) % pit.length ];
+				if ( p[ 0 ] < e2[ 0 ] - 4 || p[ 0 ] > e2[ 0 ] + 1 || q[ 0 ] < e2[ 0 ] + 2 || q[ 0 ] > e2[ 0 ] + 12 ) continue;
+				best = [ p, q ];
+
+			}
+			if ( best ) {
+
+				const [ p, q ] = best, l = Math.hypot( q[ 0 ] - p[ 0 ], q[ 1 ] - p[ 1 ] ), ux = ( q[ 0 ] - p[ 0 ] ) / l, uz = ( q[ 1 ] - p[ 1 ] ) / l;
+				let nx = - uz, nz = ux; // toward the field
+				if ( nx * ( p[ 0 ] - 0 ) + nz * ( p[ 1 ] + 40 ) > 0 ) { nx = - nx; nz = - nz; }
+				const t0 = ( e2[ 0 ] - p[ 0 ] ) * ux + ( e2[ 1 ] - p[ 1 ] ) * uz - 0.2;
+				segs.push( [ [ p[ 0 ] + ux * t0, p[ 1 ] + uz * t0 ], [ q[ 0 ] - ux * 0.1, q[ 1 ] - uz * 0.1 ], [ nx, nz ], 'rail', true ] );
+
+			}
+
+		}
+		// ---- end FA1
 		// the fans' line along it (Cast.js), the way each stretch faces
 		this.railPath = { pts: [ eyeEnd, a0, w0, w1, e1 ], drops: [ U, N, nU, N ] };
 		const q = new Quads(), caps = new Quads(), mesh = new Quads();
@@ -288,6 +358,24 @@ export default class AshburnAlley2008 {
 
 		}
 
+		// ---- FA1 (step 10, WA2-3): the brick parapet along the batter's eye's back (Memory Lane's panels on its
+		// tall middle wall) solid, from Monty's corner to the rail at the pens' west end: you walked through it
+		// and fell 7 m into the batter's eye
+		{
+
+			const xa = - 13.1, xb = eyeEnd[ 0 ];
+			const pts = [ xa, ...pit.filter( ( p ) => p[ 0 ] > xa && p[ 0 ] < xb ).map( ( p ) => p[ 0 ] ).sort( ( a, b ) => a - b ), xb ].map( ( x ) => [ x, pitEdgeZ( pit, x ) - 0.15 ] );
+			for ( let i = 0; i < pts.length - 1; i ++ ) {
+
+				const [ ax, az ] = pts[ i ], [ bx, bz ] = pts[ i + 1 ], len = Math.hypot( bx - ax, bz - az );
+				if ( len < 0.1 ) continue;
+				const w = this.field.toWorld( ( ax + bx ) / 2, ( az + bz ) / 2 );
+				this.colliders.addBox( new Vector3( w.x, this.field.y0 + y0 + 0.5, w.z ), new Vector3( len / 2 + 0.1, 0.8, 0.15 ), this.field.group.rotation.y - Math.atan2( bz - az, bx - ax ), { tag: 'alley-eye-parapet', solid: true } );
+
+			}
+
+		}
+		// ---- end FA1
 		for ( const [ g, name ] of [ [ q, 'alley-rail' ], [ caps, 'alley-rail-cap' ] ] ) {
 
 			const m = new Mesh( g.geometry(), this.galv );

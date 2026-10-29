@@ -7,6 +7,7 @@ import { beam, box, alongPolyline, nearestAlong, canvasTexture } from './geo.js'
 import { GATES } from './Exterior.js';
 import { buildTier, tierTop, standsMaterials, Quads, SOFFIT_WGSL, tierSections, rowHeights } from './Stands.js'; // (FC4: tierSections, rowHeights)
 import { Crowd } from './Crowd.js';
+import { pavilionWays } from './PavilionWays.js'; // ---- FA1
 import { FT, FOOTPRINT, OUTFIELD, FOUL_TERRITORY, DUGOUTS, BULLPENS, LEVELS, fencePoint } from './layout.js';
 
 // The seating bowl round the field and the street-level concourse round the bowl.
@@ -568,7 +569,11 @@ export class Bowl {
 		const dkAll = offsetPolyline( pavFront, 3.0, [ 0, - 40 ] ), iF2 = pavFront.length - 3;
 		const dk = dkAll.slice( 0, iF2 + 1 );
 		dk.push( [ dkAll[ iF2 ][ 0 ] + ( dkAll[ iF2 + 1 ][ 0 ] - dkAll[ iF2 ][ 0 ] ) * 0.55, dkAll[ iF2 ][ 1 ] + ( dkAll[ iF2 + 1 ][ 1 ] - dkAll[ iF2 ][ 1 ] ) * 0.55 ] );
-		tiers.push( { name: 'pavilion-deck', front: dk, parts: { rf: dk.slice( 0, 2 ), line: dk.slice( 1 ) }, outward: [ 0, - 40 ], y0: pdY, rows: ROWS.pavilionDeck, depth: ROW, rise: 0.55, section: 14, aisle: 1.2, soffit: 1.2, frontWall: { top: pdY + 1.0 }, base: pdY - 1.1 } );
+		// ---- FA1 (step 10, WA2-1): 301-310 "entered at row 7" (RateYourSeats; the 2008 chart's notches): an open
+		// portal in every other section, its mouth on row 7, the stair up to it from the Pavilion's concourse
+		// below (PavilionWays.js)
+		tiers.push( { name: 'pavilion-deck', front: dk, parts: { rf: dk.slice( 0, 2 ), line: dk.slice( 1 ) }, outward: [ 0, - 40 ], y0: pdY, rows: ROWS.pavilionDeck, depth: ROW, rise: 0.55, section: 14, aisle: 1.2, soffit: 1.2, frontWall: { top: pdY + 1.0 }, base: pdY - 1.1, portals: { every: 2, row: 7, rows: 5, width: 3.4, open: true, stairWidth: 1.4 } } );
+		// ---- end FA1
 
 		this.upper = tiers;
 		for ( const t of tiers ) this.group.add( buildTier( t, this.ctx ) );
@@ -625,6 +630,11 @@ export class Bowl {
 		this._columns( dkRear, STREET, deckTop - 0.6, 9.5 );
 		this._roof( offsetPolyline( deck.front, deckBack * 0.3, [ 0, - 40 ] ), deckBack * 0.7 + 3.6, pavRoofY, { towers: false } );
 		this._rearWall( dkRear, deckTop, pavRoofY - 1.0 );
+		// ---- FA1 (step 10, WA2-1, WA1-1, WA1-5): the ways up to the Pavilion and the Deck from Ashburn Alley,
+		// the rails at their open ends, the Pavilion concourse's back (PavilionWays.js); its elevators' stops
+		// are built with the others (_elevators)
+		this._fa1 = pavilionWays( this, { pav, deck } );
+		// ---- end FA1
 
 		this._pressBox( line( path, D.t300 ).slice( 4, 8 ), t300Y - 1.1, L.terraceConcourse - 0.15, ROWS.t300 * ROW );
 
@@ -1963,6 +1973,33 @@ ${ SOFFIT_WGSL }
 			this.elevators.push( bank );
 
 		}
+
+		// ---- FA1 (WA2-1): the outfield's elevators (PavilionWays.js): each stop a door in its tower, the
+		// sign over it, you stand in front of it
+		for ( const fb of this._fa1?.banks || [] ) {
+
+			const bank = { stops: [] };
+			for ( const st of fb.stops ) {
+
+				const [ ox, oz ] = st.out;
+				const g = new Group();
+				g.position.set( st.door[ 0 ] + ox * 0.08, st.y, st.door[ 1 ] + oz * 0.08 );
+				g.rotation.y = Math.atan2( - ox, - oz ) + Math.PI;
+				const d = new Mesh( new BoxGeometry( 2.2, 2.4, 0.15 ), door );
+				d.position.y = 1.2;
+				g.add( d );
+				const sgn = new Mesh( signFace( 1.6, 0.35 ), sign );
+				sgn.position.set( 0, 2.75, 0.1 );
+				g.add( sgn );
+				this.group.add( g );
+				bank.stops.push( { name: st.name, x: st.door[ 0 ] + ox * 1.8, z: st.door[ 1 ] + oz * 1.8, y: st.y, face: [ ox, oz ] } );
+
+			}
+
+			this.elevators.push( bank );
+
+		}
+		// ---- end FA1
 
 	}
 

@@ -160,6 +160,15 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 
 	} );
 	const inPortal = ( S, s, r ) => portals.some( ( p ) => p.S === S && r >= p.r0 - 1 && r < p.r1 && Math.abs( s - p.s ) < PO.width / 2 + 0.35 );
+	// ---- FA1 (step 10, WA2-1): an `open` portal is a way in: its rows are cut out between its cheeks (a floor
+	// at the mouth's level instead, walkable), the stair up to it comes from below (PavilionWays.js), and the
+	// tier's row colliders are only 0.6 m deep, so the stair passes under the rows. The portals are listed
+	// on the tier for that
+	const cutAt = ( S, r ) => PO?.open ? portals.find( ( p ) => p.S === S && r >= p.r0 && r < p.r1 ) : null;
+	// (and the row the mouth opens on has no seats across its section: a cross-aisle to the aisles each side)
+	const crossAisle = ( S, r ) => PO?.open && portals.some( ( p ) => p.S === S && r === p.r0 - 1 );
+	tier._portals = portals.map( ( p ) => ( { a: p.S.a, u: [ p.S.ux, p.S.uz ], n: [ p.S.nx, p.S.nz ], len: p.S.len, s: p.s, w: PO.width / 2 + 0.3, dF: S0 + p.r0 * tier.depth, dB: S0 + p.r1 * tier.depth, yF: ys[ p.r0 - 1 ] } ) );
+	// ---- end FA1
 
 	for ( const S of secs ) {
 
@@ -186,36 +195,51 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			const y = rowY( S, r ), yPrev = r > first ? rowY( S, r - 1 ) : ( first ? base : ( tier.frontY ?? base ) );
 			const [ f0, f1 ] = ends( d0 ), [ b0, b1 ] = ends( d1 );
 			if ( f1 - f0 < 0.05 && b1 - b0 < 0.05 ) continue;
-			// tread
-			const A0 = at( f0, d0 ), A1 = at( f1, d0 );
-			// ---- FW3 (C2W-22): the tread in three pieces, its uv saying where on it a point is (TREAD_UV: the
-			// distance from the section's end, so the aisle's first 0.6 m, and back from its front edge), for
-			// the concrete's painted nosings and worn edges; the riser flagged, for its shade
-			const w = Math.min( A / 2 + 0.6, ( f1 - f0 ) / 2 ), wb = Math.min( A / 2 + 0.6, ( b1 - b0 ) / 2 );
-			const F = [ f0, f0 + w, f1 - w, f1 ].map( ( s ) => at( s, d0 ) ), Bq = [ b0, b0 + wb, b1 - wb, b1 ].map( ( s ) => at( s, d1 ) );
-			const ua = [ 0, w, w, 0 ], ub = [ 0, wb, wb, 0 ];
-			for ( let j = 0; j < 3; j ++ ) {
+			// ---- FA1 (WA2-1): the tread drawn and collided over [ f0, f1 ] at its front and [ b0, b1 ] at its back,
+			// once, or twice either side of an open portal (a cut end paints no aisle: `cut0`, `cut1`)
+			const slab = ( f0, f1, b0, b1, cut0 = false, cut1 = false ) => {
 
-				const a = [ F[ j ][ 0 ], y, F[ j ][ 1 ] ], b = [ F[ j + 1 ][ 0 ], y, F[ j + 1 ][ 1 ] ], c = [ Bq[ j + 1 ][ 0 ], y, Bq[ j + 1 ][ 1 ] ], dd = [ Bq[ j ][ 0 ], y, Bq[ j ][ 1 ] ];
-				q.tri( a, b, c, [ 0, 1, 0 ], [ TREAD_UV + ua[ j ], 0 ], [ TREAD_UV + ua[ j + 1 ], 0 ], [ TREAD_UV + ub[ j + 1 ], D ] );
-				q.tri( a, c, dd, [ 0, 1, 0 ], [ TREAD_UV + ua[ j ], 0 ], [ TREAD_UV + ub[ j + 1 ], D ], [ TREAD_UV + ub[ j ], D ] );
+				// tread
+				const A0 = at( f0, d0 ), A1 = at( f1, d0 );
+				// ---- FW3 (C2W-22): the tread in three pieces, its uv saying where on it a point is (TREAD_UV: the
+				// distance from the section's end, so the aisle's first 0.6 m, and back from its front edge), for
+				// the concrete's painted nosings and worn edges; the riser flagged, for its shade
+				const w = Math.min( A / 2 + 0.6, ( f1 - f0 ) / 2 ), wb = Math.min( A / 2 + 0.6, ( b1 - b0 ) / 2 );
+				const F = [ f0, f0 + w, f1 - w, f1 ].map( ( s ) => at( s, d0 ) ), Bq = [ b0, b0 + wb, b1 - wb, b1 ].map( ( s ) => at( s, d1 ) );
+				const ua = [ cut0 ? 3 : 0, w, w, cut1 ? 3 : 0 ], ub = [ cut0 ? 3 : 0, wb, wb, cut1 ? 3 : 0 ];
+				for ( let j = 0; j < 3; j ++ ) {
 
-			}
+					const a = [ F[ j ][ 0 ], y, F[ j ][ 1 ] ], b = [ F[ j + 1 ][ 0 ], y, F[ j + 1 ][ 1 ] ], c = [ Bq[ j + 1 ][ 0 ], y, Bq[ j + 1 ][ 1 ] ], dd = [ Bq[ j ][ 0 ], y, Bq[ j ][ 1 ] ];
+					q.tri( a, b, c, [ 0, 1, 0 ], [ TREAD_UV + ua[ j ], 0 ], [ TREAD_UV + ua[ j + 1 ], 0 ], [ TREAD_UV + ub[ j + 1 ], D ] );
+					q.tri( a, c, dd, [ 0, 1, 0 ], [ TREAD_UV + ua[ j ], 0 ], [ TREAD_UV + ub[ j + 1 ], D ], [ TREAD_UV + ub[ j ], D ] );
 
-			// riser in front of it
-			q.add( [ A0[ 0 ], yPrev, A0[ 1 ] ], [ A1[ 0 ], yPrev, A1[ 1 ] ], [ A1[ 0 ], y, A1[ 1 ] ], [ A0[ 0 ], y, A0[ 1 ] ], [ - nx, 0, - nz ], RISER_UV, RISER_UV );
-			// ---- end FW3
+				}
 
-			// walkable: an oriented box under the tread (world frame)
-			if ( colliders ) {
+				// riser in front of it
+				q.add( [ A0[ 0 ], yPrev, A0[ 1 ] ], [ A1[ 0 ], yPrev, A1[ 1 ] ], [ A1[ 0 ], y, A1[ 1 ] ], [ A0[ 0 ], y, A0[ 1 ] ], [ - nx, 0, - nz ], RISER_UV, RISER_UV );
+				// ---- end FW3
 
-				const cs = ( Math.max( f0, b0 ) + Math.min( f1, b1 ) ) / 2, hl = Math.max( 0.05, ( Math.min( f1, b1 ) - Math.max( f0, b0 ) ) / 2 );
-				const [ cx, cz ] = at( cs, ( d0 + d1 ) / 2 );
-				const w = toWorld( cx, cz );
-				const bottom = Math.max( base, y - 3 );
-				colliders.addBox( new Vector3( w.x, ( y + bottom ) / 2, w.z ), new Vector3( hl, ( y - bottom ) / 2, D / 2 ), worldYaw - Math.atan2( uz, ux ) + 0, { walkable: true, tag: tier.name } );
+				// walkable: an oriented box under the tread (world frame)
+				if ( colliders ) {
 
-			}
+					const cs = ( Math.max( f0, b0 ) + Math.min( f1, b1 ) ) / 2, hl = Math.max( 0.05, ( Math.min( f1, b1 ) - Math.max( f0, b0 ) ) / 2 );
+					const [ cx, cz ] = at( cs, ( d0 + d1 ) / 2 );
+					const w = toWorld( cx, cz );
+					const bottom = Math.max( base, y - ( PO?.open ? 0.6 : 3 ) );
+					colliders.addBox( new Vector3( w.x, ( y + bottom ) / 2, w.z ), new Vector3( hl, ( y - bottom ) / 2, D / 2 ), worldYaw - Math.atan2( uz, ux ) + 0, { walkable: true, tag: tier.name } );
+
+				}
+
+			};
+			const cut = cutAt( S, r );
+			if ( cut ) {
+
+				const w = PO.width / 2 + 0.3;
+				slab( f0, cut.s - w, b0, cut.s - w, false, true );
+				slab( cut.s + w, f1, cut.s + w, b1, true, false );
+
+			} else slab( f0, f1, b0, b1 );
+			// ---- end FA1
 
 			// seats: along the row between the aisles, centred
 			if ( ! S.seats ) continue;
@@ -227,7 +251,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			const start = lo + ( hi - lo - n * W ) / 2 + W / 2;
 			for ( let i = 0; i < n; i ++ ) {
 
-				if ( portals.length && inPortal( S, start + i * W, r ) ) continue;
+				if ( portals.length && ( inPortal( S, start + i * W, r ) || crossAisle( S, r ) ) ) continue; // ---- FA1: crossAisle
 				const [ x, z ] = at( start + i * W, dSeat );
 				_q.setFromAxisAngle( _up, yawSeat );
 				_m.compose( _p.set( x, y, z ), _q, _s );
@@ -442,7 +466,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const { S } = p;
 		const w = PO.width / 2 + 0.3;
 		const dF = S0 + p.r0 * D, dB = S0 + p.r1 * D;
-		const yF = ys[ Math.max( 0, p.r0 - 1 ) ], yTop = ys[ Math.min( tier.rows - 1, p.r1 - 1 ) ] + 1.1;
+		// (---- FA1: an open portal is a vomitory flush with the rows round it, its top a landing level with its
+		// last row, railed: the 2008 photos of the Pavilion Deck show no boxes standing out of its rows)
+		const yF = ys[ Math.max( 0, p.r0 - 1 ) ], yTop = ys[ Math.min( tier.rows - 1, p.r1 - 1 ) ] + ( PO.open ? 0.05 : 1.1 );
 		const at = ( s, d, y ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, y, S.a[ 1 ] + S.uz * s + S.nz * d ];
 		const f = [ - S.nx, 0, - S.nz ];
 		// the face: concrete round the mouth (2.3 m high, the portal's width less the cheeks)
@@ -450,10 +476,40 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		pq.add( at( p.s - w, dF, yF ), at( m0, dF, yF ), at( m0, dF, yTop ), at( p.s - w, dF, yTop ), f );
 		pq.add( at( m1, dF, yF ), at( p.s + w, dF, yF ), at( p.s + w, dF, yTop ), at( m1, dF, yTop ), f );
 		pq.add( at( m0, dF, mTop ), at( m1, dF, mTop ), at( m1, dF, yTop ), at( m0, dF, yTop ), f );
-		mq.add( at( m0, dF + 0.05, yF ), at( m1, dF + 0.05, yF ), at( m1, dF + 0.05, mTop ), at( m0, dF + 0.05, mTop ), f );
+		if ( ! PO.open ) mq.add( at( m0, dF + 0.05, yF ), at( m1, dF + 0.05, yF ), at( m1, dF + 0.05, mTop ), at( m0, dF + 0.05, mTop ), f ); // ---- FA1: an open portal's mouth is open
 		// the cheeks and the top
 		for ( const e of [ - 1, 1 ] ) pq.add( at( p.s + e * w, dF, yF ), at( p.s + e * w, dB, yF ), at( p.s + e * w, dB, yTop ), at( p.s + e * w, dF, yTop ), [ S.ux * e, 0, S.uz * e ] );
 		pq.add( at( p.s - w, dF, yTop ), at( p.s + w, dF, yTop ), at( p.s + w, dB, yTop ), at( p.s - w, dB, yTop ), [ 0, 1, 0 ] );
+		// ---- FA1 (WA2-1): an open portal's floor at the mouth's level from the mouth back to where the stair comes
+		// up through it (PavilionWays.js: the stair along the section at the box's middle depth, its well left
+		// open), its back wall up to the row behind, the cheeks solid
+		if ( PO.open ) {
+
+			const dm = ( dF + dB ) / 2, hw = PO.stairWidth / 2 || 0.7;
+			pq.add( at( p.s - w, dF, yF ), at( p.s + w, dF, yF ), at( p.s + w, dm - hw, yF ), at( p.s - w, dm - hw, yF ), [ 0, 1, 0 ] );
+			pq.add( at( p.s - w, dm + hw, yF ), at( p.s + w, dm + hw, yF ), at( p.s + w, dB, yF ), at( p.s - w, dB, yF ), [ 0, 1, 0 ] );
+			pq.add( at( p.s - w, dB, yF - 0.3 ), at( p.s + w, dB, yF - 0.3 ), at( p.s + w, dB, ys[ p.r1 - 1 ] ), at( p.s - w, dB, ys[ p.r1 - 1 ] ), f );
+			if ( colliders ) {
+
+				const box = ( s0, s1, d0, d1, y0, y1, o ) => {
+
+					const c = at( ( s0 + s1 ) / 2, ( d0 + d1 ) / 2, 0 ), W = toWorld( c[ 0 ], c[ 2 ] );
+					colliders.addBox( new Vector3( W.x, ( y0 + y1 ) / 2, W.z ), new Vector3( ( s1 - s0 ) / 2, ( y1 - y0 ) / 2, ( d1 - d0 ) / 2 ), worldYaw - Math.atan2( S.uz, S.ux ), o );
+
+				};
+				box( p.s - w, p.s + w, dF, dm - hw, yF - 0.3, yF, { walkable: true, tag: tier.name + '-portal' } );
+				box( p.s - w, p.s + w, dm + hw, dB, yF - 0.3, yF, { walkable: true, tag: tier.name + '-portal' } );
+				for ( const e of [ - 1, 1 ] ) box( p.s + e * w - 0.1, p.s + e * w + 0.1, dF, dB, yF - 0.3, yTop, { tag: tier.name + '-portal-cheek' } );
+				box( p.s - w, p.s + w, dB, dB + 0.15, yF - 0.3, yTop, { tag: tier.name + '-portal-back' } );
+				// its top a landing in the rows (walkable), its rail over the mouth solid
+				box( p.s - w, p.s + w, dF, dB, yTop - 0.2, yTop, { walkable: true, tag: tier.name + '-portal-top' } );
+				box( p.s - w, p.s + w, dF, dF + 0.1, yTop, yTop + 1.1, { tag: tier.name + '-portal-rail' } );
+				for ( const e of [ - 1, 1 ] ) box( p.s + e * w - 0.05, p.s + e * w + 0.05, dF, dB, yTop, yTop + 1.1, { tag: tier.name + '-portal-rail' } );
+
+			}
+
+		}
+		// ---- end FA1
 		// the rail round its top edge
 		const yr = yTop + 1.0;
 		beam( rq, at( p.s - w, dF, yr ), at( p.s + w, dF, yr ), 0.05 );
@@ -473,9 +529,13 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		pm.castShadow = true;
 		pm.receiveShadow = true;
 		group.add( pm );
-		const mouth = new Mesh( mq.geometry(), materials.portalMouth );
-		mouth.name = tier.name + '-portal-mouths';
-		group.add( mouth );
+		if ( mq.count ) { // ---- FA1
+
+			const mouth = new Mesh( mq.geometry(), materials.portalMouth );
+			mouth.name = tier.name + '-portal-mouths';
+			group.add( mouth );
+
+		}
 
 	}
 

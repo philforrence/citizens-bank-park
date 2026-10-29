@@ -369,6 +369,18 @@ export class MemoryLane {
 
 			add( s0 + 0.4, s1, tFront, tWall, yP - 0.3, yP, { tag: 'memory-lane-platform', walkable: true } );
 			add( s0 + 0.4, s1, tFront - 0.25, tFront, yP, yP + 1.05, { tag: 'memory-lane-parapet', solid: true } );
+			// ---- FA1 (step 10, WA2-11): the Wall of Fame's parapet along the Alley's edge, solid (drawn, 1.0 m over
+			// the Alley, its cap to 1.1): you stepped off the Alley onto the platform 1.9 m below. The way down is
+			// the stair, past the chain (closed during the game)
+			add( s0 - 0.05, s1 + 0.05, tWall - 0.08, tWall + 0.48, STREET - 0.3, STREET + 1.1, { tag: 'wall-of-fame-parapet', solid: true } );
+			// its 11 treads walkable (drawn only), for when the chain's down before the game
+			{
+
+				const n = 11, run = 0.3, rise = ( STREET - yP ) / n, tA = tFront + 0.05, tB = tWall - 1.25;
+				for ( let k = 1; k <= n; k ++ ) add( s1 - k * run, s1 - ( k - 1 ) * run, tA, tB, STREET - ( k - 1 ) * rise - 0.25, STREET - ( k - 1 ) * rise, { tag: 'memory-lane-stair', walkable: true } );
+
+			}
+			// ---- end FA1
 
 		}
 
