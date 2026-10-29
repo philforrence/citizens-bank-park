@@ -84,7 +84,7 @@ const TRUNK = {
 // backdrop) the same shapes on fewer sides, the cap shaped from the head; then a middle one and a far
 // one for fans a few pixels tall
 const LODS = [
-	{ name: 'close', mh: 'mid', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 16, 11 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 6, 3 ], sign: true },
+	{ name: 'close', mh: 'mid', trunk: 10, rings: TRUNK.close, limb: 8, head: [ 16, 11 ], neck: true, hands: 8, joints: true, extras: true, hair: true, crown: [ 10, 4 ], bill: 6, shoes: true, nose: true, pom: [ 12, 7 ], sign: true },
 	{ name: 'near', mh: 'far', trunk: 6, rings: TRUNK.near, limb: 4, head: [ 8, 5 ], neck: false, hands: 4, joints: true, extras: false, hair: true, crown: null, bill: 4, shoes: false, nose: false, pom: null, sign: true },
 	{ name: 'mid', trunk: 6, rings: TRUNK.mid, limb: 3, head: [ 6, 4 ], neck: false, hands: 0, joints: true, extras: false, hair: true, crown: null, bill: 0, shoes: false, nose: false, pom: null },
 	{ name: 'far', trunk: 4, rings: TRUNK.far, limb: 3, head: [ 5, 3 ], neck: false, hands: 0, joints: false, extras: false, hair: false, crown: null, bill: 0, shoes: false, nose: false, pom: null },
@@ -439,13 +439,22 @@ export function fanGeometry( lod ) {
 		// a knit hat's pom-pom (t 2: folded away unless he has one)
 		if ( L.pom ) {
 
-			const [ pw, phh ] = L.pom, c = [ 0, r[ 1 ] + 0.045, 0.004 ], pr = [ 0.034, 0.03, 0.034 ];
+			// ---- FX1 (step 11): a ball of yarn tufts sat down into the crown (Getty 83893023's red Phillies
+			// knit hat). It was six sides round and three rings high, painted in the hat's stripes and held
+			// 1.5 cm over the egg head's crown (FF1's MakeHuman head is 1.4 cm lower again): from the
+			// Pavilion Deck the one on the head in the row in front stood out over the infield as a
+			// red-and-white striped box two metres high (step 10's stage shots). Close up only (the close
+			// level), so the extra sides cost a few hundred fans a hundred vertices each
+			const [ pw, phh ] = L.pom, c = [ 0, 0.133, 0.006 ], pr = [ 0.038, 0.034, 0.038 ];
 			const f0 = verts.length;
 			for ( let j = 0; j <= phh; j ++ ) for ( let i = 0; i < pw; i ++ ) {
 
 				const th = j / phh * Math.PI, ph = i / pw * Math.PI * 2;
 				const d = [ Math.sin( th ) * Math.cos( ph ), Math.cos( th ), Math.sin( th ) * Math.sin( ph ) ];
-				const o = add( c, [ d[ 0 ] * pr[ 0 ], d[ 1 ] * pr[ 1 ], d[ 2 ] * pr[ 2 ] ] );
+				// (the tufts: lumps a few millimetres proud, flattened a little underneath where it sits)
+				const lump = ( 1 + 0.11 * Math.sin( ph * 5 + th * 3.1 ) * Math.sin( th * 4 + ph * 2.3 ) + 0.06 * Math.sin( ph * 9 - th * 7 ) ) * ( d[ 1 ] < - 0.4 ? 0.9 : 1 );
+				const o = add( c, [ d[ 0 ] * pr[ 0 ] * lump, d[ 1 ] * pr[ 1 ] * lump, d[ 2 ] * pr[ 2 ] * lump ] );
+				// ---- end FX1
 				vert( fixed( add( SIT.head, o ), add( STAND.head, o ) ), d, d, P.head, 0, 2 );
 
 			}
@@ -1840,7 +1849,19 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 				if ( pP ) { c = vec3f( 0.62, 0.6, 0.55 ); }
 			}
 			// the pom-pom: red and white (the Phillies'), or the hat's own colour
-			if ( piece || d.y > 0.97 ) { c = select( knit * 1.1, select( vec3f( 0.62, 0.6, 0.55 ), vec3f( 0.36, 0.02, 0.03 ), fract( ( d.x + d.z ) * 9.0 ) < 0.5 ), hat == 3u ); }
+			// ---- FX1 (step 11): yarn, tufts of it every few millimetres, the red and white strands mixed (a
+			// pinkish blur a few rows off), the tufts' ends in the light and the hollows between them and its
+			// underside, where it sits in the crown, in shade. (It was the hat's stripes run across it, so
+			// close up it read as a striped box: step 10's Pavilion Deck)
+			if ( piece || d.y > 0.97 ) {
+				let yt = sin( d.x * 151.0 + sin( d.y * 117.0 + d.z * 23.0 ) * 2.3 ) * sin( d.z * 139.0 + d.y * 89.0 + sin( d.x * 61.0 ) * 1.7 );
+				let yf = 1.0 - smoothstep( 0.04, 0.12, fwidth( d.x ) + fwidth( d.y ) );
+				let strand = select( knit * 1.1, select( vec3f( 0.62, 0.6, 0.55 ), vec3f( 0.36, 0.02, 0.03 ), yt > - 0.2 ), hat == 3u );
+				let blur = select( knit * 1.1, vec3f( 0.46, 0.25, 0.25 ), hat == 3u );
+				c = mix( blur, strand, yf ) * ( 0.82 + 0.18 * yf * ( yt * 0.5 + 0.5 ) );
+				if ( piece ) { c *= mix( 0.62, 1.0, smoothstep( 1.02, 1.3, d.y ) ); }
+			}
+			// ---- end FX1
 			rough = 0.95;
 		}
 		if ( hood ) {
