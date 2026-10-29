@@ -134,6 +134,19 @@ const ROWS = { field: 37, right: 16, left: 21, club: 8, t300: 8, t400: 16, pavil
 // ---- FW3 (C2W-7): the 400s over the Terrace concourse: their first row this far over its floor (the
 // fascia's foot 3 m up), a riser a row, the deck's depth under the rows, the stairs' boxes (Stands.js
 // portals: rows 2-5 of every other section). The roof over them goes up with their top row
+// ---- FA2 (step 10, WA2-6): the seats over Monty's Angle (146-148, places/leftfield/Monty.js): how deep
+// they run behind the wall (their first row 0.6 m back, 12 rows of 0.8), so the pit closes on their back
+export const MONTY = { start: 0.6, rows: 12, depth: 0.8, back: 0.6 + 12 * 0.8 };
+function intersect( p, u, q, v ) {
+
+	// the point p + u s that lies on q + v t
+	const den = u[ 0 ] * v[ 1 ] - u[ 1 ] * v[ 0 ];
+	if ( Math.abs( den ) < 1e-9 ) return q;
+	const s = ( ( q[ 0 ] - p[ 0 ] ) * v[ 1 ] - ( q[ 1 ] - p[ 1 ] ) * v[ 0 ] ) / den;
+	return [ p[ 0 ] + u[ 0 ] * s, p[ 1 ] + u[ 1 ] * s ];
+
+}
+// ---- end FA2
 export const T400 = { lift: 3.9, rise: 0.55, soffit: 0.85, portals: { every: 2, row: 2, rows: 4, width: 2.4 } };
 // ---- end FW3
 
@@ -544,7 +557,13 @@ export class Bowl {
 		const lfT = this.tiers[ 1 ];
 		const lfTop = lfT.start + lfT.rows * lfT.depth;
 		const lfY = STREET + 4.6;
-		tiers.push( { name: 'lf-deck', front: offsetPolyline( lfT.front, lfTop - 2.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: lfY, rows: 8, depth: ROW, rise: 0.48, section: 13, aisle: 1.2, soffit: 1.0, frontWall: { top: lfY + 1.0 }, back: { height: 1.2 }, base: lfY - 1.3 } );
+		// ---- FA2 (step 10, WA2-2): its back a riser up to the walkway behind the top row (at Harry's patio's
+		// height, the board's foot less 7.3: Landmarks), the rows entered from it at their aisles
+		// (places/leftfield/Access.js: the walkway, its rail, the stairs and the elevator up to it); it was a
+		// 1.2 m wall with nothing behind it
+		const lfBack = ( STREET + 15.7 - 7.3 ) - ( lfY + 7 * 0.48 );
+		tiers.push( { name: 'lf-deck', front: offsetPolyline( lfT.front, lfTop - 2.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: lfY, rows: 8, depth: ROW, rise: 0.48, section: 13, aisle: 1.2, soffit: 1.0, frontWall: { top: lfY + 1.0 }, back: { height: lfBack }, base: lfY - 1.3 } );
+		// ---- end FA2
 
 		// The Pavilion (201-211) over the right field seats from the 369 mark, and on round the foul pole and
 		// down the first base line to The Break at the same height (the ribbon board runs along its front
@@ -2411,6 +2430,24 @@ ${ SOFFIT_WGSL }
 		const [ inf, lf, rf, cLF, cRF ] = this.tiers;
 		const back = ( t ) => offsetPolyline( t.front, ( t.start || 0 ) + t.rows * t.depth, t.outward );
 		const cf = offsetPolyline( this._fenceLine( 3, 8 ), 7, [ 0, 0 ] ); // 387 .. 401: the batter's eye
+		// ---- FA2 (step 10, WA2-6): over Monty's Angle the pit closes on the back row of 146-148
+		// (places/leftfield/Monty.js), MONTY.back behind the wall, 146's end on the 145's (the LF seats' last
+		// section's end line from 387): the Alley's floor runs to their top row. It stayed open 7 m behind
+		// the wall, a slot behind the old strip of rows you dropped into from the Alley
+		{
+
+			const A = this._fenceLine( 3, 6 ), d = MONTY.back; // 387, 381, 409
+			const [ ax, az ] = A[ 0 ], [ bx, bz ] = A[ 1 ], [ c0x, c0z ] = A[ 2 ];
+			const l = Math.hypot( c0x - bx, c0z - bz ), ux = ( c0x - bx ) / l, uz = ( c0z - bz ) / l;
+			let nx = uz, nz = - ux; // B->C's normal, away from home
+			if ( nx * bx + nz * bz < 0 ) { nx = - nx; nz = - nz; }
+			// 146's end on the line from 387 at 45 degrees (the 140s' end), the jog's back (it runs along x), the
+			// corner on 147-148's back line, 148's end at 409
+			const M = [ [ ax - d, az - d ], intersect( [ ax, az - d ], [ 1, 0 ], [ bx + nx * d, bz + nz * d ], [ ux, uz ] ), [ c0x + nx * d, c0z + nz * d ] ];
+			cf.splice( 0, 2, ...M );
+
+		}
+		// ---- end FA2
 		const pens = offsetPolyline( this._fenceLine( 8, 9 ), BULLPENS.back + 0.4, [ 0, 0 ] );
 		// round the back of the corner fans too (the right one runs from the outfield seats to the foul line)
 		const pts = [ ...back( lf ), ...cf, ...pens, ...back( rf ), ...back( cRF ), ...back( inf ), ...back( cLF ) ];

@@ -4,6 +4,7 @@ import { commonModule } from '../../../engine/render/wgsl/common.js';
 import { Quads } from '../../Stands.js';
 import { Kit } from './Kit.js';
 import { STREET } from './Frame.js';
+import { porchBackLine } from './Access.js'; // ---- FA2
 
 // Harry the K's Broadcast Bar & Grille, built out (LeftField.js). Landmarks put up its brick house under the
 // scoreboard and a flat strip of lit glass on the patio; this opens the house and puts the two bars in it:
@@ -158,6 +159,7 @@ export function buildHarrys( place, F, H ) {
 
 	// -- upstairs: the bar along the back wall, the back bar lit, the taps, the TVs over it
 	const barZ = UR.z1 - 2.0, barX0 = - 11, barX1 = 7;
+	out.bar = { x0: barX0, x1: barX1, z: barZ }; // ---- FA2 (its collider, Access.js)
 	K.use( 'mahogany' ).box( Pk, ( barX0 + barX1 ) / 2, PY + 0.52, barZ, barX1 - barX0, 1.04, 0.62 );
 	K.use( 'mahogany' ).box( Pk, ( barX0 + barX1 ) / 2, PY + 1.07, barZ - 0.06, barX1 - barX0 + 0.1, 0.06, 0.78 );
 	K.use( 'brass' ).box( Pk, ( barX0 + barX1 ) / 2, PY + 0.2, barZ - 0.42, barX1 - barX0, 0.05, 0.05 );
@@ -273,34 +275,45 @@ export function buildHarrys( place, F, H ) {
 	for ( let x = XL + 0.8; x < XR - 0.6; x += 0.85 ) if ( railTables.every( ( t ) => Math.abs( t - x ) > 1.1 ) ) out.spots.patioRail.push( { x, z: FZ - 4.2, y: PY } );
 
 	// -- the walkway behind the porch's top row, out to the patio (Landmarks' patio stopped 3 to 7 m short
-	// of the porch, open to the concourse below): a concrete slab at the patio's level, its rail at the ends
-	const porchBack = ( x ) => - 16.9 - 0.1866 * ( x - 24.5 );
+	// of the porch, open to the concourse below): a concrete slab at the patio's level. ---- FA2 (step 10,
+	// WA2-2): the deck's real back line (it was a straight line fitted by eye, 1.6 m into the top two rows at
+	// the pole's end), and the walkway the whole length of the deck with its stairs, rails and the elevator
+	// (Access.js, which builds the slab); this one only where Access can't (no bowl)
+	const porchLine = porchBackLine( place.bowl, F );
+	const porchBack = porchLine || ( ( x ) => - 16.9 - 0.1866 * ( x - 24.5 ) );
 	out.porchBack = porchBack;
-	const wq = new Quads();
-	const W0 = XL - 1.5, W1 = XR + 1.5;
-	for ( let x = W0; x < W1 - 0.01; x += 1.5 ) {
-
-		const xa = x, xb = Math.min( W1, x + 1.5 );
-		const za = porchBack( xa ) + 0.05, zb = porchBack( xb ) + 0.05, zf = FZ - 4.6;
-		if ( zf <= za && zf <= zb ) continue;
-		wq.add( P( xa, PY, za ), P( xb, PY, zb ), P( xb, PY, zf ), P( xa, PY, zf ), [ 0, 1, 0 ] );
-		wq.add( P( xa, PY - 0.35, zf ), P( xb, PY - 0.35, zf ), P( xb, PY - 0.35, zb ), P( xa, PY - 0.35, za ), [ 0, - 1, 0 ] );
-
-	}
-
-	// its ends
-	for ( const x of [ W0, W1 ] ) wq.add( P( x, PY - 0.35, porchBack( x ) ), P( x, PY - 0.35, FZ - 4.6 ), P( x, PY, FZ - 4.6 ), P( x, PY, porchBack( x ) ), D( x < 0 ? - 1 : 1, 0 ) );
+	out.porchLine = porchLine;
 	const slabMat = standard( { name: 'harrys-walkway', color: new Color( 0.3, 0.29, 0.27 ), roughness: 0.9, modules: [ commonModule ],
 		surface: 's.albedo = mat.color * ( 0.85 + 0.15 * mx_noise_float2( in.P.xz * 0.9 ) );' } );
 	slabMat.underwaterLighting = 'none';
-	const walk = new Mesh( wq.geometry(), slabMat );
-	walk.name = 'harrys-walkway';
-	walk.receiveShadow = true;
-	walk.castShadow = true;
-	place.group.add( walk );
-	out.rainRoof = [ walk ];
-	// the rail across each end of the walkway, and the people along the porch's back wall
-	for ( const x of [ W0, W1 ] ) for ( const y of [ PY + 0.55, PY + 1.07 ] ) K.bar( Pk( x, y, porchBack( x ) ), Pk( x, y, FZ - 4.6 ), 0.05 );
+	out.slabMat = slabMat;
+	out.rainRoof = [];
+	if ( ! porchLine ) {
+
+		const wq = new Quads();
+		const W0 = XL - 1.5, W1 = XR + 1.5;
+		for ( let x = W0; x < W1 - 0.01; x += 1.5 ) {
+
+			const xa = x, xb = Math.min( W1, x + 1.5 );
+			const za = porchBack( xa ) + 0.05, zb = porchBack( xb ) + 0.05, zf = FZ - 4.6;
+			if ( zf <= za && zf <= zb ) continue;
+			wq.add( P( xa, PY, za ), P( xb, PY, zb ), P( xb, PY, zf ), P( xa, PY, zf ), [ 0, 1, 0 ] );
+			wq.add( P( xa, PY - 0.35, zf ), P( xb, PY - 0.35, zf ), P( xb, PY - 0.35, zb ), P( xa, PY - 0.35, za ), [ 0, - 1, 0 ] );
+
+		}
+
+		for ( const x of [ W0, W1 ] ) wq.add( P( x, PY - 0.35, porchBack( x ) ), P( x, PY - 0.35, FZ - 4.6 ), P( x, PY, FZ - 4.6 ), P( x, PY, porchBack( x ) ), D( x < 0 ? - 1 : 1, 0 ) );
+		const walk = new Mesh( wq.geometry(), slabMat );
+		walk.name = 'harrys-walkway';
+		walk.receiveShadow = true;
+		walk.castShadow = true;
+		place.group.add( walk );
+		out.rainRoof.push( walk );
+		for ( const x of [ W0, W1 ] ) for ( const y of [ PY + 0.55, PY + 1.07 ] ) K.bar( Pk( x, y, porchBack( x ) ), Pk( x, y, FZ - 4.6 ), 0.05 );
+
+	}
+	// ---- end FA2
+	// the people along the porch's back wall
 	out.spots.porchBack = [];
 	for ( let x = XL - 1; x < XR + 1; x += 0.8 ) out.spots.porchBack.push( { x, z: porchBack( x ) + 0.45, y: PY } );
 

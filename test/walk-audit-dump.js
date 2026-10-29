@@ -55,7 +55,7 @@
 			text = it.text();
 
 		} catch ( e ) { /* */ }
-		return { x: it.x, y: it.y, z: it.z, r: it.radius, text };
+		return { x: it.x, y: it.y, z: it.z, r: it.radius, text, to: it.to || null }; // (---- FA2: a stop not in a bank of the bowl's says where it goes)
 
 	} );
 	// parity: the page's answers at random points, to check the Node copy against

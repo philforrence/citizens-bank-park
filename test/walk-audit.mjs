@@ -365,8 +365,10 @@ function fill( seeds, { jumps = false, known = null } = {} ) {
 		for ( let k = 0; k < D.inter.length; k ++ ) {
 
 			const it = D.inter[ k ];
-			if ( ! ELEV_AT[ k ] || Math.hypot( it.x - x, it.z - z ) >= it.r || Math.abs( it.y - y ) >= 1.5 ) continue;
-			const [ bank, i ] = ELEV_AT[ k ], stop = D.elev[ bank ][ ( i + 1 ) % D.elev[ bank ].length ]; // (FA1: banks of any size)
+			if ( Math.hypot( it.x - x, it.z - z ) >= it.r || Math.abs( it.y - y ) >= 1.5 ) continue;
+			// (FA1: the bowl's banks, of any size; ---- FA2: a stop of a place's own elevator carries where it goes, `to`)
+			const at = ELEV_AT[ k ], stop = it.to || ( at && D.elev[ at[ 0 ] ][ ( at[ 1 ] + 1 ) % D.elev[ at[ 0 ] ].length ] );
+			if ( ! stop ) continue;
 			const [ wx, wz ] = toWorld( stop.x, stop.z );
 			let wy = FY0 + stop.y;
 			wy = Math.max( wy, groundAt( wx, wz, wy + STEP + 0.05 ) );
@@ -622,14 +624,14 @@ const pathTo = ( F, id ) => {
 };
 
 // the elevators: which stops the walker reaches and where each ride leaves it
-const elevReport = D.inter.filter( ( it, k ) => ELEV_AT[ k ] ).map( ( it, k ) => {
+const elevReport = D.inter.map( ( it, k ) => [ it, k ] ).filter( ( [ it, k ] ) => ELEV_AT[ k ] || it.to ).map( ( [ it, k ] ) => {
 
 	const [ fx, fz ] = toField( it.x, it.z );
 	const e = W.elev.find( ( e ) => e.inter === k );
 	// is the stop's own spot reached at all?
 	let reachedNear = false;
 	for ( let id = 0; id < W.N.x.length && ! reachedNear; id ++ ) if ( Math.hypot( W.N.x[ id ] - it.x, W.N.z[ id ] - it.z ) < it.r && Math.abs( W.N.y[ id ] - it.y ) < 1.5 ) reachedNear = true;
-	const [ bank, i ] = ELEV_AT[ k ], stop = D.elev[ bank ][ i ]; // (FA1)
+	const at = ELEV_AT[ k ], bank = at ? at[ 0 ] : 'own', stop = at ? D.elev[ at[ 0 ] ][ at[ 1 ] ] : { name: it.text, x: fx, z: fz, y: it.y - FY0 }; // (FA1: banks of any size; ---- FA2: a place's own stop)
 	const [ wx, wz ] = toWorld( stop.x, stop.z );
 	const g = groundAt( wx, wz, FY0 + stop.y + STEP + 0.05 );
 	const st = standable( wx, Math.max( g, FY0 + stop.y ), wz );

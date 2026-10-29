@@ -98,6 +98,27 @@ function signTexture() {
 
 }
 
+// ---- FA2 (step 10, WA2-7): where the escalator stands, as Terrace._escalator places it (along the main
+// concourse's row of stands from the Schmitter's toward the corner, 1.5 m out, up to the ramp's Arcade
+// landing), for the left field place, which is built before the Terrace: its colliders, its ride and the
+// Arcade's bridge (LeftField.js, Arcade.js). Keep the two in step.
+export function escalatorSite( concourse ) {
+
+	const sch = concourse?.units?.find( ( U ) => U.what === 'schmitter' );
+	if ( ! sch ) return null;
+	const a = [ - sch.a[ 0 ], - sch.a[ 1 ] ], n = sch.n;
+	const along = Math.sign( a[ 0 ] * - 0.58 + a[ 1 ] * - 0.81 ) || 1;
+	const u = [ a[ 0 ] * along, a[ 1 ] * along ];
+	const foot = [ sch.mid[ 0 ] + u[ 0 ] * 8.2 + n[ 0 ] * 1.5, sch.mid[ 1 ] + u[ 1 ] * 8.2 + n[ 1 ] * 1.5 ];
+	const y0 = LEVELS.mainConcourse, y1 = y0 + 4 * ( LEVELS.terraceConcourse - LEVELS.mainConcourse ) / 8;
+	const L = ( y1 - y0 ) / Math.tan( Math.PI / 6 );
+	const top = [ foot[ 0 ] + u[ 0 ] * L, foot[ 1 ] + u[ 1 ] * L ];
+	// (buildEscalator's frame: w across, the flats 2.2 m, the band's half width 0.82)
+	return { foot, top, y0, y1, u, w: [ - u[ 1 ], u[ 0 ] ], L, FLAT: 2.2, HW: 0.82, land: [ - 120.1, - 65.8 ] };
+
+}
+// ---- end FA2
+
 export function buildEscalator( group, { foot, top, y0 = LEVELS.mainConcourse, y1 = LEVELS.mainConcourse + 9.1, land = null } ) {
 
 	const q = new Pal(), steps = new Quads(), sign = new Quads();
@@ -232,15 +253,20 @@ export function buildEscalator( group, { foot, top, y0 = LEVELS.mainConcourse, y
 		const BW = 1.6;
 		q.use( 'galv' ).add( B( - 1.2, - BW, 0 ), B( bl, - BW, 0 ), B( bl, BW, 0 ), B( - 1.2, BW, 0 ), up );
 		q.use( 'maroon' ).add( B( - 1.2, - BW, - 0.7 ), B( bl, - BW, - 0.7 ), B( bl, BW, - 0.7 ), B( - 1.2, BW, - 0.7 ), [ 0, - 1, 0 ] );
+		// ---- FA2 (step 10, WA2-7): the rail on the Arcade's side (+w) open for its first 3.4 m, where the
+		// Arcade's bridge comes across to it (Arcade.js)
+		const arcSide = bw[ 0 ] * w[ 0 ] + bw[ 1 ] * w[ 1 ] > 0 ? 1 : - 1;
 		for ( const e of [ - 1, 1 ] ) {
 
+			const s0 = e === arcSide ? 2.2 : - 1.2;
 			q.use( 'maroon' ).add( B( - 1.2, e * BW, - 0.7 ), B( bl, e * BW, - 0.7 ), B( bl, e * BW, 0 ), B( - 1.2, e * BW, 0 ), [ bw[ 0 ] * e, 0, bw[ 1 ] * e ] );
 			q.use( 'galv' );
-			pipe( q, B( - 1.2, e * ( BW - 0.05 ), 1.07 ), B( bl, e * ( BW - 0.05 ), 1.07 ), 0.03, 6 );
-			pipe( q, B( - 1.2, e * ( BW - 0.05 ), 0.55 ), B( bl, e * ( BW - 0.05 ), 0.55 ), 0.02, 5 );
-			for ( let s = - 1.2; s <= bl + 1e-3; s += Math.max( 1, ( bl + 1.2 ) / Math.ceil( ( bl + 1.2 ) / 1.8 ) ) ) pipe( q, B( s, e * ( BW - 0.05 ), 0 ), B( s, e * ( BW - 0.05 ), 1.07 ), 0.022, 4 );
+			pipe( q, B( s0, e * ( BW - 0.05 ), 1.07 ), B( bl, e * ( BW - 0.05 ), 1.07 ), 0.03, 6 );
+			pipe( q, B( s0, e * ( BW - 0.05 ), 0.55 ), B( bl, e * ( BW - 0.05 ), 0.55 ), 0.02, 5 );
+			for ( let s = s0; s <= bl + 1e-3; s += Math.max( 1, ( bl - s0 ) / Math.ceil( ( bl - s0 ) / 1.8 ) ) ) pipe( q, B( s, e * ( BW - 0.05 ), 0 ), B( s, e * ( BW - 0.05 ), 1.07 ), 0.022, 4 );
 
 		}
+		// ---- end FA2
 
 		// its posts down to the plaza
 		for ( const s of [ 0, bl * 0.5 ] ) {
