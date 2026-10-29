@@ -807,6 +807,64 @@ const ffHead = await ( async () => {
 		}
 
 	}
+	// ---- FX1 (step 11): the whole of the cavity. The test above reaches 3 cm behind the face's front, but
+	// the base mesh's mouth goes 11 cm back into the head, and with the jaw dropped (Lidge's shout at the
+	// last out, Getty 83485858) its far walls showed through the lips as lit skin, pale as the cheek. So
+	// the set grows over the mesh's edges into every vertex behind the skin's front (3 mm behind the
+	// frontmost within 4 mm across and up and down, in our frame: -z forward), in a box round the mouth.
+	// The cavity is closed behind the lips, so the growth stops at its own walls: a bigger box flags no
+	// more (305 -> 604 vertices)
+	{
+
+		const [ , my, mz ] = face.mouth;
+		const box = [];
+		for ( let k = 0; k < n; k ++ ) {
+
+			const p = pos[ k ];
+			if ( ! eyeIds.has( order[ k ] ) && Math.abs( p[ 0 ] ) < 0.05 && Math.abs( p[ 1 ] - my ) < 0.06 && p[ 2 ] > mz - 0.01 && p[ 2 ] < mz + 0.14 ) box.push( k );
+
+		}
+
+		const front = new Map();
+		for ( const k of box ) {
+
+			const p = pos[ k ];
+			let f = 1e9;
+			for ( let j = 0; j < n; j ++ ) {
+
+				const q = pos[ j ];
+				if ( ! eyeIds.has( order[ j ] ) && Math.abs( q[ 0 ] - p[ 0 ] ) < 0.004 && Math.abs( q[ 1 ] - p[ 1 ] ) < 0.004 && q[ 2 ] < f ) f = q[ 2 ];
+
+			}
+
+			front.set( k, f );
+
+		}
+
+		const nbr = new Map();
+		for ( const t of tris ) for ( let e = 0; e < 3; e ++ ) {
+
+			const a = t[ e ], b = t[ ( e + 1 ) % 3 ];
+			for ( const [ u, v ] of [ [ a, b ], [ b, a ] ] ) {
+
+				if ( ! nbr.has( u ) ) nbr.set( u, [] );
+				nbr.get( u ).push( v );
+
+			}
+
+		}
+
+		const todo = [ ...mouthIn ];
+		while ( todo.length ) for ( const j of nbr.get( todo.pop() ) || [] ) {
+
+			if ( mouthIn.has( j ) || ! front.has( j ) || pos[ j ][ 2 ] < front.get( j ) + 0.003 ) continue;
+			mouthIn.add( j );
+			todo.push( j );
+
+		}
+
+	}
+	// ---- end FX1
 
 	// for taking out a face's own size and place (Players.js): the skull and the face, not the neck nor the
 	// ears; and the mouth's mark

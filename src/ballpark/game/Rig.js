@@ -157,8 +157,11 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 			// (---- FF3: aField.z, the vertex's head vertex, Faces.js: -1 off the head, +65536 on the middle and far
 			// figures. His face, baked when he comes on, is on every figure, the expressions only on the near one.
 			// A third number in aField, not an attribute of its own: the draw has the 8 vertex buffers it may)
+			// (---- FX1: +65536 on the middle figure, +131072 on the far one: the middle one takes the expressions
+			// too, so the long lens's shout at the last out (FOX center, the pile from high first: most of
+			// the men 130-480 px tall) opens its mouth; the far one, a mouth under two pixels, doesn't)
 			const h = headOf( i );
-			field.push( F[ i * 2 ] / Q, F[ i * 2 + 1 ] / Q, h < 0 ? - 1 : h + ( lod ? 65536 : 0 ) );
+			field.push( F[ i * 2 ] / Q, F[ i * 2 + 1 ] / Q, h < 0 ? - 1 : h + ( lod ? ( mid ? 65536 : 131072 ) : 0 ) );
 
 		}
 

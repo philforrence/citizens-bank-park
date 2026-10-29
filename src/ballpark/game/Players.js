@@ -428,7 +428,9 @@ function expression( p, t, ch ) {
 			const burst = Math.max( 0, Math.sin( lt * ( 1.6 + fr( s * 2.3 ) ) + s * 30 ) );
 			smile = 0.5 + 0.35 * fr( s * 1.9 );
 			open = lt < 40 ? 0.25 + 0.65 * burst : 0.12 * burst + 0.55 * Math.max( 0, Math.sin( lt * 0.31 + s * 20 ) ) ** 8;
-			if ( p.look.id === 400058 && lt < 4.5 ) { open = 1; smile = 0.15; blink = Math.max( blink, 0.6 ); }
+			// (---- FX1: the eyes screwed up harder, the cheeks pushed up into them, now the jaw drops on the
+			// GPU too: Getty 83485858 and 83485929, the eyes all but shut and the mouth wide)
+			if ( p.look.id === 400058 && lt < 4.5 ) { open = 1; smile = 0.45; blink = Math.max( blink, 0.9 ); }
 
 		} else if ( p.kind === KIND.away ) { open = Math.min( open, 0.05 ); }
 		else if ( p.kind === KIND.crew ) { smile = 0.45; }
@@ -831,8 +833,12 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		let c = unpack2x16float( r.z );
 		var dp = vec3f( a, b.x );
 		var dn = vec3f( b.y, c );
-		let eq = u32( i0.y + 0.5 );
-		if ( hq < 65536u && eq != 0u ) {
+		// (---- FX1: the packed weights are a whole number in the f32, read as it is. Rounding it with + 0.5
+		// lost them: from 2^23 up, where a blink over half shut puts it, an f32 has no halves, the sum ties
+		// to even, and an odd mouth-open byte (Lidge's shout, 255) carried into the smile's and read 0. His
+		// lids shut, his jaw never dropped)
+		let eq = u32( i0.y );
+		if ( hq < 131072u && eq != 0u ) { // (---- FX1: the middle figure too, Rig.js)
 			let ex = vec3f( f32( eq & 255u ), f32( ( eq >> 8u ) & 255u ), f32( eq >> 16u ) ) / 255.0;
 			let e0 = plExpr[ hv * 2u ];
 			let e1 = plExpr[ hv * 2u + 1u ];
@@ -1359,7 +1365,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 				mc = mix( mc, vec3f( 0.09, 0.02, 0.02 ), smoothstep( -0.004, -0.009, dy ) * deep * ( 1.0 - teeth ) );
 				// (only as far as the mouth is open, and well inside the mark: shut, the lips' line took the
 				// mark's soft edge, a pale rim between dark outlines on every closed mouth)
-				let openW = f32( u32( in.vs.vInfo.y + 0.5 ) & 255u ) / 255.0;
+				// (---- FX1: from the slot's own record, not the interpolated vInfo: as above, the packed number
+				// has no room for a rounding error from 2^23 up)
+				let openW = f32( u32( plInfo[ slotU * ${ K }u ].y ) & 255u ) / 255.0;
 				let mk = smoothstep( 0.55, 0.95, mouthIn ) * smoothstep( 0.02, 0.15, openW );
 				c = mix( c, mc, mk );
 				rough = mix( rough, mix( 0.3, 0.45, teeth ), mk );
