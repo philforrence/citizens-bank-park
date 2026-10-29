@@ -139,7 +139,7 @@ In j2 the ceiling read too bright, like a beige slatted ceiling. It's darker in 
 | from the side | `j1/b03` | `j2/a15` |
 | from the left field seats | — | `j2/a16`: small points, as in the photo |
 
-From directly under a fixture the lens is still bright. A real HID lens is too.
+From directly under a fixture the lens still blooms near white at night (`j4/g03`), even at a third of the bar lamp's glow. The shape and size are right; the brightness is the night exposure's, and it could come down further if it bothers. A real HID lens is bright from below too.
 
 ### AD1-2: the police on the 3B dugout roof (done)
 
@@ -194,10 +194,10 @@ These are read in a shot's `js`, so they're the view rendered just before it.
 
 | view | before (j1) | after (j3) | last (j4) |
 |---|---|---|---|
-| `walk-leftfield-harrys` (play 60) | 1,053 / 5,310,140 | 1,055 / 5,355,897 | J4LF |
-| TV center (play 20) | 509 / 3,495,853 | 506 / 3,666,058 | J4TV |
-| `walk-concourse3b` | 814 / 3,222,479 (seek 3000) | 822 / 3,269,133 (play 60) | J4WC |
-| Harry's upstairs, 4 m in, looking out | 789 / 2,492,366 (a wall) | 1,180 / 5,565,255 (the bowl through the glass) | — |
+| `walk-leftfield-harrys` (play 60) | 1,053 / 5,310,140 | 1,055 / 5,355,897 | 1,055 / 5,325,017 |
+| TV center (play 20) | 509 / 3,495,853 | 506 / 3,666,058 | 506 / 3,632,833 |
+| `walk-concourse3b` | 814 / 3,222,479 (seek 3000) | 822 / 3,269,133 (play 60) | 821 / 3,276,200 (play 60) |
+| Harry's upstairs, 4 m in, looking out | 789 / 2,492,366 (a wall) | 1,180 / 5,565,255 (the bowl through the glass) | 1,180 / 5,559,773 |
 
 - **Where the triangles come from:**
   - The back bars are 28.5k triangles.
@@ -208,7 +208,11 @@ These are read in a shot's `js`, so they're the view rendered just before it.
   - **Pipelines:** 783 before and after.
   - **CPU per frame:** nothing.
   - **Load:** leftfield builds in 138 ms, against 78.
-- **The TV center's +170k triangles in j3:** about six times the bottles. The likeliest reading is that the corner's one Kit mesh is drawn in more than one pass (it's in view of FOX's center field camera). That's why j4 moved the bottles into a mesh of their own, with their own box. See j4's numbers.
+- **The TV center's triangles: still to be explained.**
+  - Against j1 it was +170k in j3. Moving the bottles into their own culled mesh (j4) took about 33k off that.
+  - What's left, about +137k (+3.9%), is more than this branch adds to any mesh that could be in FOX's center field frame. That's about 3k in the corner's Kit mesh and 2.5k in the concourse's props.
+  - So it's either run-to-run variation in what that moment draws (j1 and j4 ran the same shot order), or something I haven't found. The coordinator's A/B under the lock should settle it.
+- **Draws:** within ±3 in every view.
 
 ## What the merger must know
 
@@ -229,8 +233,9 @@ These are read in a shot's `js`, so they're the view rendered just before it.
 
 ## Frame-rate risk
 
-1. **Harry's upstairs, looking out.** It used to be a wall (789 draws, 2.5M triangles). Now it's the whole bowl through the glass (1,180 draws, 5.6M), like any view from the Porch. The corner was already the second-heaviest place (24–25 ms, PERF.md step 10). This is the view I'd profile: from inside the upstairs, looking out over the patio.
-2. **The back bars' 28.5k triangles.** They're in their own culled mesh as of j4. If the TV views still show the gain, check whether the static batch or the shadow passes are picking them up.
+1. **Harry's upstairs, looking out.** It used to be a wall (789 draws, 2.5M triangles). Now it's the whole bowl through the glass (1,180 draws, 5.6M in j3 and j4), like any view from the Porch. The corner was already the second-heaviest place (24–25 ms, PERF.md step 10). This is the view I'd profile: from inside the upstairs, looking out over the patio.
+2. **The back bars' 28.5k triangles.** They're in their own culled mesh as of j4. `walk-leftfield-harrys` is +15k triangles (+0.3%) on j1.
+3. **The TV center's +137k triangles on j1:** unexplained (see Counts). The A/B should check it.
 
 ## Noticed elsewhere
 
