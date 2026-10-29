@@ -366,8 +366,18 @@ function fill( seeds, { jumps = false, known = null } = {} ) {
 
 			const it = D.inter[ k ];
 			if ( Math.hypot( it.x - x, it.z - z ) >= it.r || Math.abs( it.y - y ) >= 1.5 ) continue;
-			// (FA1: the bowl's banks, of any size; ---- FA2: a stop of a place's own elevator carries where it goes, `to`)
-			const at = ELEV_AT[ k ], stop = it.to || ( at && D.elev[ at[ 0 ] ][ ( at[ 1 ] + 1 ) % D.elev[ at[ 0 ] ].length ] );
+			// (FA1: the bowl's banks, of any size; ---- FA2: a stop of a place's own elevator carries where it goes, `to`;
+			// ---- FA4, step 10, WA1-11: E rides up a floor and Shift+E down one (BallparkApp._addElevators), so
+			// a bank's stop leads to the floors either side of it by height; it was the next stop round the ring)
+			let stops = it.to ? [ it.to ] : [];
+			if ( ELEV_AT[ k ] ) {
+
+				const [ bank, i ] = ELEV_AT[ k ], B = D.elev[ bank ], here = B[ i ];
+				stops = [ B.filter( ( s ) => s.y > here.y ).sort( ( a, b ) => a.y - b.y )[ 0 ], B.filter( ( s ) => s.y < here.y ).sort( ( a, b ) => b.y - a.y )[ 0 ] ];
+
+			}
+			for ( const stop of stops ) {
+
 			if ( ! stop ) continue;
 			const [ wx, wz ] = toWorld( stop.x, stop.z );
 			let wy = FY0 + stop.y;
@@ -378,6 +388,8 @@ function fill( seeds, { jumps = false, known = null } = {} ) {
 			resolve( p );
 			const id = add( p.x, g, p.z, q, 'elevator' );
 			if ( id >= 0 ) elev.push( { from: q, to: id, inter: k, text: it.text, arriveFall: wy - g, pushed: Math.hypot( p.x - wx, p.z - wz ) } );
+
+			}
 
 		}
 

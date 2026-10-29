@@ -403,21 +403,31 @@ export class BallparkApp {
 
 	}
 
-	// E at an elevator door rides to the next level (main concourse, suites, club, terrace, and round)
+	// E at an elevator door rides up a floor, Shift+E down a floor (at the top E rides down, at the bottom
+	// Shift+E up). ---- FA4 (step 10, WA1-11): it rode one way only, round the ring (main concourse, suites,
+	// club, terrace, main): from the club to the suites took two rides by way of the Terrace and the street.
+	// The key stays E (Walker's prompt); the Shift is read here, when E is pressed
 	_addElevators() {
 
 		const F = this.field;
 		for ( const bank of this.bowl.elevators || [] ) {
 
-			bank.stops.forEach( ( stop, i ) => {
+			// the bank's floors from the bottom up
+			const floors = [ ...bank.stops ].sort( ( a, b ) => a.y - b.y );
+			bank.stops.forEach( ( stop ) => {
 
-				const next = bank.stops[ ( i + 1 ) % bank.stops.length ];
+				const k = floors.indexOf( stop ), above = floors[ k + 1 ] || null, below = floors[ k - 1 ] || null;
 				const w = F.toWorld( stop.x, stop.z );
+				const shift = () => this.input.down( 'ShiftLeft' ) || this.input.down( 'ShiftRight' );
+				const lower = ( s ) => s.name.toLowerCase();
 				this.walker.interactables.push( {
-					x: w.x, y: F.y0 + stop.y, z: w.z, radius: 2.2,
-					text: () => `Elevator to ${ next.name.toLowerCase() }`,
+					x: w.x, y: F.y0 + stop.y, z: w.z, radius: 2.2, stop, above, below,
+					text: () => above && below ? `Elevator up to ${ lower( above ) } · Shift+E down to ${ lower( below ) }`
+						: `Elevator ${ above ? 'up' : 'down' } to ${ lower( above || below ) }`,
 					action: () => {
 
+						const next = ( shift() ? below || above : above || below );
+						if ( ! next ) return;
 						const to = F.toWorld( next.x, next.z );
 						// arrive facing the field
 						const look = F.toWorld( next.x + next.face[ 0 ] * 10, next.z + next.face[ 1 ] * 10 );
