@@ -1419,8 +1419,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		c *= mix( 1.0, 0.22, smoothstep( 0.3, 1.15, abs( a ) ) );
 		// (barely parted, as a chewer's, they're in the lips' shade)
 		let eqT = u32( plInfo[ slotU * ${ K }u ].y );
-		c *= mix( 0.2, 1.0, smoothstep( 0.02, 0.14, f32( eqT & 255u ) / 255.0 + 0.5 * f32( ( eqT >> 8u ) & 255u ) / 255.0 ) );
-		rough = mix( 0.22, 0.45, gum );
+		// (and dull there: a wet glint along a chewer's barely parted lips read as a white thread)
+		let tk = smoothstep( 0.05, 0.2, f32( eqT & 255u ) / 255.0 + 0.5 * f32( ( eqT >> 8u ) & 255u ) / 255.0 );
+		c *= mix( 0.12, 1.0, tk );
+		rough = mix( 0.75, mix( 0.22, 0.45, gum ), tk );
 		clothy = false;
 	}
 	// ---- end FX1
