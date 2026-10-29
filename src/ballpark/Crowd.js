@@ -55,6 +55,37 @@ const STAND_UP = { shoulder: [ 0.17, 1.43, 0.03 ], elbow: [ 0.26, 1.71, 0.0 ], w
 const STAND_FACE = { elbow: [ 0.23, 1.17, - 0.1 ], wrist: [ 0.1, 1.42, - 0.15 ], hand: [ 0.06, 1.5, - 0.12 ] };
 // the six morph targets: [ base, arm ]
 const POSES = [ [ SIT, null ], [ STAND, null ], [ SIT, SIT_UP ], [ STAND, STAND_UP ], [ SIT, SIT_FACE ], [ STAND, STAND_FACE ] ];
+// ---- FX4 (CR1-2): the raised arm's other ways (Getty 83486358, 112874141: elbows bent at every angle from
+// 30 to 160 degrees; every arm up was the one touchdown signal). The elbow, wrist and hand of each, sitting
+// and standing (the right arm; the shoulder and the bones' lengths are STAND_UP's): 0 straight up (as it
+// was), 1 the elbow out and bent, the fist up (a fist pump; a towel swung), 2 out toward the field (number
+// one), 3 the hands together over his head (clapping up there, a hand on the cap). cwVertex turns each bone
+// onto them
+const ARM_VARS = ( () => {
+
+	const len = ( a, b ) => Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ], b[ 2 ] - a[ 2 ] );
+	const go = ( o, d, l ) => { const k = l / Math.hypot( ...d ); return o.map( ( v, i ) => v + d[ i ] * k ); };
+	const DIRS = [ null,
+		[ [ 0.6, 0.75, - 0.15 ], [ - 0.1, 1, - 0.1 ], [ - 0.05, 1, - 0.05 ] ],
+		[ [ 0.16, 0.62, - 0.77 ], [ 0.02, 0.72, - 0.69 ], [ 0, 0.8, - 0.6 ] ],
+		[ [ 0.22, 0.97, - 0.05 ], [ - 0.8, 0.6, - 0.08 ], [ - 0.5, 0.86, - 0.08 ] ] ];
+	return [ SIT_UP, STAND_UP ].map( ( up ) => DIRS.map( ( d ) => {
+
+		if ( ! d ) return [ up.elbow, up.wrist, up.hand ];
+		const E = go( up.shoulder, d[ 0 ], len( up.shoulder, up.elbow ) ), W = go( E, d[ 1 ], len( up.elbow, up.wrist ) );
+		return [ E, W, go( W, d[ 2 ], len( up.wrist, up.hand ) ) ];
+
+	} ) );
+
+} )();
+// the hand at rest (cwHand( 4 ): the fingers loosely curled, the thumb a third of the way across), and the
+// thumb's root and its way out beside the palm (open) and across the curled fingers (shut), in the wrist's
+// frame (fanGeometry's hand(): x across, y along, z the back of the hand), on side s
+const HAND_REST = { index: [ 0.45, 0.6 ], block: [ 0.55, 0.75 ], thumb: 0.35 };
+const THUMB_ROOT = ( s ) => [ - s * 0.028, 0.024, - 0.006 ];
+const THUMB0 = ( s ) => [ - s * 0.6, 0.72, - 0.34 ];
+const THUMB1 = ( s ) => [ s * 0.55, 0.42, - 0.72 ];
+// ---- end FX4
 
 // parts (the shaders dress and move by them). Some parts carry a marker in t (aInfo.y) for a piece the
 // shaders treat on its own: the shoes (pants, t 3), the cap's crown (brim, t 2), a knit hat's pom-pom
@@ -228,6 +259,140 @@ export function fanGeometry( lod ) {
 	// the same point in every pose but the arms' (a head, a brim, hair), sitting at sit, standing at st
 	const fixed = ( sit, st ) => [ sit, st, sit, st, sit, st ];
 
+	// ---- FX4 (CR1-2, SC1-2): the hand (Getty 83486358, 83486360: fists with knuckles, "number one" fingers,
+	// open palms, gloves). In the frame of the wrist -> hand segment as the tubes' rings lay it (x across, y
+	// along from the wrist, z toward the back of the hand: the palm faces -z), the same in every pose: close
+	// up the palm, the thumb, the index finger and the other three as one block (their gaps painted); near
+	// (FOX's backdrop, SC1's raised arms a few rows off) the palm, one block of fingers and a stub of a thumb.
+	// Each vertex keeps which finger (a: 1 the thumb, 2 the index, 3 the block, 4 near's block of four; 0 the
+	// palm), how far out along it (b: 0 at the knuckle, 1 the middle joint, 2 the tip: what turns about which
+	// joint) and t across the block (its gaps)
+	const hand = ( s, fine ) => {
+
+		const frames = POSES.map( ( _, k ) => {
+
+			const a = joint( k, 'wrist', s ), b = joint( k, 'hand', s ), ax = norm( sub( b, a ) );
+			let c = cross( ax, [ 0, 0, 1 ] );
+			if ( Math.hypot( ...c ) < 0.2 ) c = cross( ax, [ 0, 1, 0 ] );
+			const across = norm( c );
+			return [ a, across, ax, norm( cross( across, ax ) ) ];
+
+		} );
+		const at = ( k, q ) => { const [ o, X, Y, Z ] = frames[ k ]; return add( o, add( add( mul( X, q[ 0 ] ), mul( Y, q[ 1 ] ) ), mul( Z, q[ 2 ] ) ) ); };
+		const dirAt = ( k, d ) => { const [ , X, Y, Z ] = frames[ k ]; return norm( add( add( mul( X, d[ 0 ] ), mul( Y, d[ 1 ] ) ), mul( Z, d[ 2 ] ) ) ); };
+		// laid in its resting curl (HAND_REST, cwHand( 4 )), so the shaders turn the fingers only for a raised
+		// hand, one at his face or round a cup: the fingers about the knuckle (y 0.083, z -0.004) and the
+		// middle joint, the thumb about its root
+		const rot = ( y, z, a ) => [ y * Math.cos( a ) + z * Math.sin( a ), - y * Math.sin( a ) + z * Math.cos( a ) ];
+		const turn = ( v, a, b ) => {
+
+			const c = a[ 0 ] * b[ 0 ] + a[ 1 ] * b[ 1 ] + a[ 2 ] * b[ 2 ], k = cross( a, b ), sn = Math.hypot( ...k );
+			if ( sn < 1e-4 ) return v;
+			const ax = mul( k, 1 / sn ), d = ax[ 0 ] * v[ 0 ] + ax[ 1 ] * v[ 1 ] + ax[ 2 ] * v[ 2 ];
+			return add( add( mul( v, c ), mul( cross( ax, v ), sn ) ), mul( ax, d * ( 1 - c ) ) );
+
+		};
+		const curl = ( q, nq, id, stage ) => {
+
+			if ( ! id || ! stage ) return [ q, nq ];
+			if ( id === 1 ) {
+
+				const d0 = norm( THUMB0( s ) ), dr = norm( add( mul( d0, 1 - HAND_REST.thumb ), mul( norm( THUMB1( s ) ), HAND_REST.thumb ) ) );
+				return [ add( THUMB_ROOT( s ), turn( sub( q, THUMB_ROOT( s ) ), d0, dr ) ), turn( nq, d0, dr ) ];
+
+			}
+
+			const [ a1, a2 ] = id === 2 ? HAND_REST.index : HAND_REST.block;
+			let dy = q[ 1 ] - 0.083, dz = q[ 2 ] + 0.004, n = nq.slice();
+			if ( stage > 1.5 ) {
+
+				const my = id === 2 ? 0.047 : 0.049, [ ey, ez ] = rot( dy - my, dz, a2 );
+				[ dy, dz ] = [ my + ey, ez ];
+				[ n[ 1 ], n[ 2 ] ] = rot( n[ 1 ], n[ 2 ], a2 );
+
+			}
+
+			[ dy, dz ] = rot( dy, dz, a1 );
+			[ n[ 1 ], n[ 2 ] ] = rot( n[ 1 ], n[ 2 ], a1 );
+			return [ [ q[ 0 ], 0.083 + dy, - 0.004 + dz ], n ];
+
+		};
+		const pt = ( q0, nq0, finger, stage, u = 0.5 ) => {
+
+			const [ q, nq ] = curl( q0, nq0, finger, stage );
+			return vert( POSES.map( ( _, k ) => at( k, q ) ), dirAt( 0, nq ), dirAt( 1, nq ), P.hand, s, u, finger, stage );
+
+		};
+		const quads = ( A, B ) => { for ( let i = 0; i < A.length; i ++ ) { const j = ( i + 1 ) % A.length; index.push( A[ i ], B[ i ], A[ j ], A[ j ], B[ i ], B[ j ] ); } };
+		// a ring round a finger: four corners of its section (rounded by their normals), in its own frame (o its
+		// centre, ax along it, x across, z its depth)
+		const ring4 = ( o, ax, w, t, finger, stage, uC = 0.5, uW = 0, back = 0 ) => {
+
+			let x = cross( ax, [ 0, 0, 1 ] );
+			if ( Math.hypot( ...x ) < 0.2 ) x = cross( ax, [ 0, 1, 0 ] );
+			x = norm( x );
+			const z = norm( cross( x, ax ) );
+			return [ [ 1, 1 ], [ - 1, 1 ], [ - 1, - 1 ], [ 1, - 1 ] ].map( ( [ i, j ] ) => {
+
+				// (the block's little-finger side shorter: back pulls that side's ring in toward the knuckle)
+				const pull = i * s > 0 ? back : 0;
+				const q = add( add( add( o, mul( x, i * w / 2 ) ), mul( z, j * t / 2 ) ), mul( ax, - pull ) );
+				return pt( q, norm( add( mul( x, i ), mul( z, j * 1.2 ) ) ), finger, stage, uC + i * uW * 0.5 );
+
+			} );
+
+		};
+		// a finger: rings at the knuckle, the middle joint and short of the tip, then its tip (one point, or for
+		// the block a short edge across it)
+		const finger = ( o, ax, len, w, t, id, edge = 0, back = 0 ) => {
+
+			const r0 = ring4( o, ax, w, t, id, 0, 0.5, 1 );
+			const r1 = ring4( add( o, mul( ax, len * 0.52 ) ), ax, w * 0.97, t * 0.95, id, 1, 0.5, 1, back * 0.6 );
+			const r2 = ring4( add( o, mul( ax, len * 0.88 ) ), ax, w * 0.9, t * 0.82, id, 2, 0.5, 1, back );
+			quads( r0, r1 );
+			quads( r1, r2 );
+			const tipAt = add( add( o, mul( ax, len ) ), [ 0, 0, - t * 0.12 ] );
+			if ( ! edge ) {
+
+				const tip = pt( tipAt, ax, id, 2 );
+				for ( let i = 0; i < 4; i ++ ) index.push( r2[ i ], tip, r2[ ( i + 1 ) % 4 ] );
+
+			} else {
+
+				let x = cross( ax, [ 0, 0, 1 ] );
+				if ( Math.hypot( ...x ) < 0.2 ) x = cross( ax, [ 0, 1, 0 ] );
+				x = norm( x );
+				const e = [ 1, - 1 ].map( ( i ) => pt( add( add( tipAt, mul( x, i * edge ) ), mul( ax, i * s > 0 ? - back * 1.2 : 0 ) ), norm( add( ax, mul( x, i * 0.5 ) ) ), id, 2, 0.5 + i * 0.4 ) );
+				// (corners 0 +x+z, 1 -x+z, 2 -x-z, 3 +x-z: the back's two to the edge, the palm side's, the ends)
+				index.push( r2[ 0 ], e[ 0 ], r2[ 1 ], r2[ 1 ], e[ 0 ], e[ 1 ], r2[ 3 ], r2[ 2 ], e[ 0 ], r2[ 2 ], e[ 1 ], e[ 0 ], r2[ 3 ], e[ 0 ], r2[ 0 ], r2[ 1 ], e[ 1 ], r2[ 2 ] );
+
+			}
+
+		};
+		// the palm: wider over the knuckles than at the wrist, its front shut behind the fingers
+		const pw = fine ? [ 0.056, 0.08 ] : [ 0.054, 0.076 ], ph = [ 0.024, 0.027 ];
+		const palm = [ 0, 0.084 ].map( ( y, r ) => ring4( [ 0, y, 0.001 * r ], [ 0, 1, 0 ], pw[ r ], ph[ r ], 0, 0 ) );
+		quads( palm[ 0 ], palm[ 1 ] );
+		index.push( palm[ 1 ][ 0 ], palm[ 1 ][ 2 ], palm[ 1 ][ 1 ], palm[ 1 ][ 0 ], palm[ 1 ][ 3 ], palm[ 1 ][ 2 ] );
+		// the thumb, from the palm's side by the wrist, out and a little forward of the palm
+		const tb = THUMB_ROOT( s ), td = norm( THUMB0( s ) );
+		if ( fine ) {
+
+			finger( [ 0, 0.08, 0.001 ].map( ( v, i ) => v + ( i === 0 ? - s * 0.0265 : 0 ) ), [ 0, 1, 0 ], 0.09, 0.019, 0.017, 2 );
+			finger( [ s * 0.0115, 0.08, 0.001 ], [ 0, 1, 0 ], 0.094, 0.054, 0.018, 3, 0.017, 0.012 );
+			finger( tb, td, 0.068, 0.021, 0.019, 1 );
+
+		} else {
+
+			finger( [ 0, 0.08, 0.001 ], [ 0, 1, 0 ], 0.092, 0.072, 0.019, 4, 0.024, 0.01 );
+			const r0 = ring4( tb, td, 0.02, 0.018, 1, 0 ), tip = pt( add( tb, mul( td, 0.062 ) ), td, 1, 2 );
+			for ( let i = 0; i < 4; i ++ ) index.push( r0[ i ], tip, r0[ ( i + 1 ) % 4 ] );
+
+		}
+
+	};
+	// ---- end FX4
+
 	// The trunk, lofted through TRUNK's rings in each pose (squared off toward a superellipse, as a jacket
 	// over a chest is), smooth normals from the surface itself (so the shoulders' slope catches the
 	// lights above). The collar's rings (t > 1) carry their t: the shaders turn them into a hood lying
@@ -322,13 +487,11 @@ export function fanGeometry( lod ) {
 
 		}
 
-		// the hand: a mitten, flat across the palm, the fingers' end rounded
-		// (FW1, C2W-6: blunt, wider across the knuckles than the wrist, the fingers' end a low round, not a
-		// pointed dome: from the front the mittens read as claws)
-		// (FC4, C4R-3: close up a hand's size, wider than the cuff and the fingers' end a mitten's round, not a
-		// tan nub out of the sleeve; near, its end domed too)
-		if ( L.hands > 4 ) tube( 'wrist', 'hand', s, [ 0.037, 0.022 ], [ 0.048, 0.022 ], P.hand, s, L.hands, false, 0, 0, 0.045 );
-		else if ( L.hands ) tube( 'wrist', 'hand', s, [ 0.031, 0.021 ], [ 0.04, 0.019 ], P.hand, s, L.hands, false, 0, 0, 0.022 );
+		// ---- FX4 (CR1-2, SC1-2): a hand, not a mitten (it was a tube with a rounded end: a skin-coloured block
+		// on every raised arm, a pencil's point from below): laid open along the wrist's segment in every pose,
+		// the shaders curl its fingers into his hand's shape (cwVertex: a fist, a finger up, an open hand, a grip)
+		if ( L.hands ) hand( s, L.hands > 4 );
+		// ---- end FX4
 		// a shoe under each ankle (t 3: the shaders colour it): the toe out in front, the heel behind
 		if ( L.shoes ) {
 
@@ -874,7 +1037,20 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 	// with the towels when the stands are up (fewer in the rain: they get soaked)
 	let signOn = sg != 0u && ! ( rain > 0.35 && fract( h.x * 17.3 ) < 0.6 );
 	var sup = select( 0.0, max( cwWin( fract( t / ( 34.0 + h.y * 30.0 ) + h.z * 7.0 ), 0.0, 0.32 ) * ( 1.0 - 0.7 * rain ), smoothstep( 0.3, 0.6, M.z ) ), signOn );
-	var aUL = max( upAll, sup ) * pump;
+	// ---- FX4 (CR1-2, SC1-2): his arms up his own way (ARM_VARS: straight, the elbow bent and the fist up,
+	// out at the field, the hands together over his head) and his hands' shapes (cwHand: a fist, the index up,
+	// open, a grip), his own for the game's moments (Getty 112874141's strike: no two alike; about one in
+	// three puts up only the one arm), a new pair with each of the celebration's acts (below)
+	let ah = cwRand4( ( ids.x & 0xffffu ) * 7u + 4099u );
+	var avL = select( select( 0u, 1u, ah.y > 0.3 ), 2u, ah.y > 0.7 );
+	var avR = select( select( 0u, 1u, ah.z > 0.3 ), 2u, ah.z > 0.7 );
+	if ( ah.x > 0.86 ) { avL = 3u; avR = 3u; }
+	var hL = select( select( select( 0u, 1u, ah.w > 0.4 ), 2u, ah.w > 0.65 ), 3u, ah.w > 0.95 );
+	let hw = fract( ah.w * 7.13 + ah.x );
+	var hR = select( select( select( 0u, 1u, hw > 0.4 ), 2u, hw > 0.65 ), 3u, hw > 0.95 );
+	let oneArm = fract( h.x * 51.3 ) < 0.32;
+	var aUL = max( upAll * select( 1.0, 0.0, oneArm ), sup ) * pump;
+	// ---- end FX4
 	var aUR = max( upR, sup ) * pump;
 	// the towel's turn, and its tip flapping held still
 	let th = t * ( 9.0 + 5.5 * fract( h.w * 17.0 ) ) + dot( seat.xz, vec2f( 0.31, 0.23 ) ) + h.x * 1.2;
@@ -902,6 +1078,10 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 	// talking, and after a couple of minutes some sit. It was three in four twirling a towel at once for
 	// minutes (the stands went white) and everyone else in one pose
 	let cel = fs.x;
+	// ---- FX4 (CR1-11): the celebration's face for this act (open, smile, lids, frown), and how far it's his
+	var cface = vec4f( 0.0 );
+	var gF = 0.0;
+	// ---- end FX4
 	if ( cel >= 0.0 && ! isRays ) {
 		// (the moment reaching him: the jump comes with the ripple from the plate)
 		let g = select( 1.0, smoothstep( 0.15, 0.6, M.w ), cel < 8.0 );
@@ -913,6 +1093,14 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 		let ez = smoothstep( 0.0, 0.07, e ) * smoothstep( 1.0, 0.93, e );
 		let wave = 0.82 + 0.18 * sin( t * 6.5 + h.w * 30.0 );
 		var aL = 0.0; var aR = 0.0; var cL = 0.0; var cR = 0.0; var twk = 0.0; var jk = 0.4; var turn = 0.0;
+		// ---- FX4 (CR1-2): this act's arms and hands (a fist pumped with the elbow bent, a finger pointed at
+		// the field, both hands up open or in fists, one arm up, the hands over his head; the towel's in a grip)
+		let q2 = cwRand4( ( ids.x & 0xffffu ) * 613u + u32( cyc ) * 7919u + 17u );
+		var cvL = select( select( 0u, 1u, q2.x > 0.3 ), 2u, q2.x > 0.72 );
+		var cvR = select( select( 0u, 1u, q2.y > 0.3 ), 2u, q2.y > 0.72 );
+		var chL = select( select( select( 0u, 1u, q2.z > 0.32 ), 2u, q2.z > 0.6 ), 3u, q2.z > 0.96 );
+		var chR = select( select( select( 0u, 1u, q2.w > 0.32 ), 2u, q2.w > 0.6 ), 3u, q2.w > 0.96 );
+		// ---- end FX4
 		let pUp = mix( 0.36, 0.08, late );
 		let pTw = pUp + mix( 0.3, 0.12, late ) * f32( towel );
 		let pFist = pTw + mix( 0.14, 0.05, late );
@@ -920,14 +1108,15 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 		let pCam = pHead + mix( 0.05, 0.16, late );
 		let pClap = pCam + mix( 0.06, 0.24, late );
 		let pTurn = pClap + mix( 0.06, 0.14, late );
-		if ( q < pUp ) { aL = wave; aR = wave; jk = 1.0; }
-		else if ( q < pTw ) { aR = 1.0; twk = 1.0; aL = select( 0.0, wave, fract( h.y * 3.7 ) < 0.4 ); jk = 0.8; }
-		else if ( q < pFist ) { aR = 0.5 + 0.5 * max( 0.0, sin( t * 7.0 + h.w * 20.0 ) ); cL = 0.3; }
-		else if ( q < pHead ) { aL = 0.45; aR = 0.45; cL = 0.55; cR = 0.55; jk = 0.0; }
-		else if ( q < pCam ) { aL = 0.35; cL = 0.65; aR = 0.2; cR = 0.5; jk = 0.0; prop = select( 4u, 3u, fract( h.z * 7.9 ) < 0.4 ); }
-		else if ( q < pClap ) { let c = 0.5 + 0.13 * sin( t * 15.0 + h.w * 40.0 ); cL = c; cR = c; jk = 0.3; }
-		else if ( q < pTurn ) { turn = select( - 0.95, 0.95, fract( h.z * 3.9 + floor( cyc ) * 0.37 ) < 0.5 ); aR = select( 0.0, 0.55, fract( h.x * 9.7 ) < 0.5 ); jk = 0.2; }
-		else { cR = select( 0.0, 0.6, fract( h.w * 13.1 ) < 0.3 ); jk = 0.1; }
+		// (FX4: the variants and the hands only with the arms up: cv, ch)
+		if ( q < pUp ) { aL = wave; aR = wave; jk = 1.0; if ( q2.x > 0.84 ) { cvL = 3u; cvR = 3u; } else if ( fract( q2.y * 5.3 ) < 0.25 ) { aL = 0.0; } }
+		else if ( q < pTw ) { aR = 1.0; twk = 1.0; aL = select( 0.0, wave, fract( h.y * 3.7 ) < 0.4 ); jk = 0.8; cvR = 1u; chR = 3u; }
+		else if ( q < pFist ) { aR = 0.5 + 0.5 * max( 0.0, sin( t * 7.0 + h.w * 20.0 ) ); cL = 0.3; cvR = select( 1u, 2u, q2.y > 0.6 ); chR = select( 0u, 1u, q2.w > 0.6 ); }
+		else if ( q < pHead ) { aL = 0.45; aR = 0.45; cL = 0.55; cR = 0.55; jk = 0.0; cvL = 0u; cvR = 0u; chL = 2u; chR = 2u; }
+		else if ( q < pCam ) { aL = 0.35; cL = 0.65; aR = 0.2; cR = 0.5; jk = 0.0; prop = select( 4u, 3u, fract( h.z * 7.9 ) < 0.4 ); cvL = 0u; cvR = 0u; }
+		else if ( q < pClap ) { let c = 0.5 + 0.13 * sin( t * 15.0 + h.w * 40.0 ); cL = c; cR = c; jk = 0.3; cvL = 0u; cvR = 0u; }
+		else if ( q < pTurn ) { turn = select( - 0.95, 0.95, fract( h.z * 3.9 + floor( cyc ) * 0.37 ) < 0.5 ); aR = select( 0.0, 0.55, fract( h.x * 9.7 ) < 0.5 ); jk = 0.2; cvR = 2u; chR = 1u; }
+		else { cR = select( 0.0, 0.6, fract( h.w * 13.1 ) < 0.3 ); jk = 0.1; cvL = 0u; cvR = 0u; }
 		// pairs of neighbours (by their places: each seat and the one beside it) hugging, the inner arm up
 		// round the other's shoulders, leaning in, turned to each other, the other fist up or down
 		let n = u32( cw.misc.w + 0.5 );
@@ -953,9 +1142,29 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 			turn = mix( turn, - 0.95 * side, hg );
 			hugRoll = - 0.2 * side * hg;
 			jk = mix( jk, 0.1, hg );
+			// (FX4: the arm round his neighbour's shoulders as it was; the hand open on them)
+			if ( side < 0.0 ) { cvL = 0u; chL = 2u; } else { cvR = 0u; chR = 2u; }
 		} else {
 			aL *= ez; aR *= ez; cL *= ez; cR *= ez; twk *= ez;
 		}
+		avL = cvL; avR = cvR; hL = chL; hR = chR; // ---- FX4
+		// ---- FX4 (CR1-11): his face for this act (Getty 83486358, 83486360, 112874141 at the last out: every
+		// face its own): a shout (the jaw dropped, the eyes screwed up, the brows down), a laugh, a closed grin,
+		// an O of disbelief, overcome (near tears), blank behind a camera; laughing in a hug; more grins and
+		// talk than shouts as it goes on. It was one open-mouthed grin on the whole section
+		let fq = fract( q2.x * 7.31 + q2.w * 3.17 ) + 0.18 * late;
+		var fo = 1.0; var fsm = 0.15; var fl = 0.45; var ff = 0.85;
+		if ( fq > 0.3 ) { fo = 0.55; fsm = 1.0; fl = 0.3; ff = 0.0; }
+		if ( fq > 0.55 ) { fo = 0.04; fsm = 0.9; fl = 0.2; ff = 0.0; }
+		if ( fq > 0.7 ) { fo = 0.75; fsm = 0.0; fl = 0.0; ff = 0.0; }
+		if ( fq > 0.8 ) { fo = 0.3; fsm = 0.45; fl = 0.7; ff = 0.55; }
+		if ( fq > 0.88 ) { fo = 0.06; fsm = 0.25; fl = 0.12; ff = 0.0; }
+		if ( fq > 1.0 ) { fo = 0.25; fsm = 0.7; fl = 0.15; ff = 0.0; }
+		if ( q >= pHead && q < pCam ) { fo = 0.04; fsm = 0.2; fl = 0.15; ff = 0.0; }
+		if ( hg > 0.3 ) { fo = 0.5; fsm = 1.0; fl = 0.35; ff = 0.0; }
+		cface = mix( vec4f( 0.3, 0.55, 0.15, 0.0 ), vec4f( fo, fsm, fl, ff ), ez );
+		gF = g;
+		// ---- end FX4
 		// after a couple of minutes some sit back down (the trophy, the laps)
 		let sitK = 0.35 * smoothstep( 110.0, 230.0, cel );
 		let stK = select( 1.0, 0.0, fract( h.z * 29.3 ) < sitK );
@@ -968,7 +1177,7 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 		sup = mix( sup, sup * 0.5, g );
 		jump = mix( jump, M.w * stK * jk, g );
 		yaw = clamp( yaw + turn * g * ez, - 1.35, 1.35 );
-		opn = mix( opn, select( 0.3, 1.0, fract( h.y * 5.9 ) < mix( 0.8, 0.4, late ) ), g );
+		opn = mix( opn, cface.x, g ); // (FX4: the act's face; it was the jaw down on four in five for a minute)
 		if ( prop != ( act & 15u ) && g * ez < 0.3 ) { prop = act & 15u; }
 	}
 	// ---- FS1 (C4S-5): God Bless America (fs.y, Crowd._song): on their feet facing the flag (fsLook), caps
@@ -1037,12 +1246,34 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 	// less in the cold rain, none in the song; a blink every three to six seconds by his own clock. Packed
 	// with the mouth's opening in r3.z: the mouth in 6 bits, the smile and the blink in 4 each
 	var smile = select( M.y, A3.y, isRays ) * ( 0.45 + 0.55 * fract( h.w * 23.3 ) );
-	if ( cel >= 0.0 && ! isRays ) { smile = max( smile, 0.55 + 0.45 * fract( h.z * 19.1 ) ); }
-	smile *= ( 1.0 - sol ) * ( 1.0 - 0.6 * rain );
+	// ---- FX4 (CR1-11): the lids narrowed and the brows drawn down (the frown, r3.z bits 14-17: the paint).
+	// The 27th's cold rain (Getty 83457911, 83893023): grim, the lips pressed, squinting into it, one face in a
+	// dozen still smiling; only a run brings the rest round (they smiled through it: a 40% cut). Tension (two
+	// strikes, two outs, late): no smile, the jaw set, the brows together, some shouting now and then
+	var lids = 0.0;
+	var frown = 0.0;
+	let grim = rain * select( 1.0, 0.0, fract( h.z * 37.1 ) < 0.08 );
+	smile *= 1.0 - 0.92 * grim * ( 1.0 - 0.7 * smoothstep( 0.4, 0.8, M.x ) );
+	frown = grim * ( 0.25 + 0.45 * fract( h.y * 13.7 ) );
+	lids = grim * ( 0.22 + 0.3 * fract( h.x * 11.9 ) );
+	let tn = A1.z * select( 1.0, 0.3, isRays ) * ( 1.0 - upAll );
+	let shoutT = tn * select( 0.0, cwWin( fract( t / ( 2.5 + 2.0 * h.z ) + h.w * 7.0 ), 0.0, 0.35 ), fract( h.y * 7.7 ) < 0.3 );
+	smile *= 1.0 - 0.85 * tn;
+	frown = max( frown, tn * ( 0.2 + 0.35 * fract( h.w * 5.7 ) ) + 0.4 * shoutT );
+	opn = max( opn, 0.8 * shoutT );
+	if ( cel >= 0.0 && ! isRays ) {
+		smile = mix( smile, cface.y, gF );
+		lids = mix( lids, cface.z, gF );
+		frown = mix( frown, cface.w, gF );
+	}
+	// (the Rays' few: their faces set)
+	if ( cel >= 0.0 && isRays ) { smile = 0.0; frown = 0.45; lids = 0.2; opn = 0.0; }
+	// ---- end FX4
+	smile *= 1.0 - sol;
 	let bp = 2.8 + 3.2 * fract( h.z * 7.7 );
 	let bt = fract( t / bp + h.w * 3.1 ) * bp;
-	let blink = smoothstep( 0.0, 0.05, bt ) * ( 1.0 - smoothstep( 0.1, 0.2, bt ) );
-	let faceQ = u32( clamp( opn, 0.0, 1.0 ) * 63.0 + 0.5 ) | ( u32( clamp( smile, 0.0, 1.0 ) * 15.0 + 0.5 ) << 6u ) | ( u32( blink * 15.0 + 0.5 ) << 10u );
+	let blink = max( smoothstep( 0.0, 0.05, bt ) * ( 1.0 - smoothstep( 0.1, 0.2, bt ) ), clamp( lids, 0.0, 1.0 ) );
+	let faceQ = u32( clamp( opn, 0.0, 1.0 ) * 63.0 + 0.5 ) | ( u32( clamp( smile, 0.0, 1.0 ) * 15.0 + 0.5 ) << 6u ) | ( u32( blink * 15.0 + 0.5 ) << 10u ) | ( u32( clamp( frown, 0.0, 1.0 ) * 15.0 + 0.5 ) << 14u ); // (FX4: the frown)
 	// ---- end FF2
 
 	var o: CwFanPose;
@@ -1057,11 +1288,28 @@ fn cwFanPose( ids: vec3u, h: vec4f, seat: vec4f, t: f32, i: u32 ) -> CwFanPose {
 	let lu = fract( h.z * 5.7 + h.w * 1.3 );
 	var lap = select( select( select( 3u, 2u, lu < 0.85 ), 1u, lu < 0.62 ), 0u, lu < 0.42 - 0.17 * rain );
 	if ( prop != 0u ) { lap = 0u; }
+	// ---- FX4 (CR1-19): how he sits goes with his hands (it was a row of crash-test dummies, upright, the
+	// forearms level on the thighs): forward with his elbows on his knees and the hands clasped between them,
+	// back in the seat with his arms folded, a slouch for some (Getty 83457911, brownwall 2981780425: hunched
+	// forward in the rain, elbows on knees, heads down)
+	let sitK = ( 1.0 - st ) * ( 1.0 - upAll ) * ( 1.0 - jump );
+	if ( lap == 3u ) { lean += ( 0.2 + 0.18 * fract( h.w * 9.7 ) ) * sitK; }
+	if ( lap == 1u ) { lean -= 0.04 * sitK; }
+	if ( fract( h.y * 19.3 ) < 0.14 && lap != 3u ) { lean -= 0.09 * sitK; }
+	// ---- end FX4
 	let ts = u32( fract( h.x * 9.1 ) * 2.999 );
 	let ang = u32( fract( h.w * 11.3 ) * 3.999 );
 	let hv = u32( fract( h.y * 13.3 ) * 7.999 );
 	let fc = u32( fract( h.x * 17.7 + h.z ) * 7.999 );
-	o.r4 = vec4f( lean, roll, nod, f32( prop | ( ts << 4u ) | ( ang << 6u ) | ( lap << 8u ) | ( hv << 10u ) | ( fc << 13u ) ) );
+	// ---- FX4 (CR1-2): the arms' ways and the hands' shapes in bits 16-23 (float32 holds them exactly). Held
+	// straight for a sign over the head (both hands on it) and an umbrella; the left one, with his cup or his
+	// camera in it, where it is (the prop's at the hand's joint); a towel swung from a bent arm, in a grip
+	if ( sup > 0.01 ) { avL = 0u; avR = 0u; }
+	if ( umb > 0.01 ) { avR = 0u; }
+	if ( prop != 0u ) { avL = 0u; }
+	if ( tw > 0.02 ) { avR = 1u; hR = 3u; }
+	o.r4 = vec4f( lean, roll, nod, f32( prop | ( ts << 4u ) | ( ang << 6u ) | ( lap << 8u ) | ( hv << 10u ) | ( fc << 13u ) | ( avL << 16u ) | ( avR << 18u ) | ( hL << 20u ) | ( hR << 22u ) ) );
+	// ---- end FX4
 	// ---- end FW1
 	return o;
 }
@@ -1202,6 +1450,31 @@ struct CwPose {
 	local: vec3f,
 };
 
+// ---- FX4 (CR1-2): a raised arm's way (ARM_VARS): its elbow, wrist and hand, the right arm's, sitting to
+// standing
+fn cwArmVar( v: u32, st: f32 ) -> mat3x3f {
+	var SE = array<vec3f, 4>( ${ ARM_VARS[ 0 ].map( ( j ) => f3( j[ 0 ] ) ).join( ', ' ) } );
+	var SW = array<vec3f, 4>( ${ ARM_VARS[ 0 ].map( ( j ) => f3( j[ 1 ] ) ).join( ', ' ) } );
+	var SH = array<vec3f, 4>( ${ ARM_VARS[ 0 ].map( ( j ) => f3( j[ 2 ] ) ).join( ', ' ) } );
+	var TE = array<vec3f, 4>( ${ ARM_VARS[ 1 ].map( ( j ) => f3( j[ 0 ] ) ).join( ', ' ) } );
+	var TW = array<vec3f, 4>( ${ ARM_VARS[ 1 ].map( ( j ) => f3( j[ 1 ] ) ).join( ', ' ) } );
+	var TH = array<vec3f, 4>( ${ ARM_VARS[ 1 ].map( ( j ) => f3( j[ 2 ] ) ).join( ', ' ) } );
+	return mat3x3f( mix( SE[ v ], TE[ v ], st ), mix( SW[ v ], TW[ v ], st ), mix( SH[ v ], TH[ v ], st ) );
+}
+// a hand's shape: the index finger's curl at its knuckle and its middle joint (x, y), the other three's (z,
+// w), radians; 0 a fist, 1 the index up (the rest in a fist), 2 open, 3 a grip (a towel's corner, a cup),
+// 4 at rest (loose), 5 at his face (clapping, praying: near open)
+fn cwHand( k: u32 ) -> vec4f {
+	var H = array<vec4f, 6>( vec4f( 1.5, 2.0, 1.5, 2.0 ), vec4f( 0.0, 0.06, 1.5, 2.0 ), vec4f( - 0.1, 0.06, - 0.06, 0.1 ), vec4f( 1.1, 1.35, 1.15, 1.4 ), vec4f( ${ [ ...HAND_REST.index, ...HAND_REST.block ].join( ", " ) } ), vec4f( 0.14, 0.18, 0.16, 0.22 ) );
+	return H[ k ];
+}
+// and how far its thumb has come across the palm from out beside it
+fn cwThumb( k: u32 ) -> f32 {
+	var T = array<f32, 6>( 1.0, 0.95, 0.0, 0.7, ${ HAND_REST.thumb }, 0.12 );
+	return T[ k ];
+}
+// ---- end FX4
+
 // ---- FW1 (C2W-6): v turned by the rotation that takes the unit vector a to b (about their cross)
 fn cwTurn( v: vec3f, a: vec3f, b: vec3f ) -> vec3f {
 	let c = dot( a, b );
@@ -1262,10 +1535,93 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 		n = normalize( fb[ 0 ] * dot( n, fa[ 0 ] ) + fb[ 1 ] * dot( n, fa[ 1 ] ) + fb[ 2 ] * dot( n, fa[ 2 ] ) );
 	}
 	// ---- end FC4
+	// (FW1's packed choices: the prop, the towel's, the lap's, the hair's, the face's; FX4's arms and hands)
+	let vid = u32( r4.w + 0.5 );
+
+	// ---- FX4 (CR1-2, SC1-2): the fingers curled into his hand's shape (the kernel's, r4.w bits 20-23, for a
+	// raised hand: a fist, the index up, open, a grip; loose at rest, open at his face, round the cup or the
+	// camera in his left), each about its knuckle and its middle joint, the thumb about its root across the
+	// palm. In the wrist's frame as the arm is now; the hand was laid in its resting curl (fanGeometry's
+	// hand()), so only a raised hand, one at his face or round his cup turns: by its shape less the rest's
+	let held = isL && ( vid & 15u ) != 0u;
+	if ( part == 2u && lod <= 1u && info.w > 0.5 && ( aU + aF > 0.001 || held ) ) {
+		let mx = vec3f( side, 1.0, 1.0 );
+		let w0 = ${ armJoint( 'wrist', true ) } * mx;
+		let F = cwRingFrame( ${ armSeg( 'wrist', 'hand', true ) } );
+		var q = vec3f( dot( p - w0, F[ 0 ] ), dot( p - w0, F[ 1 ] ), dot( p - w0, F[ 2 ] ) );
+		var m = vec3f( dot( n, F[ 0 ] ), dot( n, F[ 1 ] ), dot( n, F[ 2 ] ) );
+		let hb = select( ( vid >> 22u ) & 3u, ( vid >> 20u ) & 3u, isL );
+		let kr = select( 4u, 3u, held );
+		let kf = select( 5u, 3u, held );
+		let sh = mix( mix( cwHand( kr ), cwHand( hb ), aU ), cwHand( kf ), aF );
+		let fid = u32( info.z + 0.5 );
+		if ( fid == 1u ) {
+			let th = mix( mix( cwThumb( kr ), cwThumb( hb ), aU ), cwThumb( kf ), aF );
+			let tb = ${ f3( THUMB_ROOT( 1 ) ) } * mx;
+			let d0 = normalize( ${ f3( THUMB0( 1 ) ) } * mx );
+			let d1 = normalize( ${ f3( THUMB1( 1 ) ) } * mx );
+			let dr = normalize( mix( d0, d1, ${ HAND_REST.thumb } ) );
+			let dt = normalize( mix( d0, d1, th ) );
+			q = tb + cwTurn( q - tb, dr, dt );
+			m = cwTurn( m, dr, dt );
+		} else {
+			let rc4 = cwHand( 4u );
+			let r = select( rc4.zw, rc4.xy, fid == 2u );
+			var c = select( sh.zw, sh.xy, fid == 2u );
+			// (near, the block of four narrowed to the index and straight: a finger up)
+			if ( fid == 4u ) {
+				let ix = select( 0.0, aU * ( 1.0 - aF ), hb == 1u );
+				q.x = mix( q.x, - side * 0.027 + q.x * 0.27, ix );
+				c = mix( c, sh.xy, ix );
+			}
+			var dy = q.y - 0.083;
+			var dz = q.z + 0.004;
+			// the last joints about the middle one where the rest left it, then all about the knuckle
+			if ( info.w > 1.5 ) {
+				let my = select( 0.049, 0.047, fid == 2u );
+				let mj = vec2f( my * cos( r.x ), - my * sin( r.x ) );
+				let c2 = cos( c.y - r.y );
+				let s2 = sin( c.y - r.y );
+				let ej = vec2f( dy, dz ) - mj;
+				dy = mj.x + ej.x * c2 + ej.y * s2;
+				dz = mj.y - ej.x * s2 + ej.y * c2;
+				m = vec3f( m.x, m.y * c2 + m.z * s2, - m.y * s2 + m.z * c2 );
+			}
+			let c1 = cos( c.x - r.x );
+			let s1 = sin( c.x - r.x );
+			q = vec3f( q.x, 0.083 + dy * c1 + dz * s1, - 0.004 - dy * s1 + dz * c1 );
+			m = vec3f( m.x, m.y * c1 + m.z * s1, - m.y * s1 + m.z * c1 );
+		}
+		p = w0 + F[ 0 ] * q.x + F[ 1 ] * q.y + F[ 2 ] * q.z;
+		n = normalize( F[ 0 ] * m.x + F[ 1 ] * m.y + F[ 2 ] * m.z );
+	}
+	// a raised arm his own way (r4.w bits 16-19: ARM_VARS), each bone turned onto it about its joint as far
+	// as the arm is up (the far levels' arm, one tube from the shoulder to the wrist, as a whole)
+	let av = select( ( vid >> 18u ) & 3u, ( vid >> 16u ) & 3u, isL );
+	if ( ( part == 6u || part == 2u ) && av != 0u && aU > 0.001 && ( isL || isR ) ) {
+		let mx = vec3f( side, 1.0, 1.0 );
+		let s0 = ${ armJoint( 'shoulder', true ) } * mx;
+		let e0 = ${ armJoint( 'elbow', true ) } * mx;
+		let w0 = ${ armJoint( 'wrist', true ) } * mx;
+		let h0 = ${ armJoint( 'hand', true ) } * mx;
+		let jv = cwArmVar( av, st ) - cwArmVar( 0u, st );
+		let e1 = e0 + jv[ 0 ] * mx * aU;
+		let w1 = w0 + jv[ 1 ] * mx * aU;
+		let h1 = h0 + jv[ 2 ] * mx * aU;
+		var o0 = s0;
+		var o1 = s0;
+		var a = normalize( e0 - s0 );
+		var b = normalize( e1 - s0 );
+		if ( lod >= 3u ) { a = normalize( w0 - s0 ); b = normalize( w1 - s0 ); }
+		else if ( part == 2u ) { o0 = w0; o1 = w1; a = normalize( h0 - w0 ); b = normalize( h1 - w1 ); }
+		else if ( info.y > 0.99 ) { o0 = e0; o1 = e1; a = normalize( w0 - e0 ); b = normalize( w1 - e1 ); }
+		p = o1 + cwTurn( p - o0, a, b );
+		n = cwTurn( n, a, b );
+	}
+	// ---- end FX4
 
 	// ---- FW1 (C2W-6): the hands sitting at rest: the forearm turned about the elbow, to fold the arms (the
 	// right under, the left over), into the jacket's pockets (the hand in it), or clasped between the knees
-	let vid = u32( r4.w + 0.5 );
 	let lapP = ( vid >> 8u ) & 3u;
 	let rest = ( 1.0 - st ) * ( 1.0 - aU ) * ( 1.0 - aF );
 	if ( lapP != 0u && rest > 0.001 && ( isL || isR ) && ( part == 2u || ( part == 6u && info.y > 0.99 ) ) ) {
@@ -1314,7 +1670,8 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 	// the towel: twirled round over the head, the loose end trailing the turn and fluttering, the cloth
 	// sagging between
 	if ( part == 5u ) {
-		let hand = mix( ${ f3( SIT_UP.hand ) }, ${ f3( STAND_UP.hand ) }, st );
+		// (---- FX4, CR1-2: in his right hand as his arm is up, not where the straight arm's hand was)
+		let hand = cwArmVar( ( vid >> 18u ) & 3u, st )[ 2 ];
 		let u = info.z;
 		let v = info.w;
 		let th = r1.z - 1.5 * v;
@@ -1364,6 +1721,13 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 				// face's opening left where it is, so the hood's rim stands proud of the face
 				let face = smoothstep( - 0.55, - 0.85, d.z ) * smoothstep( 0.75, 0.45, length( d.xy - vec2f( 0.0, - 0.05 ) ) );
 				var q = local * mix( 1.13, 1.0, face );
+				// ---- FX4 (CR1-9, CR1-8): the opening's hem rolled and standing proud of the face (the face sat flush
+				// in it, a mask in a bag); below the head the hood's cloth falling round the neck to the collar (it
+				// ended in a stepped edge over bare neck, from behind)
+				q.z -= 0.022 * 4.0 * face * ( 1.0 - face ) * smoothstep( - 0.3, - 0.6, d.z );
+				let drape = smoothstep( - 0.55, - 1.0, d.y ) * smoothstep( - 0.55, 0.0, d.z );
+				q = vec3f( q.x * ( 1.0 + 0.22 * drape ), q.y - 0.02 * drape, q.z + 0.03 * drape );
+				// ---- end FX4
 				q += vec3f( 0.0, 0.01, - 0.024 ) * smoothstep( - 0.1, - 0.6, d.z ) * smoothstep( 0.35, 0.8, d.y ) * ( 1.0 - face );
 				q += vec3f( 0.0, - 0.03, 0.03 ) * smoothstep( 0.1, 0.7, d.z ) * smoothstep( 0.1, - 0.6, d.y );
 				p = headC + q;
@@ -1529,6 +1893,13 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		nrm0s = nrm0;
 		fhPaint = fh.d;
 		fhFold = fh.fold;
+		// ---- FX4 (CR1-3): as the jaw drops, the lips' inner faces, their corners and the mouth's floor (in the
+		// mouth's region, turned up, down or back into the head, not out of the face) take the inside's mark
+		// too: the mark alone kept a few of the bag's vertices at these levels, so the open mouth showed a lit,
+		// pale floor and the inner rims at its corners caught the light as two white fangs
+		let inner = smoothstep( 0.34, 0.25, abs( fh.d.x ) ) * smoothstep( 0.15, 0.09, abs( fh.d.y + 0.45 ) ) * smoothstep( - 0.62, - 0.3, nrm0.z ) * smoothstep( 0.06, 0.3, ex.x ) * step( - 2.5, fh.d.z );
+		fhPaint.z = mix( fhPaint.z, - 1.9, inner );
+		// ---- end FX4
 	}
 #endif
 	// ---- end FF1
@@ -1678,9 +2049,30 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		if ( piece ) { c = select( select( vec3f( 0.6, 0.59, 0.56 ), vec3f( 0.016 ), seed > 0.45 ), vec3f( 0.12, 0.06, 0.025 ), seed > 0.8 ); rough = 0.6; }
 	}
 	// the hands: gloves on a cold night (black, navy, the odd red), or bare and red with the cold
-	if ( part == 2u ) { c = select( skin * vec3f( 1.06, 0.92, 0.9 ), select( select( vec3f( 0.014 ), vec3f( 0.012, 0.016, 0.05 ), seed > 0.6 ), vec3f( 0.3, 0.02, 0.03 ), seed > 0.88 ), gloves ); rough = select( 0.6, 0.85, gloves ); }
+	if ( part == 2u ) {
+		// ---- FX4 (CR1-2): bare, the knuckles and the fingers' ends redder with the cold, the gaps between the
+		// block's three fingers in shade (L: the finger, across the block, out along it); or a cold night's
+		// gloves (Getty 83486358's black knit fists): black, charcoal and grey knit, navy, the odd red, brown
+		// leather with its sheen
+		let gk = fract( seed * 31.7 );
+		var gc = vec3f( 0.014 );
+		var gr = 0.92;
+		if ( gk > 0.42 ) { gc = vec3f( 0.045, 0.045, 0.048 ); }
+		if ( gk > 0.6 ) { gc = vec3f( 0.17, 0.165, 0.16 ); }
+		if ( gk > 0.74 ) { gc = vec3f( 0.012, 0.016, 0.05 ); }
+		if ( gk > 0.86 ) { gc = vec3f( 0.3, 0.02, 0.03 ); }
+		if ( gk > 0.93 ) { gc = vec3f( 0.09, 0.045, 0.02 ); gr = 0.45; }
+		let ends = smoothstep( 0.5, 2.0, L.z ) * step( 0.5, L.x );
+		var bare = skin * mix( vec3f( 1.06, 0.92, 0.9 ), vec3f( 1.16, 0.84, 0.82 ), ends );
+		let gap = select( 1.0, 0.72 + 0.28 * smoothstep( 0.0, 0.07, abs( fract( L.y * 3.0 + 0.5 ) - 0.5 ) ), abs( L.x - 3.0 ) < 0.5 && L.z > 0.5 );
+		c = select( bare, gc, gloves ) * gap;
+		rough = select( 0.6, gr, gloves );
+	}
+	// ---- end FX4
 	// the neck: the collar's band low, then skin (or the scarf)
 	if ( part == 7u ) { c = select( select( skin, shirt * 0.85, L.y < 0.38 ), scarfC, scarf && L.y < 0.62 ); rough = select( 0.6, 0.9, L.y < 0.38 || scarf ); }
+	// ---- FX4 (CR1-8): under a hood the neck's in it (the hood's cloth, or the skin through the clear film)
+	if ( part == 7u && hood ) { c = select( shirt * 0.8, mix( c * 0.7, vec3f( 0.44, 0.46, 0.5 ), 0.22 ), clear ); rough = select( 0.85, 0.22, clear ); }
 	if ( part == 3u ) {
 		// the head in its own frame, the face toward -z
 		let d = L / ${ f3( HEAD_R ) };
@@ -1719,8 +2111,39 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		let white = smoothstep( 0.1, 0.075, length( ey * vec2f( 1.0, 1.9 ) ) ) * near * front * onEye;
 		c = mix( c, vec3f( 0.55, 0.53, 0.5 ), white );
 		c = mix( c, vec3f( 0.02, 0.015, 0.01 ), smoothstep( 0.05, 0.035, length( ey ) ) * near * front * onEye );
-		let brow = smoothstep( 0.05, 0.02, abs( d.y - 0.3 + 0.05 * ax ) ) * step( 0.1, ax ) * step( ax, select( 0.56, 0.5, female ) ) * front;
-		c = mix( c, hairC, brow * select( 0.85, 0.55, female ) );
+		// ---- FX4 (CR1-4, CR1-10, CR1-11): his own brows (it was one straight 7 mm bar on every face, black on
+		// dark hair): from the head by the nose out to a tail over the eye's corner, an arch of his own (the
+		// women's higher and thinner, shaped), thicker at the head and tapering, his own lift, broken into hairs
+		// slanting out; a shade off his hair's colour (the fair and the grey fainter); drawn down and together
+		// in a scowl, a shout or the cold (the kernel's frown, r3.z bits 14-17), with a crease between them
+		let frown = f32( ( u32( r3.z + 0.5 ) >> 14u ) & 15u ) / 15.0;
+		let bs = fract( vec4f( 3.7, 5.3, 7.9, 11.3 ) * seed + vec4f( 0.11, 0.37, 0.71, 0.53 ) );
+		let bEnd = select( 0.55 + 0.04 * bs.x, 0.5 + 0.03 * bs.x, female );
+		let bu = clamp( ( ax - 0.08 ) / ( bEnd - 0.08 ), 0.0, 1.0 );
+		let arch = select( 0.012 + 0.03 * bs.y, 0.045 + 0.035 * bs.y, female );
+		let bY = 0.285 + select( 0.03 * bs.z - 0.012, 0.025 * bs.z, female ) + arch * sin( 3.1416 * pow( bu, 0.8 ) ) - 0.035 * bu * bu - frown * ( 0.035 * ( 1.0 - bu ) + 0.012 );
+		let bT = select( 0.036 + 0.026 * bs.w, 0.018 + 0.012 * bs.w, female ) * mix( 1.0, 0.35, bu * bu ) * ( 1.0 + 0.25 * frown * ( 1.0 - bu ) );
+		let bHair = 0.72 + 0.28 * sin( ax * 190.0 + ( d.y - bY ) * 70.0 + bs.x * 20.0 ) * near;
+		let brow = smoothstep( bT * 0.5 + 0.012, bT * 0.5 - 0.006, abs( d.y - bY ) ) * smoothstep( 0.06, 0.1, ax ) * smoothstep( bEnd + 0.02, bEnd - 0.03, ax ) * front;
+		let fair = smoothstep( 0.15, 0.4, max( hairC.r, hairC.b ) );
+		let browC = mix( hairC * 0.8, mix( hairC, c * 0.55, 0.35 ), fair );
+		c = mix( c, browC, brow * clamp( bHair, 0.0, 1.0 ) * mix( 0.88, 0.6, fair ) * select( 1.0, 0.85, female ) );
+		c *= 1.0 - 0.14 * frown * smoothstep( 0.035, 0.0, abs( ax - 0.03 ) ) * smoothstep( 0.1, 0.0, abs( d.y - 0.27 ) ) * front;
+		// the lash line along the upper lid (darker on the women: mascara and liner, Getty 83486360's blonde
+		// and brunette at the rail)
+		let lidR = length( ey * vec2f( 1.0, 1.9 ) );
+		c *= 1.0 - select( 0.25, 0.5, female ) * smoothstep( 0.02, 0.004, abs( lidR - 0.098 ) ) * step( - 0.01, ey.y ) * ( 1.0 - onEye ) * near * front;
+		// the old: the folds from the nose's wings to the mouth's corners, the lines at the eyes' corners and
+		// across the brow, the bags under the eyes (it read 35: the same tight skin on every face)
+		let oldK = select( 0.0, 1.0, age == 1u ) + select( 0.0, 0.35, age == 0u && bs.y > 0.65 );
+		if ( oldK > 0.0 ) {
+			let nl = abs( ( ax - 0.17 ) * 0.93 + ( d.y + 0.22 ) * 0.37 ) * step( - 0.55, d.y ) * step( d.y, - 0.2 );
+			let crow = abs( sin( atan2( ey.y, ax - 0.52 ) * 5.0 ) ) * smoothstep( 0.12, 0.05, length( vec2f( ax - 0.55, ey.y ) ) ) * step( 0.5, ax );
+			let lines = smoothstep( 0.02, 0.0, nl ) * 0.2 + crow * 0.12 + 0.06 * smoothstep( 0.6, 0.9, sin( d.y * 95.0 ) ) * step( 0.38, d.y ) * step( d.y, 0.62 ) * step( ax, 0.4 );
+			let bag = smoothstep( 0.05, 0.0, abs( length( ( ey + vec2f( 0.0, 0.08 ) ) * vec2f( 1.0, 2.4 ) ) - 0.12 ) ) * step( ey.y, - 0.03 ) * 0.14;
+			c *= 1.0 - ( lines + bag ) * oldK * near * front;
+		}
+		// ---- end FX4
 		// the nose: its ridge catching the light, the shadow under it
 		c *= 1.0 + 0.1 * smoothstep( 0.1, 0.03, ax ) * step( - 0.18, d.y ) * step( d.y, 0.22 ) * front;
 		c *= mix( 1.0, 0.72, smoothstep( 0.1, 0.03, length( vec2f( d.x * 0.8, d.y + 0.24 ) ) ) * front );
@@ -1731,17 +2154,28 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		// their own size and colour, and inside them (the paint's d.z marks the mouth's inside) it's dark, the
 		// upper teeth under the upper lip, only as it opens
 		let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / 0.05 ) );
-		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), female );
+		// (---- FX4, CR1-10: the women's lips their own: a rose, a berry or bare, by her seed)
+		let lipW = select( vec3f( 0.95, 0.5, 0.52 ), select( vec3f( 0.88, 0.4, 0.46 ), vec3f( 0.78, 0.34, 0.36 ), bs.w > 0.7 ), bs.z > 0.45 );
+		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), lipW, female );
 		c = mix( c, lip, smoothstep( 1.0, 0.7, mo ) * front );
-		let inM = smoothstep( - 1.04, - 1.3, d.z ) * smoothstep( 0.16, 0.11, abs( d.y + 0.45 ) ) * smoothstep( 0.32, 0.26, ax ) * smoothstep( 0.05, 0.35, open );
-		var teeth = smoothstep( - 0.435, - 0.425, d.y ) * smoothstep( - 0.39, - 0.4, d.y ) * smoothstep( 0.13, 0.09, ax ) * 0.8;
+		// ---- FX4 (CR1-3): a dark cavity from the lips' inner rims in (the mark now on the inner faces too: the
+		// vertex stage), the upper teeth a narrow ivory band right under the upper lip between the canines, in
+		// the mouth's shade, the tongue a dark red low in it; no shine off the inside (the fangs at the corners
+		// were the inner rims' highlights). It was a pale lit floor, a white crescent of teeth and two fangs
+		// (Getty 83486358, 83486360: a shout is a dark hole, the teeth a soft band under the upper lip)
+		let inM = smoothstep( - 1.01, - 1.16, d.z ) * smoothstep( 0.17, 0.12, abs( d.y + 0.45 ) ) * smoothstep( 0.34, 0.27, ax ) * smoothstep( 0.05, 0.3, open );
+		var teeth = smoothstep( - 0.448, - 0.438, d.y ) * smoothstep( - 0.405, - 0.415, d.y ) * smoothstep( 0.11, 0.075, ax ) * smoothstep( - 1.75, - 1.3, d.z );
+		let tongue = smoothstep( - 0.462, - 0.476, d.y ) * smoothstep( 0.22, 0.12, ax );
 		// (---- FF3: and on the near level, the 90-triangle head, whose jaw opens too: its inside now keeps a
 		// vertex or two, marked; the teeth are under a pixel there)
 #if CROWD_LOD == 1
 		teeth = 0.0;
 #endif
-		c = mix( c, mix( vec3f( 0.035, 0.008, 0.008 ), vec3f( 0.36, 0.34, 0.29 ), teeth ), inM );
-		if ( inM > 0.5 ) { rough = mix( 0.3, 0.45, teeth ); }
+		let cav = mix( mix( vec3f( 0.022, 0.006, 0.006 ), vec3f( 0.085, 0.018, 0.02 ), tongue ), vec3f( 0.3, 0.27, 0.21 ) * ( 0.55 + 0.45 * smoothstep( 0.075, 0.03, ax ) ), teeth );
+		c = mix( c, cav, inM );
+		if ( inM > 0.5 ) { rough = mix( 0.6, 0.4, teeth ); }
+		s.specularIntensity *= 1.0 - inM * ( 0.85 - 0.5 * teeth );
+		// ---- end FX4
 		// ---- end FF2
 #else
 		let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / ( 0.05 + 0.13 * open ) ) );
@@ -1776,19 +2210,70 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		}
 		if ( facial == 0u && ! female && age != 2u && c1.w < 0.35 ) { c *= mix( vec3f( 1.0 ), vec3f( 0.82, 0.84, 0.88 ), step( d.y, - 0.2 ) * step( d.z, 0.3 ) * step( 0.8, mo ) * noNeck ); }
 		// glasses: thin dark frames round the eyes and over the nose
+		// ---- FX4 (CR1-4): 2008's frames, his own (it was one round black 1920s ring on a quarter of the crowd):
+		// a narrow metal rectangle (silver or gunmetal), rimless (the bridge and the hinges, the lenses' edges a
+		// glint), a black plastic rectangle, an old man's gold oval, or wraparound sunglasses pushed up on a bare
+		// head; thin, the arms back to the ears, the lenses' gloss (Getty 83486360, 112874578; brownwall
+		// 2981780425's gold wire). randomFan's rate is down to ~11% (35% of the old)
 		if ( glasses ) {
-			let ring = abs( length( ey * vec2f( 1.0, 1.25 ) ) - 0.17 );
-			let fr = max( smoothstep( 0.035, 0.015, ring ), smoothstep( 0.03, 0.01, abs( d.y - 0.14 ) ) * step( ax, 0.18 ) );
-			c = mix( c, vec3f( 0.015 ), fr * front );
-			rough = mix( rough, 0.2, smoothstep( 0.17, 0.12, length( ey * vec2f( 1.0, 1.25 ) ) ) * front );
+			let gs = fract( seed * 41.3 + 0.17 );
+			var sty = 0u;
+			if ( gs > 0.36 ) { sty = 1u; }
+			if ( gs > 0.56 ) { sty = 2u; }
+			if ( gs > 0.76 ) { sty = 3u; }
+			if ( gs > 0.9 && ! capped && hat == 0u ) { sty = 4u; }
+			if ( age == 1u && gs > 0.5 ) { sty = 3u; }
+			let gw = select( 0.009, 0.017, sty == 2u );
+			let fcol = select( select( select( vec3f( 0.32, 0.32, 0.33 ), vec3f( 0.08, 0.08, 0.085 ), fract( gs * 7.0 ) > 0.5 ), vec3f( 0.014 ), sty == 2u ), vec3f( 0.42, 0.3, 0.1 ), sty == 3u );
+			if ( sty < 4u ) {
+				// the lens: a rounded rectangle about the eye (an oval for the old man's), its rim
+				let lb = select( vec2f( 0.145, 0.082 ), vec2f( 0.14, 0.1 ), sty == 3u );
+				let le = abs( ey - vec2f( 0.0, 0.01 ) );
+				let lq = le - lb + vec2f( 0.045 );
+				let sd = length( max( lq, vec2f( 0.0 ) ) ) + min( max( lq.x, lq.y ), 0.0 ) - 0.045;
+				let rim = select( smoothstep( gw + 0.012, gw, abs( sd ) ), 0.0, sty == 1u );
+				let bridge = smoothstep( gw + 0.008, gw - 0.002, abs( d.y - 0.14 ) ) * step( ax, 0.2 );
+				let hinge = select( 0.0, smoothstep( 0.02, 0.008, length( vec2f( ax - 0.5, d.y - 0.135 ) ) ), sty == 1u );
+				c = mix( c, fcol, max( max( rim, bridge ), hinge ) * front );
+				// the lens's gloss and its edge, a little darker through it
+				let inL = smoothstep( 0.006, - 0.006, sd ) * front;
+				c *= 1.0 - 0.08 * inL;
+				rough = mix( rough, 0.12, inL );
+				if ( sty == 1u ) { c = mix( c, vec3f( 0.5 ), 0.25 * smoothstep( 0.008, 0.0, abs( sd ) ) * front ); }
+				// the arms, back along the side of the head to the ears (a profile shows them)
+				c = mix( c, fcol, smoothstep( gw + 0.008, gw - 0.002, abs( d.y - 0.15 + 0.04 * max( 0.0, d.z ) ) ) * step( 0.6, ax ) * step( d.z, 0.2 ) * step( - 0.7, d.z ) );
+			} else {
+				// sunglasses up on his head: a dark wrap band over the hairline, its lenses glossy
+				let band = smoothstep( 0.05, 0.035, abs( d.y - 0.62 + 0.12 * ax * ax ) ) * step( ax, 0.75 ) * step( d.z, 0.0 );
+				c = mix( c, vec3f( 0.02, 0.022, 0.026 ), band );
+				rough = mix( rough, 0.1, band );
+			}
 		}
+		// ---- end FX4
 		// the ears (red with the cold)
 		c *= mix( vec3f( 1.0 ), vec3f( 1.1, 0.8, 0.78 ), smoothstep( 0.86, 0.95, ax ) * step( abs( d.y ), 0.25 ) * step( abs( d.z ), 0.35 ) );
 #endif
 		// the hair: short (a hairline, the back and sides), long down the back, pulled back, or a
 		// horseshoe round a bald crown (which shines)
 		// (at the sides above the ears and behind them, not over them: under a cap's band it read as a blindfold)
-		var hairy = d.y > 0.42 - 0.55 * smoothstep( - 0.35, 0.5, d.z ) || ( ax > 0.8 && d.z > - 0.3 && ( d.y > 0.24 || ( d.z > 0.3 && d.y > - 0.15 ) ) );
+		// ---- FX4 (CR1-4, CR1-8): the hairline broken and soft (it was ruler-straight across the forehead and a
+		// hard stepped edge at the nape from behind): its edges jittered strand by strand, the temples receding
+		// his own way or a widow's peak, the edge thinning into the skin over a few millimetres; a grain across
+		// the hair. Faded to the plain edge where a pixel's wider than the strands
+		let hfw = fwidth( d.x ) + fwidth( d.y );
+		let hfine = 1.0 - smoothstep( 0.06, 0.2, hfw );
+		let hn = sin( d.x * 113.0 + sin( d.y * 71.0 ) * 2.0 ) * sin( d.y * 97.0 + d.z * 53.0 + sin( d.x * 41.0 ) * 1.5 );
+		let hn2 = sin( d.x * 211.0 + d.z * 157.0 ) * sin( d.y * 181.0 - d.x * 67.0 );
+		let jit = ( 0.024 * hn + 0.014 * hn2 ) * hfine;
+		let hs = fract( seed * 29.3 + 0.41 );
+		let recede = select( 0.0, ( 0.03 + 0.09 * hs ) * smoothstep( 0.1, 0.42, ax ) * smoothstep( 0.0, - 0.5, d.z ), ! female && age != 2u && hs > 0.35 ) + select( 0.0, 0.05 * smoothstep( 0.12, 0.0, ax ) * smoothstep( 0.0, - 0.5, d.z ), age == 1u );
+		let peak = select( 0.0, 0.05 * smoothstep( 0.1, 0.0, ax ), hs < 0.12 );
+		let m1 = d.y + jit - ( 0.42 - 0.55 * smoothstep( - 0.35, 0.5, d.z ) + recede - peak );
+		let m2 = min( min( ax - 0.8, d.z + 0.3 ), max( d.y - 0.24, min( d.z - 0.3, d.y + 0.15 ) ) ) + jit;
+		let hairK0 = max( smoothstep( - 0.012, 0.018, m1 ), smoothstep( - 0.012, 0.018, m2 ) );
+		var hairy = hairK0 > 0.5;
+		let dj = d.y + jit; // (her cuts' edges broken the same way)
+		// ---- end FX4
 		if ( hairStyle == 1u ) {
 			// ---- FW1 (C2W-6): her own cut: bangs at their own height, swept to one side, or pulled back off the
 			// face behind the ears (it was one black bob on every woman)
@@ -1797,9 +2282,9 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 			if ( hv == 2u || hv == 3u ) { fringe = 0.5 + 0.28 * d.x * select( - 1.0, 1.0, hv == 3u ); }
 			let back = hv >= 4u && hv < 6u;
 			if ( back ) { fringe = 0.58; }
-			hairy = d.y > fringe - 1.4 * smoothstep( - 0.55, 0.25, d.z ) || ( ax > 0.72 && d.y > - 0.55 && d.z > select( - 0.45, - 0.15, back ) );
+			hairy = dj > fringe - 1.4 * smoothstep( - 0.55, 0.25, d.z ) || ( ax + jit > 0.72 && dj > - 0.55 && d.z > select( - 0.45, - 0.15, back ) );
 		}
-		if ( hairStyle == 3u ) { hairy = d.y > 0.38 - 1.0 * smoothstep( - 0.4, 0.4, d.z ); }
+		if ( hairStyle == 3u ) { hairy = dj > 0.38 - 1.0 * smoothstep( - 0.4, 0.4, d.z ); }
 		if ( hairStyle == 2u ) {
 			// ---- FS1 (C4S-6): the horseshoe as it grows: from the crown's edge (higher at the back) down to the
 			// nape's hairline behind, round above and behind the ears to a sideburn in front of them, its edges
@@ -1812,7 +2297,11 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 			hairy = d.z > - 0.24 + gr && d.y < yTop && d.y > yBot && ! ear;
 			rough = select( rough, 0.3, d.y > yTop );
 		}
-		if ( hairy ) { c = hairC; rough = 0.7; }
+		// (FX4: the short cut's coverage soft at its edge, the others' as they were; the grain across it)
+		let hairK = select( select( 0.0, 1.0, hairy ), hairK0, hairStyle == 0u );
+		let hgrain = 1.0 + ( 0.1 * hn2 + 0.06 * hn ) * hfine;
+		c = mix( c, hairC * hgrain, hairK );
+		rough = mix( rough, 0.7, hairK );
 		// a cap (CP-1): down to just above the brows in front, the tops of the ears at the sides and low
 		// behind (the crowd's own crown covers it close up), its panels' seams, the white P on the front
 		let frontness = - d.z / max( length( d.xz ), 0.001 );
@@ -1846,6 +2335,9 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		if ( hood ) {
 			let oval = length( vec2f( d.x * 1.05, ( d.y + 0.08 ) * 0.92 ) );
 			let opening = oval < 0.72 && d.z < - 0.35;
+			// ---- FX4 (CR1-9): the hood's own shade on the face inside its rim (Getty 83457911: a dark ring of
+			// shade round the face, not a mask flush with it)
+			if ( opening ) { c *= mix( 1.0, 0.55, smoothstep( 0.42, 0.72, oval ) ); }
 			if ( clear ) {
 				// a clear poncho's hood: the hair and the cap under the film
 				// ---- FW4 (C3W-4): crumpled, a haze over them (it was the hair lacquered: a black helmet)
@@ -2052,7 +2544,9 @@ function randomFan( r ) {
 				: pick( r, { 0: 27, 1: 30, 2: 7, 3: 9, 4: 12, 5: 2, 7: 13 } );
 	f.hair = f.female ? pick( r, { 0: 10, 1: 58, 3: 32 } ) : f.age === 1 ? pick( r, { 0: 62, 2: 38 } ) : pick( r, { 0: 80, 1: 6, 2: f.age === 0 ? 14 : 0 } );
 	if ( ! f.female && ( f.age === 0 || f.age === 1 ) ) f.facial = f.age === 1 ? pick( r, { 0: 55, 1: 25, 2: 8, 3: 12 } ) : pick( r, { 0: 50, 1: 10, 2: 22, 3: 18 } );
-	f.glasses = r() < ( f.age === 1 ? 0.55 : f.age === 2 ? 0.08 : 0.2 ) ? 1 : 0;
+	// (---- FX4, CR1-4: one or two faces in twenty in 2008's frames, a third of the old: Getty 83486358 has one
+	// or two of ~22. A quarter of the crowd had them, a few rows of identical round black frames)
+	f.glasses = r() < ( f.age === 1 ? 0.35 : f.age === 2 ? 0.05 : 0.11 ) ? 1 : 0;
 	// a cold October night's clothes (CP-12), from his seed (not the sequence, so the rest of the crowd
 	// stays who it was): a hoodie, a jacket zipped to the chin or a sweatshirt; a scarf (more over a
 	// sweatshirt's bare neck); gloves
