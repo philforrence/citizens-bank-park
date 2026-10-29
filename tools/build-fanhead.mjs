@@ -42,6 +42,7 @@ const SRC = 'https://raw.githubusercontent.com/makehumancommunity/makehuman/mast
 const R = [ 0.082, 0.105, 0.098 ];
 const LEVELS = [ [ 'near', 1200 ], [ 'mid', 400 ], [ 'far', 90 ] ];
 const K = 8; // blend shapes
+const REC4 = 36; // u32 a vertex's record (FF2: 28 and the expressions' 8)
 const SAMPLES = 1500;
 
 async function get( path ) {
@@ -370,6 +371,56 @@ const shapes = [];
 for ( const s of SHAPES ) shapes.push( await target( `head/head-${ s }` ) );
 console.log( 'targets:', Object.keys( macro ).length, 'macro,', mods.length, 'modifier pairs,', shapes.length, 'head shapes' );
 
+// ---- FF2 (step 10): the expressions, from MakeHuman's own expression units (targets/expression/units/<its
+// african, asian and caucasian faces>/, CC0): each a sum of units, at full strength one end of what a face
+// does in the stands. The open mouth (the jaw dropped, the lips parted: a shout, a cheer, a song) with the
+// brows up; the smile (the mouth's corners pulled up and back, the cheeks up into the lower lids); the lids
+// shut (the blink, and a part of it for the lids' own rest). Mixed over the three faces by the crowd's own
+// shares (below, once the crowd's drawn)
+const EXPR = [
+	[ 'open', [ [ 'mouth-open', 1 ], [ 'eyebrows-left-up', 0.55 ], [ 'eyebrows-right-up', 0.55 ] ] ],
+	[ 'smile', [ [ 'mouth-corner-puller', 1 ], [ 'mouth-upward-retraction', 0.35 ], [ 'eye-left-slit', 0.7 ], [ 'eye-right-slit', 0.7 ] ] ],
+	[ 'blink', [ [ 'eye-left-closure', 1 ], [ 'eye-right-closure', 1 ] ] ],
+];
+const exprBy = {};
+for ( const e of ETH ) for ( const [ name, units ] of EXPR ) {
+
+	const D = new Float64Array( P.length * 3 );
+	for ( const [ u, w ] of units ) {
+
+		const T = onHead( parseTarget( await get( `targets/expression/units/${ e }/${ u }.target` ) ) );
+		for ( let i = 0; i < D.length; i ++ ) D[ i ] += w * T[ i ];
+
+	}
+
+	exprBy[ `${ e }-${ name }` ] = D;
+
+}
+// the mouth's inside: the base mesh's lips curl in to a shallow bag behind them (there's no slit), which the
+// open jaw shows. Its vertices are the ones behind the face's front surface in the mouth's region (each
+// against the frontmost vertex within 4 mm across and up and down of it): the paint darkens them, the
+// upper teeth showing under the upper lip
+const mouthIn = new Set();
+{
+
+	// (and the lips' inner faces where they meet, turned up or down, not out: the wet red the parted lips show)
+	const oy = ( boneHead( 'oris01' )[ 1 ] + boneHead( 'oris05' )[ 1 ] ) / 2;
+	const N = vnormals( P, tris );
+	for ( let i = 0; i < P.length; i ++ ) {
+
+		const p = P[ i ];
+		if ( Math.abs( p[ 0 ] ) > 0.26 || Math.abs( p[ 1 ] - oy ) > 0.2 || p[ 2 ] < 0.8 ) continue;
+		let zf = - 1e9;
+		for ( const q of P ) if ( Math.abs( q[ 0 ] - p[ 0 ] ) < 0.04 && Math.abs( q[ 1 ] - p[ 1 ] ) < 0.04 ) zf = Math.max( zf, q[ 2 ] );
+		if ( p[ 2 ] < zf - 0.03 || ( N[ i ][ 2 ] < 0.2 && Math.abs( p[ 0 ] ) < 0.2 && Math.abs( p[ 1 ] - oy ) < 0.1 ) ) mouthIn.add( i );
+
+	}
+
+	console.log( 'expressions:', EXPR.map( ( e ) => e[ 0 ] ).join( ', ' ), '; the mouth\'s inside:', mouthIn.size, 'vertices' );
+
+}
+// ---- end FF2
+
 // ---------------------------------------------------------------- into our frame, fitted to the egg
 
 // the skull above the brows (not the ears) fitted to the egg R a little inside it (the caps' crowns and
@@ -425,6 +476,7 @@ for ( const k of Object.keys( macro ) ) macro[ k ] = toOurs( macro[ k ] );
 for ( const k of Object.keys( weightT ) ) weightT[ k ] = toOurs( weightT[ k ] );
 for ( const m of mods ) { m.lo = toOurs( m.lo ); m.hi = toOurs( m.hi ); }
 for ( let i = 0; i < shapes.length; i ++ ) shapes[ i ] = toOurs( shapes[ i ] );
+for ( const k of Object.keys( exprBy ) ) exprBy[ k ] = toOurs( exprBy[ k ] ); // ---- FF2
 
 // ---------------------------------------------------------------- the paint's frame
 
@@ -1141,8 +1193,81 @@ At.forEach( ( r, i ) => console.log( '  ', FN[ i ].padEnd( 8 ), r.map( ( x ) => 
 
 // ---------------------------------------------------------------- per level: the mesh, its normals and records
 
-// the base is the crowd's mean face
-for ( let i = 0; i < U; i ++ ) for ( let k = 0; k < 3; k ++ ) P[ keepV[ i ] ][ k ] += mean[ i * 3 + k ];
+// ---- FF2 (step 10): every level shades as the full head does (its 8,572 triangles' normals at the level's
+// own vertices, not the level's own: at 400 triangles each face shaded as its plane, the jaw and the cheeks
+// in facets). The mean face and the components are known at the levels' vertices; the rest of the full
+// head's take them from their nearest kept ones (a smooth enough field for its normals)
+const spread = ( () => {
+
+	const kept = new Int32Array( P.length ).fill( - 1 );
+	keepV.forEach( ( v, i ) => { kept[ v ] = i; } );
+	const W6 = P.map( ( p, v ) => {
+
+		if ( kept[ v ] >= 0 ) return [ [ kept[ v ], 1 ] ];
+		const best = [];
+		for ( let i = 0; i < U; i ++ ) {
+
+			const q = P[ keepV[ i ] ], d = ( p[ 0 ] - q[ 0 ] ) ** 2 + ( p[ 1 ] - q[ 1 ] ) ** 2 + ( p[ 2 ] - q[ 2 ] ) ** 2;
+			if ( best.length < 6 || d < best[ 5 ][ 1 ] ) {
+
+				best.push( [ i, d ] );
+				best.sort( ( a, b ) => a[ 1 ] - b[ 1 ] );
+				if ( best.length > 6 ) best.pop();
+
+			}
+
+		}
+
+		const w = best.map( ( [ i, d ] ) => [ i, 1 / ( d + 1e-9 ) ] ), s = w.reduce( ( a, x ) => a + x[ 1 ], 0 );
+		return w.map( ( [ i, x ] ) => [ i, x / s ] );
+
+	} );
+	return ( D ) => {
+
+		const o = new Float64Array( P.length * 3 );
+		W6.forEach( ( w, v ) => { for ( const [ i, k ] of w ) for ( let c = 0; c < 3; c ++ ) o[ v * 3 + c ] += k * D[ i * 3 + c ]; } );
+		return o;
+
+	};
+
+} )();
+// ---- end FF2
+
+// the base is the crowd's mean face (FF2: the whole head, for its normals)
+{
+
+	const M = spread( mean );
+	for ( let v = 0; v < P.length; v ++ ) for ( let k = 0; k < 3; k ++ ) P[ v ][ k ] += M[ v * 3 + k ];
+
+}
+
+// ---- FF2: the full head's normals, and their change along each component and each expression
+const NB = vnormals( P, tris );
+const shiftedN = ( D, k = 1 ) => vnormals( P.map( ( p, v ) => [ p[ 0 ] + k * D[ v * 3 ], p[ 1 ] + k * D[ v * 3 + 1 ], p[ 2 ] + k * D[ v * 3 + 2 ] ] ), tris );
+const dnAll = comps.map( ( c ) => {
+
+	const C = spread( c ), a = shiftedN( C, 1 ), b = shiftedN( C, - 1 );
+	return a.map( ( n, v ) => mul( sub( n, b[ v ] ), 0.5 ) );
+
+} );
+// the expressions mixed over MakeHuman's three faces by the crowd's own shares; the open mouth a little
+// short of a scream at full strength (the photos' singers: the jaw down 2-4 cm)
+const EXK = { open: 0.85, smile: 1, blink: 1 };
+const exprs = EXPR.map( ( [ name ] ) => {
+
+	const D = new Float64Array( P.length * 3 ), wE = { african: fm[ 3 ], asian: fm[ 4 ], caucasian: 1 - fm[ 3 ] - fm[ 4 ] };
+	for ( const e of ETH ) { const T = exprBy[ `${ e }-${ name }` ]; for ( let i = 0; i < D.length; i ++ ) D[ i ] += wE[ e ] * EXK[ name ] * T[ i ]; }
+	const N = shiftedN( D );
+	return { name, D, dn: N.map( ( n, v ) => sub( n, NB[ v ] ) ) };
+
+} );
+{
+
+	const big = exprs.map( ( e ) => { let m = 0; for ( let i = 0; i < e.D.length; i += 3 ) m = Math.max( m, Math.hypot( e.D[ i ], e.D[ i + 1 ], e.D[ i + 2 ] ) ); return `${ e.name } ${ ( m * 1000 ).toFixed( 1 ) }`; } );
+	console.log( 'the expressions\' largest moves (mm):', big.join( ', ' ) );
+
+}
+// ---- end FF2
 
 // the ears' fold: onto the egg a little inside it (a hood, a knit hat over them)
 const earFold = keepV.map( ( v ) => {
@@ -1178,26 +1303,43 @@ levelTris.forEach( ( T0, li ) => {
 	const loc = new Map( vs.map( ( v, i ) => [ v, i ] ) );
 	const T = T0.map( ( t ) => t.map( ( v ) => loc.get( v ) ) );
 	const pos = vs.map( ( v ) => P[ v ] );
-	const nrm = vnormals( pos, T );
-	// the normals' change along each component (central differences, one standard deviation)
-	const dn = comps.map( ( c ) => {
+	// (FF2: the full head's normals and their changes, the level's own triangles only for its outline; the
+	// last level's own, as before: at 90 triangles the full head's normals pinwheel round the nose)
+	const own = li === 2;
+	const nrm = own ? vnormals( pos, T ) : vs.map( ( v ) => NB[ v ] );
+	const dn = own ? comps.map( ( c ) => {
 
 		const at = ( k ) => vnormals( vs.map( ( v ) => { const i = vix.get( v ); return add( P[ v ], mul( [ c[ i * 3 ], c[ i * 3 + 1 ], c[ i * 3 + 2 ] ], k ) ); } ), T );
 		const a = at( 1 ), b = at( - 1 );
 		return a.map( ( n, i ) => mul( sub( n, b[ i ] ), 0.5 ) );
 
-	} );
+	} ) : dnAll.map( ( d ) => vs.map( ( v ) => d[ v ] ) );
 	// the records: [ paint x y | paint z, the ears' fold | the fold x y | the fold z, 0 ], then the K shapes'
-	// x, y, z (8 halves each) and their normals' x, y, z
-	const rec = new Uint32Array( vs.length * 28 );
+	// x, y, z (8 halves each) and their normals' x, y, z; (FF2) then the expressions: [ open x y | open z,
+	// smile x | smile y z | blink y z ] and their normals' the same
+	const rec = new Uint32Array( vs.length * REC4 );
+	// (---- FF2: the mouth's mark only where this level's triangles keep it in the mouth: a marked vertex
+	// joined to the chin or a cheek darkened that whole triangle, at 400 triangles a dark mask round the
+	// open mouth)
+	const inMouth = new Set( vs.filter( ( v ) => mouthIn.has( v ) ) );
+	{
+
+		const nearMouth = ( v ) => { const d = paintOf( P[ v ] ); return Math.abs( d[ 0 ] ) < 0.3 && Math.abs( d[ 1 ] + 0.45 ) < 0.13; };
+		for ( const t of T0 ) if ( t.some( ( v ) => mouthIn.has( v ) ) && t.some( ( v ) => ! mouthIn.has( v ) && ! nearMouth( v ) ) ) for ( const v of t ) inMouth.delete( v );
+
+	}
 	vs.forEach( ( v, i ) => {
 
 		const j = vix.get( v );
 		const pd = paintOf( sub( P[ v ], [ mean[ j * 3 ], mean[ j * 3 + 1 ], mean[ j * 3 + 2 ] ] ) );
 		// (an eyeball's: its d.z set far forward, a mark for the paint)
 		if ( src[ v ] >= 0 && eyeSet.has( src[ v ] ) ) pd[ 2 ] = - 3;
+		// (---- FF2: the mouth's inside: d.z -1.9, a mark for the paint; nothing else on the face comes so far
+		// forward, the nose's tip -1.25 and on another line. Not on the last level: its few triangles join
+		// what's left of the inside to the lips' front)
+		if ( inMouth.has( v ) && li < 2 ) pd[ 2 ] = - 1.9;
 		const ef = earFold[ j ], ew = len( ef ) > 1e-5 ? 1 : 0;
-		const o = i * 28;
+		const o = i * REC4;
 		rec[ o ] = pack2( pd[ 0 ], pd[ 1 ] );
 		rec[ o + 1 ] = pack2( pd[ 2 ], ew );
 		rec[ o + 2 ] = pack2( ef[ 0 ], ef[ 1 ] );
@@ -1208,6 +1350,13 @@ levelTris.forEach( ( T0, li ) => {
 			rec[ o + 16 + ax * 4 + k / 2 ] = pack2( dn[ k ][ i ][ ax ], dn[ k + 1 ][ i ][ ax ] );
 
 		}
+
+		// ---- FF2: the expressions (the blink's across is nothing: the lids go down)
+		const [ eo, es, eb ] = exprs.map( ( e ) => [ e.D[ v * 3 ], e.D[ v * 3 + 1 ], e.D[ v * 3 + 2 ] ] );
+		const [ no, ns, nb ] = exprs.map( ( e ) => e.dn[ v ] );
+		rec[ o + 28 ] = pack2( eo[ 0 ], eo[ 1 ] ); rec[ o + 29 ] = pack2( eo[ 2 ], es[ 0 ] ); rec[ o + 30 ] = pack2( es[ 1 ], es[ 2 ] ); rec[ o + 31 ] = pack2( eb[ 1 ], eb[ 2 ] );
+		rec[ o + 32 ] = pack2( no[ 0 ], no[ 1 ] ); rec[ o + 33 ] = pack2( no[ 2 ], ns[ 0 ] ); rec[ o + 34 ] = pack2( ns[ 1 ], ns[ 2 ] ); rec[ o + 35 ] = pack2( nb[ 1 ], nb[ 2 ] );
+		// ---- end FF2
 
 	} );
 	const Q = 10000;
@@ -1234,12 +1383,15 @@ const js = `// Generated by tools/build-fanhead.mjs from the MakeHuman base mesh
 //
 // The fans' head, in three levels (near: the Cast's near figure; mid: its middle figure and the seats'
 // close level; far: the seats' near level). Positions in metres about the egg's centre (R; ×1e4, int16),
-// facing -z, +x his right; normals int8; the records, 28 u32 a vertex (see the tool): the paint's frame and
-// the ears' fold, then the ${ K } blend shapes (one standard deviation each) and their normals, as halves.
+// facing -z, +x his right; normals int8 (the full head's); the records, ${ REC4 } u32 a vertex (see the tool): the
+// paint's frame and the ears' fold, then the ${ K } blend shapes (one standard deviation each) and their
+// normals, as halves, then the expressions (${ EXPR.map( ( e ) => e[ 0 ] ).join( ', ' ) }: MakeHuman's units) and their normals.
 // A fan's weights: A (features × components) times his features less their means (FM), plus L (lower
 // triangular) times his own ${ K } normal draws. Features: ${ FN.join( ', ' ) }.
 export const FAN_HEAD = {
 	K: ${ K },
+	REC: ${ REC4 / 4 },
+	expressions: ${ JSON.stringify( EXPR.map( ( e ) => e[ 0 ] ) ) },
 	R: ${ JSON.stringify( R ) },
 	scale: 10000,
 	features: ${ JSON.stringify( FN ) },

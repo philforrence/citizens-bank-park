@@ -1728,7 +1728,15 @@ function castMaterial( pool ) {
 	if ( fhi > 0u ) {
 		let hk = vec3f( ${ HEAD_R.map( ( r, i ) => ( r / FH.R[ i ] ).toFixed( 4 ) ).join( ', ' ) } );
 		let fc = fhCoefs( lk.w & 65535u, female, age, lx & 7u, build );
-		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ] );
+		// ---- FF2: his expression (FanHead.js: MakeHuman's units): the mouth open as his act has it (talking,
+		// shouting, singing, blowing into his hands), a smile with it by his own nature, a faint one at rest
+		// for some; his lids at their own rest (more on the old), shut in a blink
+		let fr = fract( vec3f( 0.618034, 0.414214, 0.732051 ) * f32( lk.w & 65535u ) );
+		let mouthK = clamp( a3.y, 0.0, 1.0 );
+		let smileK = max( 0.25 * fr.x * fr.x, mouthK * ( 0.15 + 0.7 * fr.y ) ) * select( 1.0, 0.5, age == 1u );
+		let lidRest = 0.1 + 0.2 * fr.z + select( 0.0, 0.12, age == 1u );
+		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ], vec3f( mouthK, smileK, max( clamp( a7.z, 0.0, 1.0 ), lidRest * ( 1.0 - 0.6 * smileK ) ) ) );
+		// ---- end FF2
 		q += fh.dp * hk;
 		n = normalize( n + fh.dn );
 		fhPaint = fh.d;
@@ -1938,7 +1946,7 @@ function castMaterial( pool ) {
 		v.prevWorldPos = ( v.prevModel * vec4f( r0.p - moved, 1.0 ) ).xyz;
 	}
 	o.vLocal = select( select( q, qFace, part == ${ PART.head }u || part == ${ PART.nose }u || part == ${ PART.ear }u ), tRest, part == 32u + ${ PROP.towel }u );
-	o.vPart = part;
+	o.vPart = part | select( 0u, 128u, fhi > 0u ); // (FF2: 128, a MakeHuman head's: its eyes and mouth are modelled)
 	o.vLook = lk;
 	// ( the mouth, the breath, the blink, an umbrella up over them )
 	o.vPose = vec4f( a3.y, a7.y, a7.z, select( 0.0, 1.0, u32( a3.w + 0.5 ) == ${ PROP.umbrella }u ) );
@@ -1950,7 +1958,8 @@ function castMaterial( pool ) {
 	s.albedo = vec3f( 0.3 ); s.roughness = 0.8; s.metalness = 0.0; s.emissive = vec3f( 0.0 );
 	return;
 #endif
-	let part = in.vs.vPart;
+	let part = in.vs.vPart & 127u;
+	let mhF = in.vs.vPart >= 128u; // (FF2: a MakeHuman head)
 	let L = in.vs.vLocal;
 	let lk = in.vs.vLook;
 	let skinI = lk.x & 7u;
@@ -2199,16 +2208,29 @@ function castMaterial( pool ) {
 			c = mix( c, irisC, smoothstep( 0.08, 0.065, length( ey ) ) );
 		}
 		// ---- end FF1
-		let white = smoothstep( 0.1, 0.075, length( ey * vec2f( 1.0, 1.9 + blink * 6.0 ) ) ) * near * front;
+		// (---- FF2: on a MakeHuman head the white and the pupil on the eyeball alone, and no squash: the lids
+		// are skin and close over it themselves; painted on the lids too, the eyes stared and stayed open)
+		let onEye = select( 1.0, select( 0.0, 1.0, eyeball ), mhF );
+		let bk = select( blink, 0.0, mhF );
+		if ( mhF ) { c *= mix( 1.0, 0.8, smoothstep( 0.16, 0.1, length( ey * vec2f( 1.0, 1.6 ) ) ) * ( 1.0 - onEye ) * front ); }
+		let white = smoothstep( 0.1, 0.075, length( ey * vec2f( 1.0, 1.9 + bk * 6.0 ) ) ) * near * front * onEye;
 		c = mix( c, vec3f( 0.55, 0.53, 0.5 ), white );
-		c = mix( c, vec3f( 0.02, 0.015, 0.01 ), smoothstep( 0.05, 0.035, length( ey * vec2f( 1.0, 1.0 + blink * 6.0 ) ) ) * near * front );
+		c = mix( c, vec3f( 0.02, 0.015, 0.01 ), smoothstep( 0.05, 0.035, length( ey * vec2f( 1.0, 1.0 + bk * 6.0 ) ) ) * near * front * onEye );
 		let brow = smoothstep( 0.05, 0.02, abs( d.y - 0.3 + 0.05 * ax ) ) * step( 0.1, ax ) * step( ax, select( 0.56, 0.5, female ) ) * front;
 		c = mix( c, hairC, brow * select( 0.85, 0.55, female ) );
 		// the mouth: lips (redder on the women); open when he talks, shouts or blows into his hands
 		let open = in.vs.vPose.x;
-		let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / ( 0.05 + 0.13 * open ) ) );
+		// (---- FF2: a MakeHuman head's mouth opens itself: the lips their own size and colour, and inside them
+		// (the paint's d.z marks it) dark, the upper teeth under the upper lip, as it opens)
+		let mo = length( vec2f( d.x / 0.25, ( d.y + 0.45 ) / ( 0.05 + select( 0.13 * open, 0.0, mhF ) ) ) );
 		let lip = c * select( vec3f( 0.85, 0.62, 0.6 ), vec3f( 0.95, 0.5, 0.52 ), female );
-		c = mix( c, mix( lip, vec3f( 0.06, 0.02, 0.02 ), smoothstep( 0.3, 0.7, open ) ), smoothstep( 1.0, 0.7, mo ) * front );
+		c = mix( c, mix( lip, vec3f( 0.06, 0.02, 0.02 ), select( smoothstep( 0.3, 0.7, open ), 0.0, mhF ) ), smoothstep( 1.0, 0.7, mo ) * front );
+		if ( mhF ) {
+			let inM = smoothstep( - 1.04, - 1.3, d.z ) * smoothstep( 0.16, 0.11, abs( d.y + 0.45 ) ) * smoothstep( 0.32, 0.26, ax ) * smoothstep( 0.05, 0.35, open );
+			let teeth = smoothstep( - 0.435, - 0.425, d.y ) * smoothstep( - 0.39, - 0.4, d.y ) * smoothstep( 0.13, 0.09, ax ) * 0.8;
+			c = mix( c, mix( vec3f( 0.035, 0.008, 0.008 ), vec3f( 0.36, 0.34, 0.29 ), teeth ), inM );
+			if ( inM > 0.5 ) { rough = mix( 0.3, 0.45, teeth ); }
+		}
 		// a moustache, a goatee, a beard, stubble (the stubble a shadow, the beard a softer band)
 		// ---- FW6 (C4W-16): a moustache and a goatee in the hair's own colour, a little darker, their edges
 		// soft and broken into stubble, the skin through them (hard black cut-outs with ruler edges)
