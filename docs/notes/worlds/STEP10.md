@@ -31,6 +31,11 @@ Every place a fan could walk in Citizens Bank Park in 2008 should be walkable he
 | FA3 | The inner bowl and its edges: the field closed, the 400s' stairs, the rails, the cracks, the Diamond Club | [FA3.md](../gauntlet/FA3.md) |
 | FA4 | Elevators both ways; the 1B side's ways up planned | [FA4.md](../gauntlet/FA4.md) |
 
-## Where it stands (2026-10-28, 21:05)
+## How it ended (2026-10-29)
 
-The owner stopped it for the night. Everything is merged on `ballpark`; not tagged or published. The walker now reaches 85% of the seated fans (it was 64%), and the falls it takes are down from 3,131 to 466. One regression: the club concourse and the club seats are cut off. The details, and what to do tomorrow in order, are at the end of [../gauntlet/STEP10-LOG.md](../gauntlet/STEP10-LOG.md).
+Published as stage 10 on the morning of the 29th, after the owner's "finish out your merges, checks and stuff and republish".
+- **Faces:** the fans and the players share MakeHuman's real face targets, and the fans' faces move.
+- **The walk:** it reaches 90% of the seated fans (64% at the start). The Pavilion and its Deck, the 400s, the Scoreboard Porch, Harry's upstairs, the Arcade, Monty's sections and the club can all be reached on foot or by elevator, and the walker falls 486 times instead of 3,131. Nobody walks onto the field any more.
+- **Frame rate:** every standard view is 37 fps or better.
+
+What's left is at the end of [../gauntlet/STEP10-LOG.md](../gauntlet/STEP10-LOG.md).

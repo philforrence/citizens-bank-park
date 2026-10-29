@@ -132,6 +132,7 @@ No console errors; 12.9 s to load. Every view at 39 fps or better against the 30
 | 19:58 | FF1, the fans' MakeHuman heads | 20.2 | 19.4 | 15.4 | 15.8 | 12.9 | 19.0 | 17.3 | 21.4 | **25.3** (40 fps) | 19.8 / 20.3 |
 | 20:21 | FF2, the fans' faces move | 20.1 | 19.1 | 14.9 | 15.8 | 13.2 | 20.0 | 18.6 | 22.0 | **26.9** (37 fps) | 21.0 / 21.6 |
 | 20:39 | FA1, the Pavilion reached (the full run, noisy: see below) | 20.9 | 19.9 | 15.8 | 16.5 | 15.0 | 21.9 | 19.8 | 24.5 | **40.4** | 23.6 / 23.8 |
+| 10-29 06:55 | **step 10 as published** (FA1-FA4, FF1-FF3, the club's rail) | 20.3 | 20.0 | 15.5 | 16.2 | 14.0 | 20.2 | 18.1 | 24.3 | **27.1** (37 fps) | 21.2 / 21.7 |
 
 FF1 cost ~0.3 ms in TV center and nothing measurable elsewhere; no console errors.
 
@@ -147,4 +148,15 @@ FF2 (the expressions, smooth normals, the painted mouth and lids) cost ~1.6 ms i
 | post-FA1, run 2 | 21.4 | **30.4** | 2.54 |
 
 FA1 costs nothing measurable. Its stair, tower and portals add about 6,400 static, batched triangles. The spread comes from the machine: the post-FA1 run 2 has a TAAU of 2.54. **From 20:30 the laptop is on battery and the agents keep the load average near 5, so rows from here aren't comparable with the earlier ones.** Judge a merge by an A/B against its parent, run back to back, until the machine is on AC again.
+
+**Step 10 as published (2026-10-29 morning, on battery but steady: TAAU 1.80-1.93 ms in every run).** Every standard view is 37 fps or better; the heaviest is still the 400s seat at 27.1 ms. An A/B against `step-9` (a worktree at the tag, `.claude/ab-step9`), run A, B, A, B under exclusive:
+
+| | TV center | left field (Harry's) | celebration, center | **400s seat** |
+|---|---|---|---|---|
+| step 9, run 1 | 19.7 | 22.3 | 21.2 | **27.1** |
+| step 10, run 1 | 20.6 | 25.2 | 21.4 | **27.7** |
+| step 9, run 2 | 19.7 | 21.5 | 21.7 | **25.0** |
+| step 10, run 2 | 19.9 | 25.4 | 21.9 | **26.6** |
+
+Step 10 costs ~0.6 ms in TV center, ~1.1 ms in the 400s seat and nothing measurable in the celebration. Left field costs +3.4 ms (to ~25 ms, 40 fps), from FA2's Porch walkway, stairs, ramp bridge and Monty's 146-148 (+14,000 triangles in the corner's Kit mesh, +246 fans). The floor holds everywhere. A speed track could win the left field corner back without cutting detail, for example by splitting the corner's one Kit mesh so the far parts cull. No console errors.
 

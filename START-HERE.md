@@ -1,15 +1,15 @@
 # 🛑 START HERE: where we are
 
-**Wednesday 2026-10-28, 21:05: step 10 is merged on `ballpark`, not yet published** ([STEP10.md](docs/notes/worlds/STEP10.md)). The owner asked for "the facial structures of real people" in the stands and the whole park walkable "as it is in the stadium".
+**Thursday 2026-10-29, morning: step 10 is merged and published as stage 10** ([STEP10.md](docs/notes/worlds/STEP10.md)). The owner asked for "the facial structures of real people" in the stands and the whole park walkable "as it is in the stadium".
 
-- **Faces:** the fans and the players share MakeHuman's real face targets, with expressions (FF1-FF3).
-- **The walk:** the Pavilion and its Deck, the 400s, the Scoreboard Porch, Harry's upstairs, the Arcade and Monty's sections can all be reached now. The field is closed off, and the elevators ride both ways (FA1-FA4). The walk audit reaches 85% of the seated fans, up from 64%.
-- **Open before publishing** (in order, at the end of [STEP10-LOG.md](docs/notes/gauntlet/STEP10-LOG.md)):
-  1. the club concourse and club seats became unreachable in FA3;
-  2. the frame rate hasn't been measured since FA1: measure it on AC power, as an A/B against `step-9`;
-  3. Lidge's jaw doesn't drop on the GPU;
-  4. then the stage 10 screenshot, `git tag -a step-10` and the push.
-- **The walk audit:** `node test/walk-audit.mjs job > job.json`, then `node tools/gpu/desk.mjs shoot job.json > dump.json`, then `node test/walk-audit.mjs analyze dump.json outDir`.
+- **Faces:** the fans and the players share MakeHuman's real face targets, and the faces have expressions (FF1-FF3). One bug: no player's mouth opens, Lidge's shout included; [STEP10-LOG.md](docs/notes/gauntlet/STEP10-LOG.md) has how far it's narrowed.
+- **The walk:**
+  - The walk audit reaches 90% of the seated fans, up from 64%.
+  - Newly reachable: the Pavilion and its Deck, the 400s, the Scoreboard Porch, Harry's upstairs, the Arcade, Monty's sections and the Hall of Fame Club's seats.
+  - The field is closed off, a jump no longer clears the rails, and the elevators ride both ways (E up, Shift+E down).
+- **The frame rate:** every standard view is 37 fps or better, the 400s seat 27.1 ms; [PERF.md](docs/notes/gauntlet/PERF.md) has an A/B against step 9.
+- **The walk audit:** `node test/walk-audit.mjs job > job.json`, then `node tools/gpu/desk.mjs shoot job.json > dump.json`, then `node test/walk-audit.mjs analyze dump.json outDir`. `.claude/ab-step9` is a worktree at `step-9` for A/Bs (set a job's `"root"` to it).
+- **Next:** the "Left for later" list at the end of STEP10-LOG.md.
 
 **Wednesday 2026-10-28, evening: step 9, "the gauntlet", is merged and published as stage 9.** Branch `ballpark`.
 

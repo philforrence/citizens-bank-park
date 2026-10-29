@@ -83,3 +83,16 @@ Every agent, merge and measurement in step 10 ([STEP10.md](../worlds/STEP10.md))
    - WA2-12: the outfield tops' drink rails.
    - WA2-10: the Deck's open NW end.
    - The Under.js walls, the fans' chin against a collar, and a fresh critic of the faces.
+
+### 2026-10-29 morning: finished and published (the owner: "finish out your merges, checks and stuff and republish")
+- **The club regression, fixed** (34b16dd). The bowl's "club concourse" is an 8 m strip with a collider-only rail along its back. But the Hall of Fame Club's glass stands 0.4 m behind the seats' top row, so that strip is inside the club room. `Club.js` lays the room's floor out to the back wall and moves the elevators' club stops there, and the rail stayed in the middle of the room. It was there in step 9 too: the walk audit reached the club only by falling 9 m off the Terrace onto the club seats, or 5 m off the 300s' end, and FA3's rails closed those falls. The parent chains in the audits' `nodes.json` showed the route. Now `Club.js` takes `club-concourse-rail` out once its floor is down. On the page: the club concourse 0 → 5,768 cells, the club seats 0 → 999 (3,826 fans), the room 821 → 1,641.
+- **The walk audit, final** (`.claude/step10/final2/`, no console errors): **37,737 of 42,132 fans reached (90%; 64% at the start of step 10)**. The walker falls 486 times (3,131 at the start), with no pops and 3.2 m² of cracks.
+- **The frame rate:** steady this time, though on battery (the anti-aliasing pass held at 1.8-1.9 ms). Every standard view is 37 fps or better, the 400s seat 27.1 ms. Against `step-9` back to back: +0.6 ms in TV center, +1.1 ms in the 400s seat, +3.4 ms in left field (FA2's corner, now about 25 ms, 40 fps), nothing in the celebration ([PERF.md](PERF.md)).
+- **Lidge's jaw, narrowed but not fixed.** In FF3's shots every player's smile and blink reach the GPU, but no player's mouth-open term does: no jaw and no brows, for anyone. The records decode right on the CPU (the jaw drops up to 3.7 cm, the blink 1 cm), and the shader reads them in the right order. The next step is a desk shot with `ex.x` forced to 1 in `Players.js`' FF3 block, to tell a weight that reads 0 from a move that doesn't land.
+- **Found in passing, not new:** from the Pavilion Deck at strike three, a red-and-white pinstriped box stands on the infield between the mound and second. Step 9 as published has it too, and it doesn't show from the 400s, so it looks like a far stand-in for the pile. Shots: `.claude/step10/stage/box9/` and `box10/`.
+- **Stage 10's screenshot:** fans' faces at strike three behind first base, under the 2008 WORLD CHAMPIONS ribbon (`docs/stages/step-10.jpg`).
+- **Left for later:**
+  - FA4's plans: the 1B Gate's escalators and ramp, the elevator behind 112, the rooftop bleachers, the walk-throughs.
+  - WA2-8 (the section counts), WA2-10 (the Deck's open NW end), WA2-12 (the outfield tops' drink rails).
+  - Doors in the club's glass: you can walk through it anywhere today, where in 2008 it was doors at the aisles.
+  - The Under.js walls, Lidge's jaw, the pinstriped box, and a speed track for the left field corner.

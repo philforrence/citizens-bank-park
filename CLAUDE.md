@@ -1,8 +1,8 @@
 # Citizens Bank Park: notes for Claude
 
-## Where we are (2026-10-28, night)
+## Where we are (2026-10-29)
 
-Step 10 (real faces in the stands, and the whole park walkable as in 2008) is merged on `ballpark` but not published. The owner stopped it for the night and will pick it up tomorrow. Start with the "Tomorrow, in order" list at the end of [docs/notes/gauntlet/STEP10-LOG.md](docs/notes/gauntlet/STEP10-LOG.md). [START-HERE.md](START-HERE.md) has the summary.
+Step 10 (real faces in the stands, and the whole park walkable as in 2008) is merged and published as stage 10. [START-HERE.md](START-HERE.md) has the summary, and the end of [docs/notes/gauntlet/STEP10-LOG.md](docs/notes/gauntlet/STEP10-LOG.md) lists what's left.
 The GPU rules are in [docs/GPU.md](docs/GPU.md). After a change: `npm test`, `node test/continuity.mjs`, the standard frame-rate views (`tools/gpu/standard-views.json`) and the walk audit (`test/walk-audit.mjs`).
 
 ## Standing rules
