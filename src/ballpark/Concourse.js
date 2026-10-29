@@ -81,6 +81,10 @@ const PLAQUES = [ 'men', 'women', 'family' ];
 // bonded along whichever wall it is (world position: y is the height above the concourse); the roofs a
 // dark membrane, what faces down painted. (---- FW3: lift, the height of the floor they stand on over the
 // main concourse's, world y: the Terrace's stands and the upper concourses' have their own materials)
+// ---- FX3 (AD1-5): a stand's back is flagged by its uv.x (over BACK_UV: uv.x - BACK_UV the metres along it
+// from its wall pack, uv.y the height), and the wall pack lights it
+const BACK_UV = 1000;
+// ---- end FX3
 const blockWGSL = ( lift = 0 ) => /* wgsl */`
 	if ( in.N.y > 0.5 ) {
 		s.albedo = vec3f( 0.06, 0.06, 0.065 );
@@ -104,6 +108,17 @@ const blockWGSL = ( lift = 0 ) => /* wgsl */`
 		c = c * ( 0.86 + 0.22 * id ) * ( 0.85 + 0.3 * smoothstep( 0.2, 0.8, grit ) * ( 1.0 - max( fr, fb ) ) );
 		s.albedo = mix( c, vec3f( 0.38, 0.36, 0.33 ), mortar * 0.7 );
 		s.roughness = 0.75;
+		// ---- FX3 (AD1-5): a stand's back: its wall pack's pool on the block (it throws down and out, a
+		// little up), and the faint bounce off the floor everywhere on it
+		if ( in.uv.x > ${ ( BACK_UV / 2 ).toFixed( 1 ) } ) {
+			let du = in.uv.x - ${ BACK_UV.toFixed( 1 ) };
+			let dv = in.uv.y - 2.86;
+			let r2 = du * du + dv * dv * select( 1.0, 4.0, dv > 0.0 );
+			let pool = 1.4 / ( 1.0 + r2 / 0.9 ) * ( 1.0 - smoothstep( 0.1, 0.5, dv ) * 0.85 );
+			let nl = smoothstep( 0.1, 0.7, frame.night );
+			s.emissive = s.albedo * vec3f( 1.0, 0.88, 0.7 ) * ( pool * mix( 0.35, 1.0, nl ) + 0.1 );
+		}
+		// ---- end FX3
 	}
 `;
 // ---- FW3: the stands' block and bays for a floor `lift` m over the main concourse's (world y)
@@ -1366,7 +1381,37 @@ export class Concourse {
 	_unit( U, P, y0, L, Q ) {
 
 		const W = UNIT / 2, { body, props } = Q;
-		fwd( body, P, U.n.map( ( v ) => - v ), W, - W, 0, H, - DEPTH );
+		// ---- FX3 (step 11, AD1-5): the back, as a stand's back is: the block, a steel service door near one
+		// end under a wall pack, AUTHORIZED PERSONNEL ONLY on the door, and on a food stand its name again,
+		// smaller, for whoever comes at it from behind (from the gates' atriums, the outer ring). The wall
+		// pack's wash is the block's own shader's (uv.x over BACK_UV flags the face: u the metres from the
+		// lamp, v the height), lit whatever the concourse's lights pick; it was a black 8 x 4 m face, lit by
+		// nothing, square in the walk-concourse3b view
+		const nb = U.n.map( ( v ) => - v ), lx = ( ( U.sec * 7 ) % 2 < 1 ? 1 : - 1 ) * ( W - 1.25 );
+		fwd( body, P, nb, W, - W, 0, H, - DEPTH, [ BACK_UV + W - lx, H, BACK_UV - W - lx, 0 ] );
+		{
+
+			const z = - DEPTH;
+			lbox( props.use( 'steel' ), P, U.a, U.n, lx, 1.1, z - 0.01, 1.1, 2.24, 0.05 );
+			lbox( props.use( 'grey' ), P, U.a, U.n, lx, 1.06, z - 0.03, 0.94, 2.12, 0.03 );
+			lbox( props.use( 'steel' ), P, U.a, U.n, lx, 0.15, z - 0.047, 0.92, 0.28, 0.006 );
+			lbox( props.use( 'steel' ), P, U.a, U.n, lx, 1.0, z - 0.07, 0.75, 0.05, 0.05 );
+			lbox( props.use( 'black' ), P, U.a, U.n, lx + ( lx > 0 ? 0.38 : - 0.38 ), 1.0, z - 0.05, 0.05, 0.12, 0.03 );
+			// the wall pack over it: its dark housing, the lens under it lit
+			lbox( props.use( 'black' ), P, U.a, U.n, lx, 2.98, z - 0.1, 0.34, 0.24, 0.2 );
+			lbox( props.use( 'lamp' ), P, U.a, U.n, lx, 2.855, z - 0.12, 0.28, 0.012, 0.14 );
+			// the plaque on the door, and the stand's name over the back
+			const C = L?.cells?.[ BRANDS.length + PLAQUES.length ];
+			if ( C ) fwd( Q.face, P, nb, lx + 0.2, lx - 0.2, 1.42, 1.72, z - 0.05, [ C[ 0 ], C[ 1 ] + ( C[ 3 ] - C[ 1 ] ) * 0.125, C[ 2 ], C[ 3 ] - ( C[ 3 ] - C[ 1 ] ) * 0.125 ] );
+			if ( typeof U.what === 'string' && L?.food ) {
+
+				const R = L.food[ BRANDS.indexOf( U.what ) ], sw = W * 0.58, sh = SIGN_H * 0.58, cx = - lx * 0.35;
+				fwd( Q.face, P, nb, cx + sw, cx - sw, 3.05, 3.05 + sh, z - 0.03, [ 0, R.name[ 0 ], 1, R.name[ 1 ] ] );
+
+			}
+
+		}
+		// ---- end FX3
 		for ( const s of [ - 1, 1 ] ) {
 
 			const X = [ U.a[ 0 ] * s, 0, U.a[ 1 ] * s ];
@@ -1985,7 +2030,7 @@ export class Concourse {
 
 		const W = 1024, NH = NAME_PX, MH = 224, KH = 48, HH = 112, CW = 256, CH = 192; // ---- FI1: NH, the cells
 		const per = NH + MH + KH;
-		const nCells = BRANDS.length + PLAQUES.length;
+		const nCells = BRANDS.length + PLAQUES.length + 1; // ---- FX3 (AD1-5): and the service doors' plaque
 		const total = BRANDS.length * per + Math.ceil( HALVES.length / 2 ) * HH + Math.ceil( nCells / 4 ) * CH;
 		const food = BRANDS.map( ( b, i ) => ( {
 			y: i * per,
@@ -2132,6 +2177,22 @@ export class Concourse {
 				plaque( ctx, k, x + L.CW / 2, y + L.CH / 2, L.CH * 0.62, L.CH - 8 );
 
 			} );
+			// ---- FX3 (step 11, AD1-5): the plaque on the stands' service doors, painted (not lit): white,
+			// the park's red letters, a navy rule
+			{
+
+				const [ , , , , x, y ] = L.cells[ BRANDS.length + PLAQUES.length ], w = L.CW, h = L.CH, py = y + h * 0.125, ph = h * 0.75;
+				ctx.fillStyle = '#f2f0ea'; ctx.fillRect( x, py, w, ph );
+				ctx.fillStyle = '#13294f'; ctx.fillRect( x + 8, py + 8, w - 16, 6 ); ctx.fillRect( x + 8, py + ph - 14, w - 16, 6 );
+				ctx.fillStyle = '#b3121b'; ctx.textAlign = 'center';
+				ctx.font = `800 34px ${ sans }`;
+				ctx.fillText( 'AUTHORIZED', x + w / 2, py + ph * 0.36, w - 24 );
+				ctx.font = `800 26px ${ sans }`;
+				ctx.fillText( 'PERSONNEL ONLY', x + w / 2, py + ph * 0.66, w - 24 );
+				unlit( ctx, x, py, w, ph );
+
+			}
+			// ---- end FX3
 			// ---- end FI1
 
 		}, 'concessions' );
