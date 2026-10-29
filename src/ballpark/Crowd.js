@@ -1489,6 +1489,12 @@ const signCells = ( names ) => names.map( ( n ) => SIGN[ n ] ?? 0 ).join( 'u, ' 
 function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 
 	const call = ( prev ) => `cwVertex( pos0, nrm0, stp0, nrm0s, v.aSitUp, v.aStandUp, v.aSitFace, v.aStandFace, v.aInfo, fan, ${ prev }, ${ lod }u, fhPaint, fhFold )`;
+	// ---- FX1: the close level's MakeHuman head: its crown's record (the top vertex), and a record's size
+	const MHL = fanHeadLevel( LODS[ 0 ].mh );
+	let top = 0;
+	for ( let i = 1; i < MHL.count; i ++ ) if ( MHL.position[ i * 3 + 1 ] > MHL.position[ top * 3 + 1 ] ) top = i;
+	const MH_TOP = MHL.rec + top, FH_REC = MHL.recs.length / ( MHL.count * 4 );
+	// ---- end FX1
 	const mat = standard( {
 		// (the near ones are all 'crowd-near' to the rain: Night.js's FABRIC)
 		name: 'crowd-' + [ 'near', 'near', 'mid', 'far', 'far' ][ lod ], roughness: 0.8, side: 'double', // (SP2: the distant one is 'far' too)
@@ -1540,6 +1546,19 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		fhFold = fh.fold;
 	}
 #endif
+	// ---- FX1 (step 11): close up a knit hat's pom-pom rides the crown: the MakeHuman head's top vertex's
+	// move by his face's weights (a smaller head brings the crown down: it sat on air over it), three
+	// reads for the pom-pom's vertices alone
+#if CROWD_LOD == 0
+	if ( ( u32( v.aInfo.x + 0.5 ) & 15u ) == 3u && v.aInfo.y > 1.5 ) {
+		let fc = fhUnpack( cwIds[ fan ].w );
+		let tb = ${ MH_TOP }u * ${ FH_REC }u;
+		let crown = vec3f( fh8( fhRec[ tb + 1u ], fc[ 0 ], fc[ 1 ] ), fh8( fhRec[ tb + 2u ], fc[ 0 ], fc[ 1 ] ), fh8( fhRec[ tb + 3u ], fc[ 0 ], fc[ 1 ] ) );
+		pos0 += crown;
+		stp0 += crown;
+	}
+#endif
+	// ---- end FX1
 	// ---- end FF1
 	let cur = ${ call( 'false' ) };
 #if CROWD_LOD <= 1

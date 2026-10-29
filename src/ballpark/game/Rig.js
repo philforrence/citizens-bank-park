@@ -36,9 +36,11 @@ export const PART = { skin: 0, jersey: 1, pants: 2, socks: 3, shoes: 4, cap: 5, 
 	// cap on backwards, the shag round his mouth and the mouth itself
 	phBody: 29, phNeck: 30, phLid: 31, phHair: 32, phCap: 33, phRing: 34, phMouth: 35,
 	// ---- FF3: the mouth's inside (the body's own: the bag the lips curl into, which the open jaw shows)
-	mouth: 36 };
+	mouth: 36,
+	// ---- FX1: the teeth, the upper arch and the lower
+	teeth: 37, teethLow: 38 };
 // the optional pieces (left out of statues)
-export const OPTIONAL = [ 10, 11, 12, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 ];
+export const OPTIONAL = [ 10, 11, 12, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 37, 38 ]; // (---- FX1: the teeth)
 // the Phanatic's own pieces (only he wears them)
 export const PHANATIC_PARTS = [ 25, 26, 27, 29, 30, 31, 32, 33, 34, 35 ];
 
@@ -414,6 +416,70 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 		add( cyl( 0.0025, 0.0025, 0.018, 4 ), B.head, P.glasses, 0, eyeY + 0.006, eyeZ, 0, 0, Math.PI / 2 );
 
 	}
+
+	// ---- FX1 (step 11): the teeth, for the shout (Getty 83485858: Lidge's upper teeth across the top of his
+	// open mouth; 83485929: Howard's grin). Two arches inside the lips, on the near figure: the upper one
+	// a band from the gum down to the edge, the lower one smaller and behind it. Each rides one vertex of
+	// the lips' inside (aField.z, as the face's vertices do: his face's own shape moves it), the upper the
+	// one over the teeth that the jaw doesn't move, the lower one under them that drops and swings back
+	// with the jaw (Players.js: the upper takes none of the expressions' moves, the lower all of them).
+	// Bone: the head
+	if ( ! lod ) {
+
+		const BP = decode( BODY.position, Int16Array ), BG = decode( BODY.flag, Uint8Array );
+		const [ , my, mz ] = F.mouth;
+		// the lips' inside nearest a point (the mouth's flag), its head vertex
+		const near = ( y, z ) => {
+
+			let best = - 1, bd = 1e9;
+			for ( let i = 0; i < BODY.count; i ++ ) {
+
+				if ( BG[ i ] !== 2 ) continue;
+				const d = Math.hypot( BP[ i * 3 ] / Q, BP[ i * 3 + 1 ] / Q - y, BP[ i * 3 + 2 ] / Q - z );
+				if ( d < bd ) { bd = d; best = i; }
+
+			}
+
+			return headOf( best );
+
+		};
+		const arch = ( p, carrier, front, rx, rz, rows ) => {
+
+			const base = pos.length / 3, A = 80 * Math.PI / 180, N = 18;
+			for ( let j = 0; j <= N; j ++ ) {
+
+				const a = - A + 2 * A * j / N, sa = Math.sin( a ), ca = Math.cos( a ), side = Math.abs( a ) / A;
+				for ( const [ dy, back, dyBack ] of rows ) {
+
+					// (the edge rises toward the back, the molars shorter than the incisors)
+					const y = my + dy + dyBack * side;
+					pos.push( rx * sa * ( 1 - back * 0.3 ), y, mz + front + rz * ( 1 - ca ) + back );
+					nrm.push( sa, 0, - ca );
+					bones.push( B.head, 0, 0, 0 );
+					weights.push( 1, 0, 0, 0 );
+					part.push( p );
+					field.push( - 1, - 1, carrier );
+
+				}
+
+			}
+
+			const R = rows.length;
+			for ( let j = 0; j < N; j ++ ) for ( let k = 0; k < R - 1; k ++ ) {
+
+				// (wound to face out of the arch, forward)
+				const a = base + j * R + k, b = a + R, c = a + 1, d = b + 1;
+				index.push( a, b, c, b, d, c );
+
+			}
+
+		};
+		// [ y over the lips' line, how far back (the gum's, the edge's back), how much higher at the back ]
+		arch( P.teeth, near( my + 0.0057, mz + 0.0043 ), 0.0058, 0.0225, 0.021, [ [ 0.0105, 0.0012, 0 ], [ 0.0072, 0, 0 ], [ - 0.0035, 0, 0.0045 ], [ - 0.0033, 0.0022, 0.0045 ] ] );
+		arch( P.teethLow, near( my - 0.0084, mz + 0.0041 ), 0.0085, 0.019, 0.019, [ [ 0.0, 0.0018, - 0.002 ], [ - 0.0004, 0, - 0.002 ], [ - 0.0075, 0, 0 ], [ - 0.0105, 0.0012, 0 ] ] );
+
+	}
+	// ---- end FX1
 
 	// the Phillie Phanatic's costume (Players.js, KIND.phanatic): see phanatic() below
 	if ( ! lod ) phanatic( addSkinned, lathe ); // ---- SP2: (the costume's draw is never far)

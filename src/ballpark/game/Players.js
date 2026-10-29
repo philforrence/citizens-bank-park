@@ -533,7 +533,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 	if ( pt == ${ P.mitt1B } && ( role & ${ R.mitt1B }u ) == 0u ) { keep = false; }
 	if ( pt == ${ P.glove } && ( role & ${ R.mittC | R.mitt1B }u ) != 0u ) { keep = false; }
 	if ( ( ${ PHANATIC_PARTS.map( ( k ) => `pt == ${ k }` ).join( ' || ' ) } ) && ! phan ) { keep = false; }
-	if ( phan && ( pt == ${ P.eye } || pt == ${ P.helmet } ) ) { keep = false; }
+	if ( phan && ( pt == ${ P.eye } || pt == ${ P.helmet } || pt == ${ P.teeth } || pt == ${ P.teethLow } ) ) { keep = false; } // (---- FX1: the teeth)
+	// ---- FX1: the teeth only while the mouth opens or smiles (shut, the lips' line showed them, a white thread)
+	if ( ( pt == ${ P.teeth } || pt == ${ P.teethLow } ) && ( u32( i0.y ) & 65535u ) == 0u ) { keep = false; }
 	// in the rain his cap is under the sou'wester (phanatic/Props.js)
 	if ( pt == ${ P.phCap } && ( role & ${ R.slicker }u ) != 0u ) { keep = false; }
 	if ( pt == ${ P.glasses } && ( u32( i2.w + 0.5 ) & 16u ) == 0u ) { keep = false; }
@@ -838,7 +840,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		// to even, and an odd mouth-open byte (Lidge's shout, 255) carried into the smile's and read 0. His
 		// lids shut, his jaw never dropped)
 		let eq = u32( i0.y );
-		if ( hq < 131072u && eq != 0u ) { // (---- FX1: the middle figure too, Rig.js)
+		// (---- FX1: the middle figure too, Rig.js; the upper teeth ride the lips' inside without its
+		// expressions: they're the skull's. The lower ones take the jaw's)
+		if ( hq < 131072u && eq != 0u && pt != ${ P.teeth } ) {
 			let ex = vec3f( f32( eq & 255u ), f32( ( eq >> 8u ) & 255u ), f32( eq >> 16u ) ) / 255.0;
 			let e0 = plExpr[ hv * 2u ];
 			let e1 = plExpr[ hv * 2u + 1u ];
@@ -855,7 +859,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		}
 		lp3 += dp;
 		fd += dp;
-		nb = normalize( nb + dn );
+		nb = select( normalize( nb + dn ), nb, pt == ${ P.teeth } || pt == ${ P.teethLow } ); // (---- FX1: the teeth keep their own)
 	}
 	// ---- end FF3
 	let lp = select( vec4f( 0.0, 0.0, 0.0, 1.0 ), vec4f( lp3, 1.0 ), keep );
@@ -1389,6 +1393,37 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		if ( d.z < -0.93 ) { c = iris * ( 0.8 + 0.4 * smoothstep( -0.93, -0.975, d.z ) ); }
 		if ( d.z < -0.985 ) { c = vec3f( 0.005 ); }
 	}
+	// ---- FX1 (step 11): the teeth (Rig.js' two arches): enamel, a shade down between each pair, the edges
+	// a little grey where they thin, the gum above the upper ones and below the lower; darker round toward
+	// the back of the mouth, where the light doesn't reach (Getty 83485858: the upper teeth bright under
+	// Lidge's lip, the mouth dark behind them)
+	if ( part == ${ P.teeth } || part == ${ P.teethLow } ) {
+		let up = part == ${ P.teeth };
+		let dy = L.y - ${ f( F.mouth[ 1 ] ) };
+		let rx = select( 0.019, 0.0225, up );
+		let rz = select( 0.019, 0.021, up );
+		let cz = ${ f( F.mouth[ 2 ] ) } + select( 0.0085, 0.0058, up ) + rz;
+		let a = atan2( L.x / rx, max( cz - L.z, 0.0 ) / rz );
+		// along the arch from the middle: the centrals, the laterals, the canines, the premolars, the molars
+		let sA = abs( a ) * ( rx + rz ) * 0.5;
+		let e = select( vec4f( 0.0055, 0.0112, 0.0178, 0.0245 ), vec4f( 0.0085, 0.0152, 0.0228, 0.0298 ), up );
+		let gap = min( min( min( sA, abs( sA - e.x ) ), min( abs( sA - e.y ), abs( sA - e.z ) ) ), min( abs( sA - e.w ), abs( sA - e.w - 0.0072 ) ) );
+		c = vec3f( 0.6, 0.57, 0.49 ) * ( 0.94 + 0.06 * fract( seed * 7.3 + floor( sA / 0.007 ) * 0.37 ) );
+		c *= mix( 0.45, 1.0, smoothstep( 0.0001, 0.0007, gap ) );
+		let edgeK = select( smoothstep( -0.0007, 0.0002, dy + 0.0012 ), smoothstep( -0.0007, 0.0002, -dy - 0.0022 ), up );
+		c = mix( c, c * vec3f( 0.8, 0.83, 0.88 ), edgeK * 0.7 );
+		// (the gum, scalloped up between the teeth)
+		let gumY = 0.0064 + 0.0011 * smoothstep( 0.0018, 0.0, gap );
+		let gum = select( smoothstep( gumY, gumY + 0.0006, -dy ), smoothstep( gumY, gumY + 0.0006, dy ), up );
+		c = mix( c, vec3f( 0.42, 0.12, 0.12 ), gum );
+		c *= mix( 1.0, 0.22, smoothstep( 0.3, 1.15, abs( a ) ) );
+		// (barely parted, as a chewer's, they're in the lips' shade)
+		let eqT = u32( plInfo[ slotU * ${ K }u ].y );
+		c *= mix( 0.2, 1.0, smoothstep( 0.02, 0.14, f32( eqT & 255u ) / 255.0 + 0.5 * f32( ( eqT >> 8u ) & 255u ) / 255.0 ) );
+		rough = mix( 0.22, 0.45, gum );
+		clothy = false;
+	}
+	// ---- end FX1
 	if ( part == ${ P.helmet } || part == ${ P.flapL } || part == ${ P.flapR } || part == ${ P.ccap } ) {
 		// the batting helmet: a glossy shell, scuffed; now and then a smear of pine tar on the crown
 		c = capC * 1.05; rough = 0.12;
@@ -1684,7 +1719,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 	ring += 0.75 * ( max( dot( FN, vec3f( -0.83, 0.5, 0.25 ) ), 0.0 ) + max( dot( FN, vec3f( 0.83, 0.5, 0.25 ) ), 0.0 ) );
 	ring += 0.35 * max( FN.y, 0.0 );
 	let banks = smoothstep( 0.15, 0.7, frame.night ) * ${ f( NIGHT_FILL ) };
-	s.emissive += c * frame.sunColor * ring * banks * select( 1.0, 0.4, part == ${ P.eye } || part == ${ P.phEye } );
+	s.emissive += c * frame.sunColor * ring * banks * select( select( 1.0, 0.4, part == ${ P.eye } || part == ${ P.phEye } ), 0.2, part == ${ P.teeth } || part == ${ P.teethLow } ); // (---- FX1: the teeth, in the mouth)
 	// ---- end FY2
 	s.albedo = c;
 	s.roughness = rough;
