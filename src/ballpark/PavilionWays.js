@@ -119,16 +119,26 @@ export function pavilionWays( bowl, { pav, deck } ) {
 			for ( const k of [ 1, - 1 ] ) {
 
 				const top = p.s + k * ( p.w - 0.1 ), foot = top - k * n * RUN;
-				const ok = [ foot, ( foot + top ) / 2 ].every( ( s ) => {
+				// (on the concourse's front half the whole way, so there's 2 m to walk past it behind)
+				const ok = [ foot, ( foot * 3 + top ) / 4, ( foot + top ) / 2, ( foot + top * 3 ) / 4, top ].every( ( s ) => {
 
 					const q = along( s, dm ), dd = nearPav( q[ 0 ], q[ 1 ] );
-					return dd - hw > dPav + 0.1 && dd + hw < dPav + 3.2;
+					return dd - hw > dPav + 0.1 && dd + hw < dPav + 2.05;
 
 				} );
 				if ( ok ) { dir = k; break; }
 
 			}
-			if ( ! dir ) continue;
+			if ( ! dir ) {
+
+				// no room for its stair (round the pole the concourse curves away from a straight one): the box's
+				// floor closed over the well, an alcove off row 7
+				const c = along( p.s, dm ), a0 = along( p.s - p.w, dm - hw ), a1 = along( p.s + p.w, dm - hw ), b1 = along( p.s + p.w, dm + hw ), b0 = along( p.s - p.w, dm + hw );
+				K.precast.add( [ a0[ 0 ], p.yF, a0[ 1 ] ], [ a1[ 0 ], p.yF, a1[ 1 ] ], [ b1[ 0 ], p.yF, b1[ 1 ] ], [ b0[ 0 ], p.yF, b0[ 1 ] ], [ 0, 1, 0 ] );
+				K.box( c, p.u, p.w, hw, p.yF - 0.3, p.yF, { walkable: true, tag: 'pavilion-deck-portal' } );
+				continue;
+
+			}
 			const top = p.s + dir * ( p.w - 0.1 ), foot = top - dir * n * RUN;
 			K.flight( F, { s0: dm - hw, s1: dm + hw, d0: foot, dir, y0: yPav, n, r, open0: 4 } );
 			// the well's rails on the box's floor: behind it the whole way, in front up to the last treads

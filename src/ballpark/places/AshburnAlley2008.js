@@ -138,6 +138,21 @@ export default class AshburnAlley2008 {
 
 			}
 			for ( const [ a, b ] of [ [ - 62, - 40 ], [ - 34, - 8 ], [ 2, 30 ], [ 36, 60 ] ] ) add( a, b, - 143.12, - 142.98, STREET + 4.5, STREET + 4.5 + 1.2, { tag: 'alley-roof-rail' } );
+			// the bleachers' roof the landing gives onto: railed round its other three sides (a pipe rail drawn
+			// as the stair's), the way on from the landing open
+			const yR = STREET + 4.5, zB = - 150.45;
+			const rail = ( ax, az, bx, bz ) => {
+
+				add( Math.min( ax, bx ) - 0.05, Math.max( ax, bx ) + 0.05, Math.min( az, bz ) - 0.05, Math.max( az, bz ) + 0.05, yR, yR + 1.2, { tag: 'alley-roof-rail' } );
+				beam( rq, [ ax, yR + 1.07, az ], [ bx, yR + 1.07, bz ], 0.05 );
+				const n = Math.max( 1, Math.round( Math.hypot( bx - ax, bz - az ) / 1.5 ) );
+				for ( let k = 0; k <= n; k ++ ) beam( rq, [ ax + ( bx - ax ) * k / n, yR, az + ( bz - az ) * k / n ], [ ax + ( bx - ax ) * k / n, yR + 1.07, az + ( bz - az ) * k / n ], 0.045 );
+
+			};
+			rail( 36.05, zTop + 1.25, 36.05, - 143.1 );
+			rail( 36.4, zB, 59.95, zB );
+			rail( 59.95, zB, 59.95, - 143.1 );
+			add( x0 - 0.05, 36.4, zB - 0.1, zB, yT - 0.2, yT + 1.1, { tag: 'roof-stair-rail' } );
 
 		}
 		// ---- end FA1

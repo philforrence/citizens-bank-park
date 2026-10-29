@@ -474,7 +474,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		pq.add( at( p.s - w, dF, yF ), at( m0, dF, yF ), at( m0, dF, yTop ), at( p.s - w, dF, yTop ), f );
 		pq.add( at( m1, dF, yF ), at( p.s + w, dF, yF ), at( p.s + w, dF, yTop ), at( m1, dF, yTop ), f );
 		pq.add( at( m0, dF, mTop ), at( m1, dF, mTop ), at( m1, dF, yTop ), at( m0, dF, yTop ), f );
-		mq.add( at( m0, dF + 0.05, yF ), at( m1, dF + 0.05, yF ), at( m1, dF + 0.05, mTop ), at( m0, dF + 0.05, mTop ), f );
+		if ( ! PO.open ) mq.add( at( m0, dF + 0.05, yF ), at( m1, dF + 0.05, yF ), at( m1, dF + 0.05, mTop ), at( m0, dF + 0.05, mTop ), f ); // ---- FA1: an open portal's mouth is open
 		// the cheeks and the top
 		for ( const e of [ - 1, 1 ] ) pq.add( at( p.s + e * w, dF, yF ), at( p.s + e * w, dB, yF ), at( p.s + e * w, dB, yTop ), at( p.s + e * w, dF, yTop ), [ S.ux * e, 0, S.uz * e ] );
 		pq.add( at( p.s - w, dF, yTop ), at( p.s + w, dF, yTop ), at( p.s + w, dB, yTop ), at( p.s - w, dB, yTop ), [ 0, 1, 0 ] );
@@ -523,9 +523,13 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		pm.castShadow = true;
 		pm.receiveShadow = true;
 		group.add( pm );
-		const mouth = new Mesh( mq.geometry(), materials.portalMouth );
-		mouth.name = tier.name + '-portal-mouths';
-		group.add( mouth );
+		if ( mq.count ) { // ---- FA1
+
+			const mouth = new Mesh( mq.geometry(), materials.portalMouth );
+			mouth.name = tier.name + '-portal-mouths';
+			group.add( mouth );
+
+		}
 
 	}
 

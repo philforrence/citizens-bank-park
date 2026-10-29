@@ -41,6 +41,9 @@ const CELL = 0.5, X0 = - 178, X1 = 188, Z0 = - 208, Z1 = 142;
 const NX = Math.round( ( X1 - X0 ) / CELL ), NZ = Math.round( ( Z1 - Z0 ) / CELL );
 
 const DUMP = readFileSync( new URL( './walk-audit-dump.js', import.meta.url ), 'utf8' );
+// (FA1, step 10: the E interactables come bank by bank, stop by stop: which bank and stop each is, for banks of
+// any size; the outfield's banks have two stops)
+let ELEV_AT = [];
 
 const [ cmd, dumpPath, outDir ] = process.argv.slice( 2 );
 if ( cmd === 'job' ) {
@@ -58,6 +61,7 @@ if ( cmd !== 'analyze' || ! dumpPath ) {
 
 const res = JSON.parse( readFileSync( dumpPath, 'utf8' ) );
 const D = res.values ? Object.values( res.values ).find( ( v ) => v && v.boxes ) : res;
+ELEV_AT = D.elev.flatMap( ( b, bank ) => b.map( ( _, i ) => [ bank, i ] ) );
 const OUT = outDir || '.';
 mkdirSync( OUT, { recursive: true } );
 const t0 = Date.now();
@@ -361,8 +365,8 @@ function fill( seeds, { jumps = false, known = null } = {} ) {
 		for ( let k = 0; k < D.inter.length; k ++ ) {
 
 			const it = D.inter[ k ];
-			if ( Math.hypot( it.x - x, it.z - z ) >= it.r || Math.abs( it.y - y ) >= 1.5 ) continue;
-			const bank = Math.floor( k / 4 ), stop = D.elev[ bank ][ ( k % 4 + 1 ) % 4 ];
+			if ( ! ELEV_AT[ k ] || Math.hypot( it.x - x, it.z - z ) >= it.r || Math.abs( it.y - y ) >= 1.5 ) continue;
+			const [ bank, i ] = ELEV_AT[ k ], stop = D.elev[ bank ][ ( i + 1 ) % D.elev[ bank ].length ]; // (FA1: banks of any size)
 			const [ wx, wz ] = toWorld( stop.x, stop.z );
 			let wy = FY0 + stop.y;
 			wy = Math.max( wy, groundAt( wx, wz, wy + STEP + 0.05 ) );
@@ -618,14 +622,14 @@ const pathTo = ( F, id ) => {
 };
 
 // the elevators: which stops the walker reaches and where each ride leaves it
-const elevReport = D.inter.map( ( it, k ) => {
+const elevReport = D.inter.filter( ( it, k ) => ELEV_AT[ k ] ).map( ( it, k ) => {
 
 	const [ fx, fz ] = toField( it.x, it.z );
 	const e = W.elev.find( ( e ) => e.inter === k );
 	// is the stop's own spot reached at all?
 	let reachedNear = false;
 	for ( let id = 0; id < W.N.x.length && ! reachedNear; id ++ ) if ( Math.hypot( W.N.x[ id ] - it.x, W.N.z[ id ] - it.z ) < it.r && Math.abs( W.N.y[ id ] - it.y ) < 1.5 ) reachedNear = true;
-	const bank = Math.floor( k / 4 ), stop = D.elev[ bank ][ k % 4 ];
+	const [ bank, i ] = ELEV_AT[ k ], stop = D.elev[ bank ][ i ]; // (FA1)
 	const [ wx, wz ] = toWorld( stop.x, stop.z );
 	const g = groundAt( wx, wz, FY0 + stop.y + STEP + 0.05 );
 	const st = standable( wx, Math.max( g, FY0 + stop.y ), wz );
