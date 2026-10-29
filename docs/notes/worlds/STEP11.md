@@ -30,3 +30,14 @@ Step 11 is step 9's loop again ([STEP9.md](STEP9.md), the brief [../gauntlet/BRI
 | AD1 | Breaker: everything a curious fan could find, with step 10's new places first |
 | CR1 | Critic, the people up close: the fans' new faces and expressions, the players' faces, the Phanatic, against 2008 close-ups |
 | FX1 | Fixer, step 10's known bugs: the players' mouths never open (Lidge's shout), and the pinstriped box on the infield seen from the outfield |
+
+## How it ended (2026-10-29)
+
+One round: three critics, a breaker, five fixers and three skeptics. The account's weekly usage limit stopped the last four agents at once, then the owner said "finish up this round and deploy! ... don't do another loop".
+- **Merged:**
+  - **FX1:** the players' mouths open (a rounding bug), with teeth and a dark mouth; the "pinstriped box" was a fan's floating pompom. Its skeptic upheld it.
+  - **FX4:** the seated crowd's hands, raised arms, mouths, faces, expressions and shirts.
+  - **FX3:** Harry the K's see-through windows and bottles, the left field elevator, the police clear of the rail, and the stand backs.
+- **Published as stage 11.** Every standard view is 35 fps or better.
+- **What's left:** FX2 (the seats), FX5 (the players) and the queued bundles, in [../gauntlet/STEP11-LOG.md](../gauntlet/STEP11-LOG.md) and `.claude/gauntlet/s11/TICKETS.md`.
+

@@ -1,5 +1,13 @@
 # 🛑 START HERE: where we are
 
+**Thursday 2026-10-29, late morning: step 11 is merged and published as stage 11** ([STEP11.md](docs/notes/worlds/STEP11.md)): the gauntlet again, with spot checks, a breaker and skeptics.
+- **The players' mouths open:** Lidge's shout at strike three, with teeth.
+- **The seated crowd:** real hands and gloves, varied arms, faces and expressions, and 2008 shirts.
+- **Left field:** Harry the K's looks out onto the field, with a lit back bar of bottles.
+- **The concourse:** the stands' backs have service doors.
+- **Every standard view** is 35 fps or better ([PERF.md](docs/notes/gauntlet/PERF.md)).
+- **What's left:** the end of [STEP11-LOG.md](docs/notes/gauntlet/STEP11-LOG.md). FX2's unfinished seats work is in `.claude/worktrees/agent-a6114dff98eb5f98f`.
+
 **Thursday 2026-10-29, morning: step 10 is merged and published as stage 10** ([STEP10.md](docs/notes/worlds/STEP10.md)). The owner asked for "the facial structures of real people" in the stands and the whole park walkable "as it is in the stadium".
 
 - **Faces:** the fans and the players share MakeHuman's real face targets, and the faces have expressions (FF1-FF3). One bug: no player's mouth opens, Lidge's shout included; [STEP10-LOG.md](docs/notes/gauntlet/STEP10-LOG.md) has how far it's narrowed.

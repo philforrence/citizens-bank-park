@@ -63,3 +63,19 @@ The plan is [../worlds/STEP11.md](../worlds/STEP11.md). Every merge is here with
     - the standard view `walk-concourse3b` stands outside FI1's one-sided hall wall, looking through it (`ConcourseSteel.js`);
     - FA3's rail on the 3B dugout roof isn't in the 2008 photo (`Stands.js`).
 - **SK3, the third skeptic** (launched 09:09): trying to refute FX3. Harry's from outside, every stand back, the police at other moments, the counts, and FX3's unexplained +137k triangles in TV center.
+- **The usage limit (17:29):** the account's weekly limit stopped all four running agents at once: SK2 (FX4's skeptic, after its first pair), SK3 (FX3's skeptic, before any shots), FX2 (the seats, with uncommitted, untested edits to `Stands.js`, `ConcourseSteel.js` and `terrace/Build.js` in its worktree `.claude/worktrees/agent-a6114dff98eb5f98f`) and FX5 (the players, before any code change; its before shots are in `.claude/gauntlet/s11/FX5/b0`).
+- **The owner: "finish up this round and deploy! don't need to rush, but don't do another loop."** The loop stopped; the coordinator finished the round:
+  - **FX4 merged (17:32),** checked against SK2's pairs (`.claude/gauntlet/s11/SK2/pairs`, `crops`). Close up it's closer to the photos: hands and fists, 2008 chest prints, varied faces, fewer glasses. At broadcast size it's unchanged.
+  - **FX3 merged,** checked against its shots: Harry's upstairs looks out onto the patio and the bowl, ~700 bottles, the stand backs' service doors, the ELEVATOR / SCOREBOARD PORCH 241-245 sign. `npm test` passes and the clock is kept (801248349 / 3785.503).
+  - **Frame rate:** every view is 35 fps or better (the 400s seat 28.9 ms, left field 28.0 ms); [PERF.md](PERF.md) has the costs and the speed track for next time.
+  - **Stage 11's screenshot:** Lidge's shout at strike three under the Liberty Bell's fireworks (`docs/stages/step-11.jpg`), shot on the merged `ballpark`.
+  - **Not in this round, for next time** (`.claude/gauntlet/s11/TICKETS.md`):
+    - FX2's seats (finish from its worktree);
+    - FX5's players: foreheads through caps, one gaunt face, sticker beards, Lidge's tall-oval shout and squint (SK1's F1-F3);
+    - the indoors bundle;
+    - the outside and outfield bundle;
+    - the field's-edge dolls (CR1-1);
+    - the Cast and the throng;
+    - the Phanatic up close;
+    - the one-sided hall wall behind the standard 3B concourse view;
+    - the speed track.

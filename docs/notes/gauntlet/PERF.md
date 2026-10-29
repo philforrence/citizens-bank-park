@@ -167,5 +167,12 @@ Step 10 costs ~0.6 ms in TV center, ~1.1 ms in the 400s seat and nothing measura
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 10-29 06:55 | step 10 as published (on battery) | 20.3 | 20.0 | 15.5 | 16.2 | 14.0 | 20.2 | 18.1 | 24.3 | **27.1** | 21.2 / 21.7 |
 | 10-29 09:05 | FX1, the players' mouths and the pompoms (on AC) | 19.4 | 18.7 | 14.4 | 15.1 | 12.8 | 19.1 | 17.1 | 23.3 | **26.0** (38 fps) | 19.7 / 20.2 |
+| 10-29 17:44 | **step 11 as published**: + FX4 (the seated crowd) and FX3 (left field, Harry's, the stand backs) | 20.1 | 21.8 | 16.0 | 17.0 | 15.3 | 21.8 | 17.8 | 28.0 | **28.9** (35 fps) | 21.2 / 21.6 |
 
 After FX1, every view is ~1 ms faster than at 06:55. That's the machine going back on AC (TAAU 1.85 → 1.79 ms), not FX1, which adds +0.1% triangles in TV center and identical draws (SK1). FX1 costs nothing measurable. No console errors.
+
+**Step 11 as published (17:44, on AC, steady: TAAU 1.78-1.93 ms).** Every standard view is 35 fps or better. The heaviest are the 400s seat (28.9 ms) and left field (28.0 ms), and a new view, Harry the K's upstairs looking out, runs 23.8 ms. FX4 and FX3 together cost ~1.5-3 ms in the crowd views and +4.7 ms in left field:
+- FX4's hands on the crowd's near level (~200k vertices, each through the crowd's heavy vertex function twice);
+- FX3's back-bar bottles (28.5k triangles in their own mesh) and Harry's now see-through glass, which shows the bowl from inside.
+The floor holds, with a 4.4 ms margin. **Next step's speed track:** win it back without cutting detail. For example, cheapen the near level's hand (no thumb stub, no middle ring, FX4.md), and cull or LOD the back bars' bottles past ~15 m. No console errors.
+
