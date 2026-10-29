@@ -44,10 +44,11 @@ export function pavilionWays( bowl, { pav, deck } ) {
 		K.landing( E, { s0: - 3.45, s1: - 0.3, d0: dL - 1.5, d1: dL, y: yMid, rails: [ 'd0', 's0' ], posts: true } );
 		K.flight( E, { s0: - 1.75, s1: - 0.35, d0: dL, dir: 1, y0: yMid, n: n2, r } );
 		// the top landing, a bridge from the elevator's upper door to the concourse
-		K.landing( E, { s0: - 7.2, s1: 0.06, d0: dT, d1: dT + 2.2, y: yPav, rails: [ 'd0:-7.2:-1.8', 'd1:-4.4:0.06', 's0' ], posts: true } );
+		const dD = dT + 2.6; // the elevator's doors (behind the concourse's stand at the Alley's end: Concourse)
+		K.landing( E, { s0: - 4.6, s1: 0.06, d0: dT, d1: dD, y: yPav, rails: [ 'd0:-4.6:-1.8', 'd1:-1.9:0.06', 's0' ], posts: true } );
 		// the elevator's tower behind it, its doors toward the field at both levels
-		K.tower( E, { s0: - 7.0, s1: - 4.6, d0: dT + 2.2, d1: dT + 5.0, y0: STREET, y1: yPav + 3.4 } );
-		const door = E.at( - 5.8, dT + 2.2 ), out = [ - E.n[ 0 ], - E.n[ 1 ] ];
+		K.tower( E, { s0: - 4.5, s1: - 2.0, d0: dD, d1: dD + 2.6, y0: STREET, y1: yPav + 3.4 } );
+		const door = E.at( - 3.25, dD ), out = [ - E.n[ 0 ], - E.n[ 1 ] ];
 		banks.push( { stops: [
 			{ name: 'Ashburn Alley', y: STREET, door, out },
 			{ name: 'Pavilion', y: yPav, door, out },
@@ -56,7 +57,7 @@ export function pavilionWays( bowl, { pav, deck } ) {
 		// railed where the bridge doesn't meet it
 		K.endRail( pav, E, 0, pav.rows );
 		K.rail( E.at( 0.02, dPav ), E.at( 0.02, dT ), yPav );
-		K.rail( E.at( 0.02, dT + 2.2 ), E.at( 0.02, dPav + 4 ), yPav );
+		K.rail( E.at( 0.02, dD ), E.at( 0.02, dPav + 4 ), yPav );
 
 	}
 
