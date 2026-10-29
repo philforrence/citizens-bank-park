@@ -11,8 +11,9 @@ import { FAN_HEAD } from './game/data/fanHead.js';
 //   fanHeadBuffer()             the records of every level (the paint's frame, the ears' fold, the blend
 //                               shapes and their normals; FF2: the expressions), a storage buffer of
 //                               vec4u, 9 a vertex
-//   fanHeadModule               WGSL: fhBlend( record, cA, cB, ex ) (the vertex moved by his weights; FF2:
-//                               and by his expression's, ex: the mouth open, the smile, the lids shut),
+//   fanHeadModule               WGSL: fhBlend( record, cA, cB, ex, rest ) (the vertex moved by his weights;
+//                               FF2: and by his expression's, ex: the mouth open, the smile, the lids shut;
+//                               FF3: rest, the lids' own rest when ex is all zero, from the first record),
 //                               fhUnpack( w ) (the crowd's packed weights), fhCoefs( ... ) (the Cast's, from
 //                               who he is and his seed); the material binds the buffer as fhRec
 //   faceWeights( who, seed )    a fan's K weights (the crowd works them out once, on the CPU), and
@@ -188,16 +189,21 @@ fn fh8( u: vec4u, cA: vec4f, cB: vec4f ) -> f32 {
 }
 
 // a vertex of the head (its record i) moved by a face's weights: the move, the normal's change, where it
-// is in the paint's frame, and its ear's fold (zero off the ears)
-fn fhBlend( i: u32, cA: vec4f, cB: vec4f, ex: vec3f ) -> FhOut { // (FF2: ex, the expressions' weights)
+// is in the paint's frame, and its ear's fold (zero off the ears). (FF2: ex, the expressions' weights;
+// ---- FF3: rest, the lids' own rest, a little down, for a face with no expression on: its move is in the
+// first record's spare halves, so most of the crowd most of the time read none of the expressions' two
+// records. With an expression on, ex.z carries the lids, rest and all)
+fn fhBlend( i: u32, cA: vec4f, cB: vec4f, ex: vec3f, rest: f32 ) -> FhOut {
 	let b = i * ${ REC }u;
 	let r0 = fhRec[ b ];
 	let pz = unpack2x16float( r0.y );
+	let fz = unpack2x16float( r0.w );
 	var o: FhOut;
 	o.d = vec3f( unpack2x16float( r0.x ), pz.x );
-	o.fold = vec3f( unpack2x16float( r0.z ), unpack2x16float( r0.w ).x ) * pz.y;
+	o.fold = vec3f( unpack2x16float( r0.z ), fz.x );
 	o.dp = vec3f( fh8( fhRec[ b + 1u ], cA, cB ), fh8( fhRec[ b + 2u ], cA, cB ), fh8( fhRec[ b + 3u ], cA, cB ) );
 	o.dn = vec3f( fh8( fhRec[ b + 4u ], cA, cB ), fh8( fhRec[ b + 5u ], cA, cB ), fh8( fhRec[ b + 6u ], cA, cB ) );
+	if ( all( ex == vec3f( 0.0 ) ) ) { o.dp += vec3f( 0.0, pz.y, fz.y ) * rest; } // ---- FF3
 	fhExpr( b, ex, &o ); // ---- FF2
 	return o;
 }

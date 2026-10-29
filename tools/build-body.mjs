@@ -529,10 +529,304 @@ face.eyeRad = eyeRad;
 for ( const k of [ 'eyeL', 'eyeR', 'mouth', 'jaw', 'top' ] ) face[ k ] = face[ k ].map( r3 );
 face.eyeRad = r3( face.eyeRad );
 
+// ---- FF3 (step 10): every man's own face from MakeHuman's own targets, as the fans' are (FF1:
+// tools/build-fanhead.mjs). The head's vertices (above the collar, and the eyeballs) carry MakeHuman's
+// identity targets as blend shapes: the face's modifiers (the nose, the mouth and lips, the chin and jaw,
+// the cheeks, the eyes and lids, the brows, the forehead, the ears, the head's proportions and the neck,
+// each its decrease and its increase) and the seven head shapes, as a MakeHuman user sets them, and the
+// macro targets' share of the face (how African, Asian or European a face is against the body's own
+// mix; age; weight). Each is sparse (only the vertices it moves), int8 against its own scale. Players.js
+// works a man's face out from his look once, when he comes on (FaceBake: his weights on these shapes,
+// his own size and place taken out, the normals worked out again), so the middle and far figures take
+// the same face for one read a vertex. And MakeHuman's expression units (FF2's: the mouth open with the
+// brows up, the smile with the cheeks up into the lids, the blink), for Lidge's shout at strike three,
+// the pile, the celebration and every man's blink. And the mouth's inside (the base mesh's lips curl in
+// to a closed bag behind them, which the open jaw shows): its vertices flagged 2, for the paint
+const ffHead = await ( async () => {
+
+	// the head: above the collar (not the arms' tops), and the eyeballs
+	const hk = [];
+	for ( let k = 0; k < n; k ++ ) if ( eyeIds.has( order[ k ] ) || ( field[ k ][ 0 ] < 0 && field[ k ][ 1 ] < 0 && pos[ k ][ 1 ] > U.collar - 0.025 ) ) hk.push( k );
+	const HV = hk.length, hOf = new Int32Array( n ).fill( - 1 );
+	hk.forEach( ( k, h ) => { hOf[ k ] = h; } );
+	// the targets fade out down the neck to nothing at the collar, where the jersey takes over
+	const mask = hk.map( ( k ) => eyeIds.has( order[ k ] ) ? 1 : smooth( U.collar - 0.022, U.collar + 0.03, pos[ k ][ 1 ] ) );
+	const parseT = async ( path ) => {
+
+		const D = new Float64Array( HV * 3 );
+		for ( const line of ( await get( path ) ).split( '\n' ) ) {
+
+			if ( ! line || line[ 0 ] === '#' ) continue;
+			const p = line.trim().split( /\s+/ );
+			if ( p.length < 4 ) continue;
+			const k = used.get( + p[ 0 ] );
+			if ( k === undefined || hOf[ k ] < 0 ) continue;
+			const h = hOf[ k ];
+			D[ h * 3 ] = - p[ 1 ] * SC; D[ h * 3 + 1 ] = + p[ 2 ] * SC; D[ h * 3 + 2 ] = - p[ 3 ] * SC;
+
+		}
+
+		return D;
+
+	};
+	const lin = ( terms ) => {
+
+		const D = new Float64Array( HV * 3 );
+		for ( const [ T, w ] of terms ) for ( let i = 0; i < D.length; i ++ ) D[ i ] += w * T[ i ];
+		return D;
+
+	};
+	const shapes = []; // [ name, D ]
+	// the macros against the body's own mix (TARGETS: caucasian 0.5, african 0.3, asian 0.2; young; muscular)
+	const ETH = { african: 0.3, asian: 0.2, caucasian: 0.5 };
+	const young = {}, old = {};
+	for ( const e of Object.keys( ETH ) ) {
+
+		young[ e ] = await parseT( `targets/macrodetails/${ e }-male-young.target` );
+		old[ e ] = await parseT( `targets/macrodetails/${ e }-male-old.target` );
+
+	}
+	// (a man's African and Asian shares af and as, the rest European: his face is the body's plus
+	// ( af - 0.3 ) of the African face's difference from the European and ( as - 0.2 ) of the Asian's)
+	shapes.push( [ 'eth-african', lin( [ [ young.african, 1 ], [ young.caucasian, - 1 ] ] ) ] );
+	shapes.push( [ 'eth-asian', lin( [ [ young.asian, 1 ], [ young.caucasian, - 1 ] ] ) ] );
+	// (and a woman's face, for the ball girls: the female corners against the male, by the same mix)
+	const fem = {};
+	for ( const e of Object.keys( ETH ) ) fem[ e ] = await parseT( `targets/macrodetails/${ e }-female-young.target` );
+	shapes.push( [ 'female', lin( Object.entries( ETH ).flatMap( ( [ e, w ] ) => [ [ fem[ e ], w ], [ young[ e ], - w ] ] ) ) ] );
+	shapes.push( [ 'old', lin( Object.entries( ETH ).flatMap( ( [ e, w ] ) => [ [ old[ e ], w ], [ young[ e ], - w ] ] ) ) ] );
+	const wAvg = await parseT( 'targets/macrodetails/universal-male-young-averagemuscle-averageweight.target' );
+	shapes.push( [ 'heavy', lin( [ [ await parseT( 'targets/macrodetails/universal-male-young-averagemuscle-maxweight.target' ), 1 ], [ wAvg, - 1 ] ] ) ] );
+	shapes.push( [ 'light', lin( [ [ await parseT( 'targets/macrodetails/universal-male-young-averagemuscle-minweight.target' ), 1 ], [ wAvg, - 1 ] ] ) ] );
+	// the face's modifiers (FF1's list, but the head's scales, the back of the skull and the forehead's
+	// nubian bulge, which are under the cap and the helmet, built on the base's skull; the head's own size
+	// is the look's `head`, Rig.js' solvePose; and the head's age, which the old macro has): each its two
+	// ends, an l- / r- pair together
+	const MODS = [
+		[ 'head-fat', 'head/head-fat-decr', 'head/head-fat-incr' ],
+		[ 'forehead-vert', 'forehead/forehead-scale-vert-decr', 'forehead/forehead-scale-vert-incr' ],
+		[ 'forehead-temple', 'forehead/forehead-temple-decr', 'forehead/forehead-temple-incr' ], [ 'forehead-slope', 'forehead/forehead-trans-backward', 'forehead/forehead-trans-forward' ],
+		[ 'brow-ridge', 'eyebrows/eyebrows-trans-backward', 'eyebrows/eyebrows-trans-forward' ], [ 'brow-angle', 'eyebrows/eyebrows-angle-down', 'eyebrows/eyebrows-angle-up' ],
+		[ 'brow-height', 'eyebrows/eyebrows-trans-down', 'eyebrows/eyebrows-trans-up' ],
+		[ 'eye-spacing', 'eyes/*-eye-trans-in', 'eyes/*-eye-trans-out' ], [ 'eye-size', 'eyes/*-eye-scale-decr', 'eyes/*-eye-scale-incr' ],
+		[ 'eye-height', 'eyes/*-eye-trans-down', 'eyes/*-eye-trans-up' ], [ 'eye-bag', 'eyes/*-eye-bag-decr', 'eyes/*-eye-bag-incr' ],
+		[ 'eye-deep', 'eyes/*-eye-push1-out', 'eyes/*-eye-push1-in' ], [ 'eye-fold', 'eyes/*-eye-eyefold-up', 'eyes/*-eye-eyefold-down' ],
+		[ 'eye-epicanthus', 'eyes/*-eye-epicanthus-out', 'eyes/*-eye-epicanthus-in' ],
+		[ 'nose-width', 'nose/nose-scale-horiz-decr', 'nose/nose-scale-horiz-incr' ], [ 'nose-length', 'nose/nose-scale-vert-decr', 'nose/nose-scale-vert-incr' ],
+		[ 'nose-depth', 'nose/nose-scale-depth-decr', 'nose/nose-scale-depth-incr' ], [ 'nose-hump', 'nose/nose-hump-decr', 'nose/nose-hump-incr' ],
+		[ 'nose-point', 'nose/nose-point-width-decr', 'nose/nose-point-width-incr' ], [ 'nose-nostrils', 'nose/nose-nostrils-width-decr', 'nose/nose-nostrils-width-incr' ],
+		[ 'nose-height', 'nose/nose-trans-down', 'nose/nose-trans-up' ], [ 'nose-out', 'nose/nose-trans-backward', 'nose/nose-trans-forward' ],
+		[ 'nose-curve', 'nose/nose-curve-concave', 'nose/nose-curve-convex' ], [ 'nose-volume', 'nose/nose-volume-decr', 'nose/nose-volume-incr' ],
+		[ 'nose-flare', 'nose/nose-flaring-decr', 'nose/nose-flaring-incr' ], [ 'nose-tip', 'nose/nose-point-down', 'nose/nose-point-up' ],
+		[ 'nose-greek', 'nose/nose-greek-decr', 'nose/nose-greek-incr' ],
+		[ 'mouth-width', 'mouth/mouth-scale-horiz-decr', 'mouth/mouth-scale-horiz-incr' ], [ 'mouth-height', 'mouth/mouth-trans-down', 'mouth/mouth-trans-up' ],
+		[ 'mouth-out', 'mouth/mouth-trans-backward', 'mouth/mouth-trans-forward' ], [ 'lip-lower', 'mouth/mouth-lowerlip-volume-decr', 'mouth/mouth-lowerlip-volume-incr' ],
+		[ 'lip-upper', 'mouth/mouth-upperlip-volume-decr', 'mouth/mouth-upperlip-volume-incr' ], [ 'mouth-angles', 'mouth/mouth-angles-down', 'mouth/mouth-angles-up' ],
+		[ 'mouth-philtrum', 'mouth/mouth-philtrum-volume-decr', 'mouth/mouth-philtrum-volume-incr' ],
+		[ 'ear-size', 'ears/*-ear-scale-decr', 'ears/*-ear-scale-incr' ], [ 'ear-out', 'ears/*-ear-flap-decr', 'ears/*-ear-flap-incr' ],
+		[ 'ear-lobe', 'ears/*-ear-lobe-decr', 'ears/*-ear-lobe-incr' ], [ 'ear-height', 'ears/*-ear-trans-down', 'ears/*-ear-trans-up' ],
+		[ 'chin-out', 'chin/chin-prominent-decr', 'chin/chin-prominent-incr' ], [ 'chin-width', 'chin/chin-width-decr', 'chin/chin-width-incr' ],
+		[ 'chin-height', 'chin/chin-height-decr', 'chin/chin-height-incr' ], [ 'jaw', 'chin/chin-bones-decr', 'chin/chin-bones-incr' ],
+		[ 'jaw-drop', 'chin/chin-jaw-drop-decr', 'chin/chin-jaw-drop-incr' ], [ 'chin-cleft', 'chin/chin-cleft-decr', 'chin/chin-cleft-incr' ],
+		[ 'prognathism', 'chin/chin-prognathism-decr', 'chin/chin-prognathism-incr' ],
+		[ 'cheekbones', 'cheek/*-cheek-bones-decr', 'cheek/*-cheek-bones-incr' ], [ 'cheeks', 'cheek/*-cheek-volume-decr', 'cheek/*-cheek-volume-incr' ],
+		[ 'cheek-inner', 'cheek/*-cheek-inner-decr', 'cheek/*-cheek-inner-incr' ], [ 'cheek-height', 'cheek/*-cheek-trans-down', 'cheek/*-cheek-trans-up' ],
+		[ 'neck-width', 'neck/neck-scale-horiz-decr', 'neck/neck-scale-horiz-incr' ], [ 'neck-depth', 'neck/neck-scale-depth-decr', 'neck/neck-scale-depth-incr' ],
+		[ 'neck-double', 'neck/neck-double-decr', 'neck/neck-double-incr' ],
+	];
+	const tgt = async ( path ) => {
+
+		if ( ! path.includes( '*' ) ) return parseT( `targets/${ path }.target` );
+		return lin( [ [ await parseT( `targets/${ path.replace( '*', 'l' ) }.target` ), 1 ], [ await parseT( `targets/${ path.replace( '*', 'r' ) }.target` ), 1 ] ] );
+
+	};
+	for ( const [ name, lo, hi ] of MODS ) {
+
+		shapes.push( [ name + '-', await tgt( lo ) ] );
+		shapes.push( [ name + '+', await tgt( hi ) ] );
+
+	}
+	for ( const s of [ 'oval', 'round', 'square', 'rectangular', 'triangular', 'invertedtriangular', 'diamond' ] ) shapes.push( [ 'shape-' + s, await tgt( `head/head-${ s }` ) ] );
+
+	// the macros' own size and place taken out (they move the whole head with the body's proportions, by
+	// up to 12 cm, and grow it): the shift and the scale that best put the skull and the face back on the
+	// base's, as FF1 did for each fan. (The cap and the helmet are built on the base's skull; the head's own
+	// size is the look's `head`, Rig.js' solvePose.) The face's modifiers move what they move
+	const fitH = hk.map( ( k ) => pos[ k ][ 1 ] > face.jaw[ 1 ] + 0.01 && Math.abs( pos[ k ][ 0 ] ) < 0.062 && ! eyeIds.has( order[ k ] ) ? 1 : 0 );
+	for ( const s of shapes ) {
+
+		if ( ! /^(eth-|old|heavy|light|female)/.test( s[ 0 ] ) ) continue;
+		const D = s[ 1 ];
+		let c = [ 0, 0, 0 ], b = [ 0, 0, 0 ], nw = 0;
+		hk.forEach( ( k, h ) => { if ( fitH[ h ] ) { b = add( b, pos[ k ] ); c = add( c, [ D[ h * 3 ], D[ h * 3 + 1 ], D[ h * 3 + 2 ] ] ); nw ++; } } );
+		b = mul( b, 1 / nw ); c = mul( c, 1 / nw );
+		let sxy = 0, sxx = 0;
+		hk.forEach( ( k, h ) => {
+
+			if ( ! fitH[ h ] ) return;
+			const x = sub( add( pos[ k ], sub( [ D[ h * 3 ], D[ h * 3 + 1 ], D[ h * 3 + 2 ] ], c ) ), b ), y = sub( pos[ k ], b );
+			sxy += dot( x, y ); sxx += dot( x, x );
+
+		} );
+		const sc = sxy / sxx;
+		hk.forEach( ( k, h ) => {
+
+			const q = add( mul( sub( add( pos[ k ], sub( [ D[ h * 3 ], D[ h * 3 + 1 ], D[ h * 3 + 2 ] ], c ) ), b ), sc ), b );
+			for ( let j = 0; j < 3; j ++ ) D[ h * 3 + j ] = q[ j ] - pos[ k ][ j ];
+
+		} );
+
+	}
+
+	// a pair whose two ends are one move either way (the head's scales, the ears' height, ...) is kept once,
+	// its decrease the increase backwards (named 'x+-')
+	for ( let i = 0; i < shapes.length - 1; i ++ ) {
+
+		const [ a, A ] = shapes[ i ], [ bn, Bd ] = shapes[ i + 1 ];
+		if ( ! a.endsWith( '-' ) || bn !== a.slice( 0, - 1 ) + '+' ) continue;
+		let e = 0, m = 0;
+		for ( let j = 0; j < A.length; j ++ ) { e = Math.max( e, Math.abs( A[ j ] + Bd[ j ] ) ); m = Math.max( m, Math.abs( Bd[ j ] ) ); }
+		if ( e < 0.02 * m ) { shapes[ i ] = [ a.slice( 0, - 1 ) + '+-', Bd ]; shapes.splice( i + 1, 1 ); }
+
+	}
+
+	// int8 against each shape's own largest move, masked down the neck; sparse (the head vertex's number
+	// with it) where a shape moves under half the head, dense where it moves most of it; moves under a
+	// tenth of a millimetre left out
+	const sIdx = [], sVal = [], table = [];
+	for ( const [ name, D ] of shapes ) {
+
+		let mx = 0;
+		for ( let h = 0; h < HV; h ++ ) for ( let c = 0; c < 3; c ++ ) mx = Math.max( mx, Math.abs( D[ h * 3 + c ] * mask[ h ] ) );
+		const sc = mx / 127 || 1;
+		const q = ( h ) => [ 0, 1, 2 ].map( ( c ) => Math.round( D[ h * 3 + c ] * mask[ h ] / sc ) );
+		const moved = [];
+		for ( let h = 0; h < HV; h ++ ) {
+
+			const m = Math.hypot( D[ h * 3 ], D[ h * 3 + 1 ], D[ h * 3 + 2 ] ) * mask[ h ];
+			const v = q( h );
+			if ( m >= 1e-4 && Math.abs( v[ 0 ] ) + Math.abs( v[ 1 ] ) + Math.abs( v[ 2 ] ) > 0 ) moved.push( h );
+
+		}
+
+		const dense = moved.length > HV / 2;
+		const vStart = sVal.length / 3, iStart = dense ? - 1 : sIdx.length;
+		for ( const h of dense ? hk.map( ( k, i ) => i ) : moved ) {
+
+			if ( ! dense ) sIdx.push( h );
+			sVal.push( ...q( h ) );
+
+		}
+
+		table.push( [ name, vStart, dense ? HV : moved.length, + sc.toExponential( 4 ), iStart ] );
+
+	}
+
+	// the expressions (FF2's units), mixed over MakeHuman's three faces by the body's own shares, at full
+	// strength; their normals' change from the whole body's
+	const EXPR = [
+		[ 'open', [ [ 'mouth-open', 1 ], [ 'eyebrows-left-up', 0.55 ], [ 'eyebrows-right-up', 0.55 ] ] ],
+		[ 'smile', [ [ 'mouth-corner-puller', 1 ], [ 'mouth-upward-retraction', 0.35 ], [ 'eye-left-slit', 0.7 ], [ 'eye-right-slit', 0.7 ] ] ],
+		[ 'blink', [ [ 'eye-left-closure', 1 ], [ 'eye-right-closure', 1 ] ] ],
+	];
+	const ex = [];
+	for ( const [ , units ] of EXPR ) {
+
+		const terms = [];
+		for ( const [ e, we ] of Object.entries( ETH ) ) for ( const [ u, w ] of units ) terms.push( [ await parseT( `targets/expression/units/${ e }/${ u }.target` ), we * w ] );
+		ex.push( lin( terms ) );
+
+	}
+	const N0 = normals( pos );
+	const exN = ex.map( ( D ) => {
+
+		const p2 = pos.map( ( p, k ) => hOf[ k ] < 0 ? p : add( p, [ D[ hOf[ k ] * 3 ], D[ hOf[ k ] * 3 + 1 ], D[ hOf[ k ] * 3 + 2 ] ] ) );
+		const N2 = normals( p2 );
+		return hk.map( ( k ) => sub( N2[ k ], N0[ k ] ) );
+
+	} );
+	const f16 = ( x ) => {
+
+		const f = new Float32Array( 1 ), u = new Uint32Array( f.buffer );
+		f[ 0 ] = x;
+		const b = u[ 0 ], s = ( b >>> 16 ) & 0x8000;
+		let e = ( ( b >>> 23 ) & 0xff ) - 127 + 15, m = b & 0x7fffff;
+		if ( e <= 0 ) return s;
+		if ( e >= 31 ) return s | 0x7c00;
+		m += 0x1000;
+		if ( m & 0x800000 ) { m = 0; e ++; }
+		return s | ( e << 10 ) | ( m >>> 13 );
+
+	};
+	const pack2 = ( a, b ) => ( f16( a ) | ( f16( b ) << 16 ) ) >>> 0;
+	const eIdx = [], eRec = [];
+	for ( let h = 0; h < HV; h ++ ) {
+
+		const [ o, s, b ] = ex.map( ( D ) => [ D[ h * 3 ], D[ h * 3 + 1 ], D[ h * 3 + 2 ] ] );
+		const [ no, ns, nb ] = exN.map( ( N ) => N[ h ] );
+		if ( Math.max( ...o.map( Math.abs ), ...s.map( Math.abs ), ...b.map( Math.abs ) ) < 3e-5 && Math.max( ...no.map( Math.abs ), ...ns.map( Math.abs ), ...nb.map( Math.abs ) ) < 0.004 ) continue;
+		eIdx.push( h );
+		// [ open x y | open z, smile x | smile y z | blink y z ], then their normals' the same (FF2's records)
+		eRec.push( pack2( o[ 0 ], o[ 1 ] ), pack2( o[ 2 ], s[ 0 ] ), pack2( s[ 1 ], s[ 2 ] ), pack2( b[ 1 ], b[ 2 ] ),
+			pack2( no[ 0 ], no[ 1 ] ), pack2( no[ 2 ], ns[ 0 ] ), pack2( ns[ 1 ], ns[ 2 ] ), pack2( nb[ 1 ], nb[ 2 ] ) );
+
+	}
+
+	// the mouth's inside: in MakeHuman's frame (+z forward), the vertices in the mouth's region behind the
+	// face's front (against the frontmost within 4 mm across and up and down), and the lips' inner faces
+	// turned up or down where they meet (FF2's test on the fans' head)
+	const oy = ( boneHead( 'oris01' )[ 1 ] + boneHead( 'oris05' )[ 1 ] ) / 2;
+	const mouthIn = new Set();
+	{
+
+		const cand = [];
+		for ( let k = 0; k < n; k ++ ) {
+
+			if ( eyeIds.has( order[ k ] ) ) continue;
+			const p = V[ order[ k ] ];
+			if ( Math.abs( p[ 0 ] ) > 0.3 || Math.abs( p[ 1 ] - oy ) > 0.24 || p[ 2 ] < 0.6 ) continue;
+			cand.push( k );
+
+		}
+
+		for ( const k of cand ) {
+
+			const p = V[ order[ k ] ];
+			if ( Math.abs( p[ 0 ] ) > 0.26 || Math.abs( p[ 1 ] - oy ) > 0.2 || p[ 2 ] < 0.8 ) continue;
+			let zf = - 1e9;
+			for ( const j of cand ) {
+
+				const q = V[ order[ j ] ];
+				if ( Math.abs( q[ 0 ] - p[ 0 ] ) < 0.04 && Math.abs( q[ 1 ] - p[ 1 ] ) < 0.04 ) zf = Math.max( zf, q[ 2 ] );
+
+			}
+
+			// (our normals face -z forward: N.z > -0.2 is MakeHuman's N.z < 0.2)
+			if ( p[ 2 ] < zf - 0.03 || ( N[ k ][ 2 ] > - 0.2 && Math.abs( p[ 0 ] ) < 0.2 && Math.abs( p[ 1 ] - oy ) < 0.1 ) ) mouthIn.add( k );
+
+		}
+
+	}
+
+	// for taking out a face's own size and place (Players.js): the skull and the face, not the neck nor the
+	// ears; and the mouth's mark
+	const hflag = new Uint8Array( HV );
+	hk.forEach( ( k, h ) => {
+
+		const p = pos[ k ];
+		if ( p[ 1 ] > face.jaw[ 1 ] + 0.01 && Math.abs( p[ 0 ] ) < 0.062 && ! eyeIds.has( order[ k ] ) ) hflag[ h ] |= 1;
+
+	} );
+	console.log( 'FF3 head:', HV, 'vertices;', shapes.length, 'shapes,', sVal.length / 3, 'entries (', sIdx.length, 'sparse );', eIdx.length, 'expression vertices; the mouth\'s inside', mouthIn.size );
+	return { HV, hk, sIdx, sVal, table, eIdx, eRec, mouthIn, hflag };
+
+} )();
+// ---- end FF3
+
 // ---------------------------------------------------------------- write
 
 // quantized: positions to 0.1 mm (int16 over +-3.2 m), normals int8, bone indices and weights u8, the
-// arm / leg coordinates to 0.1 mm (int16), a flag per vertex (1 = eye)
+// arm / leg coordinates to 0.1 mm (int16), a flag per vertex (1 = eye; FF3: 2 = the mouth's inside)
 const Q = 10000;
 const bPos = new Int16Array( n * 3 ), bNrm = new Int8Array( n * 3 ), bIdx = new Uint8Array( n * 4 ), bW = new Uint8Array( n * 4 ), bField = new Int16Array( n * 2 ), bFlag = new Uint8Array( n );
 for ( let k = 0; k < n; k ++ ) {
@@ -556,7 +850,7 @@ for ( let k = 0; k < n; k ++ ) {
 
 	bField[ k * 2 ] = Math.round( field[ k ][ 0 ] * Q / 1 );
 	bField[ k * 2 + 1 ] = Math.round( field[ k ][ 1 ] * Q / 1 );
-	bFlag[ k ] = eyeIds.has( order[ k ] ) ? 1 : 0;
+	bFlag[ k ] = eyeIds.has( order[ k ] ) ? 1 : ffHead.mouthIn.has( k ) ? 2 : 0; // (---- FF3: 2)
 
 }
 
@@ -579,6 +873,23 @@ export const BODY = {
 	field: '${ b64( bField ) }',
 	flag: '${ b64( bFlag ) }',
 	index: '${ b64( bIndex ) }',
+	// ---- FF3: the head's blend shapes (see the tool): the head's vertices (the body's), a flag each (1: the
+	// skull and the face); the shapes, x y z as int8 times the shape's scale, sparse (with the head
+	// vertex's number) or dense (every head vertex): [ name, first value, values, scale, first index or -1
+	// for a dense one ]; the
+	// expressions (${ [ 'open', 'smile', 'blink' ].join( ', ' ) }) at the vertices they move, 8 u32 each (halves)
+	head: {
+		count: ${ ffHead.HV },
+		vertices: '${ b64( new Uint16Array( ffHead.hk ) ) }',
+		flag: '${ b64( ffHead.hflag ) }',
+		shapes: ${ JSON.stringify( ffHead.table ) },
+		index: '${ b64( new Uint16Array( ffHead.sIdx ) ) }',
+		value: '${ b64( new Int8Array( ffHead.sVal ) ) }',
+		expressions: [ 'open', 'smile', 'blink' ],
+		exprIndex: '${ b64( new Uint16Array( ffHead.eIdx ) ) }',
+		exprRec: '${ b64( new Uint32Array( ffHead.eRec ) ) }',
+	},
+	// ---- end FF3
 };
 `;
 writeFileSync( OUT, js );
