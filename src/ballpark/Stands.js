@@ -30,11 +30,27 @@ import { beam, indexed } from './geo.js';
 //   frontWall: { top, ahead }   a fascia / wall in front of the first row, from `base` up to `top`
 //                               (---- FW3: `ahead` m in front of it, a ledge between: the front row's feet
 //                               stay behind it)
-//   back: { height }            a wall behind the last row
+//   back: { height, wall }      a wall behind the last row (---- FA3: wall: true, a wall to the walker too;
+//                               'aisles', open at each aisle's head, onto a concourse behind)
 //   soffit                      an upper deck: its underside runs this far below the rows (m), and
 //                               the stepped profile is closed at the tier's two ends
 //   portals: { every, row, rows, width }   a tunnel portal (vomitory) in the middle of every `every`th
 //                               section, `rows` rows deep from row `row`, `width` wide
+//   ---- FA3 (step 10, the walk):
+//   frontRail: { height, ahead, draw }   the lower tiers' front: a rail you can't walk or jump over, `height`
+//                               over the first row's tread, `ahead` m in front of its front edge (the field's
+//                               wall and its rail, the backstop's net); draw: true builds it too (the right
+//                               field seats': a dark pipe rail with chain-link, glass at each aisle's foot)
+//   ledge: d                    a section whose first rows are skipped (a dugout in front) starts its first
+//                               tread this far back from the front line (the dugout's back), a rail on its front
+//                               and down its two ends to the front line (the camera wells beside it)
+//   endRail                     a rail up both ends of the tier (an upper deck's end over a drop)
+//   parapet: { row, at, mouths, mouthRows, mouthWidth }   a parapet across the sections `at( S )` picks, in
+//                               front of row `row`: concrete under glass and a pipe rail, and in the
+//                               sections numbered `mouths` (among those picked) a tunnel's mouth under it,
+//                               its approach cut `mouthRows` rows deep into the rows in front (the Diamond
+//                               Club's: parapetMouth() says which seats it takes)
+//   ---- end FA3
 // }
 export const SEAT_W = 0.5;
 // ---- FW3 (C2W-22): what the stands' concrete is told by a face's uv: a tread (uv.x - TREAD_UV: how far
@@ -132,6 +148,34 @@ function mitre( P, j, ux, uz, nx, nz, atStart ) {
 
 }
 
+// ---- FA3 (WA1-2): where along section S (the tier's k-th) its portal's middle is. In the middle of the
+// section (as FW3 built the 400s' boxes) the stair came up into a pocket of row 1 with seats either side
+// and no way to an aisle past the seated fans; in 2008 the 400s' boxes stand beside an aisle (Commons
+// 2008-03-29 2372257740: the lit box at an aisle's side, top left). With `atAisle`, the box's side is the
+// aisle's edge, at the end its stair climbs toward (places/terrace/Build.js: the stair's way, k % 4 < 2
+// toward the section's end), clear of the rows' mitre there
+export const portalDir = ( k ) => k % 4 < 2 ? 1 : - 1;
+// the parapet's tunnel mouth in section S, if it has one: { s (its middle along the row), w (half its
+// width, walls and all), r0, r1 (the rows cut for its approach) }
+export function parapetMouth( tier, secs, S ) {
+
+	const PA = tier.parapet;
+	if ( ! PA || ! PA.at( S ) ) return null;
+	const j = secs.filter( ( T ) => PA.at( T ) ).indexOf( S );
+	if ( ! PA.mouths.includes( j ) ) return null;
+	return { s: S.len / 2, w: PA.mouthWidth / 2 + 0.2, r0: PA.row - PA.mouthRows, r1: PA.row };
+
+}
+export function portalS( tier, S, k ) {
+
+	const PO = tier.portals;
+	if ( ! PO.atAisle ) return S.len / 2;
+	const A = tier.aisle ?? 1.2, w = PO.width / 2 + 0.3, dB = ( tier.start || 0 ) + ( PO.row + PO.rows ) * tier.depth;
+	return portalDir( k ) > 0 ? S.len - Math.max( 0, S.m1 ) * dB - A / 2 - w : Math.max( 0, S.m0 ) * dB + A / 2 + w;
+
+}
+// ---- end FA3
+
 export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 
 	const group = new Group();
@@ -156,7 +200,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	secs.forEach( ( S, k ) => {
 
 		if ( ! PO || ! S.seats || S.len < PO.width + 3 || ( S.pk ?? k ) % PO.every !== Math.floor( PO.every / 2 ) ) return; // ---- B (home): pk
-		portals.push( { S, s: S.len / 2, r0: PO.row, r1: PO.row + PO.rows } );
+		portals.push( { S, s: portalS( tier, S, k ), r0: PO.row, r1: PO.row + PO.rows } ); // ---- FA3: portalS
 
 	} );
 	const inPortal = ( S, s, r ) => portals.some( ( p ) => p.S === S && r >= p.r0 - 1 && r < p.r1 && Math.abs( s - p.s ) < PO.width / 2 + 0.35 );
@@ -169,6 +213,38 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	const crossAisle = ( S, r ) => PO?.open && portals.some( ( p ) => p.S === S && r === p.r0 - 1 );
 	tier._portals = portals.map( ( p ) => ( { a: p.S.a, u: [ p.S.ux, p.S.uz ], n: [ p.S.nx, p.S.nz ], len: p.S.len, s: p.s, w: PO.width / 2 + 0.3, dF: S0 + p.r0 * tier.depth, dB: S0 + p.r1 * tier.depth, yF: ys[ p.r0 - 1 ] } ) );
 	// ---- end FA1
+	// ---- FA3 (WA1-2): the well over a portal's stair: rows r0..r1-1 open over its box, [ s0, s1 ] along the row
+	// (the stair comes up through it from the concourse under the deck: places/terrace/Build.js); row r0 - 1
+	// is the landing in front of its mouth. Their treads, risers and floors were whole: the walker under the
+	// deck walked into a solid box, and inside it you stood in the steps
+	const mouths = new Map();
+	if ( tier.parapet ) for ( const S of secs ) {
+
+		const m = parapetMouth( tier, secs, S );
+		if ( m ) mouths.set( S, m );
+
+	}
+	const wellOf = ( S, r ) => {
+
+		const p = portals.find( ( p ) => p.S === S && r >= p.r0 && r < p.r1 );
+		if ( p ) return [ p.s - PO.width / 2 - 0.3, p.s + PO.width / 2 + 0.3 ];
+		// (WA2-4) a parapet's tunnel: its approach cut into the rows in front of it
+		const m = mouths.get( S );
+		return m && r >= m.r0 && r < m.r1 ? [ m.s - m.w, m.s + m.w ] : null;
+
+	};
+	const inMouth = ( S, s, r ) => {
+
+		const m = mouths.get( S );
+		return !! m && r >= m.r0 && r < m.r1 && Math.abs( s - m.s ) < m.w + 0.3;
+
+	};
+	// a span [ a, b ] along the row, less the well
+	const lessWell = ( well, a, b ) => well ? [ [ a, Math.min( b, well[ 0 ] ) ], [ Math.max( a, well[ 1 ] ), b ] ].filter( ( [ x, y ] ) => y - x > 0.02 ) : [ [ a, b ] ];
+	// an upper deck's underside d back from its front line (parallel to the rake, `soffit` below the rows)
+	const dUF = S0 - ( tier.frontWall?.ahead || 0 ), dUB = S0 + tier.rows * D;
+	const underside = ( d ) => ys[ 0 ] - ( tier.soffit || 0 ) + Math.max( 0, d - dUF ) * ( ys[ ys.length - 1 ] - ys[ 0 ] ) / ( dUB - dUF );
+	// ---- end FA3
 
 	for ( const S of secs ) {
 
@@ -197,6 +273,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			if ( f1 - f0 < 0.05 && b1 - b0 < 0.05 ) continue;
 			// ---- FA1 (WA2-1): the tread drawn and collided over [ f0, f1 ] at its front and [ b0, b1 ] at its back,
 			// once, or twice either side of an open portal (a cut end paints no aisle: `cut0`, `cut1`)
+			const well = portals.length || mouths.size ? wellOf( S, r ) : null; // ---- FA3 (WA1-2, WA2-4)
 			const slab = ( f0, f1, b0, b1, cut0 = false, cut1 = false ) => {
 
 				// tread
@@ -209,24 +286,60 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 				const ua = [ cut0 ? 3 : 0, w, w, cut1 ? 3 : 0 ], ub = [ cut0 ? 3 : 0, wb, wb, cut1 ? 3 : 0 ];
 				for ( let j = 0; j < 3; j ++ ) {
 
+					// ---- FA3 (WA1-2): the middle piece open over a portal's well
+					if ( well && j === 1 ) {
+
+						for ( const [ sa, sb ] of lessWell( well, f0 + w, f1 - w ) ) {
+
+							const a = [ ...at( sa, d0 ) ], b = [ ...at( sb, d0 ) ], c = [ ...at( sb, d1 ) ], dd = [ ...at( sa, d1 ) ];
+							q.add( [ a[ 0 ], y, a[ 1 ] ], [ b[ 0 ], y, b[ 1 ] ], [ c[ 0 ], y, c[ 1 ] ], [ dd[ 0 ], y, dd[ 1 ] ], [ 0, 1, 0 ], TREAD_UV + w, TREAD_UV + w );
+
+						}
+						continue;
+
+					}
+					// ---- end FA3
 					const a = [ F[ j ][ 0 ], y, F[ j ][ 1 ] ], b = [ F[ j + 1 ][ 0 ], y, F[ j + 1 ][ 1 ] ], c = [ Bq[ j + 1 ][ 0 ], y, Bq[ j + 1 ][ 1 ] ], dd = [ Bq[ j ][ 0 ], y, Bq[ j ][ 1 ] ];
 					q.tri( a, b, c, [ 0, 1, 0 ], [ TREAD_UV + ua[ j ], 0 ], [ TREAD_UV + ua[ j + 1 ], 0 ], [ TREAD_UV + ub[ j + 1 ], D ] );
 					q.tri( a, c, dd, [ 0, 1, 0 ], [ TREAD_UV + ua[ j ], 0 ], [ TREAD_UV + ub[ j + 1 ], D ], [ TREAD_UV + ub[ j ], D ] );
 
 				}
 
-				// riser in front of it
-				q.add( [ A0[ 0 ], yPrev, A0[ 1 ] ], [ A1[ 0 ], yPrev, A1[ 1 ] ], [ A1[ 0 ], y, A1[ 1 ] ], [ A0[ 0 ], y, A0[ 1 ] ], [ - nx, 0, - nz ], RISER_UV, RISER_UV );
+				// riser in front of it (---- FA3: open over a portal's well)
+				for ( const [ sa, sb ] of lessWell( well, f0, f1 ) ) {
+
+					const E0 = at( sa, d0 ), E1 = at( sb, d0 );
+					q.add( [ E0[ 0 ], yPrev, E0[ 1 ] ], [ E1[ 0 ], yPrev, E1[ 1 ] ], [ E1[ 0 ], y, E1[ 1 ] ], [ E0[ 0 ], y, E0[ 1 ] ], [ - nx, 0, - nz ], RISER_UV, RISER_UV );
+
+				}
+				void A0; void A1;
 				// ---- end FW3
 
 				// walkable: an oriented box under the tread (world frame)
 				if ( colliders ) {
 
-					const cs = ( Math.max( f0, b0 ) + Math.min( f1, b1 ) ) / 2, hl = Math.max( 0.05, ( Math.min( f1, b1 ) - Math.max( f0, b0 ) ) / 2 );
-					const [ cx, cz ] = at( cs, ( d0 + d1 ) / 2 );
-					const w = toWorld( cx, cz );
-					const bottom = Math.max( base, y - ( PO?.open ? 0.6 : 3 ) );
-					colliders.addBox( new Vector3( w.x, ( y + bottom ) / 2, w.z ), new Vector3( hl, ( y - bottom ) / 2, D / 2 ), worldYaw - Math.atan2( uz, ux ) + 0, { walkable: true, tag: tier.name } );
+					// ---- FA3 (WA1-10): the whole tread, mitres and all, from the leftmost of its front and back ends to
+					// the rightmost (FW6's fix to Bowl._walkable). It was the rectangle inside the mitred tread: a wedge
+					// with no floor at every section joint (the corners' fans, whose rows open out twenty times wider
+					// at the back than at the front, worst: half their top rows), and stood on, you dropped through to
+					// the hollow or the deck below, 21.8 m down a shaft on the third base side. Over a joint the box
+					// reaches onto the neighbour's tread, the same row at the same height (a few cm off by the Diamond
+					// Club's low rows and the dugouts' skipped ones)
+					const lo = Math.min( f0, b0 ), hi = Math.max( f1, b1 );
+					// an upper deck's rows end at its underside, not 3 m down (under the 400s that hung 2 m below
+					// the deck, into the stairs' headroom); the lower bowl's go down 3 m as before; (FA1) a tier with
+					// open portals 0.6 m deep, so its stairs pass under the rows
+					const bottom = PO?.open ? Math.max( base, y - 0.6 )
+						: tier.soffit ? Math.min( y - 0.3, Math.max( base, underside( ( d0 + d1 ) / 2 ) ) ) : Math.max( base, y - 3 );
+					for ( const [ sa, sb ] of lessWell( well, lo, hi ) ) {
+
+						const cs = ( sa + sb ) / 2, hl = Math.max( 0.05, ( sb - sa ) / 2 );
+						const [ cx, cz ] = at( cs, ( d0 + d1 ) / 2 );
+						const w = toWorld( cx, cz );
+						colliders.addBox( new Vector3( w.x, ( y + bottom ) / 2, w.z ), new Vector3( hl, ( y - bottom ) / 2, D / 2 ), worldYaw - Math.atan2( uz, ux ) + 0, { walkable: true, tag: tier.name } );
+
+					}
+					// ---- end FA3
 
 				}
 
@@ -252,6 +365,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			for ( let i = 0; i < n; i ++ ) {
 
 				if ( portals.length && ( inPortal( S, start + i * W, r ) || crossAisle( S, r ) ) ) continue; // ---- FA1: crossAisle
+				if ( mouths.size && inMouth( S, start + i * W, r ) ) continue; // ---- FA3 (WA2-4)
 				const [ x, z ] = at( start + i * W, dSeat );
 				_q.setFromAxisAngle( _up, yawSeat );
 				_m.compose( _p.set( x, y, z ), _q, _s );
@@ -359,7 +473,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	// the front of an upper deck: a solid rail you can't walk off
 	if ( tier.frontWall && colliders ) {
 
-		const top = tier.frontWall.top ?? ys[ 0 ];
+		// ---- FA3 (WA1-7): up to the pipe rail on it (0.32 over the wall's top, below), not the wall's top: a
+		// jump from the front row cleared the 0.75-1.0 m wall
+		const top = ( tier.frontWall.top ?? ys[ 0 ] ) + 0.37;
 		const bottom = ys[ 0 ] - ( tier.soffit || 1 );
 		for ( const S of secs ) {
 
@@ -457,6 +573,271 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		}
 
 	}
+
+	// ---- FA3 (step 10, the walk): the rails a fan can't get past, as colliders (and where nothing drew them, drawn)
+	const box = ( S, sa, sb, d, y0, y1, th = 0.24, tag = tier.name + '-rail' ) => {
+
+		// a wall along section S from sa to sb (along its front) at depth d (its middle), y0..y1
+		if ( ! colliders || sb - sa < 0.02 || y1 - y0 < 0.02 ) return;
+		const [ cx, cz ] = [ S.a[ 0 ] + S.ux * ( sa + sb ) / 2 + S.nx * d, S.a[ 1 ] + S.uz * ( sa + sb ) / 2 + S.nz * d ];
+		const w = toWorld( cx, cz );
+		colliders.addBox( new Vector3( w.x, ( y0 + y1 ) / 2, w.z ), new Vector3( ( sb - sa ) / 2, ( y1 - y0 ) / 2, th / 2 ), worldYaw - Math.atan2( S.uz, S.ux ), { tag } );
+
+	};
+	const wallLine = ( a, b, y0, y1, tag, th = 0.24 ) => {
+
+		// a wall from a to b ([ x, z ], field frame), y0..y1
+		const l = Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] );
+		if ( ! colliders || l < 0.02 ) return;
+		const w = toWorld( ( a[ 0 ] + b[ 0 ] ) / 2, ( a[ 1 ] + b[ 1 ] ) / 2 );
+		colliders.addBox( new Vector3( w.x, ( y0 + y1 ) / 2, w.z ), new Vector3( l / 2, ( y1 - y0 ) / 2, th / 2 ), worldYaw - Math.atan2( b[ 1 ] - a[ 1 ], b[ 0 ] - a[ 0 ] ), { tag } );
+
+	};
+	// (WA1-4, WA2-5) the lower tiers' fronts. At the foot of every aisle you stepped over the foul wall's
+	// collider (0.17 m over the front row's tread) onto the field, off the right field seats over theirs (0.35
+	// m under the front row) onto the track, and into the camera wells. In 2008 the field was closed: the low
+	// wall and its pipe rail down the lines, the backstop's net behind home, a pipe rail with chain-link and
+	// glass at each aisle's foot in right (Commons 2008-03-29 2371427833). The free camera (F) still goes
+	// anywhere
+	const FR = tier.frontRail, fr = new Quads(), fm = new Quads(), fg = new Quads();
+	if ( FR ) {
+
+		for ( const S of secs ) {
+
+			const first = S.skipRows || 0;
+			const dF = first && tier.ledge ? tier.ledge : S0 + first * D, y = rowY( S, first );
+			const d = dF - ( FR.ahead ?? 0.12 );
+			const s0 = Math.min( S.len, S.m0 * d ) - 0.15, s1 = Math.max( s0, S.len - S.m1 * d ) + 0.15;
+			box( S, s0, s1, d, y - 1.2, y + FR.height );
+			// (WA2-3) the dugouts: their sections' first rows start behind the dugout's back, 0.75 m back from
+			// it (Field.js: 2.6 m deep and its 0.25 m wall, the rows 4 x 0.8 back): a slot you dropped into at
+			// the foot of the aisle. A ledge at the first row's height carries its tread forward to the dugout's
+			// back; a rail on its front over the roof's back edge and down both ends to the wall (the wells)
+			if ( first && tier.ledge ) {
+
+				const dR = S0 + first * D, e = ( dd ) => [ Math.min( S.len, S.m0 * dd ), Math.max( Math.min( S.len, S.m0 * dd ), S.len - S.m1 * dd ) ];
+				const [ a0, a1 ] = e( dF ), [ c0, c1 ] = e( dR );
+				const P = ( s, dd, yy ) => [ S.a[ 0 ] + S.ux * s + S.nx * dd, yy, S.a[ 1 ] + S.uz * s + S.nz * dd ];
+				q.add( P( a0, dF, y ), P( a1, dF, y ), P( c1, dR, y ), P( c0, dR, y ), [ 0, 1, 0 ] );
+				q.add( P( a0, dF, y - 0.4 ), P( a1, dF, y - 0.4 ), P( a1, dF, y ), P( a0, dF, y ), [ - S.nx, 0, - S.nz ], RISER_UV, RISER_UV );
+				if ( colliders ) {
+
+					const lo = Math.min( a0, c0 ), hi = Math.max( a1, c1 ), w = toWorld( ...[ 0, 2 ].map( ( i ) => P( ( lo + hi ) / 2, ( dF + dR ) / 2, 0 )[ i ] ) );
+					colliders.addBox( new Vector3( w.x, y - 0.5, w.z ), new Vector3( ( hi - lo ) / 2, 0.5, ( dR - dF ) / 2 ), worldYaw - Math.atan2( S.uz, S.ux ), { walkable: true, tag: tier.name } );
+
+				}
+				// the rail on the roof's back edge and down the ends: dark green pipe, as the field's (Field.js)
+				const R0 = ( s, dd ) => P( s, dd, y ), yr = y + 0.95;
+				const runs = [ [ P( a0, dF, 0 ), P( a1, dF, 0 ) ] ];
+				for ( const [ sF, sB ] of [ [ Math.min( S.len, S.m0 * ( S0 - 0.15 ) ), a0 ], [ Math.max( 0, S.len - S.m1 * ( S0 - 0.15 ) ), a1 ] ] ) {
+
+					const A = P( sF, S0 - 0.15, 0 ), B = P( sB, dF, 0 );
+					runs.push( [ A, B ] );
+					wallLine( [ A[ 0 ], A[ 2 ] ], [ B[ 0 ], B[ 2 ] ], y - 1.2, y + FR.height );
+
+				}
+				for ( const [ A, B ] of runs ) {
+
+					const l = Math.hypot( B[ 0 ] - A[ 0 ], B[ 2 ] - A[ 2 ] ), n = Math.max( 1, Math.round( l / 1.8 ) );
+					const T = ( t, yy ) => [ A[ 0 ] + ( B[ 0 ] - A[ 0 ] ) * t, yy, A[ 2 ] + ( B[ 2 ] - A[ 2 ] ) * t ];
+					beam( fr, T( 0, yr ), T( 1, yr ), 0.05 );
+					beam( fr, T( 0, y + 0.45 ), T( 1, y + 0.45 ), 0.035 );
+					for ( let k = 0; k <= n; k ++ ) beam( fr, T( k / n, y ), T( k / n, yr + 0.02 ), 0.05 );
+
+				}
+				void R0; void c0; void c1;
+
+			}
+			// drawn: the right field seats' front, a dark pipe rail on posts with chain-link under it, and at each
+			// aisle's foot a taller panel, chain-link under glass
+			if ( FR.draw ) {
+
+				const P = ( s, yy ) => [ S.a[ 0 ] + S.ux * s + S.nx * ( dF - 0.12 ), yy, S.a[ 1 ] + S.uz * s + S.nz * ( dF - 0.12 ) ];
+				const a0 = s0 + 0.15, a1 = s1 - 0.15, H = 1.0;
+				beam( fr, P( a0, y + H ), P( a1, y + H ), 0.05 );
+				beam( fr, P( a0, y + 0.06 ), P( a1, y + 0.06 ), 0.04 );
+				const n = Math.max( 1, Math.round( ( a1 - a0 ) / 2.0 ) );
+				for ( let k = 0; k <= n; k ++ ) beam( fr, P( a0 + ( a1 - a0 ) * k / n, y ), P( a0 + ( a1 - a0 ) * k / n, y + H + 0.03 ), 0.05 );
+				fm.add( P( a0, y + 0.08 ), P( a1, y + 0.08 ), P( a1, y + H - 0.04 ), P( a0, y + H - 0.04 ), [ - S.nx, 0, - S.nz ], a0, a1 );
+				// the aisle's foot at the section's two ends (A wide): its frame up to the glass's top
+				for ( const [ g0, g1 ] of [ [ a0, a0 + A / 2 ], [ a1 - A / 2, a1 ] ] ) {
+
+					const yg = y + 1.62;
+					for ( const sg of [ g0, g1 ] ) beam( fr, P( sg, y + H ), P( sg, yg ), 0.045 );
+					beam( fr, P( g0, yg ), P( g1, yg ), 0.045 );
+					fg.add( P( g0, y + H + 0.03 ), P( g1, y + H + 0.03 ), P( g1, yg - 0.02 ), P( g0, yg - 0.02 ), [ - S.nx, 0, - S.nz ], g0, g1 );
+					box( S, g0, g1, dF - 0.12, y + 1.0, yg + 0.05, 0.12 );
+
+				}
+
+			}
+
+		}
+
+	}
+	// (WA1-5) an upper deck's two ends: the stepped end wall (the soffit's end caps) and a pipe rail up it.
+	// Off the 300s' ends you fell 8-9 m onto the Arcade or the concourse, off the club seats' 7
+	if ( tier.endRail ) {
+
+		for ( const [ S, last ] of [ [ secs[ 0 ], false ], [ secs[ secs.length - 1 ], true ] ] ) {
+
+			const sE = ( dd ) => last ? Math.max( 0, S.len - S.m1 * dd ) - 0.06 : Math.min( S.len, S.m0 * dd ) + 0.06;
+			const P = ( dd, yy ) => [ S.a[ 0 ] + S.ux * sE( dd ) + S.nx * dd, yy, S.a[ 1 ] + S.uz * sE( dd ) + S.nz * dd ];
+			const dF = S0 - ( tier.frontWall?.ahead || 0 );
+			for ( let r = S.skipRows || 0; r < tier.rows; r ++ ) {
+
+				const d0 = r === ( S.skipRows || 0 ) ? dF : S0 + r * D, d1 = S0 + ( r + 1 ) * D, y = rowY( S, r );
+				const A = P( d0, 0 ), B = P( d1, 0 );
+				wallLine( [ A[ 0 ], A[ 2 ] ], [ B[ 0 ], B[ 2 ] ], y - 0.6, y + 1.15, tier.name + '-end-rail', 0.12 );
+
+			}
+			// the rail: a pipe 1 m over the steps' nosings, a post every other row
+			const yA = ys[ S.skipRows || 0 ] + 1.0, yB = ys[ tier.rows - 1 ] + 1.0;
+			const dA = S0 + ( S.skipRows || 0 ) * D, dB = S0 + tier.rows * D - 0.1;
+			beam( rq, P( dA - ( tier.frontWall?.ahead || 0 ) + 0.1, yA ), P( dA + 0.3, yA ), 0.05 );
+			beam( rq, P( dA + 0.3, yA ), P( dB - D + 0.3, yB ), 0.05 );
+			beam( rq, P( dB - D + 0.3, yB ), P( dB, yB ), 0.05 );
+			for ( let r = S.skipRows || 0; r < tier.rows; r += 2 ) {
+
+				const dd = S0 + ( r + 0.4 ) * D, yy = ys[ r ];
+				const yt = yA + ( yB - yA ) * Math.max( 0, Math.min( 1, ( dd - dA - 0.3 ) / Math.max( 0.1, dB - D - dA ) ) );
+				beam( rq, P( dd, yy ), P( dd, yt ), 0.04 );
+
+			}
+
+		}
+
+	}
+	// (WA1-5) the wall behind the top row (the 400s' fell 29.8 m to the street; the Arcade's opens onto its
+	// concourse at the aisles' heads)
+	if ( tier.back?.wall ) {
+
+		const dB = S0 + tier.rows * D;
+		for ( let k = 0; k < secs.length; k ++ ) {
+
+			const S = secs[ k ], y = rowY( S, tier.rows - 1 );
+			const s0 = Math.min( S.len, S.m0 * dB ) - 0.15, s1 = Math.max( s0, S.len - S.m1 * dB ) + 0.15;
+			const gap = tier.back.wall === 'aisles' ? 0.85 : 0;
+			box( S, s0 + ( k > 0 ? gap : 0 ), s1 - ( k < secs.length - 1 ? gap : 0 ), dB + 0.12, y - 0.6, y + tier.back.height + 0.1, 0.24, tier.name + '-back' );
+
+		}
+
+	}
+	// (WA2-4) the Diamond Club closed off. Behind home its rows and the field level's above them were one
+	// sweep from the backstop to the concourse; in 2008 the club's rows ended at a concrete parapet with
+	// glass and a pipe rail on it (Commons 2008-03-29 2372257740, by 126-127; michealnichols 2006 from
+	// 122-125, the rail across the rows), the club's members came up from the club under the stands by
+	// tunnels whose mouths open under it, and 119-128 above were entered from the concourse. The parapet
+	// in front of row PA.row: concrete to 0.55 m over that row's tread, glass to 1.05 with a pipe rail on
+	// top, unbroken across the aisles (a gate in each, shut), a wall to the walker; each mouth a dark
+	// opening under it, its approach steps down through the club's top rows between low walls
+	const PA = tier.parapet, gq = new Quads(), mq2 = new Quads();
+	if ( PA ) {
+
+		for ( const S of secs ) {
+
+			if ( ! PA.at( S ) ) continue;
+			const dP = S0 + PA.row * D, yLo = rowY( S, PA.row - 1 ), yUp = rowY( S, PA.row );
+			const yC = yUp + 0.55, yG = yUp + 1.05;
+			const s0 = Math.min( S.len, S.m0 * dP ), s1 = Math.max( s0, S.len - S.m1 * dP );
+			const P = ( s, dd, yy ) => [ S.a[ 0 ] + S.ux * s + S.nx * dd, yy, S.a[ 1 ] + S.uz * s + S.nz * dd ];
+			const m = mouths.get( S );
+			const yM = m ? rowY( S, m.r0 - 1 ) - 0.95 : 0;
+			// the concrete: its face to the club (round the mouth), its top, its back to row PA.row
+			const face = m ? [ [ s0, m.s - m.w + 0.2 ], [ m.s + m.w - 0.2, s1 ] ] : [ [ s0, s1 ] ];
+			for ( const [ a, b ] of face ) q.add( P( a, dP - 0.25, yLo ), P( b, dP - 0.25, yLo ), P( b, dP - 0.25, yC ), P( a, dP - 0.25, yC ), [ - S.nx, 0, - S.nz ], RISER_UV, RISER_UV );
+			q.add( P( s0, dP - 0.25, yC ), P( s1, dP - 0.25, yC ), P( s1, dP, yC ), P( s0, dP, yC ), [ 0, 1, 0 ] );
+			q.add( P( s0, dP, yUp ), P( s1, dP, yUp ), P( s1, dP, yC ), P( s0, dP, yC ), [ S.nx, 0, S.nz ], RISER_UV, RISER_UV );
+			// the glass in panels between posts, a pipe rail on top
+			const n = Math.max( 1, Math.round( ( s1 - s0 ) / 1.5 ) );
+			gq.add( P( s0, dP - 0.12, yC + 0.02 ), P( s1, dP - 0.12, yC + 0.02 ), P( s1, dP - 0.12, yG - 0.04 ), P( s0, dP - 0.12, yG - 0.04 ), [ - S.nx, 0, - S.nz ], s0, s1 );
+			beam( rq, P( s0, dP - 0.12, yG ), P( s1, dP - 0.12, yG ), 0.05 );
+			beam( rq, P( s0, dP - 0.12, yC + 0.03 ), P( s1, dP - 0.12, yC + 0.03 ), 0.035 );
+			for ( let k = 0; k <= n; k ++ ) beam( rq, P( s0 + ( s1 - s0 ) * k / n, dP - 0.12, yC ), P( s0 + ( s1 - s0 ) * k / n, dP - 0.12, yG + 0.02 ), 0.045 );
+			box( S, s0 - 0.1, s1 + 0.1, dP - 0.12, Math.min( yLo, yM ) - 0.3, yG + 0.1, 0.3, tier.name + '-parapet' );
+			if ( ! m ) continue;
+			// the mouth: dark, its lintel the parapet's concrete over it, a light inside at the top
+			const ma = m.s - m.w + 0.2, mb = m.s + m.w - 0.2;
+			mq2.add( P( ma, dP - 0.2, yM ), P( mb, dP - 0.2, yM ), P( mb, dP - 0.2, yC - 0.18 ), P( ma, dP - 0.2, yC - 0.18 ), [ - S.nx, 0, - S.nz ] );
+			q.add( P( ma, dP - 0.25, yC - 0.18 ), P( mb, dP - 0.25, yC - 0.18 ), P( mb, dP - 0.25, yC ), P( ma, dP - 0.25, yC ), [ - S.nx, 0, - S.nz ], RISER_UV, RISER_UV );
+			// its approach: steps down from row r0 - 1's tread to the mouth's floor, between walls the rows'
+			// cut ends make, a pipe rail along their tops
+			const dA = S0 + m.r0 * D, dB = dP - 0.25, yA = rowY( S, m.r0 - 1 ), nS = Math.max( 2, Math.round( ( yA - yM ) / 0.17 ) );
+			for ( let j = 0; j < nS; j ++ ) {
+
+				const da = dA + ( dB - dA ) * j / nS, db = dA + ( dB - dA ) * ( j + 1 ) / nS, yj = yA - ( yA - yM ) * ( j + 1 ) / nS, yp = yA - ( yA - yM ) * j / nS;
+				q.add( P( ma, da, yj ), P( mb, da, yj ), P( mb, db, yj ), P( ma, db, yj ), [ 0, 1, 0 ] );
+				q.add( P( ma, da, yj ), P( mb, da, yj ), P( mb, da, yp ), P( ma, da, yp ), [ S.nx, 0, S.nz ], RISER_UV, RISER_UV );
+
+			}
+			for ( const [ sw, side ] of [ [ ma, 1 ], [ mb, - 1 ] ] ) {
+
+				for ( let r = m.r0; r < m.r1; r ++ ) {
+
+					const da = S0 + r * D, db = Math.min( dB, S0 + ( r + 1 ) * D ), y = rowY( S, r );
+					const fa = yA - ( yA - yM ) * ( da - dA ) / ( dB - dA ), fb = yA - ( yA - yM ) * ( db - dA ) / ( dB - dA );
+					q.add( P( sw, da, fa ), P( sw, db, fb ), P( sw, db, y ), P( sw, da, y ), [ S.ux * side, 0, S.uz * side ], RISER_UV, RISER_UV );
+
+				}
+				const r0y = rowY( S, m.r0 ), r1y = rowY( S, m.r1 - 1 );
+				beam( rq, P( sw - side * 0.1, dA + 0.1, r0y + 0.9 ), P( sw - side * 0.1, dB, r1y + 0.9 ), 0.045 );
+				beam( rq, P( sw - side * 0.1, dA + 0.1, r0y ), P( sw - side * 0.1, dA + 0.1, r0y + 0.92 ), 0.045 );
+
+			}
+
+		}
+
+	}
+	if ( gq.count ) {
+
+		const g = new Mesh( gq.geometry(), materials.frontGlass || materials.rail );
+		g.name = tier.name + '-parapet-glass';
+		if ( g.material.transparent ) g.layers.set( 2 );
+		group.add( g );
+
+	}
+	if ( mq2.count ) {
+
+		const mm = new Mesh( mq2.geometry(), materials.portalMouth );
+		mm.name = tier.name + '-tunnel-mouths';
+		group.add( mm );
+
+	}
+	// (WA1-2) a portal's box: its cheeks, its back and the face round its mouth are walls up to the pipe rail
+	// round its top. Under the deck the stair's side clears the cheek (the cheek's foot at the deck's
+	// underside, over the climber's head)
+	// (an open portal, FA1's, walls itself: its top is flush with the rows and its stair comes up under the cheeks)
+	for ( const p of PO?.open ? [] : portals ) {
+
+		const { S } = p, w = PO.width / 2 + 0.3, mw = PO.width / 2 - 0.2;
+		const dF = S0 + p.r0 * D, dB = S0 + p.r1 * D;
+		const yF = ys[ Math.max( 0, p.r0 - 1 ) ], yTop = ys[ Math.min( tier.rows - 1, p.r1 - 1 ) ] + 1.1, mTop = Math.min( yTop - 0.3, yF + 2.3 );
+		const uMid = tier.soffit ? underside( ( dF + dB ) / 2 ) : yF;
+		const P = ( s, dd ) => [ S.a[ 0 ] + S.ux * s + S.nx * dd, S.a[ 1 ] + S.uz * s + S.nz * dd ];
+		for ( const e of [ - 1, 1 ] ) wallLine( P( p.s + e * w, dF ), P( p.s + e * w, dB ), uMid, yTop + 1.05, tier.name + '-portal' );
+		wallLine( P( p.s - w, dB ), P( p.s + w, dB ), yF - 0.5, yTop + 1.05, tier.name + '-portal' );
+		for ( const e of [ - 1, 1 ] ) wallLine( P( p.s + e * mw, dF ), P( p.s + e * w, dF ), yF - 0.5, yTop + 1.05, tier.name + '-portal' );
+		wallLine( P( p.s - mw, dF ), P( p.s + mw, dF ), mTop, yTop + 1.05, tier.name + '-portal' );
+
+	}
+	if ( fr.count ) {
+
+		const m = new Mesh( fr.geometry(), materials.frontRail || materials.rail );
+		m.name = tier.name + '-front-rail';
+		m.castShadow = true;
+		group.add( m );
+
+	}
+	for ( const [ qq, mat, nm ] of [ [ fm, materials.frontMesh, '-front-mesh' ], [ fg, materials.frontGlass, '-front-glass' ] ] ) {
+
+		if ( ! qq.count || ! mat ) continue;
+		const m = new Mesh( qq.geometry(), mat );
+		m.name = tier.name + nm;
+		if ( mat.transparent ) m.layers.set( 2 ); // the late (transparent) pass
+		group.add( m );
+
+	}
+	// ---- end FA3
 
 	// the portals: a concrete box rising out of the rows with the tunnel mouth in its face (dark, lit
 	// inside after dark), a pipe rail round its top, EXIT over the mouth
@@ -826,8 +1207,24 @@ ${ SOFFIT_WGSL }
 	let v = in.uv.y;
 	s.emissive = vec3f( 1.0, 0.88, 0.66 ) * 0.12 * mix( 0.5, 1.0, frame.night );
 ` } );
-	for ( const m of [ concrete, seat, rail, portalMouth, fascia, edgeBeam ] ) m.underwaterLighting = 'none';
-	return { concrete, seat, rail, portalMouth, fascia, edgeBeam, seatGeometry: seatGeometry(), seatDownGeometry: seatGeometry( true ) };
+	// ---- FA3 (WA2-5): the field level's own rails (buildTier's frontRail: the right field seats' front, the
+	// rail over the dugouts' roofs): dark green painted pipe as the field wall's (Field.js), chain-link in
+	// the panels (5 cm diamonds, a veil when finer than a pixel, as the left field's), clear glass a little
+	// green at the aisles' feet (Commons 2008-03-29 2371427833)
+	const frontRail = standard( { name: 'front-rail', color: new Color( 0.015, 0.05, 0.03 ), roughness: 0.45, metalness: 0.6 } );
+	const frontMesh = standard( { name: 'front-mesh', color: new Color( 0.02, 0.05, 0.035 ), roughness: 0.5, metalness: 0.5, side: 'double', alphaTest: 0.5,
+		surface: /* wgsl */`
+	let p = vec2f( in.uv.x + in.uv.y, in.uv.x - in.uv.y ) / 0.05;
+	let g = abs( fract( p ) - 0.5 );
+	let fw = fwidth( p.x );
+	let wire = step( 0.42 - fw, max( g.x, g.y ) );
+	s.alpha = max( wire * step( fw, 0.9 ), clamp( fw * 0.35, 0.0, 0.15 ) );
+` } );
+	const frontGlass = standard( { name: 'front-glass', color: new Color( 0.06, 0.09, 0.08 ), roughness: 0.05, metalness: 0.1, transparent: true, depthWrite: false, side: 'double',
+		surface: 's.alpha = 0.1 + 0.45 * pow( 1.0 - clamp( abs( dot( normalize( in.N ), normalize( frame.cameraPos - in.P ) ) ), 0.0, 1.0 ), 4.0 ); s.albedo = mat.color * ( 1.0 - 0.3 * frame.wet );' } );
+	for ( const m of [ concrete, seat, rail, portalMouth, fascia, edgeBeam, frontRail, frontMesh, frontGlass ] ) m.underwaterLighting = 'none';
+	return { concrete, seat, rail, portalMouth, fascia, edgeBeam, frontRail, frontMesh, frontGlass, seatGeometry: seatGeometry(), seatDownGeometry: seatGeometry( true ) };
+	// ---- end FA3
 
 }
 

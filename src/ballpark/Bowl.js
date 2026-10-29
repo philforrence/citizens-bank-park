@@ -147,7 +147,7 @@ function intersect( p, u, q, v ) {
 
 }
 // ---- end FA2
-export const T400 = { lift: 3.9, rise: 0.55, soffit: 0.85, portals: { every: 2, row: 2, rows: 4, width: 2.4 } };
+export const T400 = { lift: 3.9, rise: 0.55, soffit: 0.85, portals: { every: 2, row: 2, rows: 4, width: 2.4, atAisle: true } }; // ---- FA3: atAisle (Stands.js portalS)
 // ---- end FW3
 
 export class Bowl {
@@ -315,6 +315,23 @@ export class Bowl {
 		const cornerLF = corner( 'corner-lf', F[ L ], endNormal( F[ L - 1 ], F[ L ], [ 0, - 40 ] ), endNormal( lf[ 0 ], lf[ 1 ], [ 0, 0 ] ) );
 		const cornerRF = corner( 'corner-rf', F[ 0 ], endNormal( rf[ rf.length - 2 ], rf[ rf.length - 1 ], [ 0, 0 ] ), endNormal( F[ 0 ], F[ 1 ], [ 0, - 40 ] ) );
 
+		// ---- FA3 (WA1-4, WA2-5, WA2-3): the fronts closed to the field, at the real barriers (Stands.js frontRail):
+		// down the lines the low wall and its pipe rail (2.34 m over the field, 1.14 over the front row), behind
+		// home the backstop's net; the dugouts' sections behind the dugout's back (its 2.6 m and its wall), a
+		// ledge carried forward to it and a rail over the roof's back edge; the corners behind the wall; in
+		// right a pipe rail with chain-link and glass at the aisles' feet, drawn here (nothing was); in left
+		// the guard rail Details2008 draws behind the planter (FA2 has the planter: their own frontRail, if
+		// any, stands)
+		infield.frontRail = { height: 1.15, ahead: 0.12 };
+		infield.ledge = 2.85 + 0.02;
+		// (WA2-4) the Diamond Club's parapet in front of row 18 (its eighteen rows: places/home/Seats.js
+		// CLUB_ROWS), across its seven sections, a tunnel's mouth under it in F and B (the 2008 photo's by
+		// 126-127; the chart's club "entered at rows 13-14"): Stands.js parapet
+		infield.parapet = { row: 18, at: ( S ) => S.k > dugA && S.k < dugB, mouths: [ 1, 5 ], mouthRows: 4, mouthWidth: 2.0 };
+		for ( const c of [ cornerLF, cornerRF ] ) c.frontRail = { height: 1.15, ahead: 0.12 };
+		rightField.frontRail = { height: 1.15, ahead: 0.12, draw: true };
+		leftField.frontRail ??= { height: 1.15, ahead: 0.25 };
+		// ---- end FA3
 		return [ infield, leftField, rightField, cornerLF, cornerRF ];
 
 	}
@@ -396,6 +413,16 @@ export class Bowl {
 				yPrev = y;
 
 			}
+			// ---- FA3 (WA1-4): a rail across the seam's foot, on the line of the two blocks' own (Stands.js
+			// frontRail): down the seam's aisle you stepped off its first tread onto the field by the pole
+			if ( colliders ) {
+
+				const a = A.at( A.d0 - 0.12 ), b = B.at( B.d0 - 0.12 ), l = Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] );
+				const y = Math.min( A.y( A.d0 + 0.1 ), B.y( B.d0 + 0.1 ) ), w = toWorld( ( a[ 0 ] + b[ 0 ] ) / 2, ( a[ 1 ] + b[ 1 ] ) / 2 );
+				if ( l > 0.05 ) colliders.addBox( new Vector3( w.x, y + ( 1.15 - 1.2 ) / 2, w.z ), new Vector3( l / 2 + 0.2, ( 1.15 + 1.2 ) / 2, 0.12 ), worldYaw - Math.atan2( b[ 1 ] - a[ 1 ], b[ 0 ] - a[ 0 ] ), { tag: 'pole-seam-rail' } );
+
+			}
+			// ---- end FA3
 
 		}
 
@@ -529,14 +556,15 @@ export class Bowl {
 		this.top = top;
 		const clubY = L.clubConcourse - ( ROWS.club - 1 ) * 0.46 - 0.2;
 		const t300Y = L.terraceConcourse - ( ROWS.t300 - 1 ) * 0.52 - 0.3;
+		// (---- FA3, WA1-5: endRail, a rail up each end of the tier: Stands.js)
 		const tiers = [
 			// suite level: two rows in front of the suites
-			{ name: 'suite-seats', front: span( 2, 9, D.suites ), outward: [ 0, - 40 ], y0: L.suites - 0.6, rows: 2, depth: 0.95, rise: 0.35, section: 12, aisle: 1.4, soffit: 0.9, frontWall: { top: L.suites + 0.2 }, base: L.suites - 1.5 },
+			{ name: 'suite-seats', endRail: true, front: span( 2, 9, D.suites ), outward: [ 0, - 40 ], y0: L.suites - 0.6, rows: 2, depth: 0.95, rise: 0.35, section: 12, aisle: 1.4, soffit: 0.9, frontWall: { top: L.suites + 0.2 }, base: L.suites - 1.5 },
 			// Hall of Fame Club (212-232): 8 rows up to the club concourse
-			{ name: 'club-level', front: span( 2, 9, D.club ), outward: [ 0, - 40 ], y0: clubY, rows: ROWS.club, depth: ROW, rise: 0.46, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: clubY + 1.0 }, base: clubY - 1.2 },
+			{ name: 'club-level', endRail: true, front: span( 2, 9, D.club ), outward: [ 0, - 40 ], y0: clubY, rows: ROWS.club, depth: ROW, rise: 0.46, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: clubY + 1.0 }, base: clubY - 1.2 },
 			// Terrace: the 300s over the club seats, up to the terrace walkway
 			// (behind home plate the press box takes its place: no seats there)
-			{ name: 'terrace-300', front: line( main, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1, skip: [ [ 2, 4 ] ] },
+			{ name: 'terrace-300', endRail: true, front: line( main, D.t300 ), outward: [ 0, - 40 ], y0: t300Y, rows: ROWS.t300, depth: ROW, rise: 0.52, section: 14, aisle: 1.2, soffit: 1.1, frontWall: { top: t300Y + 1.0 }, base: t300Y - 1.1, skip: [ [ 2, 4 ] ] },
 			// ... and the 400s above the Terrace concourse. ---- FW3 (C2W-7): the upper deck is "split into two
 			// smaller decks" with the concourse between them, open to the field over the 300s, and "a lot of
 			// steps" from it up to the 400s (newballpark.org, June 2008; Anfony79, <= May 2008: the floor behind
@@ -545,11 +573,11 @@ export class Bowl {
 			// up, every other section (Commons 2008-03-29, the 3B decks from the left field corner: the white
 			// boxes and their rails). They sat on the walkway's back edge, the front row's feet on it.
 			// (CB-13, gauntlet r1, had taken the tunnels out when the 400s were entered from their front)
-			{ name: 'terrace-400', front: line( main, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + T400.lift, rows: ROWS.t400, depth: ROW, rise: T400.rise, section: 14, aisle: 1.2, soffit: T400.soffit, frontWall: { top: L.terraceConcourse + T400.lift + 0.75, ahead: 0.45 }, back: { height: 1.1 }, base: L.terraceConcourse + T400.lift - T400.soffit, portals: T400.portals },
+			{ name: 'terrace-400', endRail: true, front: line( main, D.t400 ), outward: [ 0, - 40 ], y0: L.terraceConcourse + T400.lift, rows: ROWS.t400, depth: ROW, rise: T400.rise, section: 14, aisle: 1.2, soffit: T400.soffit, frontWall: { top: L.terraceConcourse + T400.lift + 0.75, ahead: 0.45 }, back: { height: 1.1, wall: true }, base: L.terraceConcourse + T400.lift - T400.soffit, portals: T400.portals },
 			// ---- end FW3
 			// the Arcade (233-237): down the left field line from the end of the club, ten rows on the suite
 			// level's fascia (the ribbon board runs on along it) right under the 300s
-			{ name: 'arcade', front: span( 9, 11, D.suites ), outward: [ 0, - 40 ], y0: L.suites + 0.4, rows: 10, depth: ROW, rise: 0.5, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.suites + 1.4 }, back: { height: 1.1 }, base: L.suites - 1.5 },
+			{ name: 'arcade', endRail: true, front: span( 9, 11, D.suites ), outward: [ 0, - 40 ], y0: L.suites + 0.4, rows: 10, depth: ROW, rise: 0.5, section: 14, aisle: 1.2, soffit: 1.0, frontWall: { top: L.suites + 1.4 }, back: { height: 1.1, wall: 'aisles' }, base: L.suites - 1.5 },
 		];
 
 		// the left field upper deck (the 200s in left), over the back rows of the left field seats and the
@@ -661,9 +689,9 @@ export class Bowl {
 		const t300 = tiers[ 2 ], club = tiers[ 1 ];
 		// ---- FW3 (C2W-7): the Terrace concourse, from the rail at the 300s' back under the 400s to their back
 		// (places/Terrace.js fits it out); it was a 2.4 m strip with the 400s starting on its back edge
-		this._strip( line( main, D.t300Back ), D.t400Back - 0.4 - D.t300Back, L.terraceConcourse, 'terrace-walkway', true );
+		this._strip( line( main, D.t300Back ), D.t400Back - 0.4 - D.t300Back, L.terraceConcourse, 'terrace-walkway', true, true ); // ---- FA3: ends
 		// ---- end FW3
-		this._strip( line( infieldPath, D.clubBack ), 8, L.clubConcourse, 'club-concourse' );
+		this._strip( line( infieldPath, D.clubBack ), 8, L.clubConcourse, 'club-concourse', true, true ); // ---- FA3: ends
 		// suites: a glass front and a roof slab over them, behind the suite seats
 		this._suites( line( infieldPath, D.suites + 2 * 0.95 ), 7, L.suites, clubY - 1.2 );
 		// the roof over the 400s, and the light towers standing on it
@@ -1055,12 +1083,47 @@ export class Bowl {
 
 		}
 
-		for ( let i = 0; i < P.length - 1; i ++ ) this._walkable( P[ i ], P[ i + 1 ], back[ i + 1 ], back[ i ], y1, 'press-roof' );
+		// ---- FA3 (WA1-5): the roof's floor short of its two ends by 0.6 m, inside the walls at its ends (below):
+		// along its end's edge a sliver of roof was left outside the wall, and you walked out along it from the
+		// aisle beside the box and off its front, 8.9 m onto the club seats
+		const trimTo = ( A, B, t ) => {
+
+			const l = Math.hypot( B[ 0 ] - A[ 0 ], B[ 1 ] - A[ 1 ] );
+			return [ A[ 0 ] + ( B[ 0 ] - A[ 0 ] ) / l * t, A[ 1 ] + ( B[ 1 ] - A[ 1 ] ) / l * t ];
+
+		};
+		const Pt = P.slice(), Bt = back.slice(), nP = P.length - 1;
+		Pt[ 0 ] = trimTo( P[ 0 ], P[ 1 ], 0.6 ); Bt[ 0 ] = trimTo( back[ 0 ], back[ 1 ], 0.6 );
+		Pt[ nP ] = trimTo( P[ nP ], P[ nP - 1 ], 0.6 ); Bt[ nP ] = trimTo( back[ nP ], back[ nP - 1 ], 0.6 );
+		for ( let i = 0; i < P.length - 1; i ++ ) this._walkable( Pt[ i ], Pt[ i + 1 ], Bt[ i + 1 ], Bt[ i ], y1, 'press-roof' );
+		// ---- end FA3
+		// ---- FA3 (WA1-5): the box's front and its two ends are walls (from the 300s' empty rows behind home, inside
+		// it, you walked out through its end into the next section's aisle and back); its roof, level with the
+		// Terrace walkway, is closed off by the rail along the 300s' back (places/terrace/Build.js), as the
+		// photos have it: FOX's high camera's platform, not a balcony
+		const wall = ( a, b, tag, top = y1 ) => {
+
+			const l = Math.hypot( b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ] );
+			if ( l < 0.05 ) return;
+			const w = this.field.toWorld( ( a[ 0 ] + b[ 0 ] ) / 2, ( a[ 1 ] + b[ 1 ] ) / 2 );
+			this.colliders.addBox( new Vector3( w.x, this.field.y0 + ( y0 + top ) / 2, w.z ), new Vector3( l / 2, ( top - y0 ) / 2, 0.15 ), this.ctx.worldYaw - Math.atan2( b[ 1 ] - a[ 1 ], b[ 0 ] - a[ 0 ] ), { tag } );
+
+		};
+		for ( let i = 0; i < P.length - 1; i ++ ) wall( P[ i ], P[ i + 1 ], 'press-box' );
+		// the ends up to a rail's height over the roof (at the roof's level the walkway stepped onto it), set in
+		// 0.45 m so the aisle beside each end keeps its width (its other half is the 300s' rows inside)
+		for ( const [ p, b, q ] of [ [ P[ 0 ], back[ 0 ], P[ 1 ] ], [ P[ P.length - 1 ], back[ back.length - 1 ], P[ P.length - 2 ] ] ] ) {
+
+			const l = Math.hypot( q[ 0 ] - p[ 0 ], q[ 1 ] - p[ 1 ] ), ox = ( q[ 0 ] - p[ 0 ] ) / l * 0.45, oz = ( q[ 1 ] - p[ 1 ] ) / l * 0.45;
+			wall( [ p[ 0 ] + ox, p[ 1 ] + oz ], [ b[ 0 ] + ox, b[ 1 ] + oz ], 'press-box', y1 + 1.1 );
+
+		}
+		// ---- end FA3
 
 	}
 
 	// a flat walkable strip `width` deep behind a line, at height y (a concourse or walkway)
-	_strip( P, width, y, name, rail = true ) {
+	_strip( P, width, y, name, rail = true, ends = false ) {
 
 		const q = new Quads();
 		const B = offsetPolyline( P, width, [ 0, - 40 ] );
@@ -1078,6 +1141,19 @@ export class Bowl {
 		m.castShadow = true;
 		this.group.add( m );
 		if ( rail ) this._railing( B, y, name + '-rail' );
+		// ---- FA3 (WA1-5): and across its two ends, where nothing goes on from them (the Terrace walkway's ends
+		// fell 17.7 m to the main concourse, the club concourse's 7.6 m). Kept by name in this.endRails[ name ]
+		// (the colliders), so a bridge or a stair built on to an end can take its rail out
+		if ( ends ) {
+
+			const n = P.length - 1;
+			const before = this.colliders.boxes.length;
+			this._railing( [ P[ 0 ], B[ 0 ] ], y, name + '-end-rail' );
+			this._railing( [ P[ n ], B[ n ] ], y, name + '-end-rail' );
+			( this.endRails ||= {} )[ name ] = this.colliders.boxes.slice( before );
+
+		}
+		// ---- end FA3
 
 	}
 

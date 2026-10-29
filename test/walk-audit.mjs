@@ -34,7 +34,27 @@ import { Colliders } from '../src/world/Colliders.js';
 import { FOOTPRINT, LEVELS, fieldBoundary } from '../src/ballpark/layout.js';
 import { GATES } from '../src/ballpark/Exterior.js';
 
-const STEP = 0.62, RADIUS = 0.3, HEIGHT = 1.75, JUMP = 4.6 * 4.6 / ( 2 * 9.81 );
+const STEP = 0.62, RADIUS = 0.3, HEIGHT = 1.75;
+// the jump's peak as the walker integrates it at 60 Hz (velocity first, then position): 1.04 m, not the
+// 1.08 of v^2 / 2g
+const JUMP = ( () => {
+
+	let v = 4.6, y = 0;
+	while ( v > 0 ) {
+
+		v -= 9.81 / 60; if ( v > 0 ) y += v / 60;
+
+	}
+	return y;
+
+} )();
+// (FA3, WA1-7) in the air the walker steps onto nothing: a box is a wall unless its top is within 2 cm of
+// its feet (or under where they were, coming down)
+const AIR_STEP = 0.02;
+// WA_OLD=1: the walker's rules before FA3 (the walk's step in the air, the ground lifting it out of the
+// pit, the fans only within 0.7 m below), for a before / after on the same fill
+const OLD = !! process.env.WA_OLD;
+const FAN_DY = OLD ? - 0.7 : - 1.2;
 const STREET = LEVELS.mainConcourse;
 const START = { at: [ - 112, 78 ], look: GATES[ 0 ].at };
 const CELL = 0.5, X0 = - 178, X1 = 188, Z0 = - 208, Z1 = 142;
@@ -184,7 +204,7 @@ function pushFromFans( p, radius ) {
 		for ( let k = 0; k < cell.length; k += 3 ) {
 
 			const dy = cell[ k + 1 ] - p.y;
-			if ( dy < - 0.7 || dy > 0.7 ) continue;
+			if ( dy < FAN_DY || dy > 0.7 ) continue; // (FA3, WA1-7: as far down as a jump lifts you)
 			const dx = p.x - cell[ k ], dz = p.z - cell[ k + 2 ], d = Math.hypot( dx, dz );
 			if ( d >= R || d < 1e-4 ) continue;
 			p.x += dx / d * ( R - d );
@@ -252,8 +272,22 @@ function slide( ax, ay, az, tx, tz, lift = 0 ) {
 		if ( d < 0.02 ) break;
 		const st = Math.min( 0.1, d );
 		p.x = x + dx / d * st; p.z = z + dz / d * st; p.y = y;
-		resolve( p );
+		resolve( p, lift && ! OLD ? AIR_STEP : STEP );
 		pushFromFans( p, RADIUS );
+		// (FA3, WA1-6: Walker.updateWalk) the ground rising more than a step is a wall: back along one axis or
+		// both
+		const lim = y + STEP + 0.05;
+		if ( ! OLD && terrain( p.x, p.z ) > lim && terrain( x, z ) <= lim ) {
+
+			if ( terrain( p.x, z ) <= lim ) p.z = z;
+			else if ( terrain( x, p.z ) <= lim ) p.x = x;
+			else {
+
+				p.x = x; p.z = z;
+
+			}
+
+		}
 		x = p.x; z = p.z;
 		const g = groundAt( x, z, y + STEP + 0.05 );
 		if ( g > y + STEP + 0.05 ) {
@@ -330,7 +364,9 @@ function fill( seeds, { jumps = false, known = null } = {} ) {
 
 	};
 	for ( const s of seeds ) add( s.x, s.y, s.z, - 1, s.how || 'start' );
-	const DIRS = [ [ 1, 0 ], [ - 1, 0 ], [ 0, 1 ], [ 0, - 1 ] ];
+	// (FA3: and the diagonals: a 1.3 m gap at 35 degrees to the grid, the drink rail's at the baseline's
+	// aisle heads, let no move along an axis through)
+	const DIRS = [ [ 1, 0 ], [ - 1, 0 ], [ 0, 1 ], [ 0, - 1 ], [ 1, 1 ], [ - 1, - 1 ], [ 1, - 1 ], [ - 1, 1 ] ];
 	for ( let q = 0; q < N.x.length; q ++ ) {
 
 		const x = N.x[ q ], y = N.y[ q ], z = N.z[ q ], c = N.c[ q ];
@@ -400,6 +436,49 @@ function fill( seeds, { jumps = false, known = null } = {} ) {
 
 const [ sx, sz ] = toWorld( ...START.at );
 const sy = groundAt( sx, sz, 0 + STEP + 0.05 );
+// (FA3) WA_PATH="x,z x,z ...": walk those field-frame points with the fill's own move (from the first, on
+// the floor nearest WA_H over the field) and print each step, then stop: why doesn't the fill get there?
+if ( process.env.WA_PATH ) {
+
+	const pts = process.env.WA_PATH.trim().split( /\s+/ ).map( ( s ) => s.split( ',' ).map( Number ) );
+	let [ x, z ] = toWorld( ...pts[ 0 ] ), y = groundAt( x, z, FY0 + Number( process.env.WA_H || 50 ) );
+	for ( const [ fx, fz ] of pts.slice( 1 ) ) {
+
+		const [ tx, tz ] = toWorld( fx, fz );
+		for ( let k = 0; k < 400 && Math.hypot( tx - x, tz - z ) > 0.05; k ++ ) {
+
+			const r = slide( x, y, z, tx, tz );
+			const moved = Math.hypot( r.x - x, r.z - z );
+			const [ ax, az ] = toField( r.x, r.z );
+			console.log( `(${ ax.toFixed( 2 ) }, ${ ( r.y - FY0 ).toFixed( 2 ) }, ${ az.toFixed( 2 ) })${ r.drop ? ' drop ' + r.drop.toFixed( 2 ) : '' }${ moved < 0.01 ? ' STUCK' : '' }` );
+			if ( moved < 0.01 ) {
+
+				// what holds it: the capsule's walls, the fans, the ground's rise
+				const d = Math.hypot( tx - x, tz - z ), p = { x: x + ( tx - x ) / d * 0.1, y, z: z + ( tz - z ) / d * 0.1 };
+				const q = { ...p };
+				resolve( q );
+				const f = { ...q };
+				pushFromFans( f, RADIUS );
+				console.log( '  wall push', Math.hypot( q.x - p.x, q.z - p.z ).toFixed( 3 ), 'fans push', Math.hypot( f.x - q.x, f.z - q.z ).toFixed( 3 ), 'terrain', ( terrain( f.x, f.z ) - FY0 ).toFixed( 2 ) );
+				for ( const b of near( p.x, p.z ).boxes ) {
+
+					if ( ! b.solid || p.y + HEIGHT < b.bottom || p.y + STEP > b.top ) continue;
+					const [ lx, lz ] = C._toLocal( b, p.x, p.z );
+					if ( Math.abs( lx ) < b.half.x + 0.35 && Math.abs( lz ) < b.half.z + 0.35 ) console.log( '  box', b.tag, ( b.bottom - FY0 ).toFixed( 2 ), ( b.top - FY0 ).toFixed( 2 ), lx.toFixed( 2 ), lz.toFixed( 2 ), b.half.x.toFixed( 2 ), b.half.z.toFixed( 2 ) );
+
+				}
+				for ( let k = 0; k < D.fans.length; k += 3 ) if ( Math.hypot( D.fans[ k ] - p.x, D.fans[ k + 2 ] - p.z ) < 0.9 ) console.log( '  fan', ( D.fans[ k + 1 ] - FY0 ).toFixed( 2 ), Math.hypot( D.fans[ k ] - p.x, D.fans[ k + 2 ] - p.z ).toFixed( 2 ) );
+				break;
+
+			}
+			x = r.x; y = r.y; z = r.z;
+
+		}
+
+	}
+	process.exit( 0 );
+
+}
 const W = fill( [ { x: sx, y: Math.max( 0, sy ), z: sz } ] );
 console.log( `walk fill: ${ W.N.x.length } nodes, ${ W.drops.length } drops, ${ W.pops.length } pops, ${ W.elev.length } elevator links (${ ( ( Date.now() - t0 ) / 1000 ).toFixed( 1 ) } s)` );
 
@@ -744,9 +823,22 @@ function walkSim( x, y, z, dx, dz, seconds = 1.4, stopAfter = 1.0 ) {
 		v.x += ( ( go ? dx / dl * 1.9 : 0 ) - v.x ) * k;
 		v.z += ( ( go ? dz / dl * 1.9 : 0 ) - v.z ) * k;
 		v.y -= 9.81 * dt;
+		const ox = p.x, oy = p.y, oz = p.z;
 		p.x += v.x * dt; p.y += v.y * dt; p.z += v.z * dt;
-		near( p.x, p.z ).resolveCapsule( p, RADIUS, HEIGHT, STEP );
+		near( p.x, p.z ).resolveCapsule( p, RADIUS, HEIGHT, grounded || OLD ? STEP : Math.max( 0, oy - p.y ) + AIR_STEP );
 		pushFromFans( p, RADIUS );
+		const lim = p.y + STEP + 0.05;
+		if ( ! OLD && terrain( p.x, p.z ) > lim && terrain( ox, oz ) <= oy + STEP + 0.05 ) {
+
+			if ( terrain( p.x, oz ) <= lim ) p.z = oz;
+			else if ( terrain( ox, p.z ) <= lim ) p.x = ox;
+			else {
+
+				p.x = ox; p.z = oz;
+
+			}
+
+		}
 		const g = groundAt( p.x, p.z, p.y + STEP + 0.05 );
 		if ( p.y <= g ) {
 
@@ -994,7 +1086,54 @@ maps.push( drawMap( 'all-levels.png', ( rect ) => {
 
 } ) );
 
+// (FA3) the seated fans the walker can get to: a reached floor at his row's height (within 0.35 m) no
+// more than 9 m off along the ground (an aisle at the row's end: the middle of a 16 m section is 8 m
+// from either)
+let fansReached = 0;
+const fansByTag = {};
+{
+
+	const R = Math.ceil( 9 / CELL );
+	for ( let k = 0; k < D.fans.length; k += 3 ) {
+
+		const x = D.fans[ k ], y = D.fans[ k + 1 ], z = D.fans[ k + 2 ];
+		const c = cellOf( x, z );
+		if ( c < 0 ) continue;
+		const ci = c % NX, cj = Math.floor( c / NX );
+		let ok = false;
+		for ( let dj = - R; dj <= R && ! ok; dj ++ ) for ( let di = - R; di <= R && ! ok; di ++ ) {
+
+			if ( di * di + dj * dj > R * R ) continue;
+			const L = W.seen.get( ( cj + dj ) * NX + ci + di );
+			if ( L ) for ( const id of L ) if ( Math.abs( W.N.y[ id ] - y ) < 0.35 ) {
+
+				ok = true; break;
+
+			}
+
+		}
+		const b = groundBox( x, z, y + 0.05 ), t = b ? b.tag : '?';
+		const e = fansByTag[ t ] ||= { fans: 0, reached: 0 };
+		e.fans ++;
+		if ( ok ) {
+
+			fansReached ++; e.reached ++;
+
+		}
+
+	}
+
+}
+const fallEdges = ( F, min = 1.0 ) => F.drops.filter( ( d ) => d.h > min ).length;
+const score = {
+	fans: D.fans.length / 3, fansReached, nodes: W.N.x.length, falls: fallEdges( W ), walkerFalls: Object.values( walkFalls ).reduce( ( a, e ) => a + e.walkerFalls, 0 ),
+	fallsTo: Object.fromEntries( Object.entries( intoPit ).map( ( [ k, v ] ) => [ k, v.edges ] ) ), pops: W.pops.length, popsOver1m: W.pops.filter( ( p ) => p.h > 1 ).length,
+	holesM2: Math.round( Object.values( holes ).reduce( ( a, e ) => a + e.holeM2, 0 ) * 100 ) / 100, jumpOnlyCells: jumpOnly.length,
+};
+console.log( 'score', JSON.stringify( score ) );
+
 const summary = {
+	score, fansByTag,
 	time: new Date().toISOString(), ms: Date.now() - t0, counts: D.counts, nodes: W.N.x.length, perLevel: Object.fromEntries( LEVEL_NAMES.map( ( n, k ) => [ n, perLevel[ k ] ] ) ),
 	elevators: elevReport, perTag, unreached: unreachedClusters.slice( 0, 60 ), drops: dropClusters.slice( 0, 60 ), pops: popClusters.slice( 0, 30 ),
 	jumpOnly: jumpClusters.slice( 0, 40 ), jumpEdges: jumpEdgeClusters.slice( 0, 40 ), intoPit, dropsByTag, walkFalls, holes, holeSpots: holeSpots.slice( 0, 60 ), firstInto, stripEnds, maps,
