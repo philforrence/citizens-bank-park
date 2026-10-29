@@ -504,6 +504,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 				// its top a landing in the rows (walkable), its rail over the mouth solid
 				box( p.s - w, p.s + w, dF, dB, yTop - 0.2, yTop, { walkable: true, tag: tier.name + '-portal-top' } );
 				box( p.s - w, p.s + w, dF, dF + 0.1, yTop, yTop + 1.1, { tag: tier.name + '-portal-rail' } );
+				for ( const e of [ - 1, 1 ] ) box( p.s + e * w - 0.05, p.s + e * w + 0.05, dF, dB, yTop, yTop + 1.1, { tag: tier.name + '-portal-rail' } );
 
 			}
 
