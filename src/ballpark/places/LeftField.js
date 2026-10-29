@@ -13,6 +13,7 @@ import { Tempo } from './Tempo.js';
 import { HarrysSounds } from './leftfield/Sounds.js';
 import { buildMurals } from './leftfield/Murals.js';
 import { buildPlaza } from './leftfield/Plaza.js';
+import { buildPorchAccess } from './leftfield/Access.js'; // ---- FA2
 
 // The left field corner on the World Series nights, October 27 and 29, 2008 (H, wave 3): Harry the K's
 // Broadcast Bar & Grille under the scoreboard, upstairs on the Scoreboard Porch's level and downstairs at
@@ -45,8 +46,12 @@ export default class LeftField {
 			H.glass.removeFromParent();
 			this.harrys = buildHarrys( this, this.F, H );
 			this.kit = this.harrys.kit;
+			// ---- FA2 (step 10, WA2-2): the walkway behind the Scoreboard Porch the deck's whole length, the
+			// stairs at both ends, the elevator behind 141, and the colliders of all of it and of Harry's house
+			this.access = buildPorchAccess( this, this.kit, this.F, this.harrys, this.harrys.slabMat );
+			// ---- end FA2
 			// what keeps the rain off (RainCover.js, by way of the app): the walkway, the house
-			this.rainRoof = [ ...this.harrys.rainRoof, this.harrys.hg ];
+			this.rainRoof = [ ...this.harrys.rainRoof, ...( this.access ? [ this.access.mesh ] : [] ), this.harrys.hg ];
 			this._glass();
 			this._tvs();
 			// the three murals on the brick over the lower bar
@@ -216,8 +221,39 @@ export default class LeftField {
 
 	}
 
+	// ---- FA2 (step 10, WA2-2): the elevator behind 141 (Access.js's stops), an E stop at each level, as
+	// BallparkApp._addElevators makes the bowl's; added once the walker exists (it's made after the places)
+	_lifts() {
+
+		const W = this.app?.walker, stops = this.access?.stops;
+		if ( this._liftsAdded || ! W || ! stops?.length ) return;
+		this._liftsAdded = true;
+		const F = this.field;
+		stops.forEach( ( stop, i ) => {
+
+			const next = stops[ ( i + 1 ) % stops.length ];
+			const w = F.toWorld( stop.at[ 0 ], stop.at[ 1 ] );
+			W.interactables.push( {
+				x: w.x, y: F.y0 + stop.y, z: w.z, radius: 2.0,
+				text: () => `Elevator to ${ next.name === 'main concourse' ? 'the main concourse' : 'the ' + next.name }`,
+				action: () => {
+
+					const to = F.toWorld( next.at[ 0 ], next.at[ 1 ] );
+					// arrive facing out of the doors
+					const look = F.toWorld( next.at[ 0 ] + next.face[ 0 ] * 10, next.at[ 1 ] + next.face[ 1 ] * 10 );
+					W.setPose( new Vector3( to.x, F.y0 + next.y, to.z ), Math.atan2( - ( look.x - to.x ), - ( look.z - to.z ) ), - 0.05 );
+
+				},
+			} );
+
+		} );
+
+	}
+	// ---- end FA2
+
 	update( dt, director, camera ) {
 
+		this._lifts(); // ---- FA2
 		if ( ! director ) return;
 		// ---- FC4 (C4R-7): the gate square's lanterns light it (Plaza.js), once the app has its local lights
 		if ( ! this._lanternsLit && this.plaza?.lanterns && this.app?.localLights ) {

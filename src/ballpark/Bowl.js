@@ -543,7 +543,13 @@ export class Bowl {
 		const lfT = this.tiers[ 1 ];
 		const lfTop = lfT.start + lfT.rows * lfT.depth;
 		const lfY = STREET + 4.6;
-		tiers.push( { name: 'lf-deck', front: offsetPolyline( lfT.front, lfTop - 2.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: lfY, rows: 8, depth: ROW, rise: 0.48, section: 13, aisle: 1.2, soffit: 1.0, frontWall: { top: lfY + 1.0 }, back: { height: 1.2 }, base: lfY - 1.3 } );
+		// ---- FA2 (step 10, WA2-2): its back a riser up to the walkway behind the top row (at Harry's patio's
+		// height, the board's foot less 7.3: Landmarks), the rows entered from it at their aisles
+		// (places/leftfield/Access.js: the walkway, its rail, the stairs and the elevator up to it); it was a
+		// 1.2 m wall with nothing behind it
+		const lfBack = ( STREET + 15.7 - 7.3 ) - ( lfY + 7 * 0.48 );
+		tiers.push( { name: 'lf-deck', front: offsetPolyline( lfT.front, lfTop - 2.0, [ 0, 0 ] ), outward: [ 0, 0 ], y0: lfY, rows: 8, depth: ROW, rise: 0.48, section: 13, aisle: 1.2, soffit: 1.0, frontWall: { top: lfY + 1.0 }, back: { height: lfBack }, base: lfY - 1.3 } );
+		// ---- end FA2
 
 		// The Pavilion (201-211) over the right field seats from the 369 mark, and on round the foul pole and
 		// down the first base line to The Break at the same height (the ribbon board runs along its front

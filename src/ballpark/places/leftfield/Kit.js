@@ -221,6 +221,8 @@ export class Kit {
 	bar( a, b, w ) {
 
 		const d = [ b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ], b[ 2 ] - a[ 2 ] ];
+		// ---- FA2: nothing for no length (its frame is NaN, and a NaN vertex culls the whole Kit's mesh)
+		if ( Math.hypot( ...d ) < 1e-6 ) return;
 		const l = Math.hypot( ...d ) || 1;
 		d[ 0 ] /= l; d[ 1 ] /= l; d[ 2 ] /= l;
 		const ref = Math.abs( d[ 1 ] ) > 0.9 ? [ 1, 0, 0 ] : [ 0, 1, 0 ];
