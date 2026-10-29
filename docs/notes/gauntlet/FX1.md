@@ -1,4 +1,142 @@
-# FX1: the small leftovers (gauntlet, step 9)
+# FX1: the players' mouths, and the box on the infield (step 11, round 1); the small leftovers (step 9)
+
+Two fixers have had the key: step 11's is first, step 9's is below it, unchanged.
+
+# Step 11's FX1: the players' mouths open, and the pinstriped box on the infield
+
+Fixer FX1, 2026-10-29, branch `worktree-agent-a0f16fddac70530fa` (off `ballpark` at 609f71e). Both of step 10's known bugs: no player's mouth ever opened on the GPU (Lidge's shout at the last out), and a red-and-white pinstriped box stood on the infield from the Pavilion Deck at strike three.
+
+## The shots
+
+All in the main checkout, `.claude/gauntlet/s11/FX1/`, full park (no `only=`), 1280 × 800. No console errors in any job.
+- **`j1/`** (before, on the base): the box hunted (`B*`), Lidge at 3483.1 as he was (`L1`), with every slot's open weight forced to 1 (`L2`), and with fake records moving the whole head 5 cm on the open weight (`L3`).
+- **`j2/`**: after the jaw's fix (`L1`, `L4`, `L5`), Lidge's eyes tried two ways (`V1`, `V2`), Howard and Rollins (`H*`, `R1`); the box hunted by hiding what draws (`T1`-`T6`: the players, the Cast, the field figures, the crowd).
+- **`j3/`**: the pom-pom's first fix (`P3`: round, but floating), the pile from the Pavilion Deck (`P4`, `P5`), the middle figure's open mouth (`M1`), TV center and high (`X*`).
+- **`j4/`**: the final framings: the Pavilion Deck at 3484 and 3490 (`P1`, `P2`), the pom-pom close (`P3`), the pile zoomed (`P4`), Lidge from in front, three-quarter and in the hug (`L1`, `L4`, `L6`), Howard (`H2`), Rollins' grin (`R1`), a chewer's shut mouth (`C1`), TV center at 3483.4 (`X2`), TV high at 3490 (`X3`).
+- **`j5/`**: the last job, after the last tweak (the teeth dull on a chewer):
+  - the deck at 3490 (`P2`), Lidge (`L1`), Utley chewing (`C1`), Rollins (`R1`);
+  - TV center at 3483.4 and 3496, in the pile (`X2`, `X4`); TV high at the celebration (`X5`).
+  - No console errors.
+  - Utley's thin pale line between the lips is the lips' own paint, as in FF3's `a2/F01`, not the teeth: they're folded away or dark there.
+- **Sheets:** `sheet-lidge.jpg` (FF3's X1 before; L1 and L4 after; Getty 83485858), `sheet-shouts.jpg` (Lidge in the hug, Howard, Rollins; Getty 83485929), `sheet-box.jpg` (the coordinator's b-3484 before; the box with the players hidden; after from the deck; the pom-pom close), `sheet-pile.jpg` (the pile from the deck and TV high; ronniebruce 2988345320).
+- **The generators** are in the scratchpad's `fx1/` (`/private/tmp/claude-501/-Users-phillipforrence-citizens-bank-park/4f4e82b4-ef9f-4fa0-a3f9-d023a05012fe/scratchpad/fx1/`):
+  - `mkjob.mjs`, the jobs. Its page helper `__fx.face( id, d, fov, side )` frames a player's mouth from his head bone's skinning matrix; `__fx.force( packed )` overrides every slot's expression; `__fx.fakeRec()` writes test records; `__fx.hide( re )` hides meshes by name.
+  - `pview2.mjs`, a CPU raster of the head with the expressions, the mouth's flag and (`TEETH=1`) the teeth; `PROBE=x,y` names the triangle seen at a pixel; `SIDE=1` cuts the head in half.
+  - `cavity.mjs`, the cavity's prototype; `sheet.mjs`, the sheets.
+
+## 1. No player's mouth ever opened: fixed
+
+**Why.** The slot's three expression weights are packed a byte each in `plInfo[ slot * K ].y`, a float. The vertex stage read it as `u32( i0.y + 0.5 )`.
+- From 2^23 up an f32 has no halves, so the + 0.5 ties to even. A blink over half shut (153 of 255 or more) puts the packed number there.
+- Lidge held the blink at 0.6 for his whole shout, so his open byte, 255 (odd), rounded up to 256: it carried into the smile's byte, and the open read 0. His lids shut and the smile's 0.15 showed, but the jaw never dropped.
+- `j1/L2`: forcing open = 1 with no blink opened his mouth wide. `L3`: fake records moved the head 5 cm. So the records and the move were fine; the weight was lost.
+- Every other player lost an odd open weight's last bit only during a blink. FF3's other shots (Rollins at +120 s, Howard's shoulder) just hadn't caught a big open weight.
+
+**The fixes (`game/Players.js`):**
+- **The weight:** `u32( i0.y )`, the whole number it is.
+- **The paint:** the surface's `openW` (how far the mouth's inside is painted) reads the slot's record, not the interpolated `vInfo.y`. Interpolation can't be trusted to the last unit at 1e7.
+
+**Then what the open jaw showed:**
+- **The mouth's inside was lit skin.** FF3's flag (2, the mouth's inside) reached 3 cm behind the face, but the base mesh's mouth goes 11 cm back into the head. With the jaw dropped, its far walls showed through the lips, pale as the cheek (`j1/L2`; the CPU raster's probe found the back wall 10.6 cm deep, flag 0).
+  - `tools/build-body.mjs` (an FX1 block) grows FF3's set over the mesh's edges into every vertex behind the skin's front: 3 mm behind the frontmost within 4 mm, in a box round the mouth.
+  - The cavity is closed behind the lips, so the growth stops at its own walls: 305 → 604 vertices, and a bigger box flags no more.
+  - `body.js` and `bodyLod.js` rebuilt (`node tools/build-body.mjs`, `node tools/build-body-lod.mjs`): the same 3,800 and 9,000 triangles. An unchanged rebuild first gave a byte-identical `body.js`, so the diff is the flag alone.
+  - It needs FF3's MakeHuman cache in `tools/body/.cache`; I copied FF3's worktree's.
+- **No teeth.** Getty 83485858 has Lidge's upper teeth across the top of his open mouth; the base mesh has none.
+  - `game/Rig.js` builds two arches inside the lips on the near figure: `PART.teeth` 37 and `PART.teethLow` 38, 152 vertices and 216 triangles. They're left out of statues (`OPTIONAL`).
+  - Each rides one vertex of the lips' inside through `aField.z`, as the face's vertices do, so his face's own shape moves it.
+  - The upper arch rides the vertex above the teeth that the jaw doesn't move, and takes none of the expressions' moves: it's the skull's.
+  - The lower arch rides one under them and takes all of them: it drops 2.6 cm and swings back with the jaw.
+  - **Painted** (`Players.js`): enamel, a shade between each pair (the centrals, laterals, canines, premolars, molars, by arc), the edges a little grey, the gum scalloped above the upper teeth and below the lower, darker toward the back of the mouth.
+  - **Shown only while the mouth opens or smiles.** Shut, the lips' seam showed them as a white thread. Barely parted, as a chewer's, they're dark and dull.
+- **Lidge's eyes:** for his first 4.5 s, smile 0.45 and blink 0.9 (was 0.15 and 0.6), so the cheeks push up into the shut lids: "the eyes screwed up", Getty 83485858 and 83485929 (`j2/V1`, `V2` against `L1`).
+- **The middle figure takes the expressions too.**
+  - `aField.z` is now the head vertex + 65536 on the middle figure and + 131072 on the far one (`Rig.js`). The vertex stage blends below 131072.
+  - The long lenses at the last out (FOX center, the pile from high first) have most of the men between 128 and 480 px. Their mouths were shut there, and popped open at 480 px.
+  - `j3/M1`: Lidge as the middle figure, his mouth open and dark, no tearing. The far figure, a mouth under two pixels, still doesn't blend.
+
+**After** (`sheet-lidge.jpg`, `sheet-shouts.jpg`):
+- **Lidge at 3483.1:** the jaw down, the upper teeth under his lip, the tongue dark red behind, the eyes screwed shut. At 3485.6, pushed over in the hug, the same. It's held against 83485858.
+- **Howard at 3484.6:** a shouting grin, the teeth and tongue.
+- **Rollins at the celebration:** a closed grin with the teeth between his lips.
+- **Utley before the last pitch, chewing:** a dark line between the lips.
+
+**What's left:**
+- The upper lip doesn't lift in a shout (MakeHuman's `mouth-open` unit drops the jaw only), so his upper teeth show about 4 mm where the photo has nearly a centimetre. A levator unit in `build-body.mjs`' `EXPR` would do it.
+- The lip paint's two red marks above the open mouth: the upper lip's paint where its middle curls in.
+- The open expression's brows-up (0.55) sits oddly over shut lids in Lidge's shout. They're one record, so splitting it needs a fourth weight.
+
+## 2. The pinstriped box on the infield: found and fixed. It was a fan's pom-pom
+
+**What it was.** Not the players at all.
+- **It moved between runs at the same moment:** at 3484 on the infield in the coordinator's `b-3484` and over the stands in `j1/B1`.
+- **It stayed with every player hidden** (`j2/T2`), the Cast hidden (`T3`), the field figures hidden (`T4`), and the crowd's chunks hidden (`T5`).
+- **It always sat right over one head:** the red knit hat of the fan in the row in front of the camera at row 7.
+- **It was that hat's pom-pom, 1.5 m from the camera:**
+  - the close crowd level's pom-pom was six sides round and three rings high, a hexagonal box;
+  - it was painted with stripes across it (`fract( ( d.x + d.z ) * 9.0 )`), which on its facets read as pinstripes;
+  - it sat 1.5 cm over the egg head's crown, and FF1's MakeHuman head put the crown 1.4 cm lower again, more on a small head.
+  - Seen over the fan's shoulder it overlaid the infield, and read as a box two metres high.
+- **Step 9 had it,** smaller and closer to the hat. It doesn't show from the 400s because a different fan stands in front there.
+
+**The fix (`src/ballpark/Crowd.js`, the close level only).** Crowd.js is outside the ticket's file list. It's what drew the box, the change is in FX1 blocks, and no other agent is writing code this round.
+- **Round and lumpy:** twelve sides by seven rings, tufted, a little flatter underneath, 7.6 × 6.8 cm.
+- **Sat into the knit crown,** riding the crown's own move: the MakeHuman head's top vertex's record, read for the pom-pom's vertices alone (three reads).
+- **Painted as yarn:** red and white strands mixed for the Phillies hat, the hat's own colour otherwise. It fades to a pinkish blur when the tufts are under a pixel, with the underside in the crown's shade.
+- `j4/P3`: from 0.9 m, a red-and-white yarn ball on the red knit hat. `P1`, `P2`: from the deck, a pom-pom on the head in front, nothing on the infield.
+- Real Phillies knit hats with pom-poms are in the 2008 crowd photos, e.g. ronniebruce 2988345320's stands.
+
+**The pile from the outfield** (the ticket's other half) was already right once the box was out of the way.
+- `j3/P4`, `j4/P4` (zoomed from the deck at 3490): a heap of white pinstriped bodies and red sleeves on the mound's first-base side, men running in from the dugout. TV high (`X3`) the same.
+- Held against ronniebruce 2988345320 (the pile seconds after, from the upper deck) and anthonydefrancesco 2985501755: no change made.
+
+## The counts
+
+`JSON.stringify( __app.engine.meshRenderer.stats )`, full park, 1280 × 800:
+
+| View | Before (`j1`) | After (`j4`) |
+|---|---|---|
+| The Pavilion Deck, row 7, 3484 (all 42 players far) | 1,090 draws, 6,813,688 triangles, 783 pipelines | 1,089 draws, 6,917,024 triangles, 783 pipelines |
+| Lidge's face, 3483.1 (near) | 624 draws, 3,313,512 triangles, 783 pipelines | 623 draws, 3,311,584 triangles, 783 pipelines |
+| TV center, 3483.4 | | 501 draws, 4,589,067 triangles, 783 pipelines (`j5`: 4,629,407) |
+| TV center in the pile, 3496 (3 middle figures, 40 far) | | 563 draws, 3,944,087 triangles, 783 pipelines (`j5`) |
+| TV high, the celebration, 3605 | (FF3 `a2/K1`: 831 draws, 4,015,544 triangles, 769 pipelines) | 840 draws, 4,075,245 triangles, 783 pipelines (`j5`) |
+
+- **Pipelines and draws are unchanged.**
+- **The deck's +103,000 triangles** are the close fans' pom-poms: +120 triangles and +60 vertices a close fan, folded to a point on the ones without (the fold is the first thing the crowd's vertex stage does).
+- **The teeth:** +216 triangles a near figure.
+
+## The frame rate
+
+- **The middle figure's expressions:** two more `vec4u` reads and ~20 multiply-adds per head vertex (about 1,175 a man), for each man drawn from the middle figure. The TV's long-lens views at the last out have most of the men there. It's the step I'd watch: TV center and high during the pile and the celebration. To take it back, the blend's bound in the vertex stage is `131072u`; set it to `65536u`.
+- **The pom-poms:** +60 vertices for each close fan. The 400s seat has 668 close fans, so about 40,000 vertices, most folded at once. The pom-pom fans also read the crown's record (three reads a vertex).
+- **The teeth:** 152 vertices on each near figure.
+- **The surface:** a few more instructions on the teeth, the mouth's inside and the pom-pom.
+- **No per-frame CPU work added.** `npm test` passes. `node test/continuity.mjs`: duration 3785.503, start hash 801248349. `test/players-shader.mjs` passes under the lock.
+- I don't profile; the coordinator's A/B on the 400s seat and TV high at the celebration would show it.
+
+## For the merger
+
+**Files:**
+- `src/ballpark/game/Players.js`: the weight's read, `openW`, Lidge's eyes, the middle figure's bound, the teeth's keep, carry and paint.
+- `src/ballpark/game/Rig.js`: `PART.teeth`/`teethLow`, `OPTIONAL`, the arches, `aField.z`'s far tag.
+- `tools/build-body.mjs`, with `src/ballpark/game/data/body.js` and `bodyLod.js` regenerated: the cavity.
+- `src/ballpark/Crowd.js`: the pom-pom's geometry, its seat and its paint. **Outside the ticket's list,** in FX1 blocks.
+- No Director.js, no Celebration.js, no Faces.js change.
+
+**Things to keep in mind:**
+- **`aField.z` is now three-way:** the head vertex (near), + 65536 (middle), + 131072 (far). Anything that reads it should use `& 65535u` for the vertex, as the vertex stage does.
+- **Packed floats over 2^23:** any other `u32( x + 0.5 )` on a value that can reach it has the same bug.
+  - FY4's `packFace` reaches it on its fourth field, but only the lowest field's last bit is lost there, and FY4's numbers are retired but the neck's (bits 12-17, untouched).
+  - The crowd packs into `u32` attributes, so it's safe.
+- **`docs/notes/gauntlet/FX1.md` was step 9's FX1.** This section is on top; step 9's follows.
+
+## Noticed elsewhere
+
+- The fans' MakeHuman heads (`build-fanhead.mjs`) probably flag only the front of the mouth's cavity too. FF2's paint is dark beyond the lips, so it hides it, but a fan's wide shout close up is worth a look.
+- The close level's knit hats are big on some fans (`j4/P3`): the knit's crown stands well off a small MakeHuman head.
+
+## Step 9's FX1: the small leftovers (gauntlet, step 9)
 
 Fixer FX1, 2026-10-28, branch `worktree-agent-a4279e723277100e9` (off `ballpark` at df8937f, FW4's merge). The leftovers the fixers named in their notes and didn't reach: strike three everywhere (FR2), the left field board's script at night (FW5, then C4R-8), the cotton candy vendor (FW4, C3W-12), the standing rows behind home (FW4), the Left Field Gate's canopy and the press box's sill (FW5), and one "noticed elsewhere" one-liner (FW4's poncho mix).
 
