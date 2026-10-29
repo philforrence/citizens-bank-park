@@ -773,9 +773,12 @@ export function fanGeometry( lod ) {
 
 		const hand = ( k ) => joint( k, 'hand', 1 );
 		const q = [];
-		for ( let j = 0; j < 3; j ++ ) for ( let i = 0; i < 3; i ++ ) {
+		// ---- FX4 (CR1-18): close up 5 x 5 points, so it hangs and swings as cloth (cwVertex), not four flat
+		// panes with one fold (a paper napkin)
+		const tn = L.name === 'close' ? 5 : 3;
+		for ( let j = 0; j < tn; j ++ ) for ( let i = 0; i < tn; i ++ ) {
 
-			const u = i / 2, v = j / 2, dx = ( 1 - 2 * u ) * 0.14;
+			const u = i / ( tn - 1 ), v = j / ( tn - 1 ), dx = ( 1 - 2 * u ) * 0.14;
 			// (FW1, C2W-6: folded narrower, rucked up, its far end over the knee and down: it lay flat as a card)
 			const lap = add( hand( 0 ), [ dx * 0.8 * ( 1 - 0.15 * v ), 0.03 + 0.022 * Math.sin( Math.PI * 2 * u + v * 2.4 ) * ( 0.4 + v ) - 0.11 * Math.max( 0, v - 0.45 ) ** 1.6 * 2.4, - 0.17 * v ] );
 			const lapS = add( hand( 1 ), [ dx * 0.5 * ( 1 - 0.3 * v ), - 0.26 * v, 0.02 + 0.02 * Math.sin( Math.PI * u ) ] );
@@ -783,12 +786,13 @@ export function fanGeometry( lod ) {
 
 		}
 
-		for ( let j = 0; j < 2; j ++ ) for ( let i = 0; i < 2; i ++ ) {
+		for ( let j = 0; j < tn - 1; j ++ ) for ( let i = 0; i < tn - 1; i ++ ) {
 
-			const a = q[ j * 3 + i ], b = q[ j * 3 + i + 1 ], c = q[ j * 3 + i + 3 ], d = q[ j * 3 + i + 4 ];
+			const a = q[ j * tn + i ], b = q[ j * tn + i + 1 ], c = q[ j * tn + i + tn ], d = q[ j * tn + i + tn + 1 ];
 			index.push( a, b, d, a, d, c );
 
 		}
+		// ---- end FX4
 
 	}
 
@@ -1624,10 +1628,14 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 	// right under, the left over), into the jacket's pockets (the hand in it), or clasped between the knees
 	let lapP = ( vid >> 8u ) & 3u;
 	let rest = ( 1.0 - st ) * ( 1.0 - aU ) * ( 1.0 - aF );
-	if ( lapP != 0u && rest > 0.001 && ( isL || isR ) && ( part == 2u || ( part == 6u && info.y > 0.99 ) ) ) {
+	// ---- FX4 (CR1-19): on the lap too, each his own way: the hands back by the hips or out on the knees, the
+	// forearms sloped (they lay level on the thighs along every row)
+	let lapJ = f32( ( vid >> 10u ) & 63u ) / 63.0;
+	if ( rest > 0.001 && ( isL || isR ) && ( part == 2u || ( part == 6u && info.y > 0.99 ) ) && ( lapP != 0u || ( abs( lapJ - 0.5 ) > 0.08 && ! held ) ) ) {
 		let el = vec3f( ${ SIT.elbow[ 0 ].toFixed( 3 ) } * side, ${ SIT.elbow[ 1 ].toFixed( 3 ) }, ${ SIT.elbow[ 2 ].toFixed( 3 ) } );
 		let h0 = vec3f( ${ SIT.hand[ 0 ].toFixed( 3 ) } * side, ${ SIT.hand[ 1 ].toFixed( 3 ) }, ${ SIT.hand[ 2 ].toFixed( 3 ) } );
 		var h1 = vec3f( 0.025 * side, 0.56, - 0.25 );
+		if ( lapP == 0u ) { h1 = mix( vec3f( 0.16 * side, 0.57, - 0.1 ), vec3f( 0.1 * side, 0.58, - 0.34 ), fract( lapJ + select( 0.0, 0.31, isL ) ) ); }
 		if ( lapP == 1u ) { h1 = select( vec3f( - 0.15, 0.83, - 0.035 ), vec3f( 0.15, 0.87, - 0.06 ), isL ); }
 		if ( lapP == 2u ) { h1 = vec3f( 0.125 * side, 0.67, - 0.05 ); }
 		let a = normalize( h0 - el );
@@ -1685,7 +1693,13 @@ fn cwVertex( pos: vec3f, nrm: vec3f, stp: vec3f, stn: vec3f, sitUp: vec3f, stand
 		// (crumpled across its width as it flaps: a flat sheet read as paper)
 		let crumple = normalize( cross( rad, wv ) ) * 0.04 * v * sin( u * 6.28 + v * 3.0 + r1.z * 1.7 );
 		let lift = 0.03 + 0.07 * v + 0.05 * v * sin( r1.z * 2.0 + v * 2.5 + u * 1.5 ) - 0.06 * v * ( 1.0 - v ) - 0.03 * abs( 1.0 - 2.0 * u ) * v;
-		let spin = hand + rad * ( 0.28 * v ) + wv * across + crumple + vec3f( r2.z, 0.0, r2.w ) * 0.15 * v + vec3f( 0.0, lift, 0.0 );
+		// ---- FX4 (CR1-18): terry's weight: the loose end sagging under the turn, a wave running down the cloth
+		// from the fist, its loose corners curling in (Getty 112874578: soft loops, drooping from the fist)
+		let wave = cross( rad, wv ) * 0.045 * v * sin( r1.z * 3.0 - v * 6.0 + u * 2.2 );
+		let sag = vec3f( 0.0, - 0.11 * v * v * ( 0.6 + 0.4 * abs( 1.0 - 2.0 * u ) ), 0.0 );
+		let curl = wv * ( 1.0 - 2.0 * u ) * - 0.03 * v * v;
+		let spin = hand + rad * ( 0.28 * v ) + wv * across + crumple + wave + sag + curl + vec3f( r2.z, 0.0, r2.w ) * 0.15 * v + vec3f( 0.0, lift, 0.0 );
+		// ---- end FX4
 		p = mix( p, spin, r1.y );
 		n = normalize( mix( n, normalize( vec3f( 0.0, 1.0, 0.0 ) + cross( rad, wv ) * 0.35 ), r1.y ) );
 		// ---- end FP2
@@ -1897,7 +1911,8 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		// mouth's region, turned up, down or back into the head, not out of the face) take the inside's mark
 		// too: the mark alone kept a few of the bag's vertices at these levels, so the open mouth showed a lit,
 		// pale floor and the inner rims at its corners caught the light as two white fangs
-		let inner = smoothstep( 0.34, 0.25, abs( fh.d.x ) ) * smoothstep( 0.15, 0.09, abs( fh.d.y + 0.45 ) ) * smoothstep( - 0.62, - 0.3, nrm0.z ) * smoothstep( 0.06, 0.3, ex.x ) * step( - 2.5, fh.d.z );
+		// (by the face's own normal, before the jaw drops: open, it turns the lower lip's inner face forward)
+		let inner = smoothstep( 0.34, 0.25, abs( fh.d.x ) ) * smoothstep( 0.15, 0.09, abs( fh.d.y + 0.45 ) ) * smoothstep( - 0.62, - 0.3, v.normal.z ) * smoothstep( 0.06, 0.3, ex.x ) * step( - 2.5, fh.d.z );
 		fhPaint.z = mix( fhPaint.z, - 1.9, inner );
 		// ---- end FX4
 	}
@@ -2003,6 +2018,40 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		}
 #endif
 #if CROWD_LOD <= 1
+		// ---- FX4 (CR1-7): the front's print, from the Cast's chest prints in the atlas (cells 64 on): the home
+		// whites' red script across the chest; on half the red and grey sweatshirts, hoodies and tees the white
+		// script, PHILLIES, 2008 NATIONAL LEAGUE CHAMPIONS, the 2008 World Series, RED OCTOBER (Getty 83486358's
+		// Phillies tee and EAGLES hoodie, 83486360's WORLD SERIES hoodie and CHAMPIONS shirt). The red tops were
+		// blank but for a zip and a collar
+		{
+			let cq = fract( seed * 17.3 + c1.w * 5.9 );
+			let redTop = shirt.r > 0.2 && shirt.g < 0.1;
+			let greyTop = abs( shirt.r - shirt.b ) < 0.03 && shirt.r > 0.06 && shirt.r < 0.3;
+			var chest = 0u;
+			if ( trim == 1u ) { chest = 1u; }
+			else if ( ( redTop || greyTop ) && outfit != 1u && ! ( poncho && ! clear ) ) {
+				if ( cq < 0.18 ) { chest = 1u; }
+				else if ( cq < 0.27 ) { chest = 2u; }
+				else if ( cq < 0.4 ) { chest = 3u; }
+				else if ( cq < 0.48 ) { chest = 9u; }
+				else if ( cq < 0.53 ) { chest = select( 8u, 7u, greyTop ); }
+			}
+			if ( chest > 0u && frontS && L.y > 0.46 && L.y < 0.92 ) {
+				let uv = vec2f( 0.5 - L.x / 0.3, ( 0.92 - L.y ) / 0.46 );
+				if ( all( uv > vec2f( 0.0 ) ) && all( uv < vec2f( 1.0 ) ) ) {
+					let ci = 64u + chest;
+					let pa = textureSample( cwAtlas, smpAnisoClamp, ( vec2f( f32( ci % 8u ), f32( ci / 8u ) ) + uv ) / vec2f( 8.0, 10.0 ) ).r;
+					// (white on the reds, red on the whites and the greys, the World Series' gold on red; faded to a
+					// pale tint where a pixel spans a stroke, as the backs' are)
+					var pc = select( vec3f( 0.72, 0.71, 0.68 ), vec3f( 0.32, 0.018, 0.024 ), trim == 1u || greyTop );
+					if ( chest == 9u && redTop ) { pc = vec3f( 0.75, 0.6, 0.2 ); }
+					let pfar = smoothstep( 0.004, 0.012, length( fwidth( L ) ) );
+					let tint = 0.16 * smoothstep( 0.5, 0.3, abs( uv.y - 0.5 ) ) * smoothstep( 0.5, 0.36, abs( uv.x - 0.5 ) );
+					c = mix( c, pc, mix( pa, tint, pfar ) * select( 1.0, 0.0, scarf && abs( L.x - select( 0.045, - 0.045, seed > 0.6 ) ) < 0.03 ) );
+				}
+			}
+		}
+		// ---- end FX4
 		// ---- FP2 (CP-12): a credential on its lanyard for a few (the clubs' and the press's passes, a
 		// season ticket holder's: Getty 112873396, 83433888): the strap down from the collar either side to
 		// a white card on the chest, its band at the top
@@ -2123,11 +2172,11 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		let arch = select( 0.012 + 0.03 * bs.y, 0.045 + 0.035 * bs.y, female );
 		let bY = 0.285 + select( 0.03 * bs.z - 0.012, 0.025 * bs.z, female ) + arch * sin( 3.1416 * pow( bu, 0.8 ) ) - 0.035 * bu * bu - frown * ( 0.035 * ( 1.0 - bu ) + 0.012 );
 		let bT = select( 0.036 + 0.026 * bs.w, 0.018 + 0.012 * bs.w, female ) * mix( 1.0, 0.35, bu * bu ) * ( 1.0 + 0.25 * frown * ( 1.0 - bu ) );
-		let bHair = 0.72 + 0.28 * sin( ax * 190.0 + ( d.y - bY ) * 70.0 + bs.x * 20.0 ) * near;
+		let bHair = 0.82 + 0.18 * sin( ax * 90.0 - ( d.y - bY ) * 180.0 + bs.x * 20.0 ) * sin( ax * 37.0 + bs.y * 9.0 ) * near;
 		let brow = smoothstep( bT * 0.5 + 0.012, bT * 0.5 - 0.006, abs( d.y - bY ) ) * smoothstep( 0.06, 0.1, ax ) * smoothstep( bEnd + 0.02, bEnd - 0.03, ax ) * front;
 		let fair = smoothstep( 0.15, 0.4, max( hairC.r, hairC.b ) );
 		let browC = mix( hairC * 0.8, mix( hairC, c * 0.55, 0.35 ), fair );
-		c = mix( c, browC, brow * clamp( bHair, 0.0, 1.0 ) * mix( 0.88, 0.6, fair ) * select( 1.0, 0.85, female ) );
+		c = mix( c, browC, brow * clamp( bHair, 0.0, 1.0 ) * mix( 0.76, 0.55, fair ) * select( 1.0, 0.9, female ) );
 		c *= 1.0 - 0.14 * frown * smoothstep( 0.035, 0.0, abs( ax - 0.03 ) ) * smoothstep( 0.1, 0.0, abs( d.y - 0.27 ) ) * front;
 		// the lash line along the upper lid (darker on the women: mascara and liner, Getty 83486360's blonde
 		// and brunette at the rail)
@@ -2141,7 +2190,8 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 			let crow = abs( sin( atan2( ey.y, ax - 0.52 ) * 5.0 ) ) * smoothstep( 0.12, 0.05, length( vec2f( ax - 0.55, ey.y ) ) ) * step( 0.5, ax );
 			let lines = smoothstep( 0.02, 0.0, nl ) * 0.2 + crow * 0.12 + 0.06 * smoothstep( 0.6, 0.9, sin( d.y * 95.0 ) ) * step( 0.38, d.y ) * step( d.y, 0.62 ) * step( ax, 0.4 );
 			let bag = smoothstep( 0.05, 0.0, abs( length( ( ey + vec2f( 0.0, 0.08 ) ) * vec2f( 1.0, 2.4 ) ) - 0.12 ) ) * step( ey.y, - 0.03 ) * 0.14;
-			c *= 1.0 - ( lines + bag ) * oldK * near * front;
+			c *= 1.0 - 1.6 * ( lines + bag ) * oldK * near * front;
+			c *= mix( vec3f( 1.0 ), vec3f( 1.06, 0.95, 0.93 ) * ( 0.94 + 0.06 * sin( d.x * 53.0 + sin( d.y * 41.0 ) * 2.0 ) ), oldK * front );
 		}
 		// ---- end FX4
 		// the nose: its ridge catching the light, the shadow under it
@@ -2264,7 +2314,7 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		let hfine = 1.0 - smoothstep( 0.06, 0.2, hfw );
 		let hn = sin( d.x * 113.0 + sin( d.y * 71.0 ) * 2.0 ) * sin( d.y * 97.0 + d.z * 53.0 + sin( d.x * 41.0 ) * 1.5 );
 		let hn2 = sin( d.x * 211.0 + d.z * 157.0 ) * sin( d.y * 181.0 - d.x * 67.0 );
-		let jit = ( 0.024 * hn + 0.014 * hn2 ) * hfine;
+		let jit = ( 0.018 * hn + 0.01 * hn2 ) * hfine;
 		let hs = fract( seed * 29.3 + 0.41 );
 		let recede = select( 0.0, ( 0.03 + 0.09 * hs ) * smoothstep( 0.1, 0.42, ax ) * smoothstep( 0.0, - 0.5, d.z ), ! female && age != 2u && hs > 0.35 ) + select( 0.0, 0.05 * smoothstep( 0.12, 0.0, ax ) * smoothstep( 0.0, - 0.5, d.z ), age == 1u );
 		let peak = select( 0.0, 0.05 * smoothstep( 0.1, 0.0, ax ), hs < 0.12 );
@@ -2422,6 +2472,12 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		// the photos have them (Getty 84082693), not a red and white card
 		let whirl = cwPoseBuf[ fan * ${ POSE_N * 2 }u + 1u ].y;
 		c = mix( c, mix( vec3f( 0.76, 0.75, 0.72 ), c, 0.45 ), whirl );
+		// ---- FX4 (CR1-18): terry: soft folds in its shading and the loops' fine grain (faded where a pixel
+		// covers them), not a sheet of paper
+		let tf = 1.0 - smoothstep( 0.01, 0.05, length( fwidth( L.xz ) ) );
+		s.normal = normalize( s.normal + 0.3 * vec3f( sin( L.x * 17.0 + L.z * 9.0 ), 0.4 * sin( L.z * 13.0 ), cos( L.z * 15.0 - L.x * 6.0 ) ) );
+		c *= ( 0.9 + 0.1 * sin( L.x * 230.0 ) * sin( L.z * 250.0 ) * tf ) * ( 0.93 + 0.07 * sin( L.x * 21.0 + L.z * 11.0 ) );
+		// ---- end FX4
 	}
 #if CROWD_LOD <= 1
 	// ---- FP2 (CP-12): a homemade sign: poster board, its words in marker on the face toward the field
