@@ -793,6 +793,11 @@ export default class Club {
 
 		wallCollider( C, F, this.G[ 0 ], this.BK[ 0 ], y, CEIL, 0.2, 'club-wall' );
 		wallCollider( C, F, this.G[ this.G.length - 1 ], this.BK[ this.BK.length - 1 ], y, CEIL, 0.2, 'club-wall' );
+		// (step 10) the bowl's club concourse is a strip 8 m deep with a rail along its back (Bowl._strip): here
+		// that line runs through the room, between the glass and the elevators on the back wall, with the floor
+		// going on behind it. Out with it: it shut the elevators' club stops off from the room and the seats, and
+		// the walk audit reached them only by falling in from the Terrace
+		for ( let i = C.boxes.length - 1; i >= 0; i -- ) if ( C.boxes[ i ].tag === 'club-concourse-rail' ) C.boxes.splice( i, 1 );
 		// the bars' counters, the model's case
 		for ( const br of this.bars ) {
 
