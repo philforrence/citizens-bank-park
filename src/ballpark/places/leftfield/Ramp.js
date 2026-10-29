@@ -4,6 +4,9 @@ import { commonModule } from '../../../engine/render/wgsl/common.js';
 import { Quads } from '../../Stands.js';
 import { LEVELS } from '../../layout.js';
 import { beam } from '../../geo.js';
+import { fieldColliders, HIGH } from './Access.js'; // ---- FA2
+
+const BRIDGE = [ - 120.1, - 65.8 ]; // ---- FA2: where the escalator's bridge lands (Escalator.js's land)
 
 // The Left Field ramp (LeftField.js): the open steel switchback behind the left field corner, from the
 // street up past the suite level and the club to the terrace (the Phillies' ballpark guide: 'Left Field
@@ -60,6 +63,7 @@ export function buildRamp( place, K ) {
 
 	// the landings at both ends of each level, as wide as both lanes
 	const W = 2 * LANE + GAP;
+	const landings = []; // ---- FA2
 	for ( let k = 0; k <= nRuns; k ++ ) {
 
 		const y = STREET + k * rise;
@@ -68,10 +72,15 @@ export function buildRamp( place, K ) {
 		const zz = k % 2 ? [ z0 - LAND, z0 ] : [ z0, z0 + LAND ];
 		q.add( [ X0, y, zz[ 0 ] ], [ X0 + W, y, zz[ 0 ] ], [ X0 + W, y, zz[ 1 ] ], [ X0, y, zz[ 1 ] ], [ 0, 1, 0 ] );
 		q.add( [ X0 + W, y - 0.25, zz[ 0 ] ], [ X0, y - 0.25, zz[ 0 ] ], [ X0, y - 0.25, zz[ 1 ] ], [ X0 + W, y - 0.25, zz[ 1 ] ], [ 0, - 1, 0 ] );
-		// the landing's rail round its open end
+		// the landing's rail round its open end (---- FA2: open at the Arcade's level where the escalator's
+		// bridge comes on to it: Escalator.js's land, [ -120.1, -65.8 ], 3.2 m wide)
 		const ze = k % 2 ? zz[ 0 ] : zz[ 1 ];
-		beam( rail, [ X0, y + 1.07, ze ], [ X0 + W, y + 1.07, ze ], 0.05 );
-		for ( let x = X0; x <= X0 + W + 1e-3; x += W / 4 ) beam( rail, [ x, y, ze ], [ x, y + 1.07, ze ], 0.05 );
+		const gap = k === 4 ? [ BRIDGE[ 0 ] - 1.6 - 0.1, X0 + W ] : null;
+		landings.push( { y, zz, ze, gap } );
+		const xEnd = gap ? gap[ 0 ] : X0 + W;
+		beam( rail, [ X0, y + 1.07, ze ], [ xEnd, y + 1.07, ze ], 0.05 );
+		for ( let x = X0; x <= xEnd + 1e-3; x += ( xEnd - X0 ) / Math.max( 1, Math.round( ( xEnd - X0 ) / ( W / 4 ) ) ) ) beam( rail, [ x, y, ze ], [ x, y + 1.07, ze ], 0.05 );
+		// ---- end FA2
 		beam( steel, [ X0, y - 0.55, ze ], [ X0 + W, y - 0.55, ze ], 0.5 );
 
 	}
@@ -159,6 +168,37 @@ export function buildRamp( place, K ) {
 		place.group.add( mesh );
 
 	}
+
+	// ---- FA2 (step 10, WA2-7): walkable. Each run a floor stepping up 9 cm a metre (well under the walker's
+	// 0.62), its two rails solid (1.8 m: a jump doesn't clear them over a 10 m drop), each landing a floor
+	// with its open end and sides railed (the Arcade landing's end open to the escalator's bridge); you go up
+	// from the street at the first run's foot. It was drawn only: you walked through it (WA1-3)
+	if ( place.bowl?.ctx ) {
+
+		const CL = fieldColliders( place.bowl );
+		for ( const r of runs ) {
+
+			const N = Math.ceil( Math.abs( r.zb - r.za ) );
+			for ( let k = 0; k < N; k ++ ) {
+
+				const z0 = r.za + ( r.zb - r.za ) * k / N, z1 = r.za + ( r.zb - r.za ) * ( k + 1 ) / N;
+				CL.floor( [ r.lane, z0 ], [ r.lane + LANE, z0 ], [ r.lane + LANE, z1 ], [ r.lane, z1 ], r.y0 + ( r.y1 - r.y0 ) * ( k + 1 ) / N, 'lf-ramp', 0.4 );
+
+			}
+			for ( const x of [ r.lane + 0.05, r.lane + LANE - 0.05 ] ) CL.wall( [ x, r.za ], [ x, r.zb ], r.y0 - 0.4, r.y1 + HIGH, 'lf-ramp-rail' );
+
+		}
+		for ( const Ld of landings ) {
+
+			const [ z0, z1 ] = Ld.zz;
+			CL.floor( [ X0, z0 ], [ X0 + W, z0 ], [ X0 + W, z1 ], [ X0, z1 ], Ld.y, 'lf-ramp', 0.4 );
+			CL.wall( [ X0, Ld.ze ], [ Ld.gap ? Ld.gap[ 0 ] : X0 + W, Ld.ze ], Ld.y - 0.4, Ld.y + HIGH, 'lf-ramp-rail' );
+			for ( const x of [ X0, X0 + W ] ) CL.wall( [ x, z0 ], [ x, z1 ], Ld.y - 0.4, Ld.y + HIGH, 'lf-ramp-rail' );
+
+		}
+
+	}
+	// ---- end FA2
 
 	return { runs, lanes, LANE, X0, Z0, Z1, W, rise, lamps };
 

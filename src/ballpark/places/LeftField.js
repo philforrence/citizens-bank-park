@@ -14,6 +14,8 @@ import { HarrysSounds } from './leftfield/Sounds.js';
 import { buildMurals } from './leftfield/Murals.js';
 import { buildPlaza } from './leftfield/Plaza.js';
 import { buildPorchAccess } from './leftfield/Access.js'; // ---- FA2
+import { buildArcadeAccess, ride } from './leftfield/Arcade.js'; // ---- FA2
+import { escalatorSite } from './leftfield/Escalator.js'; // ---- FA2
 
 // The left field corner on the World Series nights, October 27 and 29, 2008 (H, wave 3): Harry the K's
 // Broadcast Bar & Grille under the scoreboard, upstairs on the Scoreboard Porch's level and downstairs at
@@ -65,6 +67,10 @@ export default class LeftField {
 
 			this.monty = buildMonty( this, this.kit, this.kit.frame( this.F ) );
 			this.ramp = buildRamp( this, this.kit );
+			// ---- FA2 (step 10, WA2-7): the escalator's colliders and ride, the Arcade's bridge to it
+			this.escSite = escalatorSite( app?.concourse );
+			this.arcade = buildArcadeAccess( this, this.kit, this.escSite );
+			// ---- end FA2
 			this.plaza = buildPlaza( this, this.harrys, this.kit, this.kit.frame( this.F ) );
 
 		}
@@ -254,6 +260,7 @@ export default class LeftField {
 	update( dt, director, camera ) {
 
 		this._lifts(); // ---- FA2
+		ride( this.escSite, this.field, this.app?.walker, dt ); // ---- FA2: the escalator carries you up
 		if ( ! director ) return;
 		// ---- FC4 (C4R-7): the gate square's lanterns light it (Plaza.js), once the app has its local lights
 		if ( ! this._lanternsLit && this.plaza?.lanterns && this.app?.localLights ) {
