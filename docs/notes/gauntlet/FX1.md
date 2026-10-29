@@ -13,7 +13,11 @@ All in the main checkout, `.claude/gauntlet/s11/FX1/`, full park (no `only=`), 1
 - **`j2/`**: after the jaw's fix (`L1`, `L4`, `L5`), Lidge's eyes tried two ways (`V1`, `V2`), Howard and Rollins (`H*`, `R1`); the box hunted by hiding what draws (`T1`-`T6`: the players, the Cast, the field figures, the crowd).
 - **`j3/`**: the pom-pom's first fix (`P3`: round, but floating), the pile from the Pavilion Deck (`P4`, `P5`), the middle figure's open mouth (`M1`), TV center and high (`X*`).
 - **`j4/`**: the final framings: the Pavilion Deck at 3484 and 3490 (`P1`, `P2`), the pom-pom close (`P3`), the pile zoomed (`P4`), Lidge from in front, three-quarter and in the hug (`L1`, `L4`, `L6`), Howard (`H2`), Rollins' grin (`R1`), a chewer's shut mouth (`C1`), TV center at 3483.4 (`X2`), TV high at 3490 (`X3`).
-- **`j5/`**: the last job, after the last tweak (the teeth dull on a chewer).
+- **`j5/`**: the last job, after the last tweak (the teeth dull on a chewer):
+  - the deck at 3490 (`P2`), Lidge (`L1`), Utley chewing (`C1`), Rollins (`R1`);
+  - TV center at 3483.4 and 3496, in the pile (`X2`, `X4`); TV high at the celebration (`X5`).
+  - No console errors.
+  - Utley's thin pale line between the lips is the lips' own paint, as in FF3's `a2/F01`, not the teeth: they're folded away or dark there.
 - **Sheets:** `sheet-lidge.jpg` (FF3's X1 before; L1 and L4 after; Getty 83485858), `sheet-shouts.jpg` (Lidge in the hug, Howard, Rollins; Getty 83485929), `sheet-box.jpg` (the coordinator's b-3484 before; the box with the players hidden; after from the deck; the pom-pom close), `sheet-pile.jpg` (the pile from the deck and TV high; ronniebruce 2988345320).
 - **The generators** are in the scratchpad's `fx1/` (`/private/tmp/claude-501/-Users-phillipforrence-citizens-bank-park/4f4e82b4-ef9f-4fa0-a3f9-d023a05012fe/scratchpad/fx1/`):
   - `mkjob.mjs`, the jobs. Its page helper `__fx.face( id, d, fov, side )` frames a player's mouth from his head bone's skinning matrix; `__fx.force( packed )` overrides every slot's expression; `__fx.fakeRec()` writes test records; `__fx.hide( re )` hides meshes by name.
@@ -94,7 +98,9 @@ All in the main checkout, `.claude/gauntlet/s11/FX1/`, full park (no `only=`), 1
 |---|---|---|
 | The Pavilion Deck, row 7, 3484 (all 42 players far) | 1,090 draws, 6,813,688 triangles, 783 pipelines | 1,089 draws, 6,917,024 triangles, 783 pipelines |
 | Lidge's face, 3483.1 (near) | 624 draws, 3,313,512 triangles, 783 pipelines | 623 draws, 3,311,584 triangles, 783 pipelines |
-| TV center, 3483.4 | | 501 draws, 4,589,067 triangles, 783 pipelines |
+| TV center, 3483.4 | | 501 draws, 4,589,067 triangles, 783 pipelines (`j5`: 4,629,407) |
+| TV center in the pile, 3496 (3 middle figures, 40 far) | | 563 draws, 3,944,087 triangles, 783 pipelines (`j5`) |
+| TV high, the celebration, 3605 | (FF3 `a2/K1`: 831 draws, 4,015,544 triangles, 769 pipelines) | 840 draws, 4,075,245 triangles, 783 pipelines (`j5`) |
 
 - **Pipelines and draws are unchanged.**
 - **The deck's +103,000 triangles** are the close fans' pom-poms: +120 triangles and +60 vertices a close fan, folded to a point on the ones without (the fold is the first thing the crowd's vertex stage does).
