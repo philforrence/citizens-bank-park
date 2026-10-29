@@ -11,3 +11,11 @@ The plan is [../worlds/STEP11.md](../worlds/STEP11.md). Every merge is here with
   5. the seats read royal blue under the lights.
   The rest: an empty club in the rain, the Pavilion concourse's blank brick, a bare plaza inside the RF Gate, pixel-art carpet, cartoon portraits and murals indoors, a suite counter you walk into, yellow nosings, bare roofs, paper-cone umbrellas, hexagonal wheels, and a rail that burns white. Held up: the TV moments, the 27th's infield dirt (within FOX's own variation), the Spectrum's lettering.
 - **FX2, the seats** (launched 08:17): SC1-1, SC1-5, SC1-12, SC1-16.
+- **AD1, the breaker** (returned 08:17; finds `.claude/gauntlet/s11/r1/AD1.md`, shots in `AD1/j1-j3`): three full-park jobs (121 shots), no console errors, 16 finds. The top five:
+  1. Harry the K's upstairs is sealed from inside: its windows show a wall;
+  2. the police on the 3B dugout roof stand inside FA3's new rail;
+  3. the Ashburn Alley elevator is blocked by its own stair;
+  4. the suites' glass swaps rooms and people at 24-30 m;
+  5. a pitch-black, unlit concession block in the standard 3B concourse view.
+  - **Tried and held:** the club's views out, the suites from inside, no rain under the roofs, the crowd's detail levels (no seam), the 400s' stairs, the main elevators, the scoreboard's back, the seats' navy, no z-fighting, no post-2008 towers, Monty's ground, the RF rail, the Arcade bridge and the escalator.
+- **FX3, left field, the police and the concourse** (launched 08:18): AD1-1, -2, -5, -6, -9, -15.
