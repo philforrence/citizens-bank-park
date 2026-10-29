@@ -366,7 +366,13 @@ function fill( seeds, { jumps = false, known = null } = {} ) {
 
 			const it = D.inter[ k ];
 			if ( ! ELEV_AT[ k ] || Math.hypot( it.x - x, it.z - z ) >= it.r || Math.abs( it.y - y ) >= 1.5 ) continue;
-			const [ bank, i ] = ELEV_AT[ k ], stop = D.elev[ bank ][ ( i + 1 ) % D.elev[ bank ].length ]; // (FA1: banks of any size)
+			// (---- FA4, step 10, WA1-11: E rides up a floor and Shift+E down one (BallparkApp._addElevators), so
+			// a stop leads to the floors either side of it by height; it was the next stop round the ring)
+			const [ bank, i ] = ELEV_AT[ k ], B = D.elev[ bank ], here = B[ i ];
+			const above = B.filter( ( s ) => s.y > here.y ).sort( ( a, b ) => a.y - b.y )[ 0 ], below = B.filter( ( s ) => s.y < here.y ).sort( ( a, b ) => b.y - a.y )[ 0 ];
+			for ( const stop of [ above, below ] ) {
+
+			if ( ! stop ) continue;
 			const [ wx, wz ] = toWorld( stop.x, stop.z );
 			let wy = FY0 + stop.y;
 			wy = Math.max( wy, groundAt( wx, wz, wy + STEP + 0.05 ) );
@@ -376,6 +382,8 @@ function fill( seeds, { jumps = false, known = null } = {} ) {
 			resolve( p );
 			const id = add( p.x, g, p.z, q, 'elevator' );
 			if ( id >= 0 ) elev.push( { from: q, to: id, inter: k, text: it.text, arriveFall: wy - g, pushed: Math.hypot( p.x - wx, p.z - wz ) } );
+
+			}
 
 		}
 
