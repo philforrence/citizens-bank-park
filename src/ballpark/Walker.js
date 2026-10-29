@@ -199,9 +199,32 @@ export class Walker {
 		// way in the pool). You walked through them: a crowd of holograms. (Before the colliders, which have
 		// the last word: a push never puts you in a wall)
 		this._pushFromPeople( p );
-		this.colliders.resolveCapsule( p, RADIUS, HEIGHT, STEP );
+		// ---- FA3 (WA1-7): in the air nothing lifts you onto a ledge: a box is a wall unless its top is under
+		// where your feet were a moment ago (coming down onto it) or within 2 cm of them. The walk's 0.62 m
+		// step in the air too carried a jump's 1.04 m over anything up to 1.7 m: every 1.1 m rail (W18: off
+		// the Terrace's back rail, an 18.7 m fall to the street) and the seated fans
+		const step = this.grounded ? STEP : Math.max( 0, old.y - p.y ) + 0.02;
+		this.colliders.resolveCapsule( p, RADIUS, HEIGHT, step );
+		// ---- end FA3
 		// the seated fans: pushed back out from among them (the aisles are clear)
 		if ( this.blocked ) this.blocked( p, RADIUS );
+		// ---- FA3 (WA1-6): the ground (the field and the hollow inside the pit, the street round it) rising more
+		// than a step is a wall, not a lift: the pit's brick edge, a dugout's lip. Crossing the pit's outline from
+		// under the stands put you on the concourse 7 m up in one frame (W20). Only from where you stood on it
+		// (a pose under the street, the free camera's drop, still comes up)
+		const lim = p.y + STEP + 0.05;
+		if ( this.ground.heightAt( p.x, p.z ) > lim && this.ground.heightAt( old.x, old.z ) <= old.y + STEP + 0.05 ) {
+
+			if ( this.ground.heightAt( p.x, old.z ) <= lim ) p.z = old.z;
+			else if ( this.ground.heightAt( old.x, p.z ) <= lim ) p.x = old.x;
+			else {
+
+				p.x = old.x; p.z = old.z;
+
+			}
+
+		}
+		// ---- end FA3
 		const g = this.groundAt( p.x, p.z, p.y + STEP + 0.05 );
 		const y0 = p.y;
 		if ( p.y <= g ) {

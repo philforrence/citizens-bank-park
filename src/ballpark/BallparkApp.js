@@ -479,8 +479,10 @@ export class BallparkApp {
 			for ( let k = 0; k < cell.length; k += 3 ) {
 
 				// his seat at about your feet's height (the row you're on, or the next up or down)
+				// (---- FA3, WA1-7: and as far as a jump lifts you over him: a jump carried you over the fans into
+				// any row)
 				const dy = cell[ k + 1 ] - p.y;
-				if ( dy < - 0.7 || dy > 0.7 ) continue;
+				if ( dy < - 1.2 || dy > 0.7 ) continue;
 				const dx = p.x - cell[ k ], dz = p.z - cell[ k + 2 ], d = Math.hypot( dx, dz );
 				if ( d >= R || d < 1e-4 ) continue;
 				p.x += dx / d * ( R - d );
