@@ -160,3 +160,12 @@ FA1 costs nothing measurable. Its stair, tower and portals add about 6,400 stati
 
 Step 10 costs ~0.6 ms in TV center, ~1.1 ms in the 400s seat and nothing measurable in the celebration. Left field costs +3.4 ms (to ~25 ms, 40 fps), from FA2's Porch walkway, stairs, ramp bridge and Monty's 146-148 (+14,000 triangles in the corner's Kit mesh, +246 fans). The floor holds everywhere. A speed track could win the left field corner back without cutting detail, for example by splitting the corner's one Kit mesh so the far parts cull. No console errors.
 
+
+## Step 11
+
+| When | Merged | TV center | TV high | follow | concourse | lounge | real 3B seat | plaza | left field | **400s seat** | celebration |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 10-29 06:55 | step 10 as published (on battery) | 20.3 | 20.0 | 15.5 | 16.2 | 14.0 | 20.2 | 18.1 | 24.3 | **27.1** | 21.2 / 21.7 |
+| 10-29 09:05 | FX1, the players' mouths and the pompoms (on AC) | 19.4 | 18.7 | 14.4 | 15.1 | 12.8 | 19.1 | 17.1 | 23.3 | **26.0** (38 fps) | 19.7 / 20.2 |
+
+After FX1, every view is ~1 ms faster than at 06:55. That's the machine going back on AC (TAAU 1.85 → 1.79 ms), not FX1, which adds +0.1% triangles in TV center and identical draws (SK1). FX1 costs nothing measurable. No console errors.
