@@ -19,3 +19,11 @@ The plan is [../worlds/STEP11.md](../worlds/STEP11.md). Every merge is here with
   5. a pitch-black, unlit concession block in the standard 3B concourse view.
   - **Tried and held:** the club's views out, the suites from inside, no rain under the roofs, the crowd's detail levels (no seam), the 400s' stairs, the main elevators, the scoreboard's back, the seats' navy, no z-fighting, no post-2008 towers, Monty's ground, the RF rail, the Arcade bridge and the escalator.
 - **FX3, left field, the police and the concourse** (launched 08:18): AD1-1, -2, -5, -6, -9, -15.
+- **CR1, the people up close** (returned 08:31; findings `.claude/gauntlet/s11/r1/CR1.md`, shots in `CR1/j1-j3`, `crops`): three full-park jobs, no console errors, 25 findings. The glaring ones:
+  1. the people at the field's edge (the dugout rail's Phillies, the ball girls, the police line) are still step-8 dolls beside the MakeHuman players;
+  2. every fan's hand is a mitten, and every raised arm the same pole;
+  3. open mouths are pale bags with a white crescent and fangs;
+  4. every fan wears the same face paint (bar brows, round wire glasses on 24%, ruler hairline);
+  5. the players' foreheads show through the front of their caps.
+  The rest: shoulders that balloon, tube torsos, sawtoothed hair and masked hoods in the rain, women who read as men in wigs, one grin for everyone, one gaunt white player's face, sticker beards, Manuel's jacket, the Latin players' skin, the Cast's floating pom-poms, stiff towels, one seated pose, the Phanatic's crayon mohawk. Held up: the faces at 3-10 m, FOX's backdrop at broadcast size, the caps and helmets on TV, the Phanatic's shape. Bundled by system: the crowd (now), the players (after FX1), the field's edge (after FX3), the Cast and throng, the Phanatic.
+- **FX4, the seated crowd** (launched 08:32): CR1-2/SC1-2, -3, -4, -11, -10, -8, -9, -19, -18, -7, -17.
