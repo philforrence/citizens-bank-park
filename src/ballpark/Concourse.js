@@ -204,7 +204,7 @@ const PALETTE = [
 	[ 'foil', [ 0.7, 0.7, 0.72 ], 0.25, 1 ], [ 'brown', [ 0.16, 0.08, 0.03 ], 0.6, 0 ], [ 'pink', [ 0.8, 0.35, 0.5 ], 0.6, 0 ],
 	[ 'orange', [ 0.8, 0.25, 0.02 ], 0.5, 0 ], [ 'cream', [ 0.7, 0.62, 0.45 ], 0.6, 0 ], [ 'powder', [ 0.3, 0.45, 0.68 ], 0.6, 0 ],
 	// ---- FX3 (AD1-5): a stand's service door, painted grey, in its wall pack's light
-	[ 'doorlit', [ 0.17, 0.175, 0.18 ], 0.5, 0.15, [ 0.075, 0.068, 0.058 ] ],
+	[ 'doorlit', [ 0.11, 0.115, 0.12 ], 0.5, 0.15, [ 0.035, 0.032, 0.027 ] ],
 ];
 const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
 const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;

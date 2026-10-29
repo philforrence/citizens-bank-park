@@ -197,7 +197,11 @@ export function buildHarrys( place, F, H ) {
 	// the back bar: counter, the lit shelves of bottles, the taps along the bar top
 	K.use( 'mahogany' ).box( Pk, ( barX0 + barX1 ) / 2, PY + 0.45, UR.z1 - 0.3, barX1 - barX0 + 1, 0.9, 0.5 );
 	K.panel( Pk, ( barX0 + barX1 ) / 2, PY + 1.55, UR.z1 - 0.04, barX1 - barX0 + 1, 1.25, 'backbar' );
-	backBar( K, Pk, barX0 - 0.5, barX1 + 0.5, UR.z1, PY, PY + 2.175, 1.25, 11 ); // ---- FX3 (AD1-9)
+	// ---- FX3 (AD1-9): the bottles and their bays in a mesh of their own (the Kit's material: one more draw,
+	// and only where the bars can be seen: its box is the bars', not the whole corner's, so the TV's cameras
+	// and most of the park cull it; kept out of the static batching, which would fold it back in)
+	const KB = new Kit(), PkB = KB.frame( F );
+	backBar( KB, PkB, barX0 - 0.5, barX1 + 0.5, UR.z1, PY, PY + 2.175, 1.25, 11 );
 	for ( let k = 0; k < 8; k ++ ) {
 
 		const tx = barX0 + 1.5 + k * ( barX1 - barX0 - 3 ) / 7;
@@ -389,7 +393,7 @@ export function buildHarrys( place, F, H ) {
 	K.use( 'brass' ).box( Pk, ( DN.x0 + DN.x1 ) / 2, STREET + 0.2, bz - 0.4, DN.x1 - DN.x0 - 2, 0.05, 0.05 );
 	K.use( 'mahogany' ).box( Pk, ( DN.x0 + DN.x1 ) / 2, STREET + 0.45, DR.z1 - 0.3, DN.x1 - DN.x0 - 1, 0.9, 0.5 );
 	K.panel( Pk, ( DN.x0 + DN.x1 ) / 2 - 4, STREET + 1.5, DR.z1 - 0.04, 12, 1.2, 'backbar' );
-	backBar( K, Pk, ( DN.x0 + DN.x1 ) / 2 - 10, ( DN.x0 + DN.x1 ) / 2 + 2, DR.z1, STREET, STREET + 2.1, 1.2, 23 ); // ---- FX3 (AD1-9)
+	backBar( KB, PkB, ( DN.x0 + DN.x1 ) / 2 - 10, ( DN.x0 + DN.x1 ) / 2 + 2, DR.z1, STREET, STREET + 2.1, 1.2, 23 ); // ---- FX3 (AD1-9)
 	K.panel( Pk, ( DN.x0 + DN.x1 ) / 2 + 6.5, STREET + 1.6, DR.z1 - 0.04, 1.6, 1.2, 'menuDown' );
 	// the kitchen's pass at the right-hand end: a steel shelf under heat lamps, a swing door
 	K.use( 'steel' ).box( Pk, DN.x1 - 2.2, STREET + 1.25, DR.z1 - 0.35, 2.4, 0.05, 0.4 );
@@ -542,6 +546,11 @@ export function buildHarrys( place, F, H ) {
 	// ---- end FX3
 
 	// (the Kit's mesh is made by the place once everything's in it)
+	// ---- FX3 (AD1-9): the back bars' own mesh
+	const bars = KB.mesh( 'harrys-backbars' );
+	bars.userData.dynamic = true;
+	hg.add( bars );
+	// ---- end FX3
 	out.hg = hg;
 	return out;
 
