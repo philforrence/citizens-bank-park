@@ -27,13 +27,16 @@ const S = {
 	// ---- FK2 (step 12, CR1-21): a light olive-tan (Getty 83483794, Feliz; 83485955, Ruiz: they rendered
 	// as dark as Howard), and a medium brown, lighter than Howard's (83571347, Rollins on the stage)
 	olivetan: [ 0.4, 0.245, 0.15 ], mbrown: [ 0.22, 0.12, 0.068 ],
-	};
+};
 // hair (linear)
 const H = {
 	black: [ 0.012, 0.01, 0.008 ], dark: [ 0.03, 0.019, 0.012 ], brown: [ 0.075, 0.045, 0.025 ], light: [ 0.16, 0.1, 0.055 ],
 	sandy: [ 0.26, 0.17, 0.09 ], red: [ 0.2, 0.08, 0.035 ], grey: [ 0.3, 0.29, 0.28 ], white: [ 0.55, 0.54, 0.52 ], salt: [ 0.14, 0.13, 0.12 ],
-	auburn: [ 0.15, 0.075, 0.035 ], // ---- FK2: Lidge's reddish-brown (Getty 83485858: the beard and the hair over the ears)
-	};
+	auburn: [ 0.15, 0.075, 0.035 ], // ---- FK2: a reddish-brown
+	// ---- FK2 repair: Lidge's reddish blond (Getty 83485858: the beard along his jaw and the hair over his
+	// ears, lighter and redder than the auburn he was given: with it his muzzle read dark brown)
+	strawberry: [ 0.2, 0.105, 0.05 ],
+};
 
 const BASE = {
 	skin: S.light, hair: H.brown, beard: 1, stubble: 0.4, eyeBlack: 0, glasses: 0, grey: 0,
@@ -181,21 +184,28 @@ LOOKS[ 150100 ].stubble = 0.75;
 //    83485955); Rollins a medium brown, lighter than Howard (83571347); Lidge ruddy (83485858: "broad,
 //    full-cheeked and ruddy", CR1)
 //  - The beards, each his own (beardD its density, 0.45-1, the skin through it; mous the moustache's shape:
-//    0 full, 1 a thin line, 2 down round the corners, 3 sparse): Feliz a short full beard over the jaw
-//    and cheeks joined to the moustache (83483794; FY3's chin strap drew a band under the jaw); Lidge a
-//    short reddish beard on the jaw, the goatee darker (83485858); Howard a thin moustache and chin hair,
-//    the jaw clean (83485929); Rollins the same, thinner (83571347); Werth's scruffy beard coming in, 75%
-//    (83912493); Victorino, Pena, Crawford and Romero's moustaches their own
-Object.assign( LOOKS[ 150268 ], { skin: S.olivetan, beard: 5, beardD: 0.8, mous: 0 } );
+//    0 full, 1 a thin line, 2 down round the corners, 3 sparse): Howard a thin moustache and chin hair,
+//    the jaw clean (83485929); Rollins the same, thinner (83571347); Victorino, Pena, Crawford and Romero's
+//    moustaches their own
+//  - (---- FK2 repair) Feliz, Werth and Lidge again, against the same photos. Feliz's beard is the strap,
+//    not a full beard: black, cropped close and edged, from the sideburn along the jaw to the goatee and
+//    the moustache, the cheeks bare (83483794; FK2's full beard at 0.8, a brown bush from the cheekbones
+//    down, was further from him than FY3's strap, which Players.js now draws on the jaw, not under it).
+//    Werth's is a light sandy scruff along the jaw and on the chin, off the cheeks, his hair sandy
+//    (83912493; he was a dark brown mass to the cheekbones). Lidge's a short reddish-blond beard along the
+//    jaw and on the chin over a pale, flushed face (83485858; the goatee over stubble 0.7 across the whole
+//    beard's ground went dark brown in the shout). The density (beardD) is now how much of the skin the
+//    hairs cover, not the beard's opacity
+Object.assign( LOOKS[ 150268 ], { skin: S.olivetan, beard: 7, beardD: 1, mous: 2, stubble: 0.3 } );
 Object.assign( LOOKS[ 434563 ], { skin: S.olivetan, beardD: 0.85 } );
 Object.assign( LOOKS[ 150289 ], { skin: S.olivetan, mous: 2 } );
 Object.assign( LOOKS[ 425900 ], { skin: S.olivetan, mous: 3, beardD: 0.7 } );
 Object.assign( LOOKS[ 276519 ], { skin: S.mbrown, beardD: 0.6, mous: 1 } );
 // (Lidge: the full short beard covered his cheeks to the bone in a2/F01-F02, a mask; the photo's cheeks are
-// stubble, the chin darker: the goatee thinned over heavy stubble)
-Object.assign( LOOKS[ 400058 ], { skin: S.ruddy, hair: H.auburn, beard: 3, beardD: 0.7, stubble: 0.7 } );
+// clear but for the jaw's edge: the strap, thin, the moustache sparse)
+Object.assign( LOOKS[ 400058 ], { skin: S.ruddy, hair: H.strawberry, beard: 7, beardD: 0.6, mous: 3, stubble: 0.45 } );
 Object.assign( LOOKS[ 429667 ], { beard: 4, beardD: 0.65, mous: 1 } );
-Object.assign( LOOKS[ 150029 ], { beardD: 0.75 } );
+Object.assign( LOOKS[ 150029 ], { hair: H.sandy, beard: 7, beardD: 0.55 } );
 Object.assign( LOOKS[ 425664 ], { mous: 2, beardD: 0.8 } );
 Object.assign( LOOKS[ 408307 ], { mous: 1, beardD: 0.75 } );
 Object.assign( LOOKS[ 240694 ], { mous: 2 } );

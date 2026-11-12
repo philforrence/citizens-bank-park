@@ -1345,7 +1345,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			// grains: a hair's (a millimetre), and a coarser one that breaks the edges of the beard and the hair
 			// (faded to their mean once a hair is under a pixel, so the far faces don't sparkle)
 			let px = length( fwidth( L ) );
-			let g1 = mix( 0.5, mx_noise_float3( L * vec3f( 950.0, 380.0, 950.0 ) + seed * 5.0 ) * 0.5 + 0.5, 1.0 - smoothstep( 0.0006, 0.0018, px ) );
+			// (---- FK2 repair: the hair's grain itself and how far it is resolved, for the beard's hairs below)
+			let n1 = mx_noise_float3( L * vec3f( 950.0, 380.0, 950.0 ) + seed * 5.0 ) * 0.5 + 0.5;
+			let nearK = 1.0 - smoothstep( 0.0006, 0.0018, px );
+			let g1 = mix( 0.5, n1, nearK );
 			let g2 = mx_noise_float3( L * 190.0 + seed * 3.0 ) * ( 1.0 - smoothstep( 0.003, 0.008, px ) );
 			let earK = smoothstep( 0.062, 0.068, ax ) * smoothstep( eye.y - 0.062, eye.y - 0.054, L.y ) * ( 1.0 - smoothstep( eye.y + 0.008, eye.y + 0.016, L.y ) ) * smoothstep( eye.z + 0.055, eye.z + 0.065, L.z ) * ( 1.0 - smoothstep( eye.z + 0.125, eye.z + 0.135, L.z ) );
 			// the skin's colour: the cheeks, the nose's tip and the ears a little redder, the brow a shade paler
@@ -1417,8 +1420,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let mW = select( select( 0.031, 0.026, mShape == 1u ), 0.034, mShape == 2u );
 			var mous = smoothstep( m.y + 0.003 + 0.004 * mx2, m.y + 0.008 + 0.004 * mx2, L.y ) * ( 1.0 - smoothstep( m.y + 0.016 - mTop - 0.007 * mx2, m.y + 0.022 - mTop - 0.007 * mx2, L.y ) ) * ( 1.0 - smoothstep( mW - 0.011, mW, ax ) ) * lipsOut * fw;
 			if ( mShape == 2u ) { mous = max( mous, 0.85 * smoothstep( 0.019, 0.024, ax ) * ( 1.0 - smoothstep( 0.029, 0.034, ax ) ) * smoothstep( m.y - 0.022, m.y - 0.012, L.y ) * ( 1.0 - smoothstep( m.y + 0.006, m.y + 0.012, L.y ) ) * lipsOut * fw ); }
-			if ( mShape == 3u ) { mous = mous * smoothstep( 0.25, 0.6, g1 + 0.3 * g2 ); }
 			// ---- end FK2
+			// (---- FK2 repair: the sparse moustache is fewer hairs, below; it was this mask cut by the grain's
+			// threshold, hard-edged blotches that read as a printed pattern: SK-FK2's N02, Navarro)
 			// (---- FK2, CR1-14: not down the throat: the goatee stops at the chin's underside, where the face turns
 			// under (the face's own normal), so in profile it's on the chin, not a block hanging off it)
 			let chinUnder = smoothstep( -0.35, -0.75, Nb.y ) * ( 1.0 - smoothstep( jawY - 0.004, jawY + 0.006, L.y ) );
@@ -1428,13 +1432,31 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let cheekTop = 1.0 - smoothstep( yTop - 0.012, yTop + 0.004, L.y );
 			// (under the jaw only where the chin juts forward, not down the throat)
 			let fullM = cheekTop * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * smoothstep( jl - 0.024, jl - 0.01, L.y ) * max( smoothstep( jl - 0.008, jl + 0.004, L.y ), smoothstep( -0.05, -0.075, L.z ) ) * lipsOut * ( 1.0 - nose );
-			let strap = ( 1.0 - smoothstep( 0.009, 0.017, abs( L.y - jl - 0.004 ) ) ) * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * max( front, smoothstep( 0.015, 0.03, ax ) );
+			// ---- FK2 repair (step 12, CR1-14): the chin strap along the jaw, where the jaw is. FY3's band was
+			// centred 4 mm over a line (jl) that runs 1.6 to 2.3 cm under the base head's jaw edge (where its
+			// surface turns under: 1.657 at 2 cm from the middle, 1.677 at 5.5 cm, then up the back of the jaw
+			// to the ear's lobe), so it lay on the throat. Now it's on the face's side of the edge: from the
+			// sideburn down in front of the ear, round the jaw's angle in a curve and along the jaw to the
+			// chin, 1.3 cm wide at the side and 2 at the chin, with the patch under the lower lip
+			// (Getty 83483794, Feliz: black, cropped close and edged, the cheeks bare)
+			let jE = jawY + 0.013 + 0.6 * clamp( ax - 0.02, 0.0, 0.04 ) + 1.4 * max( L.z - eye.z - 0.048, 0.0 );
+			let sY = L.y - jE;
+			let sW = mix( 0.02, 0.013, smoothstep( 0.025, 0.05, ax ) );
+			let earZ = eye.z + 0.058;
+			let sRise = smoothstep( earZ - 0.04, earZ - 0.012, L.z ) * smoothstep( 0.044, 0.054, ax );
+			let sTop = sW + ( eye.y - 0.016 - jE - sW ) * sRise * sRise;
+			let strap = smoothstep( -0.007, -0.001, sY ) * ( 1.0 - smoothstep( sTop - 0.003, sTop + 0.003, sY ) ) * ( 1.0 - smoothstep( earZ, earZ + 0.008, L.z ) ) * ( 1.0 - chinUnder );
+			let soul = ( 1.0 - smoothstep( 0.006, 0.012, ax ) ) * ( 1.0 - smoothstep( m.y - 0.011, m.y - 0.007, L.y ) ) * smoothstep( m.y - 0.03, m.y - 0.022, L.y ) * lipsOut * fw;
+			// (a strap at full density is a barber's: its edge clean, not broken by the grain. A thinner one is
+			// scruff along the jaw: Werth's, Lidge's)
+			let groomed = select( 0.0, smoothstep( 0.86, 1.0, bDen ), beardK == 7u );
+			// ---- end FK2 repair
 			var bd = 0.0;
 			if ( beardK == 3u ) { bd = chinM; }
 			if ( beardK == 4u ) { bd = max( max( chinM, mous ), corner ); }
 			if ( beardK == 5u ) { bd = max( fullM, mous ); }
 			if ( beardK == 6u ) { bd = mous; }
-			if ( beardK == 7u ) { bd = max( max( strap * ( 1.0 - chinUnder ), mous ), chinM ); } // (---- FK2: the strap off the throat)
+			if ( beardK == 7u ) { bd = max( max( strap, mous ), max( chinM, soul * groomed ) ); }
 			// the stubble: the beard's whole ground in shade, and the dots of the hairs where it's heavy
 			let stubZone = max( fullM, max( mous, chinM ) ) * fw;
 			let stub = stubble * select( 0.45, 0.85, beardK == 2u );
@@ -1443,12 +1465,23 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			// the beard itself: its edge broken, the hairs grained, the skin under it showing at its thin edge
 			// (---- FK2, CR1-14: thinner than a decal: his density, the skin through it hair by hair, and the
 			// full beard darker and denser at the chin and the moustache than up the cheeks, as it grows)
-			let bk = smoothstep( 0.3, 0.75, bd + 0.22 * g2 ) * mix( 1.0, smoothstep( 0.2, 0.55, g1 + 0.25 * g2 ), 1.0 - bDen ) * bDen;
-			if ( bk > 0.0 ) {
+			// ---- FK2 repair (step 12, CR1-14): thinned by hairs, not by a blend. The density scaled the whole
+			// beard's opacity, so black hair at 0.8 was a brown wash over the skin (Feliz, Werth). It's now how
+			// much of the skin the hairs cover: each hair its own colour at full strength, the skin between
+			// them, the grain's threshold set by the density (about half the skin covered at 0.45, all of it
+			// at 1); once a hair is under a pixel, the cover's mean, as the eye takes a thin beard from across
+			// the infield. A sparse moustache (mous 3) is the same at six tenths of his density
+			let bEdge = smoothstep( mix( 0.3, 0.44, groomed ), mix( 0.75, 0.58, groomed ), bd + 0.22 * g2 * ( 1.0 - 0.8 * groomed ) );
+			var bk = 0.0;
+			if ( bEdge > 0.0 ) {
+				let den = bDen * select( 1.0, mix( 1.0, 0.62, smoothstep( 0.2, 0.6, mous ) ), mShape == 3u );
+				let hTh = mix( 0.52, 0.36, smoothstep( 0.45, 0.9, den ) ) - 0.5 * smoothstep( 0.9, 1.0, den );
+				bk = bEdge * mix( den, smoothstep( hTh - 0.1, hTh + 0.1, n1 ), nearK );
 				let core = select( 1.0, mix( 1.0, 0.72, max( chinM, mous ) ), beardK == 5u );
-				c = mix( c, hairC * 0.9 * core * ( 0.55 + 0.75 * g1 ), bk * ( 0.78 + 0.2 * g1 ) );
+				c = mix( c, hairC * 0.9 * core * ( 0.55 + 0.75 * g1 ), bk * ( 0.88 + 0.12 * g1 ) );
 				rough = mix( rough, 0.82, bk );
 			}
+			// ---- end FK2 repair
 			// eye black: a greasy smudge on each cheekbone (FY2: a smudge, not a bar)
 			// ---- FK2 (step 12, CR1-21): a greasy smear, not two holes: a rounded rectangle on the cheekbone's top,
 			// a little wider than tall and tipped down to the outside, its edge broken and thinning, the skin's
