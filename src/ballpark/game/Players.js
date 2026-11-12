@@ -1642,24 +1642,34 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 	}
 	// ---- end FY3
 	// ---- FK2 (step 12, CR1-23): the champions' cap piped in white, a cord about 3 mm wide outlining the two
-	// front panels: up their outer seams from the band to the button, and across the front just above the
-	// bill's join (Getty 83571347: Manuel's and Rollins's caps on the stage; 83485940). The bill's edge
-	// plain black, as in those photos
+	// front panels: up their outer seams from the band to the button (Getty 83571347: Manuel's and Rollins's
+	// caps on the stage; 83485940)
+	// (---- FK2 repair: no line across the front above the bill: the photos have none. The cord comes down
+	// each seam to the bill's corner and runs on round the bill's rim to its tip: below)
 	if ( part == ${ P.cap } && ! billPart && ( role & ${ R.champCap }u ) != 0u ) {
 		let pz = L.z + 0.04;
 		let prxz = length( vec2f( L.x, pz ) );
 		let paz = atan2( L.x, - pz ) / 1.0472;
 		let dS = abs( abs( paz ) - 1.0 ) * 1.0472 * max( prxz, 0.02 );
 		let seamP = clamp( ( 0.0015 - dS ) / max( fwidth( dS ), 1e-5 ) + 0.5, 0.0, 1.0 ) * smoothstep( 0.012, 0.022, prxz );
-		let pcd = L - vec3f( 0.0, ${ f( F.top[ 1 ] - 0.101 ) }, ${ f( ( F.skull.z0 + F.skull.z1 ) / 2 ) } );
-		let up = ${ f( Math.cos( 0.3 ) ) } * pcd.y + ${ f( Math.sin( 0.3 ) ) } * pcd.z - ${ f( 0.104 * Math.cos( Math.PI * 0.56 ) ) };
-		let fU = max( fwidth( up ), 1e-5 );
-		let brimP = clamp( ( up - 0.0024 ) / fU + 0.5, 0.0, 1.0 ) * clamp( ( 0.0054 - up ) / fU + 0.5, 0.0, 1.0 ) * ( 1.0 - smoothstep( 0.985, 1.02, abs( paz ) ) );
-		c = mix( c, vec3f( 0.78, 0.77, 0.74 ), max( seamP, brimP ) );
+		c = mix( c, vec3f( 0.78, 0.77, 0.74 ), seamP );
 	}
 	// ---- end FK2
 	// (FY2, CY-18) under the bill, the undervisor's dark grey-green
 	if ( part == ${ P.cap } && billPart && Nb.y < -0.3 ) { c = vec3f( 0.03, 0.045, 0.035 ); rough = 0.85; }
+	// ---- FK2 repair (step 12, CR1-23): the champions' cap's cord round the bill's rim, about 4 mm of white
+	// binding from one corner round the tip to the other, over the edge and just under it (Flickr
+	// puffygreenjacket 2993502271: two caps, one from the front-left and one side on, the rim white all the
+	// way round; Getty 83485940, the same rim on the bill's right). The bill is Rig.js' lathed disc, 9 cm in
+	// its own frame (tipped 0.05, 0.95 wide and 0.9 long): the distance from its middle there
+	if ( part == ${ P.cap } && billPart && ( role & ${ R.champCap }u ) != 0u ) {
+		let bq = L - vec3f( 0.0, ${ f( F.top[ 1 ] - 0.1 + 0.0145 ) }, ${ f( ( F.skull.z0 + F.skull.z1 ) / 2 - ( ( F.skull.z1 - F.skull.z0 ) / 2 + 0.011 ) + 0.012 ) } );
+		let rb = length( vec2f( bq.x / 0.95, ( ${ f( Math.sin( 0.05 ) ) } * bq.y + ${ f( Math.cos( 0.05 ) ) } * bq.z ) / 0.9 ) );
+		let rimP = clamp( ( rb - 0.0856 ) / max( fwidth( rb ), 1e-5 ) + 0.5, 0.0, 1.0 );
+		c = mix( c, vec3f( 0.78, 0.77, 0.74 ), rimP );
+		rough = mix( rough, 0.65, rimP );
+	}
+	// ---- end FK2 repair
 	if ( part == ${ P.belt } ) { c = beltC; rough = 0.4; }
 	if ( part == ${ P.shoes } ) {
 		// ---- FY3: 2008's cleats (Getty 83485858, Lidge's red Nikes with the white swoosh; 83485159,
