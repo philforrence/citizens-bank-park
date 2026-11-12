@@ -1223,6 +1223,61 @@ export class People {
 			for ( const [ sum, n ] of B ) for ( let q = 0; q < n; q ++, j ++ ) who[ I[ j ] * 8 ] = Math.max( 0.001, Math.min( 0.999, ( sum / n + gap * j ) / L ) );
 
 		}
+
+		// the columns on the concourse's floor (FI1's steel), for the throng to step round
+		this._thrCols = ( this._concourse?.steel?.columns || [] ).filter( ( c ) => Math.abs( c.y0 - STREET ) < 1.5 ).map( ( c ) => [ c.x, c.z ] );
+		// (and the light tower's legs in left, by the walk behind the seats)
+		this._thrCols.push( [ ...fencePoint( - 24.5, 455 ), 3 ] );
+		// (and where a line turns, the inside of the corner closes up: the rank's places before the turn and
+		// after it meet (behind home, both ends of the infield's arc: a pair 7 cm apart); and a column pushes
+		// those beside it into the next. In order along each line, anyone who'd stand in someone there steps
+		// on along the rail till he's clear)
+		{
+
+			const grid = new Map(), cell = ( x, z ) => ( Math.floor( x ) + 2048 ) * 4096 + Math.floor( z ) + 2048;
+			const clear = ( x, z ) => {
+
+				const c0 = cell( x, z );
+				for ( let a = - 1; a <= 1; a ++ ) for ( let b = - 1; b <= 1; b ++ ) {
+
+					const A = grid.get( c0 + a * 4096 + b );
+					if ( A ) for ( let q = 0; q < A.length; q += 2 ) if ( Math.hypot( A[ q ] - x, A[ q + 1 ] - z ) < 0.5 ) return false;
+
+				}
+
+				return true;
+
+			};
+			const at = ( k, s, laneF ) => {
+
+				const g = this._thrSegOf( k, s ) * 16, f = Math.max( 0, Math.min( 1, ( s - S[ g + 4 ] ) / Math.max( S[ g + 5 ], 0.001 ) ) );
+				const lane = S[ g + 12 ] + ( laneF > 0.5 ? 0.7 : 0 ) + 0.16 * ( fract( laneF * 7 ) - 0.5 );
+				return this._thrColPush( S[ g ] + ( S[ g + 2 ] - S[ g ] ) * f - S[ g + 7 ] * S[ g + 13 ] * lane, S[ g + 1 ] + ( S[ g + 3 ] - S[ g + 1 ] ) * f + S[ g + 6 ] * S[ g + 13 ] * lane );
+
+			};
+			for ( let k = 0; k < lines.length; k ++ ) {
+
+				const I = [], L = lines[ k ].L;
+				for ( let i = 0; i < THRONG; i ++ ) if ( Math.round( who[ i * 8 + 4 ] ) === k && Math.round( who[ i * 8 + 5 ] ) === 1 ) I.push( i );
+				I.sort( ( a, b ) => who[ a * 8 ] - who[ b * 8 ] );
+				for ( const i of I ) {
+
+					const laneF = who[ i * 8 + 7 ];
+					let s = who[ i * 8 ] * L, Q = at( k, s, laneF );
+					for ( let n = 0; n < 60 && ! clear( Q[ 0 ], Q[ 1 ] ) && s < 0.999 * L - 0.1; n ++ ) Q = at( k, s += 0.1, laneF );
+					// (no room on to the end: where he was)
+					if ( ! clear( Q[ 0 ], Q[ 1 ] ) ) Q = at( k, s = who[ i * 8 ] * L, laneF );
+					who[ i * 8 ] = s / L;
+					const c = cell( Q[ 0 ], Q[ 1 ] );
+					let A = grid.get( c );
+					if ( ! A ) grid.set( c, A = [] );
+					A.push( Q[ 0 ], Q[ 1 ] );
+
+				}
+
+			}
+
+		}
 		// ---- end FK5 repair
 
 		this._thrWho = who;
@@ -1291,10 +1346,7 @@ export class People {
 		this._thrCand = new Set();
 		this._thrSweep = 0;
 		this._thrPl = { x: 0, z: 0, yaw: 0, phase: 0, walking: 0, s: 0 };
-		// the columns on the concourse's floor (FI1's steel), for the throng to step round
-		this._thrCols = ( this._concourse?.steel?.columns || [] ).filter( ( c ) => Math.abs( c.y0 - STREET ) < 1.5 ).map( ( c ) => [ c.x, c.z ] );
-		// (and the light tower's legs in left, by the walk behind the seats)
-		this._thrCols.push( [ ...fencePoint( - 24.5, 455 ), 3 ] );
+		// (the columns, this._thrCols: above, FK5 repair, where the rail's people are spaced round them)
 
 	}
 
@@ -1532,6 +1584,54 @@ export class People {
 
 	}
 
+	// (x, z) stepped round the concourse's columns alone, as the pass steps round them near the camera, into
+	// a scratch triple: [ x, z, how far it moved ]. (For placing people where no column pushes them into
+	// another: the rail's people, the gathering's ranks and knots)
+	_thrColPush( x, z ) {
+
+		const out = this._thrCP ||= [ 0, 0, 0 ], x0 = x, z0 = z;
+		// (the columns by 4 m cells, the light tower's legs (6 m round) in every one)
+		if ( ! this._thrColIx ) {
+
+			const m = this._thrColIx = new Map(), big = [];
+			for ( const c of this._thrCols ) if ( ( c[ 2 ] ?? 0.55 ) > 1 ) big.push( c );
+			for ( const c of this._thrCols ) {
+
+				if ( ( c[ 2 ] ?? 0.55 ) > 1 ) continue;
+				for ( let a = - 1; a <= 1; a ++ ) for ( let b = - 1; b <= 1; b ++ ) {
+
+					const key = ( Math.floor( c[ 0 ] / 4 ) + a + 4096 ) * 8192 + Math.floor( c[ 1 ] / 4 ) + b + 4096;
+					if ( ! m.has( key ) ) m.set( key, [ ...big ] );
+					m.get( key ).push( c );
+
+				}
+
+			}
+
+			m.big = big;
+
+		}
+
+		const ix = this._thrColIx, A = ix.get( ( Math.floor( x / 4 ) + 4096 ) * 8192 + Math.floor( z / 4 ) + 4096 ) || ix.big;
+		for ( const [ ox, oz, R = 0.55 ] of A ) {
+
+			const ex = x - ox, ez = z - oz;
+			if ( Math.abs( ex ) >= 2 * R || Math.abs( ez ) >= 2 * R ) continue;
+			const r = Math.hypot( ex, ez );
+			if ( r < 2 * R ) {
+
+				const ux = r > 1e-4 ? ex / r : 1, uz = r > 1e-4 ? ez / r : 0, kk = 1 - r / ( 2 * R ), rr = r + R * kk * kk;
+				x = ox + ux * rr; z = oz + uz * rr;
+
+			}
+
+		}
+
+		out[ 0 ] = x; out[ 1 ] = z; out[ 2 ] = Math.hypot( x - x0, z - z0 );
+		return out;
+
+	}
+
 	// ---- FK5 repair (SC1-3): where each of the gathered goes, worked out once as they stop (the 9th, strike
 	// three, a seek into either), for the pass and _thrPlace(): thrWho after everyone's two, [ x, z, the way
 	// he faces, code: 0 not gathering, 1 a place in the ranks behind the rail, 2 a knot face to face, 3 a
@@ -1619,7 +1719,8 @@ export class People {
 			if ( Math.round( W[ o + 5 ] ) !== 1 ) continue;
 			const k = Math.round( W[ o + 4 ] ), s = W[ o ] * Ls[ k * 4 + 2 ], g = this._thrSegOf( k, s ) * 16, laneF = W[ o + 7 ];
 			const Q = at( k, s, S[ g + 12 ] + ( laneF > 0.5 ? 0.7 : 0 ) + 0.16 * ( fract( laneF * 7 ) - 0.5 ) );
-			add( Q[ 0 ], Q[ 1 ] );
+			const C = this._thrColPush( Q[ 0 ], Q[ 1 ] );
+			add( C[ 0 ], C[ 1 ] );
 
 		}
 
@@ -1641,8 +1742,9 @@ export class People {
 					const ts = ( j + fract( r * 0.5 ) ) * 0.56 + 0.08 * h2, g = this._thrSegOf( k, ts ) * 16, rail = S[ g + 12 ];
 					if ( Math.abs( rail ) < 0.01 ) continue;
 					const Q = at( k, ts, rail + 1.3 + 0.58 * r + 0.1 * ( h2 - 0.5 ) );
-					// (on the inside of a corner the places close up: not into someone)
-					if ( into( Q[ 0 ], Q[ 1 ], 0.46 ) > 0 ) continue;
+					// (on the inside of a corner the places close up: not into someone; nor by a column, whose
+					// push would put him in the next)
+					if ( this._thrColPush( Q[ 0 ], Q[ 1 ] )[ 2 ] > 0.01 || into( Q[ 0 ], Q[ 1 ], 0.46 ) > 0 ) continue;
 					taken.add( j * 4 + r );
 					add( Q[ 0 ], Q[ 1 ] );
 					put( P.i, Q[ 0 ], Q[ 1 ], S[ g + 7 ] * S[ g + 13 ], - S[ g + 6 ] * S[ g + 13 ], 1 );
@@ -1693,7 +1795,14 @@ export class People {
 						const lc = hi <= lo ? ( lo + hi ) / 2 : c === 0 ? Math.max( lo, Math.min( hi, l0 ) ) : lo + ( hi - lo ) * fract( h + c * 0.618 );
 						this._thrKnotAt( k, M, ring, r, sc, lc, at, tmp );
 						let hit = 0;
-						for ( let m = 0; m < n; m ++ ) hit += into( tmp[ m * 4 ], tmp[ m * 4 + 1 ], 0.56 );
+						// (where it's clear, and where no column pushes one of them into another)
+						for ( let m = 0; m < n; m ++ ) {
+
+							const C = this._thrColPush( tmp[ m * 4 ], tmp[ m * 4 + 1 ] );
+							hit += into( C[ 0 ], C[ 1 ], 0.56 ) + C[ 2 ];
+
+						}
+
 						if ( hit < bestHit ) { bestHit = hit; best = tmp.slice( 0, n * 4 ); }
 						if ( hit === 0 ) break;
 
@@ -1703,7 +1812,8 @@ export class People {
 
 				M.forEach( ( P, m ) => {
 
-					add( best[ m * 4 ], best[ m * 4 + 1 ] );
+					const C = this._thrColPush( best[ m * 4 ], best[ m * 4 + 1 ] );
+					add( C[ 0 ], C[ 1 ] );
 					put( P.i, best[ m * 4 ], best[ m * 4 + 1 ], best[ m * 4 + 2 ], best[ m * 4 + 3 ], ring ? 2 : 3 );
 
 				} );
