@@ -199,8 +199,13 @@ function figureGeometry( pose ) {
 		tube( J( 'shoulder', s ), J( 'elbow', s ), [ 0.062, 0.062 ], [ 0.052, 0.052 ], PART.top );
 		tube( J( 'elbow', s ), J( 'wrist', s ), [ 0.052, 0.052 ], [ 0.043, 0.043 ], PART.top );
 		tube( J( 'wrist', s ), J( 'hand', s ), [ 0.036, 0.022 ], [ 0.032, 0.02 ], PART.skin, 5, false, true );
-		tube( J( 'hip', s ), J( 'knee', s ), [ 0.088, 0.088 ], [ 0.062, 0.062 ], PART.pants, 6, true );
-		tube( J( 'knee', s ), J( 'ankle', s ), [ 0.06, 0.06 ], [ 0.048, 0.048 ], PART.pants );
+		// ---- FK2 (step 12, AD1-10): the pants' tubes carry their axis's tilt from upright (in the body's
+		// y-z plane) in the part's fraction, so the pinstripes run along a seated man's thigh, not round it
+		// like corrugated card; the thigh closed at the knee (its open end read as a flap curled over it)
+		const legPart = ( a, b ) => { const d = norm( sub( b, a ) ); return PART.pants + 0.5 + Math.atan2( d[ 2 ], - d[ 1 ] ) / ( 2 * Math.PI ) * 0.9; };
+		tube( J( 'hip', s ), J( 'knee', s ), [ 0.088, 0.088 ], [ 0.062, 0.062 ], legPart( J( 'hip', s ), J( 'knee', s ) ), 6, true, true );
+		tube( J( 'knee', s ), J( 'ankle', s ), [ 0.06, 0.06 ], [ 0.048, 0.048 ], legPart( J( 'knee', s ), J( 'ankle', s ) ) );
+		// ---- end FK2
 		// the shoe: ankle to toe
 		tube( add( J( 'ankle', s ), [ 0, - 0.03, 0.04 ] ), J( 'toe', s ), [ 0.05, 0.045 ], [ 0.042, 0.03 ], PART.shoe, 5, true, true );
 
@@ -379,7 +384,9 @@ function figureMaterial() {
 	if ( part == 1 ) {
 		c = pants;
 		rough = 0.85;
-		if ( pin ) { c = c * ( 1.0 - 0.45 * step( 0.82, fract( ( L.x + L.z ) * 55.0 ) ) ); }
+		// (---- FK2, AD1-10: the stripes along the leg's own axis, its tilt from the part's fraction)
+		let legT = ( fract( in.vs.vPart ) - 0.5 ) / 0.9 * 6.2831853;
+		if ( pin ) { c = c * ( 1.0 - 0.45 * step( 0.82, fract( ( L.x + L.y * sin( legT ) + L.z * cos( legT ) ) * 55.0 ) ) ); }
 		// the Phillies' red socks, the Rays' navy, pulled up high
 		if ( ( o == 0 || o == 1 || o == 8 || o == 9 ) && L.y < 0.36 ) { c = red; }
 		if ( ( o == 2 || o == 3 || o == 10 ) && L.y < 0.36 ) { c = navy; }
