@@ -930,7 +930,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		// the shout's too). Moved with fd, so the paint stays on its vertices
 		// (---- FK2 repair, the pinpricks left along Burrell's bill: 1.2 mm at the band kept every vertex in, but
 		// the crown's facets cut up to 1.1 mm inside its own shell between their corners, and the head's
-		// triangles, sampled whole against the crown's, still came through by up to 0.8 mm on 12 of 63 looks
+		// triangles, sampled whole against the crown's, still came through by up to 0.8 mm on 11 of 63 looks
 		// (Burrell, Utley, Longoria, Balfour ...). 2.5 mm at the band to 3.8 higher up, eased in over 9 mm
 		// under it: none of the 63 within 0.3 mm of the crown, at rest, in the shout or in the pile's bursts)
 		if ( pt == ${ P.body } && ! helmet && ( role & ${ R.ccap | R.nocap | R.hood }u ) == 0u ) {
