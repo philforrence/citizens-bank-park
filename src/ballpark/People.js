@@ -1050,10 +1050,10 @@ export class People {
 			// in the window itself, behind the counter's front)
 			// (FK5 repair: the Alley's, inset 0, stood at the stand's mid, 10 cm out from the window's plane: on
 			// the customers' side of the counter's front panel, its ledge through their waists. In the window
-			// instead, their middle 7 cm behind its plane: the counter's panel hides the legs and the shoes (at
-			// 4 cm their toes came through its face), the ledge comes to their belt, and the painted kitchen
-			// takes their backs)
-			const inset = st.inset === 0 ? 0.17 : st.inset ?? 0.6;
+			// instead, their middle 4 cm behind its plane: the counter's panel hides the legs, the ledge comes
+			// to their belt, and the painted kitchen takes their backs. (Their toes show at the panel's foot; at
+			// 7 cm the kitchen took the head too, all but the face's front, FK5-repair/r3)
+			const inset = st.inset === 0 ? 0.14 : st.inset ?? 0.6;
 			const staff = ( st.staff || [ - 1.6, 1.6 ] ).map( ( k ) => this._add( ROLE.staff, mid[ 0 ] + u[ 0 ] * k - n[ 0 ] * inset, STREET, mid[ 1 ] + u[ 1 ] * k - n[ 1 ] * inset, yaw ) );
 			// the line: up to eight people out from the counter, facing it
 			const line = [];
