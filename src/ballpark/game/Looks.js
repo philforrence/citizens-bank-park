@@ -24,12 +24,16 @@ const S = {
 	fair: [ 0.62, 0.41, 0.3 ], light: [ 0.58, 0.37, 0.26 ], ruddy: [ 0.6, 0.35, 0.24 ], olive: [ 0.5, 0.32, 0.2 ],
 	tan: [ 0.37, 0.215, 0.13 ], latin: [ 0.26, 0.14, 0.08 ], brown: [ 0.16, 0.083, 0.048 ], dark: [ 0.1, 0.05, 0.028 ],
 	deep: [ 0.07, 0.036, 0.021 ], asian: [ 0.54, 0.37, 0.24 ],
-};
+	// ---- FK2 (step 12, CR1-21): a light olive-tan (Getty 83483794, Feliz; 83485955, Ruiz: they rendered
+	// as dark as Howard), and a medium brown, lighter than Howard's (83571347, Rollins on the stage)
+	olivetan: [ 0.4, 0.245, 0.15 ], mbrown: [ 0.22, 0.12, 0.068 ],
+	};
 // hair (linear)
 const H = {
 	black: [ 0.012, 0.01, 0.008 ], dark: [ 0.03, 0.019, 0.012 ], brown: [ 0.075, 0.045, 0.025 ], light: [ 0.16, 0.1, 0.055 ],
 	sandy: [ 0.26, 0.17, 0.09 ], red: [ 0.2, 0.08, 0.035 ], grey: [ 0.3, 0.29, 0.28 ], white: [ 0.55, 0.54, 0.52 ], salt: [ 0.14, 0.13, 0.12 ],
-};
+	auburn: [ 0.15, 0.075, 0.035 ], // ---- FK2: Lidge's reddish-brown (Getty 83485858: the beard and the hair over the ears)
+	};
 
 const BASE = {
 	skin: S.light, hair: H.brown, beard: 1, stubble: 0.4, eyeBlack: 0, glasses: 0, grey: 0,
@@ -172,6 +176,31 @@ LOOKS[ 400058 ].stubble = 0.65;
 LOOKS[ 400284 ].stubble = 0.7;
 LOOKS[ 150100 ].stubble = 0.75;
 // ---- end FY3
+// ---- FK2 (step 12, CR1-14, CR1-21, CR1-12): the faces against the photos again.
+//  - The skin: Feliz, Ruiz, Pena and Navarro a light olive-tan, not Howard's brown (Getty 83483794,
+//    83485955); Rollins a medium brown, lighter than Howard (83571347); Lidge ruddy (83485858: "broad,
+//    full-cheeked and ruddy", CR1)
+//  - The beards, each his own (beardD its density, 0.45-1, the skin through it; mous the moustache's shape:
+//    0 full, 1 a thin line, 2 down round the corners, 3 sparse): Feliz a short full beard over the jaw
+//    and cheeks joined to the moustache (83483794; FY3's chin strap drew a band under the jaw); Lidge a
+//    short reddish beard on the jaw, the goatee darker (83485858); Howard a thin moustache and chin hair,
+//    the jaw clean (83485929); Rollins the same, thinner (83571347); Werth's scruffy beard coming in, 75%
+//    (83912493); Victorino, Pena, Crawford and Romero's moustaches their own
+Object.assign( LOOKS[ 150268 ], { skin: S.olivetan, beard: 5, beardD: 0.8, mous: 0 } );
+Object.assign( LOOKS[ 434563 ], { skin: S.olivetan, beardD: 0.85 } );
+Object.assign( LOOKS[ 150289 ], { skin: S.olivetan, mous: 2 } );
+Object.assign( LOOKS[ 425900 ], { skin: S.olivetan, mous: 3, beardD: 0.7 } );
+Object.assign( LOOKS[ 276519 ], { skin: S.mbrown, beardD: 0.6, mous: 1 } );
+// (Lidge: the full short beard covered his cheeks to the bone in a2/F01-F02, a mask; the photo's cheeks are
+// stubble, the chin darker: the goatee thinned over heavy stubble)
+Object.assign( LOOKS[ 400058 ], { skin: S.ruddy, hair: H.auburn, beard: 3, beardD: 0.7, stubble: 0.7 } );
+Object.assign( LOOKS[ 429667 ], { beard: 4, beardD: 0.65, mous: 1 } );
+Object.assign( LOOKS[ 150029 ], { beardD: 0.75 } );
+Object.assign( LOOKS[ 425664 ], { mous: 2, beardD: 0.8 } );
+Object.assign( LOOKS[ 408307 ], { mous: 1, beardD: 0.75 } );
+Object.assign( LOOKS[ 240694 ], { mous: 2 } );
+Object.assign( LOOKS[ 400134 ], { beardD: 0.9 } );
+// ---- end FK2
 
 // ---- FY4 (gauntlet r4, every man his own face): the mesh is one MakeHuman face; Players.js shapes it in
 // the vertex stage by sixteen numbers (twelve here, four in MORE below), -1 to 1 (0 the base mesh's), each a few millimetres at its ends:
@@ -308,7 +337,8 @@ const keySeed = ( id ) => typeof id === 'number' ? id * 0.00731 : [ ...String( i
 // 94863165, Hamels 83486314, Balfour 83485159, Jenkins 83486414, Ruiz 83485955, Werth 83912493, Victorino
 // 83571325, Burrell 83571337), FOX's (`.claude/ref/gauntlet/play/`) and the men's well-known looks
 const ETH_OF = new Map( [ [ S.fair, [ 0.0, 0.0 ] ], [ S.light, [ 0.01, 0.01 ] ], [ S.ruddy, [ 0.0, 0.0 ] ], [ S.olive, [ 0.08, 0.04 ] ],
-	[ S.tan, [ 0.3, 0.12 ] ], [ S.latin, [ 0.42, 0.06 ] ], [ S.brown, [ 0.72, 0.03 ] ], [ S.dark, [ 0.86, 0.02 ] ], [ S.deep, [ 0.92, 0.02 ] ], [ S.asian, [ 0.03, 0.88 ] ] ] );
+	[ S.tan, [ 0.3, 0.12 ] ], [ S.latin, [ 0.42, 0.06 ] ], [ S.brown, [ 0.72, 0.03 ] ], [ S.dark, [ 0.86, 0.02 ] ], [ S.deep, [ 0.92, 0.02 ] ], [ S.asian, [ 0.03, 0.88 ] ],
+	[ S.olivetan, [ 0.3, 0.06 ] ], [ S.mbrown, [ 0.8, 0.02 ] ] ] ); // (---- FK2: the new tones)
 function mhOf( o ) {
 
 	const f = o.face || {}, v = ( k ) => f[ k ] || 0;
@@ -319,7 +349,10 @@ function mhOf( o ) {
 		old: Math.max( 0, ( 22 + 42 * ( o.age ?? 0.2 ) - 25 ) / 65 ),
 		weight: Math.max( - 1, Math.min( 1, ( ( o.girth || 1 ) - 1 ) * 3 + ( o.belly || 0 ) * 0.6 ) ),
 		'chin-height': 0.75 * v( 'jawL' ), 'chin-out': 0.8 * v( 'chin' ), 'chin-width': 0.75 * v( 'chinW' ),
-		cheekbones: 0.8 * v( 'cheek' ), cheeks: 0.7 * v( 'full' ), 'head-fat': 0.45 * v( 'full' ),
+		// (---- FK2, CR1-12: the lean ends of the cheeks and the head's fat at a third of their weight: every
+		// lean man came out one gaunt face, hollow-cheeked, a tired 45; ballplayers of 25-30 are lean, not
+		// hollow. The full ends as they were)
+		cheekbones: 0.8 * v( 'cheek' ), cheeks: ( v( 'full' ) < 0 ? 0.25 : 0.7 ) * v( 'full' ), 'head-fat': ( v( 'full' ) < 0 ? 0.15 : 0.45 ) * v( 'full' ),
 		'brow-ridge': 0.55 * v( 'brow' ), 'nose-length': 0.6 * v( 'noseL' ), 'nose-out': 0.35 * v( 'noseL' ),
 		'nose-width': 0.6 * v( 'noseW' ), 'nose-nostrils': 0.45 * v( 'noseW' ), 'nose-flare': 0.3 * v( 'noseW' ),
 		'nose-hump': 0.35 * v( 'bridge' ), 'nose-greek': 0.45 * v( 'bridge' ), 'eye-spacing': 0.6 * v( 'eyes' ),
@@ -330,7 +363,10 @@ function mhOf( o ) {
 	// age's own, past the macro's: the lids' bags, the lobes, the neck's fold
 	const aged = Math.max( 0, ( o.age ?? 0.2 ) - 0.45 ) / 0.55;
 	if ( aged > 0 ) Object.assign( mh, { 'eye-bag': 0.5 * aged, 'ear-lobe': 0.4 * aged, 'neck-double': 0.35 * aged * Math.max( 0.3, mh.weight + 0.5 ) } );
-	return Object.assign( mh, o.mhFit || {} );
+	Object.assign( mh, o.mhFit || {} );
+	// (---- FK2: and the cheeks' inner hollow the fits gave the lean men at half)
+	if ( mh[ 'cheek-inner' ] < 0 ) mh[ 'cheek-inner' ] *= 0.5;
+	return mh;
 
 }
 // the men from the photos: what FY4's numbers can't say (his face's mix, the eyes' fold and lids, the nose's
@@ -338,14 +374,16 @@ function mhOf( o ) {
 const FF3_MH = {
 	// Lidge: a long, lean face with a strong, jutting chin under the goatee, deep-set eyes under a straight
 	// brow, a long straight nose, thin lips (Getty 83485858, 83485929)
-	400058: { 'shape-rectangular': 0.45, 'nose-curve': - 0.2, 'mouth-height': - 0.2, 'eye-fold': 0.3, 'brow-angle': - 0.25, prognathism: 0.2, 'cheek-inner': - 0.3 },
+	400058: { 'shape-rectangular': 0.45, 'nose-curve': - 0.2, 'mouth-height': - 0.2, 'eye-fold': 0.3, 'brow-angle': - 0.25, prognathism: 0.2, 'cheek-inner': - 0.3,
+		// (---- FK2, CR1-12: broader and fuller in the cheek, Getty 83485858)
+		'shape-square': 0.25, cheeks: 0.35 },
 	// Ruiz: Panamanian; a broad, round face, heavy-lidded eyes, a wide nose, full lips (83485955)
 	434563: { african: 0.38, asian: 0.06, 'shape-round': 0.55, 'eye-size': - 0.3, 'eye-fold': 0.4, 'nose-height': - 0.2, 'cheek-height': - 0.2 },
 	// Hinske: a big round head, the red beard over a heavy jaw, small eyes
 	400134: { 'shape-round': 0.4, 'eye-size': - 0.35, 'nose-volume': 0.3, 'neck-double': 0.3 },
 	// Utley: angular, high cheekbones over hollow cheeks, a heavy brow, a flared jaw, narrow-set eyes, a
 	// straight nose (83485866; johnpaulendicott 2987990948)
-	400284: { 'shape-diamond': 0.35, 'cheek-inner': - 0.5, 'eye-size': - 0.2, 'nose-curve': - 0.15, 'mouth-angles': - 0.2 },
+	400284: { 'shape-diamond': 0.2, 'shape-square': 0.3, 'cheek-inner': - 0.5, 'eye-size': - 0.2, 'nose-curve': - 0.15, 'mouth-angles': - 0.2 }, // (---- FK2, CR1-12: the jaw squarer)
 	// Howard: a big round face, broad nose and full lips, heavy cheeks, a thick neck (83884253)
 	429667: { 'shape-round': 0.6, 'eye-size': - 0.15, 'nose-height': - 0.25, 'mouth-out': 0.3, 'neck-double': 0.25 },
 	// Rollins: a narrow face, high cheekbones, a small chin, a wide nose, big ears (94863165)
@@ -357,7 +395,7 @@ const FF3_MH = {
 	// Burrell: a square jaw and heavy brow, dark deep-set eyes, a strong nose (83571337)
 	150100: { 'shape-square': 0.6, 'nose-curve': 0.2, 'brow-angle': - 0.3, 'eye-fold': 0.25 },
 	// Hamels: narrow and fine, big eyes, a straight nose, a soft chin (83486314)
-	430935: { 'shape-oval': 0.5, 'eye-size': 0.35, 'nose-point': - 0.3, 'cheek-inner': - 0.2, 'forehead-vert': 0.2 },
+	430935: { 'shape-oval': 0.5, 'eye-size': 0.35, 'nose-point': - 0.3, 'cheek-inner': - 0.2, 'forehead-vert': 0.2, old: 0, cheeks: 0.15 }, // (---- FK2, CR1-12: 24 and smooth)
 	// Victorino: Hawaiian, of Portuguese, Japanese and native Hawaiian descent; a round face, wide
 	// cheekbones, narrow eyes, a broad nose (83571325)
 	425664: { african: 0.18, asian: 0.42, 'shape-round': 0.35, 'eye-epicanthus': 0.35, 'eye-size': - 0.2, 'eye-fold': 0.3 },
