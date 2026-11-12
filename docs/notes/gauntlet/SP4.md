@@ -73,9 +73,9 @@ In `sp4-a` (step 11's code), hiding the Kit's mesh was −5.0 ms in left field a
 
 **Looks:** the same numbers. `sp4-e`, old against new: left field mean |d| 1.06 (noise floor 1.83), upstairs 1.29 (1.17).
 
-### 4. The Escalator's palette as a uniform array (this branch's last commit)
+## Tried and dropped: the Escalator's palette as a uniform array
 
-The same pattern in `leftfield/Escalator.js` (`lf-escalator`, `lf-plaza-fittings`: 12 entries): `lfEscPal`. Measured in `sp4-f` (see the end).
+The same pattern in `leftfield/Escalator.js` (`lf-escalator`, `lf-plaza-fittings`, 12 entries). In `sp4-f`, uniform → register arrays was +0.08 opaque ms in left field and +0.15 upstairs: noise. Its meshes are small. Not committed.
 
 ## Tried and dropped: the Kit in culled pieces (step 10's lead)
 
@@ -136,7 +136,7 @@ In order of win per risk:
    - `Concourse3BProps.js:226`;
    - `concourse1b/Prints.js:628`;
    - `home/Build.js:86`;
-   - `FanHead.js:228-239`: per fan, so less.
+   - `FanHead.js:228-239`, `fhCoefs()`: not per fan as it looks. The Cast calls it for **every head vertex** of its near and middle figures (`Cast.js:1730`). That's four register arrays (`ETH` 8, `WT` 4, `LA` and `LB` 8 vec4s each), then a loop of 8 with four hashes each, all for numbers that are the figure's. Work them out once per figure (the Cast's look buffer), or at least make the arrays uniform. This goes in the Cast bundle; the Cast is ~2 ms in the 400s.
    
    Each is a uniform array with the same values. Measure each: the Kit's was per pixel over a whole corner.
 4. **The close level is still 408 fans in the 400s** (547k triangles, the pose twice). SP3's lead on the second `cwVertex` (the motion vectors) stands.
@@ -145,16 +145,44 @@ In order of win per risk:
 
 ## The numbers at the end
 
-The standard views on the final tree (`sp4-f`, exclusive, 09:10) are still running as this is written. They'll go below if they land in time.
+The standard views on this branch (`sp4-f`, exclusive, 09:10, TAAU 1.87-2.01), with two references:
+- **step 11 as published** (`s11-final`, 10-29, steady, TAAU 1.78-1.93);
+- **this morning's start** (`s12-start`, the same code as step 11, TAAU 1.88-2.47: warm, and slower all round).
+
+Wall / opaque ms:
+
+| View | Step 11 (10-29) | Today's start | **SP4** |
+|---|---|---|---|
+| **Left field, Harry's** | 27.95 / 21.67 | 31.97 | **22.66** / 15.42 |
+| **400s seat** | 28.92 / 22.23 | 38.21 | **28.84** / 21.18 |
+| Harry's upstairs looking out | 23.78 / 16.71 | 32.78 | 23.82 / 15.46 |
+| TV center | 20.11 / 12.51 | 23.22 | 22.22 / 13.26 |
+| TV high | 21.82 / 14.12 | 23.34 | 20.24 / 13.02 |
+| TV follow | 16.04 / 9.17 | 17.04 | 16.23 / 9.25 |
+| 3B concourse | 16.98 / 9.78 | 18.39 | 16.51 / 9.43 |
+| 3B field seat (the lounge) | 15.25 / 7.80 | 16.23 | 13.88 / 6.50 |
+| Upper seat behind home | 18.62 / 11.14 | 19.56 | 16.91 / 9.97 |
+| Rain TV high | 21.84 / 13.86 | 23.71 | 21.16 / 12.87 |
+| A real 3B field seat | 21.83 / 15.27 | 24.36 | 21.11 / 13.87 |
+| 3B plaza | 17.80 / 10.10 | 20.72 | 19.02 / 10.51 |
+| Celebration TV high | 21.23 / 14.41 | 25.70 | 21.32 / 14.04 |
+| Celebration TV center | 21.57 / 14.50 | 26.55 | 21.71 / 14.12 |
+
+- **Left field made its target:** 22.7 ms against 24. Every view is 34 fps or better, and the worst is the 400s at 28.8 ms.
+- **The 400s didn't, in this run.** Its opaque pass is 1.05 ms under step 11's, against the 3.2 ms the same-page A/Bs give (changes 1 and 2). The upstairs view is the same: 1.25 under, against the Kit's 2.8.
+- **Runs on different days don't compare well.** This morning's start is slower than step 11 in every view, those this branch can't touch included (the 3B concourse +1.4). This run is faster than this morning's in all of them.
+- So the A/Bs above are the like-for-like numbers. The standard views' play moments also differ from the A/Bs' held frames.
+- **For the coordinator:** run `perf.sh` on `ballpark` and on this branch back to back, on a cool machine. If the 400s is still over 26, A/B `__app.bowl.crowd.fanLod = false` under play.
+- **TV center** (22.2 against 20.1 on 10-29, 23.2 this morning) is the one view to watch. Its A/Bs say both crowd changes help there (−0.4 and −1.1 opaque), but it has the most split pieces: a long lens puts the near level's edge across many of them.
+- No console errors.
 
 ## What the merger must know
 
 - **Files:**
   - `src/engine/render/MeshRenderer.js`: `drawItems()` draws `instanceRanges` (one marked block);
   - `src/ballpark/Crowd.js`: `lod()` and `_split()`, `fanLod`; the uniform arrays `cwArmJ` / `cwHandK` (`ARM_U`, `HAND_U`) and the three functions that read them. Vertex and LOD path only: the look is FX4's;
-  - `src/ballpark/places/leftfield/Kit.js`: the palette uniform `lfPal`;
-  - `src/ballpark/places/leftfield/Escalator.js`: the palette uniform `lfEscPal`.
-  - Every block is marked `---- SP4`. No other fixer's files were touched. `LeftField.js` is unchanged in the end (the split's line was taken out with the split).
+  - `src/ballpark/places/leftfield/Kit.js`: the palette uniform `lfPal`.
+  - Every block is marked `---- SP4`. No other fixer's files were touched. `LeftField.js` and `Escalator.js` are unchanged in the end (both tries were dropped).
 - **`instanceRanges` is general.** Any instanced mesh can set it. The ranges are absolute instance indices, and a shader that indexes per-instance storage by `instance_index` gets the absolute index. Leave `instanceRangeCount` at 0 to draw everything. The crowd resets it every frame in `lod()`.
 - **Anything that walks a crowd piece's levels** (`ch.lods`) should know two levels can be visible at once now, each with its ranges.
 - `npm test` passes; `node test/continuity.mjs`: start hash 801248349, duration 3785.503.
