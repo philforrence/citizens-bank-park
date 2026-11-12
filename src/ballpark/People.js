@@ -2289,7 +2289,7 @@ export class People {
 
 			}
 
-			if ( spots.length ) doors.push( { st, spots, n: 0, until: 0, ppl: [] } );
+			if ( spots.length ) doors.push( { st, spots, n: 0, until: 0, roll: 0, ppl: [] } );
 
 		}
 
