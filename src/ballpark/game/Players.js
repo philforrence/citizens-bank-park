@@ -464,7 +464,10 @@ function expression( p, t, ch ) {
 function packLook( L ) {
 
 	const beard = Math.max( 0, Math.min( 7, L.beard | 0 ) );
-	const face = beard + ( L.eyeBlack ? 8 : 0 ) + ( L.glasses ? 16 : 0 );
+	// (---- FK2, CR1-14: the beard's density in 3 bits from 32, 0.45 to 1, and the moustache's shape in 2 from
+	// 256: Looks.js' beardD and mous)
+	const bdq = Math.round( ( Math.max( 0.45, Math.min( 1, L.beardD ?? 1 ) ) - 0.45 ) / 0.55 * 7 );
+	const face = beard + ( L.eyeBlack ? 8 : 0 ) + ( L.glasses ? 16 : 0 ) + bdq * 32 + ( ( L.mous | 0 ) & 3 ) * 256;
 	const palm = L.gloves ? L.gloves[ 0 ] : 0, strap = L.gloves ? L.gloves[ 1 ] : 0;
 	const style = ( L.socks === 'high' ? 1 : 0 ) + ( L.sleeves === 'short' ? 2 : 0 ) + ( L.sleeves === 'elbow' ? 4 : 0 ) +
 		( L.bands & 1 ? 8 : 0 ) + ( L.bands & 2 ? 16 : 0 ) + ( palm & 7 ) * 32 + ( strap & 7 ) * 256;
@@ -1344,7 +1347,15 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let hairBack = max( max( smoothstep( eye.y + 0.022, eye.y + 0.032, L.y ) * smoothstep( eye.z + 0.038, eye.z + 0.052, L.z ),
 				smoothstep( eye.y - 0.068, eye.y - 0.054, L.y ) * smoothstep( eye.z + 0.098, eye.z + 0.112, L.z ) ), smoothstep( eye.y + 0.055, eye.y + 0.065, L.y ) * smoothstep( eye.z + 0.035, eye.z + 0.06, L.z ) );
 			let burn = 0.8 * smoothstep( 0.05, 0.062, ax ) * smoothstep( eye.z + 0.028, eye.z + 0.052, L.z ) * smoothstep( eye.y - 0.04, eye.y - 0.012, L.y );
-			let hairK = clamp( max( hairBack, burn ) * ( 1.0 - earK ) * ( 0.95 + 0.25 * g2 ), 0.0, 1.0 );
+			// ---- FK2 (step 12, CR1-22): under the cap the temples were bare skin from the bill to the ear. The
+			// short hair comes down the side of the head to the top of the ear and round it, its front edge
+			// at the temple broken by the grain; the sideburns to the ear's middle (Getty 83485858: Lidge's
+			// reddish hair over the ears; 83483794: Feliz's black sideburns into the beard; 83483743:
+			// Manuel's white hair over the ears)
+			let temple2 = smoothstep( 0.046, 0.058, ax ) * smoothstep( eye.y - 0.004, eye.y + 0.006, L.y ) * smoothstep( eye.z + 0.034 + 0.006 * g2, eye.z + 0.046 + 0.006 * g2, L.z );
+			let burn2 = smoothstep( 0.05, 0.06, ax ) * smoothstep( eye.z + 0.032, eye.z + 0.044, L.z ) * smoothstep( eye.y - 0.03, eye.y - 0.02, L.y );
+			let hairK = clamp( max( max( hairBack, burn ), max( temple2, burn2 * 0.9 ) ) * ( 1.0 - earK ) * ( 0.95 + 0.25 * g2 ), 0.0, 1.0 );
+			// ---- end FK2
 			if ( hairK > 0.0 ) {
 				let temple = smoothstep( 0.05, 0.075, ax ) * smoothstep( eye.z + 0.13, eye.z + 0.06, L.z ) * age;
 				let hc = mix( hairC, vec3f( 0.42, 0.41, 0.4 ), temple * 0.7 ) * ( 0.7 + 0.6 * g1 );
@@ -1379,8 +1390,20 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let front = smoothstep( -0.058, -0.082, L.z );
 			let jl = jawY - 0.008 + 0.034 * smoothstep( 0.02, 0.07, ax ); // the jaw's edge, rising to the ear
 			let mx2 = ( ax / 0.028 ) * ( ax / 0.028 );
-			let mous = smoothstep( m.y + 0.003 + 0.004 * mx2, m.y + 0.008 + 0.004 * mx2, L.y ) * ( 1.0 - smoothstep( m.y + 0.016 - 0.007 * mx2, m.y + 0.022 - 0.007 * mx2, L.y ) ) * ( 1.0 - smoothstep( 0.02, 0.031, ax ) ) * lipsOut * fw;
-			let chinM = ( 1.0 - smoothstep( 0.012, 0.032, ax ) * 0.85 ) * ( 1.0 - smoothstep( 0.024, 0.034, ax ) ) * ( 1.0 - smoothstep( m.y - 0.016, m.y - 0.009, L.y ) ) * smoothstep( jawY - 0.018, jawY - 0.006, L.y ) * front * lipsOut;
+			// ---- FK2 (step 12, CR1-14): the moustache his own (Looks.js' mous: 0 full, 1 a thin line along the
+			// lip, 2 down round the corners, 3 sparse), and the beard's density (beardD: the skin through it)
+			let mShape = ( face >> 8u ) & 3u;
+			let bDen = 0.45 + f32( ( face >> 5u ) & 7u ) / 7.0 * 0.55;
+			let mTop = select( 0.0, 0.0065, mShape == 1u );
+			let mW = select( select( 0.031, 0.026, mShape == 1u ), 0.034, mShape == 2u );
+			var mous = smoothstep( m.y + 0.003 + 0.004 * mx2, m.y + 0.008 + 0.004 * mx2, L.y ) * ( 1.0 - smoothstep( m.y + 0.016 - mTop - 0.007 * mx2, m.y + 0.022 - mTop - 0.007 * mx2, L.y ) ) * ( 1.0 - smoothstep( mW - 0.011, mW, ax ) ) * lipsOut * fw;
+			if ( mShape == 2u ) { mous = max( mous, 0.85 * smoothstep( 0.019, 0.024, ax ) * ( 1.0 - smoothstep( 0.029, 0.034, ax ) ) * smoothstep( m.y - 0.022, m.y - 0.012, L.y ) * ( 1.0 - smoothstep( m.y + 0.006, m.y + 0.012, L.y ) ) * lipsOut * fw ); }
+			if ( mShape == 3u ) { mous = mous * smoothstep( 0.25, 0.6, g1 + 0.3 * g2 ); }
+			// ---- end FK2
+			// (---- FK2, CR1-14: not down the throat: the goatee stops at the chin's underside, where the face turns
+			// under (the face's own normal), so in profile it's on the chin, not a block hanging off it)
+			let chinUnder = smoothstep( -0.35, -0.75, Nb.y ) * ( 1.0 - smoothstep( jawY - 0.004, jawY + 0.006, L.y ) );
+			let chinM = ( 1.0 - smoothstep( 0.012, 0.032, ax ) * 0.85 ) * ( 1.0 - smoothstep( 0.024, 0.034, ax ) ) * ( 1.0 - smoothstep( m.y - 0.016, m.y - 0.009, L.y ) ) * smoothstep( jawY - 0.012, jawY - 0.002, L.y ) * front * lipsOut * ( 1.0 - 0.7 * chinUnder );
 			let corner = 0.62 * smoothstep( 0.017, 0.022, ax ) * ( 1.0 - smoothstep( 0.027, 0.033, ax ) ) * smoothstep( m.y - 0.028, m.y - 0.018, L.y ) * ( 1.0 - smoothstep( m.y + 0.006, m.y + 0.012, L.y ) ) * lipsOut * fw;
 			let yTop = mix( m.y + 0.016, eye.y - 0.034, smoothstep( 0.022, 0.064, ax ) ) + 0.004 * g2;
 			let cheekTop = 1.0 - smoothstep( yTop - 0.012, yTop + 0.004, L.y );
@@ -1392,21 +1415,33 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			if ( beardK == 4u ) { bd = max( max( chinM, mous ), corner ); }
 			if ( beardK == 5u ) { bd = max( fullM, mous ); }
 			if ( beardK == 6u ) { bd = mous; }
-			if ( beardK == 7u ) { bd = max( max( strap, mous ), chinM ); }
+			if ( beardK == 7u ) { bd = max( max( strap * ( 1.0 - chinUnder ), mous ), chinM ); } // (---- FK2: the strap off the throat)
 			// the stubble: the beard's whole ground in shade, and the dots of the hairs where it's heavy
 			let stubZone = max( fullM, max( mous, chinM ) ) * fw;
 			let stub = stubble * select( 0.45, 0.85, beardK == 2u );
 			c = mix( c, c * mix( vec3f( 0.74, 0.72, 0.75 ), min( hairC / max( skinC, vec3f( 0.01 ) ), vec3f( 1.0 ) ), 0.15 ), stub * stubZone );
 			c = mix( c, hairC, stub * stubZone * 0.5 * smoothstep( 0.55, 0.8, g1 ) );
 			// the beard itself: its edge broken, the hairs grained, the skin under it showing at its thin edge
-			let bk = smoothstep( 0.3, 0.75, bd + 0.22 * g2 );
+			// (---- FK2, CR1-14: thinner than a decal: his density, the skin through it hair by hair, and the
+			// full beard darker and denser at the chin and the moustache than up the cheeks, as it grows)
+			let bk = smoothstep( 0.3, 0.75, bd + 0.22 * g2 ) * mix( 1.0, smoothstep( 0.2, 0.55, g1 + 0.25 * g2 ), 1.0 - bDen ) * bDen;
 			if ( bk > 0.0 ) {
-				c = mix( c, hairC * 0.9 * ( 0.55 + 0.75 * g1 ), bk * ( 0.78 + 0.2 * g1 ) );
+				let core = select( 1.0, mix( 1.0, 0.72, max( chinM, mous ) ), beardK == 5u );
+				c = mix( c, hairC * 0.9 * core * ( 0.55 + 0.75 * g1 ), bk * ( 0.78 + 0.2 * g1 ) );
 				rough = mix( rough, 0.82, bk );
 			}
 			// eye black: a greasy smudge on each cheekbone (FY2: a smudge, not a bar)
-			let ebk = length( vec2f( ( ax - 0.032 ) / 0.017, ( L.y - eye.y + 0.022 ) / 0.0085 ) );
-			if ( ( face & 8u ) != 0u && ebk < 1.0 ) { c = mix( c, vec3f( 0.012 ), smoothstep( 1.0, 0.55, ebk ) * fw ); rough = 0.35; }
+			// ---- FK2 (step 12, CR1-21): a greasy smear, not two holes: a rounded rectangle on the cheekbone's top,
+			// a little wider than tall and tipped down to the outside, its edge broken and thinning, the skin's
+			// sheen across it (it read as a second pair of empty sockets, round and pure black)
+			let ebq = vec2f( ( ax - 0.033 ) / 0.019, ( L.y - eye.y + 0.021 + 0.12 * ( ax - 0.033 ) ) / 0.0095 );
+			let ebk = pow( pow( abs( ebq.x ), 4.0 ) + pow( abs( ebq.y ), 4.0 ), 0.25 ) + 0.18 * g2;
+			if ( ( face & 8u ) != 0u && ebk < 1.0 ) {
+				let eb = smoothstep( 1.0, 0.7, ebk ) * fw * ( 0.82 + 0.16 * g1 );
+				c = mix( c, vec3f( 0.022, 0.02, 0.019 ), eb );
+				rough = mix( rough, 0.36, eb );
+			}
+			// ---- end FK2
 			// age: the lines round the eyes and down from the nose
 			if ( age > 0.5 ) {
 				let crow = smoothstep( 0.05, 0.054, ax ) * ( 1.0 - smoothstep( 0.061, 0.065, ax ) ) * ( 1.0 - smoothstep( 0.008, 0.013, abs( L.y - eye.y ) ) ) * smoothstep( 0.2, 0.0, abs( fract( L.y * 260.0 ) - 0.2 ) );
@@ -1442,7 +1477,17 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			// under the cap's bill (or the helmet's) its shadow from the brow down over the eyes, the strongest
 			// thing on a ballplayer's face under the banks (FY2; FOX's close-up of Burrell, Getty 83485455),
 			// soft round the temples
-			if ( ( role & ${ R.nocap }u ) == 0u ) { c = c * mix( 1.0, 0.62, smoothstep( eye.y - 0.075, eye.y + 0.025, L.y ) * fw2 ); }
+			// ---- FK2 (step 12, CR1-12): it was a domino mask, a band from the cheekbones up with an edge across
+			// the cheeks, the same on every man at any tilt. Now it falls from the bill over the brows and the
+			// upper lids (Getty 83483794: Feliz's eyes read in it), its edge soft and lower as he looks down,
+			// higher as his head goes back (Lidge's shout: his face out from under it), from the head's own pitch
+			if ( ( role & ${ R.nocap }u ) == 0u ) {
+				let Mh = plBones[ slotU * ${ NB }u + ${ BONES.head }u ];
+				let hf = normalize( ( Mh * vec4f( 0.0, 0.0, -1.0, 0.0 ) ).xyz );
+				let edgeY = eye.y - 0.008 - 0.045 * clamp( - hf.y * 2.0, 0.0, 1.0 ) + 0.035 * clamp( hf.y * 2.0, 0.0, 1.0 );
+				c = c * mix( 1.0, 0.6, smoothstep( edgeY - 0.022, edgeY + 0.03, L.y ) * fw2 );
+			}
+			// ---- end FK2
 			// the jaw's underside in shade
 			c = c * ( 1.0 - 0.24 * smoothstep( -0.2, -0.65, Nb.y ) * ( 1.0 - smoothstep( jawY, jawY + 0.025, L.y ) ) );
 			// hair doesn't carry the skin's light under it (the wrap lit the goatees orange)
@@ -1487,11 +1532,16 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		let side = sign( L.x );
 		let ec = vec3f( side * ${ f( F.eyeR[ 0 ] ) }, ${ f( F.eyeR[ 1 ] ) }, ${ f( F.eyeR[ 2 ] ) } );
 		let d = normalize( L - ec );
-		c = vec3f( 0.62, 0.6, 0.56 ); rough = 0.08;
+		c = vec3f( 0.7, 0.68, 0.64 ); rough = 0.06; // (---- FK2, CR1-12: the whites a shade brighter: 0.62)
 		// (FY3: blue or grey-green eyes for some of the fair-skinned men, by seed; brown for the rest)
 		let iris = select( vec3f( 0.06, 0.035, 0.02 ), select( vec3f( 0.07, 0.1, 0.14 ), vec3f( 0.08, 0.09, 0.06 ), fract( seed * 53.1 ) < 0.15 ), skinC.r > 0.45 && fract( seed * 31.7 ) < 0.45 );
 		if ( d.z < -0.93 ) { c = iris * ( 0.8 + 0.4 * smoothstep( -0.93, -0.975, d.z ) ); }
 		if ( d.z < -0.985 ) { c = vec3f( 0.005 ); }
+		// ---- FK2 (CR1-12): a catchlight on the cornea, up and to the outside of the pupil (the banks' and the
+		// sky's reflection; the eyes read as glass, not paint)
+		let cl = length( d - normalize( vec3f( side * 0.16, 0.2, -1.0 ) ) );
+		s.emissive = s.emissive + frame.sunColor * vec3f( 0.95, 0.97, 1.0 ) * ( 0.1 + 0.5 * smoothstep( 0.15, 0.7, frame.night ) * ${ f( NIGHT_FILL ) } ) * smoothstep( 0.075, 0.035, cl );
+		// ---- end FK2
 	}
 	// ---- FX1 (step 11): the teeth (Rig.js' two arches): enamel, a shade down between each pair, the edges
 	// a little grey where they thin, the gum above the upper ones and below the lower; darker round toward
