@@ -28,6 +28,22 @@ const PALETTE = [
 	[ 'dome', [ 0.72, 0.72, 0.7 ], 0.3, 0, [ 1.6, 1.52, 1.38 ] ], [ 'hid', [ 0.9, 0.9, 0.86 ], 0.3, 0, [ 9.0, 8.6, 7.6 ] ],
 	[ 'can', [ 0.8, 0.78, 0.72 ], 0.3, 0, [ 4.0, 3.5, 2.8 ] ], [ 'trim', [ 0.05, 0.05, 0.055 ], 0.5, 0.3 ], [ 'grate', [ 0.16, 0.165, 0.17 ], 0.6, 0.5 ],
 	[ 'concrete', [ 0.36, 0.35, 0.33 ], 0.75, 0 ],
+	// ---- FX2 (SC1-16): a handrail's galvanizing, worn by hands and weather to a duller, rougher grey than
+	// the treads' and the deck's (Getty 83485581: silver-grey under the lights): at 0.42 a dome 2 m off
+	// lit the whole top facet of the Terrace's stair rails white, end to end
+	// (---- FK1 repair, SC1-16: still a white bar. The bar under SC1's pixel is this handrail, 0.67 m from the
+	// eye, a dome 1.5 m over it: at 0.4, 60% of it matte, the lamp bleached its whole lit side. Weathered
+	// zinc is darker and mostly metal: it takes a highlight, not a coat of white. Its pipes are round to
+	// the light too: terrace/Build.js roundPipe)
+	[ 'railGalv', [ 0.27, 0.275, 0.28 ], 0.72, 0.62 ],
+	// ---- end FX2
+	// ---- FK1: a back-of-house door's grey paint (---- its repair: in its wall pack's light, as the doors of the
+	// stands' backs are, Concourse.js `doorlit`: unlit it was a black leaf in a lit wall), and the concrete
+	// head of a stand's bay in the hall wall, in what its lit back and floor throw up at it
+	[ 'doorGrey', [ 0.11, 0.115, 0.12 ], 0.5, 0.15, [ 0.043, 0.039, 0.033 ] ],
+	[ 'bayHead', [ 0.36, 0.35, 0.33 ], 0.75, 0, [ 0.016, 0.014, 0.0115 ] ],
+	// (the door's other side, on the concourse: in the concourse's own light, no wall pack's)
+	[ 'doorConc', [ 0.2, 0.205, 0.21 ], 0.55, 0.15 ],
 ];
 const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
 const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;
@@ -282,10 +298,16 @@ export class Along {
 // (y): the bricks' tones, the mortar, a darker base course; `wash`: after dark the spots along its top
 // (every 3 m at y = wash) throw scallops of warm light down it (docindigo76, NLCS 2009, the Third Base
 // Gate's atrium: the brick over the walkway lit by a row of spots)
-export function brickWGSL( { wash = null, base = null } = {} ) {
+// ---- FK1 repair (step 12): `ring` (a wall pack's height over the floor), for the hall wall's faces toward the
+// back of house: the bond from where the brick is (the world's y is the height over the main concourse),
+// the uv free for its light, which is FX3's for the stands' backs (Concourse.js blockWGSL): the wall pack's
+// pool (uv.x the metres along the face from under it, uv.y its distance off the face's plane) and the bounce
+// off the floor, less of it up the wall
+export function brickWGSL( { wash = null, base = null, ring = null } = {} ) {
 
 	return /* wgsl */`
-	let u = in.uv.x; let v = in.uv.y;
+	${ ring !== null ? `let nh = normalize( in.N.xz + vec2f( 1e-4, 0.0 ) );
+	let u = in.P.x * ( - nh.y ) + in.P.z * nh.x; let v = in.P.y;` : 'let u = in.uv.x; let v = in.uv.y;' }
 	let row = floor( v / 0.075 );
 	let bu = u / 0.2 + 0.5 * ( row % 2.0 );
 	let fr = clamp( fwidth( v ) / 0.075 * 1.5 - 0.25, 0.0, 1.0 );
@@ -303,6 +325,14 @@ export function brickWGSL( { wash = null, base = null } = {} ) {
 		let wdt = 0.25 + 0.42 * dy;
 		let k = ( 1.0 - smoothstep( wdt * 0.55, wdt, du ) ) * smoothstep( 0.05, 0.6, dy ) * exp( - dy / 3.2 );
 		s.emissive = s.albedo * vec3f( 1.0, 0.85, 0.62 ) * k * mix( 0.3, 2.2, smoothstep( 0.1, 0.7, frame.night ) );
+	}` : '' }
+	${ ring !== null ? `
+	{
+		let dv = v - ${ ring.toFixed( 3 ) };
+		let r2 = in.uv.x * in.uv.x + in.uv.y * in.uv.y + dv * dv * select( 1.0, 4.0, dv > 0.0 );
+		let pool = 1.4 / ( 1.0 + r2 / 0.9 ) * ( 1.0 - smoothstep( 0.1, 0.5, dv ) * 0.85 );
+		let bounce = 0.1 * mix( 1.0, 0.45, smoothstep( 2.5, 9.0, v ) );
+		s.emissive = s.albedo * vec3f( 1.0, 0.88, 0.7 ) * ( pool * mix( 0.35, 1.0, smoothstep( 0.1, 0.7, frame.night ) ) + bounce );
 	}` : '' }
 `;
 
@@ -382,10 +412,12 @@ export function toFacade( p, n ) {
 
 export class ConcourseSteel {
 
-	constructor( { group, bowl, field = null, colliders = null } ) {
+	constructor( { group, bowl, field = null, colliders = null, backs = [] } ) {
 
 		this.field = field;
 		this.colliders = colliders;
+		// ---- FK1 repair: the stands' backs along the hall wall (Concourse.js), for its bays
+		this.backs = backs;
 
 		this.group = group;
 		this.bowl = bowl;
@@ -474,11 +506,173 @@ export class ConcourseSteel {
 		const w0 = WL.nearest( OUT.at( this.closedS[ 0 ] ).x, OUT.at( this.closedS[ 0 ] ).z ), w1 = WL.nearest( OUT.at( this.closedS[ 1 ] ).x, OUT.at( this.closedS[ 1 ] ).z );
 		const pts = [ w0, ...WL.cum.filter( ( c ) => c > w0 && c < w1 ), w1 ].map( ( c ) => WL.at( c ) );
 		const brick = new Quads();
-		let u = 0;
+		// ---- FK1 (the one-sided wall; its repair, step 12): the wall's outer face, 0.3 m behind, toward the back
+		// of house (the ring you reach from the gates' ends). From there the wall was a see-through nothing onto
+		// the stands' backs and the concourse; FK1's first outer face was one unlit plane, black on both of the
+		// replay's nights, across the stands' lit backs (FX3's, step 11: Concourse._unit). So the outer face
+		// opens a bay at every stand's back: the back with its service door, plaque, name and wall pack stands
+		// in a recess the stand's width and height, the brick returning to it each side under a concrete head
+		// and a steel lintel. Between the bays and over them the brick is lit as FX3 lit the backs (its own
+		// material: a pool under each wall pack and the bounce off the floor, whatever the concourse's lights
+		// pick), and every wall pack, the backs' and the wall's own, throws its pool on the floor. Where the
+		// wall runs 3 m or more without a stand, a back-of-house door (grey hollow metal in a dark frame, a kick
+		// plate, a lever) under a wall pack of its own, its conduit up the wall to a box; the door is there on
+		// the wall's inner face too, between the stands on the concourse. The collider is as it was
+		// (concourse-wall: you stop at a bay's mouth, where the see-through wall stopped you).
+		const T = 0.3, LAMP = 2.86, ring = new Quads(), pools = new Quads(), q = this.q, up = [ 0, 1, 0 ];
+		// a face of the ring's brick from A to B ([ x, z ]), y0 to y1 over the floor: its uv the metres along
+		// it from under its wall pack (x) and the wall pack's distance off its plane (y: 40, none)
+		const lit = ( A, B, y0, y1, n, uA, uB, off ) => {
+
+			const a = [ A[ 0 ], STREET + y0, A[ 1 ] ], b = [ B[ 0 ], STREET + y0, B[ 1 ] ], c = [ B[ 0 ], STREET + y1, B[ 1 ] ], d = [ A[ 0 ], STREET + y1, A[ 1 ] ];
+			ring.tri( a, b, c, n, [ uA, off ], [ uB, off ], [ uB, off ] );
+			ring.tri( a, c, d, n, [ uA, off ], [ uB, off ], [ uA, off ] );
+
+		};
+		// a wall pack's pool on the floor: a quad whose uv is the metres from under the lamp, along and out
+		const pool = ( P, s0, s1, d0, d1, sl, dl ) => {
+
+			const c = [ [ s0, d0 ], [ s1, d0 ], [ s1, d1 ], [ s0, d1 ] ].map( ( [ s, d ] ) => {
+
+				const p = P( s, d );
+				return [ [ p[ 0 ], STREET + 0.012, p[ 1 ] ], [ s - sl, dl - d ] ];
+
+			} );
+			pools.tri( c[ 0 ][ 0 ], c[ 1 ][ 0 ], c[ 2 ][ 0 ], up, c[ 0 ][ 1 ], c[ 1 ][ 1 ], c[ 2 ][ 1 ] );
+			pools.tri( c[ 0 ][ 0 ], c[ 2 ][ 0 ], c[ 3 ][ 0 ], up, c[ 0 ][ 1 ], c[ 2 ][ 1 ], c[ 3 ][ 1 ] );
+
+		};
+		const dirs = [];
 		for ( let i = 0; i < pts.length - 1; i ++ ) {
 
-			const a = pts[ i ], b = pts[ i + 1 ], l = Math.hypot( b.x - a.x, b.z - a.z );
-			brick.add( [ a.x, STREET, a.z ], [ b.x, STREET, b.z ], [ b.x, yU, b.z ], [ a.x, yU, a.z ], [ a.nx, 0, a.nz ], u, u + l );
+			const a = pts[ i ], b = pts[ i + 1 ], l = Math.hypot( b.x - a.x, b.z - a.z ), ux = ( b.x - a.x ) / l, uz = ( b.z - a.z ) / l;
+			// toward the field (a corner's own way, from WL.at, is the stretch before it: the inner face of the
+			// stretch after a turn was shaded 45 degrees off)
+			let nx = - uz, nz = ux;
+			if ( nx * ( - a.x ) + nz * ( - 40 - a.z ) < 0 ) {
+
+				nx = - nx; nz = - nz;
+
+			}
+
+			dirs.push( { a, b, l, ux, uz, nx, nz } );
+
+		}
+
+		this.ringDoors = [];
+		let u = 0;
+		dirs.forEach( ( { a, b, l, ux, uz, nx, nz }, i ) => {
+
+			brick.add( [ a.x, STREET, a.z ], [ b.x, STREET, b.z ], [ b.x, yU, b.z ], [ a.x, yU, a.z ], [ nx, 0, nz ], u, u + l );
+			// s along the stretch, d toward the field from the inner face, y over the floor
+			const P = ( s, d ) => [ a.x + ux * s + nx * d, a.z + uz * s + nz * d ], out = [ - nx, 0, - nz ], along = [ ux, 0, uz ];
+			const P3 = ( s, d, y ) => [ a.x + ux * s + nx * d, STREET + y, a.z + uz * s + nz * d ];
+			// where the wall turns, the outer faces run on to meet (the ring is outside the turn)
+			const mitre = ( j ) => j < 0 || j >= dirs.length ? 0 : T * Math.tan( Math.acos( Math.min( 1, ux * dirs[ j ].ux + uz * dirs[ j ].uz ) ) / 2 );
+			const e0 = mitre( i - 1 ), e1 = mitre( i + 1 ), hU = yU - STREET;
+			// the stands' backs along this stretch, 0.9 m in front of the inner face
+			const bays = [];
+			for ( const B of this.backs ) {
+
+				const dx = B.x - a.x, dz = B.z - a.z, dp = dx * nx + dz * nz, s = dx * ux + dz * uz;
+				if ( B.n[ 0 ] * nx + B.n[ 1 ] * nz < 0.99 || dp < 0.4 || dp > 1.6 || s - B.w < 0.3 || s + B.w > l - 0.3 ) continue;
+				bays.push( { s0: s - B.w, s1: s + B.w, dp, h: B.h, sl: s + B.lx * ( B.a[ 0 ] * ux + B.a[ 1 ] * uz ) } );
+
+			}
+
+			bays.sort( ( p, r ) => p.s0 - r.s0 );
+			let s = - e0;
+			for ( const Y of [ ...bays, null ] ) {
+
+				// the brick up to this bay (or to the stretch's end): its wall packs, each lighting its share of it,
+				// a door under each. Not in the wall's two ends, which stand clear of the last stand, brick on both
+				// sides (the tile mosaic is on the 3B one's other side): a wall pack lights each end, no door
+				const r1 = Y ? Y.s0 : l + e1, len = r1 - s, stub = ( i === 0 && Y === ( bays[ 0 ] || null ) ) || ( i === dirs.length - 1 && ! Y );
+				const nd = stub ? ( len >= 1.5 ? 1 : 0 ) : len >= 3 ? Math.max( 1, Math.round( len / 11 ) ) : 0;
+				for ( let j = 0; j < Math.max( 1, nd ); j ++ ) {
+
+					const c0 = s + len * j / Math.max( 1, nd ), c1 = s + len * ( j + 1 ) / Math.max( 1, nd );
+					// (a door clear of the frame's columns, which stand 0.4 m in front of the wall's other face)
+					let sd = ( c0 + c1 ) / 2, door = nd > 0 && ! stub;
+					if ( door ) for ( const C of this.columns || [] ) {
+
+						const cs = ( C.x - a.x ) * ux + ( C.z - a.z ) * uz;
+						if ( Math.abs( ( C.x - a.x ) * nx + ( C.z - a.z ) * nz ) > 1.6 || Math.abs( cs - sd ) >= 0.95 ) continue;
+						sd = [ cs + ( sd >= cs ? 0.95 : - 0.95 ), cs - ( sd >= cs ? 0.95 : - 0.95 ) ].find( ( v ) => v > c0 + 0.75 && v < c1 - 0.75 ) ?? sd;
+						door = Math.abs( cs - sd ) > 0.9;
+
+					}
+
+					if ( len > 0.01 ) lit( P( c0, - T ), P( c1, - T ), 0, hU, out, c0 - sd, c1 - sd, nd ? 0.17 : 40 );
+					if ( ! nd ) continue;
+					const at = ( dy, o ) => P3( sd, - T - o, dy ), run = ( v, m ) => v.map( ( c, k ) => c + along[ k ] * m );
+					if ( door ) {
+
+						// the leaf in its frame, the kick plate, the lever; and the door's other side on the wall's
+						// inner face, toward the concourse (not behind an elevator's core, which stands against it)
+						const sides = [ [ ( dy, o ) => at( dy, o ), 0.36, 'doorGrey' ] ];
+						const [ px, pz ] = P( sd, 0 );
+						if ( ! ( bowl.elevators || [] ).some( ( b ) => Math.hypot( b.stops[ 0 ].x - px, b.stops[ 0 ].z - pz ) < 9 ) ) sides.push( [ ( dy, o ) => P3( sd, o, dy ), - 0.36, 'doorConc' ] );
+						for ( const [ D, lever, paint ] of sides ) {
+
+							q.use( 'trim' );
+							obox( q, D( 1.08, 0.025 ), along, 1.12, up, 2.2, out, 0.05 );
+							q.use( paint );
+							obox( q, D( 1.06, 0.05 ), along, 0.96, up, 2.1, out, 0.03 );
+							q.use( 'galv' );
+							obox( q, D( 0.16, 0.068 ), along, 0.92, up, 0.25, out, 0.006 );
+							obox( q, run( D( 1.02, 0.09 ), lever ), along, 0.04, up, 0.16, out, 0.05 );
+
+						}
+
+						this.ringDoors.push( P3( sd, - T, 0 ) );
+
+					}
+					// the wall pack (the fixture on the stands' backs, at their height), its conduit up the wall
+					// to a box and away along it
+					q.use( 'trim' );
+					obox( q, at( LAMP + 0.12, 0.1 ), along, 0.34, up, 0.24, out, 0.2 );
+					q.use( 'can' );
+					obox( q, at( LAMP - 0.005, 0.12 ), along, 0.28, up, 0.012, out, 0.14 );
+					q.use( 'conduit' );
+					pipe( q, at( LAMP + 0.24, 0.03 ), at( 4.5, 0.03 ), 0.011, 5 );
+					obox( q, at( 4.56, 0.04 ), along, 0.12, up, 0.12, out, 0.07 );
+					pipe( q, run( at( 4.56, 0.03 ), 0.06 ), run( at( 4.56, 0.03 ), Math.min( 2.4, len / 2 - 0.1 ) ), 0.011, 5 );
+					pool( P, sd - 5, sd + 5, - T - 5.6, - T, sd, - T - 0.12 );
+
+				}
+
+				if ( ! Y ) break;
+				// the bay: the brick over it, its two returns back to the stand (lit by the back's wall pack; their
+				// other side closes the slot behind the stand toward the concourse), the head, the lintel
+				lit( P( Y.s0, - T ), P( Y.s1, - T ), Y.h, hU, out, 0, 0, 40 );
+				for ( const [ se, sg ] of [ [ Y.s0, 1 ], [ Y.s1, - 1 ] ] ) {
+
+					lit( P( se, - T ), P( se, Y.dp ), 0, Y.h, [ ux * sg, 0, uz * sg ], - T - Y.dp + 0.12, 0.12, Math.abs( Y.sl - se ) );
+					brick.add( P3( se, 0, 0 ), P3( se, Y.dp, 0 ), P3( se, Y.dp, Y.h ), P3( se, 0, Y.h ), [ - ux * sg, 0, - uz * sg ], 0, Y.dp );
+
+				}
+
+				const sm = ( Y.s0 + Y.s1 ) / 2, w = Y.s1 - Y.s0;
+				q.use( 'bayHead' );
+				obox( q, P3( sm, ( Y.dp - T ) / 2 + 0.01, Y.h + 0.07 ), along, w, up, 0.14, out, Y.dp + T - 0.02 );
+				q.use( 'trim' );
+				obox( q, P3( sm, - T - 0.012, Y.h + 0.09 ), along, w + 0.4, up, 0.2, out, 0.03 );
+				// the back's wall pack's pool: in the bay, and out through its mouth onto the ring's floor
+				pool( P, Y.s0, Y.s1, - T, Y.dp, Y.sl, Y.dp - 0.12 );
+				pool( P, Y.sl - 5, Y.sl + 5, - T - 5.6, - T, Y.sl, Y.dp - 0.12 );
+				s = Y.s1;
+
+			}
+
+			if ( i === 0 || i === dirs.length - 1 ) {
+
+				// its ends, where the open ring meets it
+				const se = i === 0 ? 0 : l, sg = i === 0 ? - 1 : 1;
+				brick.add( P3( se, 0, 0 ), P3( se, - T, 0 ), P3( se, - T, hU ), P3( se, 0, hU ), [ ux * sg, 0, uz * sg ], 0, T );
+
+			}
+
 			u += l;
 			if ( this.colliders && this.field ) {
 
@@ -487,8 +681,35 @@ export class ConcourseSteel {
 
 			}
 
-		}
+		} );
+		// the ring's brick and the pools on its floor
+		{
 
+			const rm = standard( { name: 'concourse-brick-ring', color: new Color( 0.25, 0.068, 0.04 ), roughness: 0.85, surface: brickWGSL( { base: 0.6, ring: LAMP } ) } );
+			rm.underwaterLighting = 'none';
+			rm.setDefine( 'DRY', 1 );
+			const rmesh = new Mesh( ring.geometry(), rm );
+			rmesh.name = 'concourse-hall-wall-ring';
+			rmesh.receiveShadow = true;
+			this.group.add( rmesh );
+			// (the floor is Bowl.js's street-level slab: the light is laid over it, added to what it has. The
+			// cosine law under a lamp 2.86 m up, thrown out from the wall, gone 5 m off)
+			const pm = standard( { name: 'concourse-ring-pools', color: new Color( 0, 0, 0 ), transparent: true, depthWrite: false, blending: 'additive', lit: false,
+				surface: /* wgsl */`
+	let h = ${ LAMP.toFixed( 2 ) };
+	let d2 = dot( in.uv, in.uv ) + h * h;
+	let E = h * h * h / ( d2 * sqrt( d2 ) ) * smoothstep( - 0.5, 0.4, in.uv.y ) * ( 1.0 - smoothstep( 3.2, 5.0, max( abs( in.uv.x ), in.uv.y ) ) );
+	s.albedo = vec3f( 0.36, 0.35, 0.33 ) * vec3f( 1.0, 0.88, 0.7 ) * E * 0.45 * mix( 0.35, 1.0, smoothstep( 0.1, 0.7, frame.night ) );
+	s.alpha = 1.0;
+` } );
+			pm.underwaterLighting = 'none';
+			const pmesh = new Mesh( pools.geometry(), pm );
+			pmesh.name = 'concourse-ring-pools';
+			pmesh.layers.set( 2 ); // the late (transparent) pass
+			this.group.add( pmesh );
+
+		}
+		// ---- end FK1
 		// ---- FI1 (CI-23): a tile mosaic on the brick by the Third Base Gate (the 2008 guide: 'Unique tile
 		// mosaics by local artist Jonathan Mandell are on the Main Concourse'; a 6 x 8 ft piece, a 2004 note;
 		// where and what they showed isn't on record: this design is invented, a batter in pinstripes at the

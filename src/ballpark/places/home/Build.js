@@ -40,8 +40,12 @@ export const PAL = {
 	pink: [ [ 0.75, 0.3, 0.45 ], 1.0, 0.0, 0.05, 0 ],
 	blue: [ [ 0.25, 0.45, 0.75 ], 1.0, 0.0, 0.05, 0 ],
 	lemon: [ [ 0.8, 0.72, 0.2 ], 0.3, 0.0, 0, 0 ],
-	pad: [ [ 0.022, 0.05, 0.16 ], 0.45, 0.0, 0, 1 ],
-	padSeam: [ [ 0.012, 0.028, 0.09 ], 0.5, 0.0, 0, 1 ],
+	// ---- FK1 repair (step 12): the Diamond Club's pads in the seats' navy (Stands.js seatGeometry(): the
+	// dusky navy of the 2008 photos, as its pan's shade renders it). They had kept the old royal blue, hue
+	// 223 at 73% on plastic at 234-240 and 50%: a two-tone seat
+	pad: [ [ 0.062, 0.074, 0.17 ], 0.45, 0.0, 0, 1 ],
+	padSeam: [ [ 0.04, 0.048, 0.11 ], 0.5, 0.0, 0, 1 ],
+	// ---- end FK1 repair
 	blanketRed: [ [ 0.3, 0.02, 0.03 ], 1.0, 0.0, 0, 0 ],
 	blanketPlaid: [ [ 0.1, 0.12, 0.08 ], 1.0, 0.0, 0, 0 ],
 	blanketGrey: [ [ 0.25, 0.25, 0.26 ], 1.0, 0.0, 0, 0 ],

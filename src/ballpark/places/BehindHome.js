@@ -5,7 +5,7 @@ import { SeatMap } from './home/Seats.js';
 import { Fans, hash } from './home/Fans.js';
 import { dressBoth } from './home/Dress.js';
 import { paletteMaterial } from './home/Build.js';
-import { buildClub } from './home/Club.js';
+import { buildClub, buildPads } from './home/Club.js'; // ---- FK1 repair: buildPads
 import { Signs } from './home/Signs.js';
 import { seatRegulars, holdSigns } from './home/Regulars.js';
 import { Gear, GEAR } from './home/Gear.js';
@@ -69,6 +69,11 @@ export default class BehindHome {
 		// the things: the club's ledge and what's on it (one draw; each night's things fold away on the other)
 		this.things = buildClub( seats ).mesh( this.material, 'home-things' );
 		this.group.add( this.things );
+		// ---- FK1 repair (step 12): the club's pan cushions, which fold with their pans (home/Club.js buildPads;
+		// its update() below, after the fans')
+		this.pads = buildPads( seats, { crowd: bowl.crowd, field } );
+		this.group.add( this.pads.mesh );
+		// ---- end FK1 repair
 		// the vendors' gear (and anything else in the air: a bag of peanuts, the ball)
 		this.gear = new Gear( this.group );
 		// what's heard here
@@ -252,6 +257,7 @@ export default class BehindHome {
 			this.fouls.update( sdt, N, director, camera );
 			this.moments.update( N );
 			this.fans.update( sdt, N );
+			this.pads.update(); // ---- FK1 repair
 			holdSigns( this );
 			this.blankets.update( N );
 			this.fouls.draw( camera );
