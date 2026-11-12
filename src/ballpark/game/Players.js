@@ -3,7 +3,7 @@ import { StorageBuffer } from '../../engine/gpu/Texture.js';
 import { standard } from '../../materials/Materials.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
 import { buildPlayerGeometry, solvePose, skinMatrices, neutralPose, NB, BONES, PART, UNIFORM, FACE, DIM, JOINTS as BODY_JOINTS, PHAN, PHANATIC_PARTS } from './Rig.js';
-import { look as lookFor, FACE_PACK } from './Looks.js';
+import { look as lookFor } from './Looks.js';
 import { HEAD, bakeFace, exprRecords, EXPR_VEC4 } from './Faces.js'; // ---- FF3 (---- FK2: EXPR_VEC4)
 import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 
@@ -25,7 +25,10 @@ const MAX = 96;
 const COSTUMES = 4; // the Phanatic's costume's draw: at most this many of him at once
 const LOD_PX = 128; // ---- SP2: a player shorter than this on screen (px of the view's height) is drawn far
 const MID_PX = 480; // ---- SP2: ... and shorter than this from the middle figure
-const K = 5; // vec4s per slot (---- FY4: the fifth, the face's shape)
+// vec4s per slot. The fifth (FY4's, once the face's sixteen shape numbers, which FF3's MakeHuman faces
+// retired): x the shout's weight this frame (FK2), w the neck's thickness (0 to 62, 31 the base neck); y and
+// z are free
+const K = 5;
 const Z16 = new Float32Array( 16 );
 const CELL = 128, COLS = 8, ROWS = 16, ATLAS_W = CELL * COLS, ATLAS_H = CELL * ROWS;
 // where the chest's cell goes on the jersey (m: its width, its height, its bottom in the bind pose): the
@@ -240,12 +243,15 @@ export class Players {
 			}
 
 			const k = p.packed, o = i * K * 4;
-			this.info.set( [ p.kind, expression( p, et, champs ), p.role || 0, p.seed || 0 ], o ); // (---- FF3: his expression)
+			this.info.set( [ p.kind, 0, p.role || 0, p.seed || 0 ], o );
 			this.info.set( [ k.skin[ 0 ], k.skin[ 1 ], k.skin[ 2 ], p.dirt || 0 ], o + 4 );
 			this.info.set( [ k.hair[ 0 ], k.hair[ 1 ], k.hair[ 2 ], k.face ], o + 8 );
 			this.info.set( [ k.style, k.belly, k.jaw, k.ageStubble ], o + 12 );
-			this.info.set( k.shape, o + 16 ); // ---- FY4
-			this.info[ o + 16 ] = _shout; // ---- FK2: the shout's weight (expression(), above)
+			this.info.set( [ 0, 0, 0, k.neck ], o + 16 ); // (---- FY4: the neck)
+			// (---- FF3: his expression's three weights into the first vec4's y; ---- FK2: the shout's into the
+			// fifth's x. ---- FK2 repair: expression() writes both where they go; the shout left it through a
+			// module variable)
+			expression( p, et, champs, this.info, o );
 
 		}
 
@@ -412,50 +418,62 @@ export class Players {
 //  - from strike three (Director.champsAt) the Phillies shout and grin, in bursts, through the pile, and
 //    laugh and smile on through the celebration; Lidge on his knees, arms up, the mouth wide, his eyes
 //    screwed up (Getty 83485858, 83485929); the Rays' faces set; the crew smiling
-// ---- FK2: the shout's weight (0-1) for the slot's i4.x, set by expression() alongside the packed three
-let _shout = 0;
+// ---- FK2: and the shout's weight (0-1). Written into the slot's numbers: the three weights packed into
+// info[ o + 1 ], the shout into info[ o + 16 ] (the fifth vec4's x)
 const sstep = ( a, b, x ) => { const k = Math.min( 1, Math.max( 0, ( x - a ) / ( b - a ) ) ); return k * k * ( 3 - 2 * k ); };
-function expression( p, t, ch ) {
+export function expression( p, t, ch, info, o ) {
 
-	_shout = 0;
-	if ( p.kind === KIND.phanatic ) return 0;
+	info[ o + 1 ] = 0;
+	info[ o + 16 ] = 0;
+	if ( p.kind === KIND.phanatic ) return;
 	const fr = ( x ) => x - Math.floor( x );
 	const s = fr( ( p.seed || 0 ) * 97.31 + p.slot * 0.6180339 );
 	const per = 2.5 + 3.5 * fr( s * 37.1 ), bt = fr( t / per + s ) * per;
 	let blink = Math.max( bt < 0.16 ? Math.sin( bt / 0.16 * Math.PI ) : 0, 0.1 + 0.14 * fr( s * 3.1 ) );
-	let open = 0, smile = 0;
+	let open = 0, smile = 0, shout = 0;
 	if ( fr( s * 7.3 ) < 0.4 && p.kind !== KIND.ump ) open = 0.04 + 0.06 * Math.max( 0, Math.sin( t * ( 7 + 3 * fr( s * 5.1 ) ) + s * 40 ) );
 	if ( ch ) {
 
 		const lt = ch.lt;
+		// ---- FK2 repair (step 12, SK1's F3 again): strike three still stepped. Lidge's own shout eased in, but
+		// under it the champions' face (the grin, the mouth a quarter to nine tenths open) landed in one frame
+		// on every Phillie: open 10 and smile 0 of 255 at K - 0.05, open 71 and smile 152 at K + 0.03. Each man's
+		// face now goes from the one he had to the champions' over a quarter second, starting when he sees it:
+		// Lidge at once (he threw it), the rest up to an eighth of a second after him, each his own; the
+		// crew's smile and the Rays' set jaws the same way
+		const lidge = p.look.id === 400058;
+		const lag = lidge ? 0 : 0.125 * fr( s * 4.7 );
+		const e = sstep( lag, lag + 0.25, lt );
 		if ( p.kind === KIND.home ) {
 
 			const burst = Math.max( 0, Math.sin( lt * ( 1.6 + fr( s * 2.3 ) ) + s * 30 ) );
-			smile = 0.5 + 0.35 * fr( s * 1.9 );
-			open = lt < 40 ? 0.25 + 0.65 * burst : 0.12 * burst + 0.55 * Math.max( 0, Math.sin( lt * 0.31 + s * 20 ) ) ** 8;
+			smile = ( 0.5 + 0.35 * fr( s * 1.9 ) ) * e;
+			open += ( ( lt < 40 ? 0.25 + 0.65 * burst : 0.12 * burst + 0.55 * Math.max( 0, Math.sin( lt * 0.31 + s * 20 ) ) ** 8 ) - open ) * e;
 			// (---- FX1: the eyes screwed up harder, the cheeks pushed up into them, now the jaw drops on the
 			// GPU too: Getty 83485858 and 83485929, the eyes all but shut and the mouth wide)
 			// (---- FK2, SK1's F3: eased in over a quarter second at strike three and out over half a second from
 			// +4.5 s: it snapped in a frame. And the shout on top: the jaw lower, the lip up, the brows down)
 			// (---- FK2: the pile's biggest bursts in its first half minute shout too, the brows down with the jaw)
-			if ( lt < 40 ) _shout = 0.65 * Math.max( 0, ( burst - 0.55 ) / 0.45 ) * ( 1 - sstep( 28, 40, lt ) );
-			if ( p.look.id === 400058 ) {
+			if ( lt < 40 ) shout = 0.65 * Math.max( 0, ( burst - 0.55 ) / 0.45 ) * ( 1 - sstep( 28, 40, lt ) ) * e;
+			if ( lidge ) {
 
 				const w = sstep( 0, 0.25, lt ) * ( 1 - sstep( 4.5, 5.0, lt ) );
 				open += ( 1 - open ) * w;
 				smile += ( 0.45 - smile ) * w;
 				blink += ( Math.max( blink, 0.9 ) - blink ) * w;
-				_shout = Math.max( _shout * ( 1 - w ), w );
+				shout = Math.max( shout * ( 1 - w ), w );
 
 			}
 
-		} else if ( p.kind === KIND.away ) { open = Math.min( open, 0.05 ); }
-		else if ( p.kind === KIND.crew ) { smile = 0.45; }
+		} else if ( p.kind === KIND.away ) { open += ( Math.min( open, 0.05 ) - open ) * e; }
+		else if ( p.kind === KIND.crew ) { smile = 0.45 * e; }
+		// ---- end FK2 repair
 
 	}
 
 	const q = ( x ) => Math.round( Math.max( 0, Math.min( 1, x ) ) * 255 );
-	return q( open ) + q( smile ) * 256 + q( blink ) * 65536;
+	info[ o + 1 ] = q( open ) + q( smile ) * 256 + q( blink ) * 65536;
+	info[ o + 16 ] = shout;
 
 }
 // ---- end FF3
@@ -475,22 +493,13 @@ function packLook( L ) {
 	return {
 		skin: L.skin, hair: L.hair, face, style, belly: L.belly || 0, jaw: L.jaw || 0,
 		ageStubble: age + Math.max( 0, Math.min( 0.99, L.stubble ?? 0.4 ) ),
-		shape: packFace( L.face ), // ---- FY4
+		// ---- FY4: the neck's thickness (the look's face.neck, -1 to 1) as 0 to 62, 31 the base neck exactly.
+		// (---- FK2 repair: the neck alone. FY4 packed the face's sixteen numbers here, six bits each in four
+		// floats; FF3's faces retired the other fifteen and nothing read them)
+		neck: Math.round( ( Math.max( - 1, Math.min( 1, ( L.face && L.face.neck ) || 0 ) ) + 1 ) * 31 ),
 	};
 
 }
-
-// ---- FY4: the face's sixteen numbers (Looks.js' FACE_PACK, -1 to 1) six bits each, four to a float (whole
-// numbers under 2^24, exact in an f32)
-function packFace( face ) {
-
-	const b = ( k ) => Math.round( ( Math.max( - 1, Math.min( 1, ( face && face[ k ] ) || 0 ) ) + 1 ) * 31 ); // (0 to 62: 31 is the base face exactly)
-	const out = [ 0, 0, 0, 0 ];
-	FACE_PACK.forEach( ( k, i ) => out[ i >> 2 ] += b( k ) * 64 ** ( i & 3 ) );
-	return out;
-
-}
-// ---- end FY4
 
 // the rig's geometry split by its triangles' parts: [ the rest, those in `parts` ], sharing the vertices
 function splitByPart( g, parts ) {
@@ -827,8 +836,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 	var fd = vec3f( 0.0 );
 	var hdrop = 0.0; // (---- FK2: the head's drop, for the cap's clamp below)
 	if ( keep && ! phan && lp3.y > ${ f( U.collar - 0.012 ) } && arm < -0.5 && leg < -0.5 ) {
-		let qa = vec4u( plInfo[ slot * ${ K }u + 4u ] + 0.5 );
-		let neckN = f32( ( qa.w >> 12u ) & 63u ) / 31.0 - 1.0;
+		let neckN = floor( plInfo[ slot * ${ K }u + 4u ].w + 0.5 ) / 31.0 - 1.0; // (---- FK2 repair: the fifth vec4's w is the neck alone)
 		let x = lp3.x; let y = lp3.y; let z = lp3.z;
 		let drop = 0.007 + 0.003 * neckN;
 		hdrop = drop;
@@ -885,7 +893,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			dn += vec3f( na, nc.x ) * ex.x + vec3f( nc.y, ne ) * ex.y + vec3f( 0.0, ng ) * ex.z;
 			// ---- FK2 (step 12, SK1's F1 and the squint): the shout on top (build-body's EXPR: the jaw lower,
 			// the upper lip lifted off the teeth, the corners in, the brows down and knit, the cheeks up), its
-			// weight the slot's i4.x (expression(), each frame; FY4's first face number there is no longer read)
+			// weight the slot's i4.x (expression(), each frame)
 			let sw = plInfo[ slot * ${ K }u + 4u ].x;
 			if ( sw > 0.0 ) {
 				let e2 = plExpr[ hv * ${ EXPR_VEC4 }u + 2u ];
