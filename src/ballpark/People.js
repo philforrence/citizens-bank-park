@@ -2255,13 +2255,55 @@ export class People {
 		// the people: one for every 3.5 m of route (at least two a route), 48 in all at most
 		const routes = this._ways.routes.filter( ( r ) => r.L > 3 );
 		this._ways.routes = routes;
-		if ( ! routes.length ) return;
-		this.climbers = new Cast( { parent: this.field.group, max: 48 } );
+		// and the elevators' doors (Bowl._elevators: the infield's banks on the main concourse, FI1's cores; the
+		// Alley's tower at the Alley and the Pavilion, FA1's): a place for three to wait at each, either side
+		// of the doors and a step out from them, where there's floor and nothing in the way (the middle kept
+		// clear: the walker arrives there off a ride, and rides from there)
+		const doors = [], tmp = new Vector3();
+		for ( const bank of this._bowl?.elevators || [] ) for ( const st of bank.stops ) {
+
+			if ( ! /^(Main concourse|Ashburn Alley|Pavilion)$/.test( st.name ) || doors.length >= 8 ) continue;
+			const n = st.face, a = [ n[ 1 ], - n[ 0 ] ], spots = [];
+			for ( const [ l, o ] of [ [ - 1.4, 0.9 ], [ 1.45, 1.0 ], [ - 2.1, 1.3 ], [ 2.05, 1.35 ], [ - 0.95, 1.55 ], [ 0.9, 1.6 ] ] ) {
+
+				if ( spots.length >= 3 ) break;
+				const fx = st.x - n[ 0 ] * ( 1.8 - o ) + a[ 0 ] * l, fz = st.z - n[ 1 ] * ( 1.8 - o ) + a[ 1 ] * l;
+				const w = F.toWorld( fx, fz ), wy = F.y0 + st.y;
+				// (the bowl's ground is the field's frame, the colliders' the world's)
+				const gy = Math.max( this._bowl.heightAt ? this._bowl.heightAt( fx, fz ) + F.y0 : - Infinity, C.groundHeightAt( w.x, w.z, wy + 0.4 ) );
+				if ( Math.abs( gy - wy ) > 0.15 ) continue;
+				tmp.set( w.x, wy, w.z );
+				if ( C.resolveCapsule( tmp, 0.3, 1.7 ) ) continue;
+				// (and out of the way of the people going by: the stairs' climbers, the throng's walkers)
+				if ( routes.some( ( R ) => R.pts.some( ( q ) => Math.abs( q[ 1 ] - st.y ) < 1 && Math.hypot( q[ 0 ] - fx, q[ 2 ] - fz ) < 0.9 ) ) ) continue;
+				if ( ( this._thrLines || [] ).some( ( ln ) => ln.pts.some( ( q, k ) => {
+
+					if ( Math.abs( st.y - STREET ) > 1 || k === ln.pts.length - 1 ) return false;
+					const r = ln.pts[ k + 1 ], ux = r[ 0 ] - q[ 0 ], uz = r[ 1 ] - q[ 1 ], ul2 = ux * ux + uz * uz || 1;
+					const u = Math.max( 0, Math.min( 1, ( ( fx - q[ 0 ] ) * ux + ( fz - q[ 1 ] ) * uz ) / ul2 ) );
+					const B = ln.band[ k ] || [ - 3, 3 ];
+					return Math.hypot( q[ 0 ] + ux * u - fx, q[ 1 ] + uz * u - fz ) < Math.max( - B[ 0 ], B[ 1 ] ) + 0.6;
+
+				} ) ) ) continue;
+				spots.push( [ fx, fz ] );
+
+			}
+
+			if ( spots.length ) doors.push( { st, spots, n: 0, until: 0, ppl: [] } );
+
+		}
+
+		if ( ! routes.length && ! doors.length ) return;
+		this.climbers = new Cast( { parent: this.field.group, max: 48 + doors.length * 3 } );
 		this._waysTempo = new Tempo( [ this.climbers ], { every: 4 } );
 		let n = 0;
+		// (one for every 3.5 m, fewer all round when that's over 48, so every route has its two: the 400s'
+		// ten stairs came last and went without)
+		const want = routes.map( ( R ) => Math.min( 14, R.L / 3.5 ) ), sum = want.reduce( ( a, b ) => a + b, 0 );
+		const sc = Math.min( 1, ( 48 - 2 * routes.length ) / Math.max( 1e-3, sum - 2 * routes.length ) );
 		for ( const [ ri, R ] of routes.entries() ) {
 
-			const k = Math.max( 2, Math.min( 14, Math.round( R.L / 3.5 ) ) );
+			const k = Math.max( 2, Math.min( 14, 2 + Math.floor( ( want[ ri ] - 2 ) * Math.max( 0, sc ) ) ) );
 			for ( let j = 0; j < k && n < 48; j ++, n ++ ) {
 
 				const r = rng( thrHash( 51000 + n * 7 ) );
@@ -2277,13 +2319,37 @@ export class People {
 
 		}
 
+		for ( const [ i, D ] of doors.entries() ) {
+
+			for ( let j = 0; j < D.spots.length; j ++ ) {
+
+				const r = rng( thrHash( 61000 + i * 13 + j * 5 ) );
+				const L = dress( r );
+				const p = this.climbers.add( L );
+				if ( ! p ) break;
+				p.scale = sizeOf( L, r );
+				p.visible = false;
+				D.ppl.push( { p, look: L, seed: 900 + i * 3 + j } );
+
+			}
+
+		}
+
+		this._ways.doors = doors.filter( ( D ) => D.ppl.length );
+		this._waysV = [ new Vector3(), new Vector3() ];
+
 	}
 
 	_waysUpdate( dt, d ) {
 
 		if ( ! this._ways ) this._waysBuild();
 		const W = this._ways;
-		if ( ! W.slots.length ) return;
+		if ( ! W.slots.length && ! W.doors?.length ) return;
+		// a jump in the night's time (the first frame, a seek): everyone dealt again for the new moment, the
+		// climbers part-way along their trips (so a stair isn't empty the moment it's shown)
+		const t = d ? d.t : ( this._waysT ?? 0 ) + dt;
+		if ( this._waysT === undefined || Math.abs( t - this._waysT - dt ) > 2 ) W.jump = true;
+		this._waysT = t;
 		const sdt = this._waysTempo.step( dt, this._waysCam );
 		this.climbers.update();
 		if ( ! sdt ) return;
@@ -2299,6 +2365,7 @@ export class People {
 		for ( const S of W.slots ) {
 
 			const R = S.R, p = S.p, a = p.pose;
+			if ( W.jump ) { S.on = false; S.wait = 0; }
 			if ( ! S.on ) {
 
 				// between trips: off the stair; a new trip when his wait's up (its way and whether he's out by
@@ -2309,7 +2376,7 @@ export class People {
 				const h = rng( thrHash( S.seed * 131 + S.trip * 17 + 3 ) );
 				S.on = h() < dens;
 				S.up = h() < up;
-				S.s = 0;
+				S.s = W.jump ? h() * R.L * 0.9 : 0;
 				S.rail = h() < 0.3;
 				S.wait = 1 + h() * 7;
 				if ( ! S.on ) { p.visible = false; continue; }
@@ -2352,6 +2419,109 @@ export class People {
 			a.kneeR = kU * ( S.up ? 0.85 : 0.45 ) * Math.max( 0, - st );
 			a.lean = kU * ( S.up ? 0.12 : - 0.04 );
 			a.headPitch = kU * ( S.up ? 0.12 : 0.28 );
+
+		}
+
+		this._waitersUpdate( sdt, ns, rain );
+		W.jump = false;
+
+	}
+
+	// the elevators' doors: a few waiting at each, by the moment (the walk-in, going home, the rain delay
+	// more; in play a few; at the last out nobody new), facing the doors, one watching the floor over them,
+	// hands in pockets, arms folded, a phone at the ear, a beer. A new lot only while the door's out of
+	// sight (over 45 m off or behind you: nobody appears or goes before your eyes), every half a minute to
+	// a minute and a half. At strike three the ones there turn to the field with their arms up
+	_waitersUpdate( sdt, ns, rain ) {
+
+		const W = this._ways, cam = this._waysCam, F = this.field;
+		if ( ! W.doors?.length ) return;
+		let cx = 0, cz = 0, cy = 0, fx = 0, fy = 0, fz = - 1;
+		if ( cam ) {
+
+			const [ P, Q ] = this._waysV;
+			cam.getWorldPosition( P );
+			cam.getWorldDirection( Q );
+			[ cx, cz ] = F.toField( P.x, P.z );
+			cy = P.y - F.y0;
+			[ fx, fz ] = F.toField( Q.x, Q.z );
+			fy = Q.y;
+
+		}
+
+		const unseen = ( st ) => {
+
+			if ( ! cam || W.jump || this._waysTempo.cut ) return true;
+			const dx = st.x - cx, dy = st.y + 1.2 - cy, dz = st.z - cz, dl = Math.hypot( dx, dy, dz ) || 1;
+			return dl > 45 || ( dx * fx + dy * fy + dz * fz ) / dl < 0.3;
+
+		};
+
+		let want = ns.top ? 0.8 : 0.6;
+		if ( ns.seg?.kind === 'intro' || ( ns.inning === 1 && ns.half === 'top' && ( ns.snap?.outs || 0 ) === 0 ) ) want = 2.2;
+		else if ( ns.suspended ) want = 1.4;
+		else if ( ns.between ) want = 1.6;
+		if ( ns.inning === 9 && ! ns.celebrate ) want = 0.25;
+		if ( ns.celebrate ) want = ns.celebrateT < 90 ? 0 : 2.6;
+		const cheer = ns.celebrate && ns.celebrateT < 90;
+		for ( const [ i, D ] of W.doors.entries() ) {
+
+			const st = D.st;
+			D.until = W.jump ? 0 : D.until - sdt;
+			if ( D.until <= 0 && unseen( st ) ) {
+
+				D.roll ++;
+				const h = rng( thrHash( 77000 + i * 911 + D.roll * 31 ) );
+				D.n = Math.min( D.ppl.length, Math.round( want * ( 0.3 + 1.4 * h() ) ) );
+				D.until = 30 + 60 * h();
+				D.cheer = false;
+				for ( const [ j, Q ] of D.ppl.entries() ) {
+
+					const p = Q.p, a = p.pose;
+					p.visible = j < D.n;
+					if ( ! p.visible ) continue;
+					const L = { ...Q.look };
+					if ( ! ( rain > 0.45 && h() < 0.35 ) ) L.poncho = 0; else if ( ! L.poncho ) L.poncho = 1;
+					this.climbers.setLook( p, L );
+					Object.assign( a, restPose() );
+					const [ x, z ] = D.spots[ j ];
+					p.x = x + ( h() - 0.5 ) * 0.24;
+					p.z = z + ( h() - 0.5 ) * 0.24;
+					p.y = st.y;
+					// facing the doors (st.face points out from them), turned a little either way
+					p.yaw = Math.atan2( st.face[ 0 ], st.face[ 1 ] ) + ( h() - 0.5 ) * 0.6;
+					Q.yaw = p.yaw;
+					a.headPitch = j === 0 ? - 0.24 : h() * 0.15;
+					const g = h();
+					const put = ( G ) => { if ( G[ 0 ] ) a.armL = G[ 0 ].slice(); if ( G[ 1 ] ) a.armR = G[ 1 ].slice(); };
+					if ( g < 0.25 ) put( GESTURE.pockets );
+					else if ( g < 0.4 ) put( GESTURE.fold );
+					else if ( g < 0.55 ) { put( GESTURE.phone ); a.propR = PROP.phone; a.headPitch = 0.1; }
+					else if ( g < 0.7 ) { put( GESTURE.carry ); a.propR = PROP.beer; }
+
+				}
+
+			}
+
+			// strike three: the ones waiting turn to the field, arms up
+			if ( cheer && ! D.cheer && D.n ) {
+
+				D.cheer = true;
+				for ( let j = 0; j < D.n; j ++ ) {
+
+					const a = D.ppl[ j ].p.pose, R0 = restPose();
+					D.ppl[ j ].p.yaw = Math.atan2( - st.face[ 0 ], - st.face[ 1 ] ) + ( j - 1 ) * 0.25;
+					a.armL = R0.armL; a.armR = R0.armR;
+					const G = j % 2 ? GESTURE.fist : GESTURE.cheer;
+					if ( G[ 0 ] ) a.armL = G[ 0 ].slice();
+					if ( G[ 1 ] ) a.armR = G[ 1 ].slice();
+					a.propR = 0;
+					a.headPitch = - 0.2;
+					a.mouth = 1;
+
+				}
+
+			}
 
 		}
 
