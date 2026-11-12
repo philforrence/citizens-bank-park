@@ -30,3 +30,13 @@ Step 12 is the same loop as steps 9 and 11 ([STEP9.md](STEP9.md), [STEP11.md](ST
 | CR2 | Critic, the field and the broadcast: the grass, the dirt, the walls, the boards and the play itself as FOX's cameras show them, against Game 5 stills |
 
 Next in line as slots free: the outside and outfield bundle, the field's-edge people on the players' rig, the indoors bundle, the Cast and the throng, the Phanatic, and fresh spot checks and breakers on whatever merges.
+
+## Where it stopped (2026-11-12, 17:56)
+
+The owner: "actually wind down and make notes for when I tell you to pick it up". Everything running was stopped. Nothing is published; stage 11 is still the last stage on the site.
+
+- **Merged on `ballpark`:** SP4 (speed: left field 27.9 → 22.1 ms), FK1 (the seats), FK2 (the players), FK3 (the outfield walk), FK5 (the standing people). Each was sent back once by its skeptic for a real defect, repaired, and passed by a second skeptic.
+- **Finished by their fixers but not yet judged:** FK6 (the rain on FOX's long lenses), FK7 (the backstop's ads and the paint), FK8 (the ground), each on its own branch.
+- **Held:** FK4 (indoors), until 7 suites can be walked into again.
+- **Not started or barely:** SP5 (the speed track that turns per-fan crowd levels on without losing detail), the fresh critics SC2 and AD2, the cameras.
+- **To pick up:** the ordered list at the end of [../gauntlet/STEP12-LOG.md](../gauntlet/STEP12-LOG.md), "Where step 12 stopped". The queue is `.claude/gauntlet/s12/TICKETS.md`.

@@ -1,6 +1,10 @@
 # 🛑 START HERE: where we are
 
-**Thursday 2026-11-12: step 12 is running** ([STEP12.md](docs/notes/worlds/STEP12.md), log in [STEP12-LOG.md](docs/notes/gauntlet/STEP12-LOG.md)): the gauntlet again, starting from step 11's queue with a speed track. Not published yet.
+**Thursday 2026-11-12, evening: step 12 is stopped part way, not published** ([STEP12.md](docs/notes/worlds/STEP12.md)). The owner said to wind down and leave notes.
+- **Merged on `ballpark`:** speed (left field 27.9 → 22.1 ms), the seats (folding pans, the 2008 navy, the dugout roofs, the Deck's stairwells, the hall wall), the players (caps, Lidge's shout, faces and beards, the champions' cap), the outfield walk (the Pavilion concourse's stands, the Right Field Gate's court, the Alley elevator), the standing people (the rail at strike three, climbers on the stairs).
+- **Finished but not yet judged:** the rain on FOX's long lenses, the backstop's ads half inning by half inning, the ground (drying agent, mowing, chalk, bases).
+- **Held:** indoors, until 7 suites can be walked into again.
+- **To pick up:** the ordered list under "Where step 12 stopped" at the end of [STEP12-LOG.md](docs/notes/gauntlet/STEP12-LOG.md).
 
 **Thursday 2026-10-29, late morning: step 11 is merged and published as stage 11** ([STEP11.md](docs/notes/worlds/STEP11.md)): the gauntlet again, with spot checks, a breaker and skeptics.
 - **The players' mouths open:** Lidge's shout at strike three, with teeth.

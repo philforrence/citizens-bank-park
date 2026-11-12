@@ -106,3 +106,37 @@ The plan is [../worlds/STEP12.md](../worlds/STEP12.md). Newest at the bottom. Ti
   - **Still running:** round 2's FK6 (the rain), FK7 (the backstop), FK8 (the ground). **Held until they merge:** the cameras (CR2-4), since a new lens changes what their skeptics compare.
 - **The frame-rate re-run (17:49) doesn't count either:** seven agents were starting at once and wall times ran 37-147 ms. The combined tree's clean number is still owed ([PERF.md](PERF.md)); the estimate stands at about 29.3 ms for the 400s seat. It's taken at the next moment nothing else is working.
 - **The owner (17:54): "okay wind down after this round and publish".** No new launches from here. What's out finishes: round 2's FK6 (the rain), FK7 (the backstop) and FK8 (the ground) through their skeptics and one repair; FK4's second repair and its third skeptic; SP5 through its skeptic and reviewer; the critics SC2 and AD2, whose findings go into `TICKETS.md` for next time, not to fixers. Each branch that passes is merged with the usual checks. Then, on a quiet machine: the clean frame rate, the walk audit, stage 12's screenshot, the notes, the `step-12` tag and the push. **Not in this step:** the cameras (CR2-4), the outside, the Phanatic, the field's-edge people, and every "left" list above.
+- **The owner (17:55): "actually wind down and make notes for when I tell you to pick it up".** Everything was stopped at 17:56: the four running workflows and the loop. Nothing is published and nothing was pushed (`ballpark` is 116 commits ahead of `origin`). Stage 11 is still the last stage on the site.
+
+## Where step 12 stopped (2026-11-12, 17:56)
+
+**Merged on `ballpark`, each passed by a skeptic after one repair** (tests pass, the clock is kept, the walk audit loses no route):
+
+| Key | What | Branch merged |
+|---|---|---|
+| SP4 | Speed: the crowd's and left field's tables as uniform arrays (left field 27.9 → 22.1 ms). Per-fan crowd levels are in but switched off (`crowd.fanLod = true`) | `worktree-agent-a1e062b292aa8d7ad` |
+| FK5 | The standing people: caps and pom-poms, slick ponchos, the rail at strike three, climbers on the new stairs | `worktree-wf_ea58af0a-f20-11` |
+| FK3 | The outfield walk: the Pavilion concourse's stands, the Right Field Gate's court, the Alley elevator, umbrellas and awnings, the roofs | `worktree-wf_ea58af0a-f20-10` |
+| FK1 | The seats: folding pans and cushions, the navy, nosings, dugout roofs, tunnel mouths, the Deck's stairwells, the hall wall's lit bays | `worktree-wf_e827367a-b28-1` |
+| FK2 | The players: caps over foreheads, Lidge's shout, faces and beards by player, the champions' cap, seated pinstripes | `worktree-wf_e827367a-b28-2` |
+
+**Not merged. To pick up, in this order:**
+
+1. **Round 2's three branches** (from CR2, what FOX's centre camera shows on every pitch). Each fixer had finished its tickets and was on its last touches; **none has been to a skeptic or reviewer yet.**
+   - **FK6, the rain on the long lenses:** `worktree-wf_eba190d9-3b3-1`, 7 commits, notes `FK6.md` committed. One uncommitted tweak to `game/Rain.js` is saved as `.claude/gauntlet/s12/wip/FK6-uncommitted.patch` (26 lines, nobody has reviewed it; it's also still in the worktree).
+   - **FK7, the backstop's boards and the paint:** `worktree-wf_eba190d9-3b3-2`, 7 commits (the last merges `ballpark` in); its notes are a first draft. Uncommitted work on `places/home/Backstop.js` is saved as `wip/FK7-uncommitted.patch` (145 lines, unreviewed, also still in the worktree).
+   - **FK8, the ground:** `worktree-wf_eba190d9-3b3-3`, 12 commits, all nine tickets. Its notes `FK8.md` were written but never committed: a copy is `wip/FK8.md`.
+   - **Do:** for each, read the uncommitted patch and commit what's sound, commit the notes, then put the branch to a skeptic and a reviewer (`step12-refute.js`), repair once if sent back (`step12-repair.js`), merge with the checks. The fixers' briefs are `args-round2-FK6-FK7-FK8.json`.
+2. **FK4, indoors:** `worktree-wf_ea58af0a-f20-12` passed its second skeptic but is held, because 7 of the 24 suites (1, 6, 8, 12, 17, 18, 22) can only be jumped into (`SK2-FK4.md`). Its second repair had only merged the branch in when it was stopped. **Do:** launch `step12-repair.js` with `args-FK4-repair3.json`, then the walk audit (the suites' unreached cells back to about 4) and the merge.
+3. **SP5, the speed track:** stopped before it changed anything. The 400s seat is the park's heaviest view (see the last row of [PERF.md](PERF.md)) and the bowl gained detail today. **Do:** launch `step12-fix-pipeline.js` with `args-SP5.json` (the crowd's levels made to agree at their edges, then `fanLod` on; the far crowd's pose maths in the compute kernel).
+4. **The critics SC2 and AD2:** stopped five minutes in. SC2 had drawn its 24 random spots and run one job (`.claude/gauntlet/s12/r2/SC2/picks.json`, `j1`), with no findings written; AD2 hadn't shot. **Do:** launch `step12-critique.js` with `args-critique-SC2-AD2.json`.
+5. **Then the queue** in `.claude/gauntlet/s12/TICKETS.md`: the cameras (CR2-4, the centre lens 20% too wide; after round 2 merges), CR2's play and far boards, the outside, the Phanatic, the field's-edge people, the walker's tunnelling, and each merged branch's "left" list (the seats 2, the players 2, the standing people 2, the outfield 2).
+6. **To publish as stage 12** (only when the owner asks): `npm test`, `node test/continuity.mjs` (801248349 / 3785.503), the walk audit, a clean frame-rate run with every view at 30 fps or better, `docs/stages/step-12.jpg` through the render desk, "How it ended" in [STEP12.md](../worlds/STEP12.md), START-HERE.md and CLAUDE.md, then the annotated tag `step-12` and `git push origin ballpark step-12` (the deploy workflow builds every `step-N` tag).
+
+**How to run it again:**
+- The four workflow scripts and the saved launch arguments are in `.claude/gauntlet/workflows/` (local, gitignored): `step12-fix-pipeline.js` (fixer → skeptic and reviewer → one repair → re-check), `step12-refute.js` (a skeptic and a reviewer for one returned branch), `step12-repair.js` (a repairer and a second skeptic), `step12-critique.js` (read-only critics). Pass the script's path and the arguments to the Workflow tool.
+- Subagents run on Fable while the weekly Fable limit is under 70% (it was at about 50% at the stop), on Opus 5.5 from there (CLAUDE.md).
+- **Usage is the pace.** Seven or eight agents use a whole 5-hour window in about two hours; three or four last the window. Agents caught at the limit wait and go on at the reset, but a fixer restarted that way begins again from its commits, so briefs tell fixers to commit as they go. One day of this used about 30% of the week.
+- **Every fix went to a skeptic who renders both trees and a reviewer who reads the diff, and all five merged branches were sent back once for a real defect** (a wall black at night, a cap reading CHAMPION, a hole in a stair landing, patrons blinking in place, wet vinyl gone matt). Keep that step.
+- **Frame rates are only clean on a quiet machine:** measure at a limit's reset before any agent goes out, or after everything has stopped. TAAU's pass time (about 1.8 ms when steady) says whether a run counts.
+- Log times from the shell's `date`, not from memory.

@@ -1,8 +1,8 @@
 # Citizens Bank Park: notes for Claude
 
-## Where we are (2026-11-12)
+## Where we are (2026-11-12, evening)
 
-Step 12 (the gauntlet, round and round) is running: [docs/notes/worlds/STEP12.md](docs/notes/worlds/STEP12.md) has the plan, [docs/notes/gauntlet/STEP12-LOG.md](docs/notes/gauntlet/STEP12-LOG.md) every merge, and `.claude/gauntlet/s12/TICKETS.md` the queue. Step 11 is the last published stage. Step 12 is published only when the owner asks.
+Step 12 (the gauntlet, round and round) is stopped part way, at the owner's word: "wind down and make notes for when I tell you to pick it up". Five branches are merged on `ballpark` (speed, the seats, the players, the outfield walk, the standing people); three more are finished but not yet judged (the rain, the backstop, the ground); indoors is held. Nothing is published or pushed: stage 11 is the last stage on the site. **Start with "Where step 12 stopped" at the end of [docs/notes/gauntlet/STEP12-LOG.md](docs/notes/gauntlet/STEP12-LOG.md):** it has the pick-up list in order. Wait for the owner to say pick it up, and publish only when asked.
 The GPU rules are in [docs/GPU.md](docs/GPU.md). After a change: `npm test`, `node test/continuity.mjs`, the standard frame-rate views (`tools/gpu/standard-views.json`) and the walk audit (`test/walk-audit.mjs`).
 
 ## Standing rules
