@@ -1,5 +1,7 @@
 # 🛑 START HERE: where we are
 
+**Thursday 2026-11-12: step 12 is running** ([STEP12.md](docs/notes/worlds/STEP12.md), log in [STEP12-LOG.md](docs/notes/gauntlet/STEP12-LOG.md)): the gauntlet again, starting from step 11's queue with a speed track. Not published yet.
+
 **Thursday 2026-10-29, late morning: step 11 is merged and published as stage 11** ([STEP11.md](docs/notes/worlds/STEP11.md)): the gauntlet again, with spot checks, a breaker and skeptics.
 - **The players' mouths open:** Lidge's shout at strike three, with teeth.
 - **The seated crowd:** real hands and gloves, varied arms, faces and expressions, and 2008 shirts.
