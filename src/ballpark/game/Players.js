@@ -1647,9 +1647,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		// lid, which at rest comes down to the pupil's top on these faces (a ballplayer's lids under a bill),
 		// and at a fifth of the light's strength it was dimmer than the lit white beside it. Now on the
 		// pupil's edge just under its middle, the same side in both eyes (one bank of lights, not two), 2 mm
-		// across and as bright as the light it mirrors)
+		// across and as bright as the light it mirrors; and gone once a pixel is wider than it is (from 1.5 to
+		// 4 mm of him a pixel), so a far face doesn't spark when a pixel's middle happens to land on it)
 		let cl = length( d - normalize( vec3f( 0.12, -0.03, -1.0 ) ) );
-		s.emissive = s.emissive + frame.sunColor * vec3f( 0.95, 0.97, 1.0 ) * ( 0.6 + 2.0 * smoothstep( 0.15, 0.7, frame.night ) * ${ f( NIGHT_FILL ) } ) * smoothstep( 0.1, 0.05, cl );
+		let clNear = 1.0 - smoothstep( 0.0015, 0.004, length( fwidth( L ) ) );
+		s.emissive = s.emissive + frame.sunColor * vec3f( 0.95, 0.97, 1.0 ) * ( 0.6 + 2.0 * smoothstep( 0.15, 0.7, frame.night ) * ${ f( NIGHT_FILL ) } ) * smoothstep( 0.1, 0.05, cl ) * clNear;
 		// ---- end FK2
 	}
 	// ---- FX1 (step 11): the teeth (Rig.js' two arches): enamel, a shade down between each pair, the edges
