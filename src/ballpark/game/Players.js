@@ -1363,7 +1363,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			// protruding part is kept clear of it)
 			let temple2 = smoothstep( 0.046, 0.058, ax ) * smoothstep( eye.y - 0.004, eye.y + 0.006, L.y ) * smoothstep( eye.z + 0.04 + 0.006 * g2, eye.z + 0.052 + 0.006 * g2, L.z );
 			let burn2 = smoothstep( 0.05, 0.06, ax ) * smoothstep( eye.z + 0.042, eye.z + 0.054, L.z ) * smoothstep( eye.y - 0.03, eye.y - 0.02, L.y );
-			let earOwn = earK * smoothstep( 0.073, 0.079, ax );
+			let earOwn = earK * smoothstep( 0.078, 0.084, ax );
 			let hairK = clamp( max( max( hairBack, burn ) * ( 1.0 - earK ), max( temple2, burn2 * 0.9 ) * ( 1.0 - earOwn ) ) * ( 0.95 + 0.25 * g2 ), 0.0, 1.0 );
 			// ---- end FK2
 			if ( hairK > 0.0 ) {
