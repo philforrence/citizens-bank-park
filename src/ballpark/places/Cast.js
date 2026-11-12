@@ -87,6 +87,45 @@ const HEAD_R = [ 0.079, 0.104, 0.096 ];
 // ---- FP1: where a cap's crown comes down to on the head (d.y on the head's unit sphere), by how far
 // round to the front it is: just above the brows in front, the tops of the ears at the sides, low behind
 const capRim = ( front ) => 0.18 + 0.225 * front;
+// ---- FK5 (CR1-16): how far out the skull is from the head's centre along a direction (a unit vector),
+// on the MakeHuman head the near and middle figures wear (FanHead.js, sized to HEAD_R as FF1 sizes it).
+// A cap's crown and a knit hat's pom-pom sit on it: they were built on the seats' egg, which stands 1.4 cm
+// over the MakeHuman skull at the top and 2 cm off the back of it, so every cap rode up on its owner's
+// head like a helmet a size too big and the pom-pom hung in the air over the hat
+const _skull = new Map();
+function skullAt( dir ) {
+
+	const key = dir.map( ( v ) => v.toFixed( 3 ) ).join( ',' );
+	if ( _skull.has( key ) ) return _skull.get( key );
+	const L = fanHeadLevel( 'near' ), k = HEAD_R.map( ( r, i ) => r / FH.R[ i ] ), P = L.position, I = L.index;
+	const at = ( i ) => [ P[ i * 3 ] * k[ 0 ], P[ i * 3 + 1 ] * k[ 1 ], P[ i * 3 + 2 ] * k[ 2 ] ];
+	let best = Infinity;
+	// (Moller-Trumbore from the centre: the nearest face the ray goes through is the skull's)
+	for ( let t = 0; t < I.length; t += 3 ) {
+
+		const a = at( I[ t ] ), b = at( I[ t + 1 ] ), c = at( I[ t + 2 ] );
+		const e1 = [ b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ], b[ 2 ] - a[ 2 ] ], e2 = [ c[ 0 ] - a[ 0 ], c[ 1 ] - a[ 1 ], c[ 2 ] - a[ 2 ] ];
+		const p = [ dir[ 1 ] * e2[ 2 ] - dir[ 2 ] * e2[ 1 ], dir[ 2 ] * e2[ 0 ] - dir[ 0 ] * e2[ 2 ], dir[ 0 ] * e2[ 1 ] - dir[ 1 ] * e2[ 0 ] ];
+		const det = e1[ 0 ] * p[ 0 ] + e1[ 1 ] * p[ 1 ] + e1[ 2 ] * p[ 2 ];
+		if ( Math.abs( det ) < 1e-12 ) continue;
+		const s = [ - a[ 0 ], - a[ 1 ], - a[ 2 ] ];
+		const u = ( s[ 0 ] * p[ 0 ] + s[ 1 ] * p[ 1 ] + s[ 2 ] * p[ 2 ] ) / det;
+		if ( u < 0 || u > 1 ) continue;
+		const q = [ s[ 1 ] * e1[ 2 ] - s[ 2 ] * e1[ 1 ], s[ 2 ] * e1[ 0 ] - s[ 0 ] * e1[ 2 ], s[ 0 ] * e1[ 1 ] - s[ 1 ] * e1[ 0 ] ];
+		const v = ( dir[ 0 ] * q[ 0 ] + dir[ 1 ] * q[ 1 ] + dir[ 2 ] * q[ 2 ] ) / det;
+		if ( v < 0 || u + v > 1 ) continue;
+		const d = ( e2[ 0 ] * q[ 0 ] + e2[ 1 ] * q[ 1 ] + e2[ 2 ] * q[ 2 ] ) / det;
+		if ( d > 0.02 && d < best ) best = d;
+
+	}
+
+	// (not through it: the egg's own, a little in)
+	if ( ! ( best < 0.2 ) ) best = 0.95 / Math.hypot( dir[ 0 ] / HEAD_R[ 0 ], dir[ 1 ] / HEAD_R[ 1 ], dir[ 2 ] / HEAD_R[ 2 ] );
+	_skull.set( key, best );
+	return best;
+
+}
+// ---- end FK5
 
 // bones
 const B = { pelvis: 0, spine: 1, head: 2, uarm: [ 3, 4 ], farm: [ 5, 6 ], thigh: [ 7, 8 ], shin: [ 9, 10 ], prop: [ 11, 12 ] };
@@ -736,16 +775,29 @@ export function figureGeometry( lod = 0 ) {
 		// little down, with thickness and an underside. (It was a painted skullcap with a flat blade
 		// through its middle.) The distant figure keeps the paint and a flat bill at the rim
 		const R = HEAD_R;
+		// ---- FK5 (CR1-16): the near and middle figures' crown on their own skull (skullAt), the band a
+		// finger's thickness of hair and sweatband off it at the rim, a little more over the top, the front
+		// panels standing up off the forehead as a structured cap's do (Flickr hcwoodward 2983666367, auds
+		// 2982693299: the caps on the 3B concourse sit down on the head, the bill at the brows, no daylight
+		// under the crown). The far figure keeps the egg's
+		const onSkull = ( d, out ) => {
+
+			const dir = norm( [ d[ 0 ] * R[ 0 ], d[ 1 ] * R[ 1 ], d[ 2 ] * R[ 2 ] ] );
+			return mul( dir, skullAt( dir ) + out );
+
+		};
 		const rimAt = ( psi, out ) => {
 
 			const dy = capRim( Math.cos( psi ) ), sxz = Math.sqrt( 1 - dy * dy );
+			if ( fine ) return onSkull( [ Math.sin( psi ) * sxz, dy, - Math.cos( psi ) * sxz ], 0.006 + out );
 			return [ Math.sin( psi ) * sxz * ( R[ 0 ] + out ), dy * ( R[ 1 ] + out ), - Math.cos( psi ) * sxz * ( R[ 2 ] + out ) ];
 
 		};
+		// ---- end FK5
 		if ( ! tiny ) {
 
 			const cw = fine ? F( 12, 10 ) : 8, ck = fine ? F( 4, 3 ) : 3;
-			const apex = vert( add( h, [ 0, R[ 1 ] + 0.017, - 0.004 ] ), [ 0, 1, 0 ], B.head, PART.crown );
+			const apex = vert( add( h, fine ? add( onSkull( [ 0, 1, 0 ], 0.012 ), [ 0, 0.004, - 0.004 ] ) : [ 0, R[ 1 ] + 0.017, - 0.004 ] ), [ 0, 1, 0 ], B.head, PART.crown );
 			const ringsC = [];
 			for ( let k = 1; k <= ck; k ++ ) {
 
@@ -754,6 +806,16 @@ export function figureGeometry( lod = 0 ) {
 
 					const u = k / ck, psi = ( i / cw ) * Math.PI * 2, front = Math.cos( psi ), th = u * Math.acos( capRim( front ) );
 					const d = [ Math.sin( th ) * Math.sin( psi ), Math.cos( th ), - Math.sin( th ) * Math.cos( psi ) ];
+					// ---- FK5 (CR1-16): on the skull (above)
+					if ( fine ) {
+
+						const grow = 0.006 + 0.006 * ( 1 - u * u ), lift = 0.004 * ( 1 - u ), p = onSkull( d, grow );
+						ring.push( vert( add( h, [ p[ 0 ], p[ 1 ] + lift, p[ 2 ] - 0.011 * Math.max( 0, front ) * Math.sin( Math.PI * u ) ] ), d, B.head, PART.crown ) );
+						continue;
+
+					}
+
+					// ---- end FK5
 					const grow = 0.005 + 0.011 * ( 1 - u * u ), lift = 0.012 * ( 1 - u );
 					ring.push( vert( add( h, [ d[ 0 ] * ( R[ 0 ] + grow ), d[ 1 ] * ( R[ 1 ] + grow ) + lift, d[ 2 ] * ( R[ 2 ] + grow + 0.008 * Math.max( 0, front ) * Math.sin( Math.PI * u ) ) ] ), d, B.head, PART.crown ) );
 
@@ -810,6 +872,33 @@ export function figureGeometry( lod = 0 ) {
 		if ( ! tiny ) quad( B.spine, PART.scarf, [ 0.015, 1.41, - 0.098 ], [ 0.085, 1.41, - 0.09 ], [ 0.08, 1.14, - 0.13 ], [ 0.02, 1.14, - 0.132 ] );
 		// ---- end FP1
 		// (FW6, C4W-2: close up on 10 x 6, a fuzz in the shaders: it was a 12-faced polyhedron)
+		// ---- FK5 (CR1-16): the near and middle figures' pom-pom sewn down onto the knit hat's top (the
+		// skull, the knit a finger out and its crown slouched up and back: FW6's knit in the vertex shader),
+		// pressed into it a little; a ball of yarn ends, lumpy round its edge (it floated a hand's width over
+		// the hat, a round bead on 10 x 6). The far one's on the egg as it was
+		if ( fine ) {
+
+			const top = skullAt( [ 0, 1, 0 ] ), c = add( h, [ 0, top + 0.016 + 0.029 - 0.008, 0.008 ] ), r = [ 0.034, 0.029, 0.034 ];
+			const W = F( 14, 9 ), H = F( 9, 6 ), first = pos.length / 3;
+			for ( let j = 0; j <= H; j ++ ) for ( let i = 0; i < W; i ++ ) {
+
+				const th = j / H * Math.PI, ph = i / W * Math.PI * 2;
+				const d = [ Math.sin( th ) * Math.cos( ph ), Math.cos( th ), Math.sin( th ) * Math.sin( ph ) ];
+				const lump = j === 0 || j === H ? 1 : 1 + 0.11 * ( Math.sin( i * 12.9898 + j * 78.233 ) * 43758.5453 % 1 );
+				vert( add( c, [ d[ 0 ] * r[ 0 ] * lump, d[ 1 ] * r[ 1 ] * lump, d[ 2 ] * r[ 2 ] * lump ] ), [ d[ 0 ] / r[ 0 ], d[ 1 ] / r[ 1 ], d[ 2 ] / r[ 2 ] ], B.head, PART.pompom );
+
+			}
+
+			for ( let j = 0; j < H; j ++ ) for ( let i = 0; i < W; i ++ ) {
+
+				const a = first + j * W + i, b = first + j * W + ( i + 1 ) % W, cc = a + W, d = b + W;
+				if ( j > 0 ) index.push( a, cc, b );
+				if ( j < H - 1 ) index.push( b, cc, d );
+
+			}
+
+		} else
+		// ---- end FK5
 		if ( ! tiny ) ellipsoid( B.head, PART.pompom, add( h, [ 0, HEAD_R[ 1 ] + 0.045, 0.012 ] ), [ 0.035, 0.031, 0.035 ], fine ? F( 10, 6 ) : N6, fine ? F( 6, 4 ) : 3 );
 		// long hair: (FP2) a shell round the back and sides of the head, from the crown down past the
 		// shoulders, framing the face in front of the ears, fuller and further out as it falls over the
@@ -2416,7 +2505,9 @@ function castMaterial( pool ) {
 	// ---- FP1 (CP-1, CP-5): a cap's crown: the cloth, the six panels' seams and the button, the P the
 	// right way round on the front panels (the back, on a cap turned round)
 	if ( part == ${ PART.crown }u ) {
-		let d = ( L - ${ f3( J.head ) } ) / vec3f( ${ HEAD_R.map( ( r ) => r.toFixed( 3 ) ).join( ', ' ) } );
+		// (FK5, CR1-16: the egg's direction, at the old crown's reach out: the near crown is on the skull now,
+		// inside the egg, and the P and the button would have slid down it)
+		let d = normalize( ( L - ${ f3( J.head ) } ) / vec3f( ${ HEAD_R.map( ( r ) => r.toFixed( 3 ) ).join( ', ' ) } ) ) * 1.1;
 		let back = hat == ${ HAT.capBack }u;
 		var cc = select( select( vec3f( 0.014, 0.02, 0.06 ), vec3f( 0.33, 0.015, 0.02 ), hat == ${ HAT.capRed }u || back ), vec3f( 0.12, 0.018, 0.026 ), hat == ${ HAT.cap1980 }u );
 		if ( hat == ${ HAT.capRays }u ) { cc = vec3f( 0.012, 0.025, 0.08 ); }
@@ -2426,7 +2517,7 @@ function castMaterial( pool ) {
 		let lx = select( d.x, - d.x, back );
 		let lz = select( d.z, - d.z, back );
 		if ( abs( fract( atan2( lx, - lz ) * 0.955 + 0.5 ) - 0.5 ) < 0.03 ) { c *= 0.7; }
-		if ( d.y > 1.1 && length( d.xz ) < 0.12 ) { c *= 0.8; }
+		if ( d.y > 1.093 && length( d.xz ) < 0.12 ) { c *= 0.8; }
 		if ( lz < - 0.55 ) {
 			let lp = vec2f( lx / 0.26, ( d.y - 0.72 ) / 0.26 );
 			let a = 1.0 - smoothstep( 0.1, 0.3, fwidth( lp.x ) + fwidth( lp.y ) );
