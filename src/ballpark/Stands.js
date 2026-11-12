@@ -997,7 +997,13 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 
 			const dm = ( dF + dB ) / 2, hw = PO.stairWidth / 2 || 0.7, yBack = ys[ p.r1 - 1 ], yRow = ys[ Math.min( tier.rows - 1, p.r1 ) ];
 			pq.add( at( p.s - w, dF, yF ), at( p.s + w, dF, yF ), at( p.s + w, dm - hw, yF ), at( p.s - w, dm - hw, yF ), [ 0, 1, 0 ] );
-			pq.add( at( p.s - w, dm + hw, yF ), at( p.s + w, dm + hw, yF ), at( p.s + w, dB, yF ), at( p.s - w, dB, yF ), [ 0, 1, 0 ] );
+			// (---- FK1 repair: the strip of floor behind the stair's hole is a plinth 0.16 m up, as a slab's edge
+			// is curbed behind a stair. It was a pocket with no way out for whoever jumped down into it from the
+			// rows: shut in by the cheeks, the back and the stair's own rail, 1.12 m against a 1.04 m jump. From
+			// the plinth the jump clears that rail onto the stair)
+			const yP = yF + 0.16;
+			pq.add( at( p.s - w, dm + hw, yP ), at( p.s + w, dm + hw, yP ), at( p.s + w, dB, yP ), at( p.s - w, dB, yP ), [ 0, 1, 0 ] );
+			pq.add( at( p.s - w, dm + hw, yF ), at( p.s + w, dm + hw, yF ), at( p.s + w, dm + hw, yP ), at( p.s - w, dm + hw, yP ), f, 0, 2 * w );
 			pq.add( at( p.s - w, dB, yF - 0.3 ), at( p.s + w, dB, yF - 0.3 ), at( p.s + w, dB, yBack ), at( p.s - w, dB, yBack ), f, 0, 2 * w );
 			for ( const e of [ - 1, 1 ] ) {
 
@@ -1043,7 +1049,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 				// FA1's floor either side of the stair's hole; the cheeks and the back up to their rails (the lid,
 				// a walkable landing over the well, is gone with its rails)
 				box( p.s - w, p.s + w, dF, dm - hw, yF - 0.3, yF, { walkable: true, tag: tier.name + '-portal' } );
-				box( p.s - w, p.s + w, dm + hw, dB, yF - 0.3, yF, { walkable: true, tag: tier.name + '-portal' } );
+				box( p.s - w, p.s + w, dm + hw, dB, yF - 0.3, yP, { walkable: true, tag: tier.name + '-portal' } ); // (the plinth)
 				for ( const e of [ - 1, 1 ] ) box( p.s + e * w - 0.1, p.s + e * w + 0.1, dF, dB, yF - 0.3, yBack + 1.1, { tag: tier.name + '-portal-cheek' } );
 				// (---- FK1 repair: the back to 1.1 m over the row behind, the cheeks' height over theirs: over the
 				// 1.04 m jump. At 0.9 a jump from the rows behind cleared it and came down on the strip of floor

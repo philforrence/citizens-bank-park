@@ -41,7 +41,9 @@ const PALETTE = [
 	// stands' backs are, Concourse.js `doorlit`: unlit it was a black leaf in a lit wall), and the concrete
 	// head of a stand's bay in the hall wall, in what its lit back and floor throw up at it
 	[ 'doorGrey', [ 0.11, 0.115, 0.12 ], 0.5, 0.15, [ 0.043, 0.039, 0.033 ] ],
-	[ 'bayHead', [ 0.36, 0.35, 0.33 ], 0.75, 0, [ 0.012, 0.0105, 0.0085 ] ],
+	[ 'bayHead', [ 0.36, 0.35, 0.33 ], 0.75, 0, [ 0.016, 0.014, 0.0115 ] ],
+	// (the door's other side, on the concourse: in the concourse's own light, no wall pack's)
+	[ 'doorConc', [ 0.2, 0.205, 0.21 ], 0.55, 0.15 ],
 ];
 const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
 const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;
@@ -597,7 +599,7 @@ export class ConcourseSteel {
 						const cs = ( C.x - a.x ) * ux + ( C.z - a.z ) * uz;
 						if ( Math.abs( ( C.x - a.x ) * nx + ( C.z - a.z ) * nz ) > 1.6 || Math.abs( cs - sd ) >= 0.95 ) continue;
 						sd = [ cs + ( sd >= cs ? 0.95 : - 0.95 ), cs - ( sd >= cs ? 0.95 : - 0.95 ) ].find( ( v ) => v > c0 + 0.75 && v < c1 - 0.75 ) ?? sd;
-						door = Math.abs( cs - sd ) >= 0.95;
+						door = Math.abs( cs - sd ) > 0.9;
 
 					}
 
@@ -608,14 +610,14 @@ export class ConcourseSteel {
 
 						// the leaf in its frame, the kick plate, the lever; and the door's other side on the wall's
 						// inner face, toward the concourse (not behind an elevator's core, which stands against it)
-						const sides = [ [ ( dy, o ) => at( dy, o ), 0.36 ] ];
+						const sides = [ [ ( dy, o ) => at( dy, o ), 0.36, 'doorGrey' ] ];
 						const [ px, pz ] = P( sd, 0 );
-						if ( ! ( bowl.elevators || [] ).some( ( b ) => Math.hypot( b.stops[ 0 ].x - px, b.stops[ 0 ].z - pz ) < 7 ) ) sides.push( [ ( dy, o ) => P3( sd, o, dy ), - 0.36 ] );
-						for ( const [ D, lever ] of sides ) {
+						if ( ! ( bowl.elevators || [] ).some( ( b ) => Math.hypot( b.stops[ 0 ].x - px, b.stops[ 0 ].z - pz ) < 9 ) ) sides.push( [ ( dy, o ) => P3( sd, o, dy ), - 0.36, 'doorConc' ] );
+						for ( const [ D, lever, paint ] of sides ) {
 
 							q.use( 'trim' );
 							obox( q, D( 1.08, 0.025 ), along, 1.12, up, 2.2, out, 0.05 );
-							q.use( 'doorGrey' );
+							q.use( paint );
 							obox( q, D( 1.06, 0.05 ), along, 0.96, up, 2.1, out, 0.03 );
 							q.use( 'galv' );
 							obox( q, D( 0.16, 0.068 ), along, 0.92, up, 0.25, out, 0.006 );
