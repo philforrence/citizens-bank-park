@@ -891,7 +891,12 @@ export class Concourse {
 		this._monitors( bowl );
 		this._sectionSigns();
 		// ---- FI1 (CI-1, CI-8): the steel overhead, the columns, the domes (ConcourseSteel.js)
-		this.steel = new ConcourseSteel( { group: this.group, bowl, field, colliders } );
+		// ---- FK1 repair (step 12): the stands' backs for the hall wall's outer face, which opens a bay at each
+		// (the back's middle, the way along it and toward the field, its half width and height, and where its
+		// wall pack is along it: _unit's lx)
+		const backs = ( this.units || [] ).map( ( U ) => ( { x: U.mid[ 0 ] - U.n[ 0 ] * DEPTH, z: U.mid[ 1 ] - U.n[ 1 ] * DEPTH, a: U.a, n: U.n, w: UNIT / 2, h: H, lx: ( ( U.sec * 7 ) % 2 < 1 ? 1 : - 1 ) * ( UNIT / 2 - 1.25 ) } ) );
+		this.steel = new ConcourseSteel( { group: this.group, bowl, field, colliders, backs } );
+		// ---- end FK1 repair
 		this._elevatorCores( bowl );
 		// ---- end FI1
 

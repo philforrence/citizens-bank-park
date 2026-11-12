@@ -26,6 +26,46 @@ import { terraceSection } from '../../Concourse.js';
 
 const Y = LEVELS.terraceConcourse;
 
+// ---- FK1 repair (SC1-16): a pipe round to the light: every vertex's normal out from the pipe's axis, where
+// ConcourseSteel's pipe() gives each facet one normal, so a lamp over a handrail lit whole flat facets of it
+// end to end (the white bar on the 400s' stairs, 0.67 m from the eye). q: a Pal, whose colour it takes
+function roundPipe( q, a, b, r, sides = 8 ) {
+
+	const u = [ b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ], b[ 2 ] - a[ 2 ] ], l = Math.hypot( ...u ) || 1;
+	const ref = Math.abs( u[ 1 ] / l ) > 0.9 ? [ 1, 0, 0 ] : [ 0, 1, 0 ];
+	const cr = ( p, s ) => [ p[ 1 ] * s[ 2 ] - p[ 2 ] * s[ 1 ], p[ 2 ] * s[ 0 ] - p[ 0 ] * s[ 2 ], p[ 0 ] * s[ 1 ] - p[ 1 ] * s[ 0 ] ];
+	let e1 = cr( u, ref );
+	const l1 = Math.hypot( ...e1 );
+	e1 = e1.map( ( v ) => v / l1 );
+	const e2 = cr( u, e1 ).map( ( v ) => v / l );
+	const ring = [];
+	for ( let i = 0; i <= sides; i ++ ) {
+
+		const t = i / sides * Math.PI * 2, c = Math.cos( t ), s = Math.sin( t );
+		ring.push( [ e1[ 0 ] * c + e2[ 0 ] * s, e1[ 1 ] * c + e2[ 1 ] * s, e1[ 2 ] * c + e2[ 2 ] * s ] );
+
+	}
+
+	const at = ( p, n ) => [ p[ 0 ] + n[ 0 ] * r, p[ 1 ] + n[ 1 ] * r, p[ 2 ] + n[ 2 ] * r ];
+	for ( let i = 0; i < sides; i ++ ) {
+
+		const n0 = ring[ i ], n1 = ring[ i + 1 ];
+		// (wound to face out: e1, e2 and the axis are right-handed, as Quads.tri winds to its normal)
+		for ( const [ p, n ] of [ [ at( a, n0 ), n0 ], [ at( a, n1 ), n1 ], [ at( b, n1 ), n1 ], [ at( a, n0 ), n0 ], [ at( b, n1 ), n1 ], [ at( b, n0 ), n0 ] ] ) {
+
+			q.pos.push( ...p );
+			q.nrm.push( ...n );
+			q.uv.push( q.k + 0.5, 0 );
+
+		}
+
+		q.count += 2;
+
+	}
+
+}
+// ---- end FK1 repair
+
 export function buildTerrace( group, bowl ) {
 
 	const D = bowl.D, main = bowl.path.slice( 2 );
@@ -404,13 +444,14 @@ export function buildTerrace( group, bowl ) {
 				wide( q, at( sFoot, dd, Y + 0.12 ), at( sTop, dd, yF - 0.12 ), [ - ux * 0.5, 1, - uz * 0.5 ], 0.3, 0.08, 0.012, 0.01 );
 				// ---- FX2 (SC1-16): the handrail and its posts in a handrail's duller galvanizing (ConcourseSteel's
 				// railGalv), the rail round in 8 (in 5 its top facet caught a dome's light whole, a white bar)
+				// (---- FK1 repair: round to the light, the posts too: roundPipe)
 				q.use( 'railGalv' );
-				pipe( q, at( sFoot - dir * 0.3, dd, Y + 0.95 ), at( sTop, dd, yF + 0.95 ), 0.022, 8 );
+				roundPipe( q, at( sFoot - dir * 0.3, dd, Y + 0.95 ), at( sTop, dd, yF + 0.95 ), 0.022, 8 );
 				// ---- end FX2
 				for ( let t = 0; t <= 1.001; t += 0.25 ) {
 
 					const ss = sFoot + ( sTop - sFoot ) * t, yy = Y + rise * t;
-					pipe( q, at( ss, dd, yy ), at( ss, dd, yy + 0.95 ), 0.02, 4 );
+					roundPipe( q, at( ss, dd, yy ), at( ss, dd, yy + 0.95 ), 0.02, 6 );
 
 				}
 
@@ -457,9 +498,9 @@ export function buildTerrace( group, bowl ) {
 
 					const dd = dm + e * ( W / 2 + 0.06 ), ya = Y + rise * tWell - 0.3;
 					cbox( at( ( sa + sb ) / 2, dd, ( ya + yF + 1.05 ) / 2 ), u2, Math.abs( sb - sa ) + 0.05, yF + 1.05 - ya, 0.1, { tag: 'terrace-400-stair-rail' } );
-					q.use( 'railGalv' ); // ---- FX2 (SC1-16)
-					pipe( q, at( sa, dd, yF + 1.0 ), at( sb, dd, yF + 1.0 ), 0.022, 8 );
-					for ( const ss of [ sa, ( sa + sb ) / 2, sb ] ) pipe( q, at( ss, dd, yF ), at( ss, dd, yF + 1.0 ), 0.02, 4 );
+					q.use( 'railGalv' ); // ---- FX2 (SC1-16) (---- FK1 repair: roundPipe)
+					roundPipe( q, at( sa, dd, yF + 1.0 ), at( sb, dd, yF + 1.0 ), 0.022, 8 );
+					for ( const ss of [ sa, ( sa + sb ) / 2, sb ] ) roundPipe( q, at( ss, dd, yF ), at( ss, dd, yF + 1.0 ), 0.02, 6 );
 
 				}
 
