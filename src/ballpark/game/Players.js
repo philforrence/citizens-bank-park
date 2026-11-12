@@ -1300,7 +1300,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		// about 6 cm across, not on the side (Getty 83485940: the cap of the man hugging Manuel, from behind;
 		// 83486314, Hamels, and 83912493, Werth, theirs on backwards with the logo over the forehead). Its own
 		// batterman is the logo's top corner
-		if ( ( role & ${ R.champCap }u ) != 0u && part == ${ P.cap } ) { cell = ${ C.patch }.0; lu = 0.5 + L.x / 0.066; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.107 ) } ) / 0.066; }
+		if ( ( role & ${ R.champCap }u ) != 0u && part == ${ P.cap } ) { cell = ${ C.patch }.0; lu = 0.5 + L.x / 0.066; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.116 ) } ) / 0.066; }
 		// ---- end FK2 repair
 	}
 	// ---- FY3 (CY-18): the 2008 World Series logo on the cap's left side, as both clubs wore it in the
@@ -2355,46 +2355,47 @@ function drawPatch( ctx, i ) {
 		ctx.closePath();
 
 	};
-	diamond( 50, 58 );
+	// (a little wider than it's tall, as 83485940 has it)
+	diamond( 56, 52 );
 	ctx.fillStyle = '#f4f2ec';
 	ctx.fill();
-	diamond( 46.5, 54 );
+	diamond( 52.5, 48.5 );
 	ctx.fillStyle = '#14235c';
 	ctx.fill();
-	diamond( 41, 47.5 );
+	diamond( 46.5, 42.5 );
 	ctx.fillStyle = '#e0aa2e';
 	ctx.fill();
-	diamond( 38, 44 );
+	diamond( 43.5, 39.5 );
 	ctx.fillStyle = '#7f9a3a';
 	ctx.fill();
 	// the batterman in the top corner: white, the blue to the left of the batter and the red to the right
 	ctx.fillStyle = '#f4f2ec';
 	ctx.beginPath();
-	ctx.roundRect( - 11, - 39, 22, 12, 2.5 );
+	ctx.roundRect( - 9, - 35.5, 18, 10.5, 2.5 );
 	ctx.fill();
 	ctx.fillStyle = '#0b2a6b';
-	ctx.fillRect( - 9.5, - 37.5, 10, 9 );
+	ctx.fillRect( - 7.5, - 34, 8, 7.5 );
 	ctx.fillStyle = '#c8102e';
-	ctx.fillRect( 2.5, - 37.5, 7, 9 );
+	ctx.fillRect( 2, - 34, 5.5, 7.5 );
 	// 2008 under the words, the base at the foot
 	ctx.fillStyle = '#1d3a14';
 	ctx.font = '800 11px Georgia, "Times New Roman", serif';
-	ctx.fillText( '2008', 2, 25 );
+	ctx.fillText( '2008', 2, 23.5 );
 	ctx.fillStyle = '#f4f2ec';
 	ctx.beginPath();
-	ctx.moveTo( 0, 33 ); ctx.lineTo( 7, 40 ); ctx.lineTo( 0, 47 ); ctx.lineTo( - 7, 40 );
+	ctx.moveTo( 0, 30 ); ctx.lineTo( 6.5, 36.5 ); ctx.lineTo( 0, 43 ); ctx.lineTo( - 6.5, 36.5 );
 	ctx.closePath();
 	ctx.fill();
 	ctx.fillStyle = '#c8102e';
 	ctx.beginPath();
-	ctx.moveTo( 0, 40 ); ctx.lineTo( 4, 40 ); ctx.lineTo( 0, 44 ); ctx.lineTo( - 4, 40 );
+	ctx.moveTo( 0, 36.5 ); ctx.lineTo( 3.5, 36.5 ); ctx.lineTo( 0, 40 ); ctx.lineTo( - 3.5, 36.5 );
 	ctx.closePath();
 	ctx.fill();
 	// WORLD over SERIES: white, edged in navy, wider than the diamond
 	ctx.rotate( - 0.1 );
 	ctx.strokeStyle = '#14235c';
 	ctx.fillStyle = '#f7f5ef';
-	for ( const [ word, size, ty, w ] of [ [ 'WORLD', 21, - 11, 86 ], [ 'SERIES', 25, 9, 112 ] ] ) {
+	for ( const [ word, size, ty, w ] of [ [ 'WORLD', 21, - 10, 88 ], [ 'SERIES', 25, 10, 114 ] ] ) {
 
 		ctx.font = `900 ${ size }px Georgia, "Times New Roman", serif`;
 		ctx.lineWidth = 6;
