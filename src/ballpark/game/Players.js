@@ -904,6 +904,18 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 				dn += vec3f( sb.y, sc ) * sw;
 			}
 			// ---- end FK2
+			// ---- FK2 repair (step 12, SK1's F2, the dashes at the mouth's corners): the two ragged dark marks
+			// beside every shouting mouth were the mouth's own inside. The bag the lips curl into runs out to
+			// 3.8 cm either side behind the cheeks, and its upper side walls belong to the skull: they stay put
+			// while the open jaw, the grin and the shout draw the cheek beside the mouth's corner back 4, 7 and
+			// 2 mm (the records' own moves there), so the walls stood out through it, 7 mm wide and 2 cm tall,
+			// painted as the dark inside. The walls go back with the cheek and a little further; not the lips'
+			// own rim, in front, or the middle of the bag (the teeth's carriers)
+			if ( i32( v.aPart + 0.5 ) == ${ P.mouth } ) {
+				let wall = smoothstep( 0.021, 0.027, abs( v.position.x ) ) * smoothstep( 0.009, 0.014, v.position.z - ${ f( F.mouth[ 2 ] ) } );
+				dp.z += ( 0.006 * ex.x + 0.01 * ex.y + 0.004 * sw ) * wall;
+			}
+			// ---- end FK2 repair
 		}
 		lp3 += dp;
 		fd += dp;
@@ -1526,8 +1538,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 				// the fold from the nose round the mouth
 				let ny = clamp( ( L.y - m.y + 0.006 ) / 0.029, 0.0, 1.0 );
 				let nlx = mix( 0.031, 0.0185, ny * ny );
-				let nl = ( 1.0 - smoothstep( 0.0009, 0.0032, abs( ax - nlx ) ) ) * smoothstep( m.y - 0.01, m.y - 0.004, L.y ) * ( 1.0 - smoothstep( m.y + 0.02, m.y + 0.025, L.y ) );
-				c = c * ( 1.0 - 0.32 * clamp( shoutW + 0.5 * smileW, 0.0, 1.0 ) * nl * fw );
+				// (---- FK2 repair: a fold's soft shade, 5 mm across and a fifth down at its middle, not a 3 mm line a
+				// third down: with the shout's own modelling under it, it read as a drawn crease and the whole
+				// muzzle went dark against Getty 83485858's pale face)
+				let nl = ( 1.0 - smoothstep( 0.0006, 0.0052, abs( ax - nlx ) ) ) * smoothstep( m.y - 0.01, m.y - 0.004, L.y ) * ( 1.0 - smoothstep( m.y + 0.02, m.y + 0.025, L.y ) );
+				c = c * ( 1.0 - 0.2 * clamp( shoutW + 0.5 * smileW, 0.0, 1.0 ) * nl * fw );
 			}
 			if ( shoutW > 0.0 ) {
 				let gl = ( 1.0 - smoothstep( 0.0007, 0.0018, abs( ax - 0.0065 - 0.0015 * smoothstep( eye.y + 0.01, eye.y + 0.03, L.y ) ) ) ) * smoothstep( eye.y + 0.008, eye.y + 0.014, L.y ) * ( 1.0 - smoothstep( eye.y + 0.026, eye.y + 0.034, L.y ) );
