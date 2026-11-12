@@ -27,6 +27,8 @@ const S = {
 	// ---- FK2 (step 12, CR1-21): a light olive-tan (Getty 83483794, Feliz; 83485955, Ruiz: they rendered
 	// as dark as Howard), and a medium brown, lighter than Howard's (83571347, Rollins on the stage)
 	olivetan: [ 0.4, 0.245, 0.15 ], mbrown: [ 0.22, 0.12, 0.068 ],
+	// ---- FK2 repair: a light skin with a season's sun on it (Utley, a Californian at the end of October)
+	sun: [ 0.54, 0.335, 0.225 ],
 };
 // hair (linear)
 const H = {
@@ -211,6 +213,13 @@ Object.assign( LOOKS[ 408307 ], { mous: 1, beardD: 0.75 } );
 Object.assign( LOOKS[ 240694 ], { mous: 2 } );
 Object.assign( LOOKS[ 400134 ], { beardD: 0.9 } );
 // ---- end FK2
+// ---- FK2 repair (step 12, CR1-12): five men were still one long pale face (SK-FK2: Utley, Hamels, Longoria,
+// Bartlett, Kazmir). What the paint can tell apart: Utley's dark hair and brows, a day's dark stubble and
+// the sun on his skin; Hamels's hair and brows a dark brown, not light (Getty 83486314: the long dark hair
+// under his cap, the heavy dark brows). Their shapes are in FF3_MH below
+Object.assign( LOOKS[ 400284 ], { skin: S.sun, hair: H.dark, stubble: 0.8 } );
+Object.assign( LOOKS[ 430935 ], { hair: H.dark } );
+// ---- end FK2 repair
 
 // ---- FY4 (gauntlet r4, every man his own face): the mesh is one MakeHuman face; Players.js shapes it in
 // the vertex stage by sixteen numbers (twelve here, four in MORE below), -1 to 1 (0 the base mesh's), each a few millimetres at its ends:
@@ -348,7 +357,7 @@ const keySeed = ( id ) => typeof id === 'number' ? id * 0.00731 : [ ...String( i
 // 83571325, Burrell 83571337), FOX's (`.claude/ref/gauntlet/play/`) and the men's well-known looks
 const ETH_OF = new Map( [ [ S.fair, [ 0.0, 0.0 ] ], [ S.light, [ 0.01, 0.01 ] ], [ S.ruddy, [ 0.0, 0.0 ] ], [ S.olive, [ 0.08, 0.04 ] ],
 	[ S.tan, [ 0.3, 0.12 ] ], [ S.latin, [ 0.42, 0.06 ] ], [ S.brown, [ 0.72, 0.03 ] ], [ S.dark, [ 0.86, 0.02 ] ], [ S.deep, [ 0.92, 0.02 ] ], [ S.asian, [ 0.03, 0.88 ] ],
-	[ S.olivetan, [ 0.3, 0.06 ] ], [ S.mbrown, [ 0.8, 0.02 ] ] ] ); // (---- FK2: the new tones)
+	[ S.olivetan, [ 0.3, 0.06 ] ], [ S.mbrown, [ 0.8, 0.02 ] ], [ S.sun, [ 0.01, 0.01 ] ] ] ); // (---- FK2: the new tones)
 function mhOf( o ) {
 
 	const f = o.face || {}, v = ( k ) => f[ k ] || 0;
@@ -393,7 +402,10 @@ const FF3_MH = {
 	400134: { 'shape-round': 0.4, 'eye-size': - 0.35, 'nose-volume': 0.3, 'neck-double': 0.3 },
 	// Utley: angular, high cheekbones over hollow cheeks, a heavy brow, a flared jaw, narrow-set eyes, a
 	// straight nose (83485866; johnpaulendicott 2987990948)
-	400284: { 'shape-diamond': 0.2, 'shape-square': 0.3, 'cheek-inner': - 0.5, 'eye-size': - 0.2, 'nose-curve': - 0.15, 'mouth-angles': - 0.2 }, // (---- FK2, CR1-12: the jaw squarer)
+	// (---- FK2 repair: he read as the same long face as four others. Squarer and harder: the jaw's angle
+	// flared and the chin broad and cleft, the eyes narrower under a low brow, the temples in)
+	400284: { 'shape-diamond': 0.1, 'shape-square': 0.55, 'cheek-inner': - 0.6, 'eye-size': - 0.35, 'nose-curve': - 0.15, 'mouth-angles': - 0.2,
+		jaw: 0.75, 'chin-width': 0.55, 'chin-cleft': 0.5, 'brow-height': - 0.4, 'forehead-temple': - 0.3 },
 	// Howard: a big round face, broad nose and full lips, heavy cheeks, a thick neck (83884253)
 	429667: { 'shape-round': 0.6, 'eye-size': - 0.15, 'nose-height': - 0.25, 'mouth-out': 0.3, 'neck-double': 0.25 },
 	// Rollins: a narrow face, high cheekbones, a small chin, a wide nose, big ears (94863165)
@@ -405,7 +417,10 @@ const FF3_MH = {
 	// Burrell: a square jaw and heavy brow, dark deep-set eyes, a strong nose (83571337)
 	150100: { 'shape-square': 0.6, 'nose-curve': 0.2, 'brow-angle': - 0.3, 'eye-fold': 0.25 },
 	// Hamels: narrow and fine, big eyes, a straight nose, a soft chin (83486314)
-	430935: { 'shape-oval': 0.5, 'eye-size': 0.35, 'nose-point': - 0.3, 'cheek-inner': - 0.2, 'forehead-vert': 0.2, old: 0, cheeks: 0.15 }, // (---- FK2, CR1-12: 24 and smooth)
+	// (---- FK2 repair: longer and more his own against 83486314: the long straight nose, the long chin, a
+	// wide mouth, the cheekbones, the brows high over big eyes)
+	430935: { 'shape-oval': 0.35, 'shape-rectangular': 0.25, 'eye-size': 0.4, 'nose-point': - 0.3, 'cheek-inner': - 0.2, 'forehead-vert': 0.3, old: 0, cheeks: 0.15, // (---- FK2, CR1-12: 24 and smooth)
+		'brow-height': 0.2, 'nose-length': 0.5, 'chin-height': 0.35, 'mouth-width': 0.35, 'lip-lower': 0.2, cheekbones: 0.3 },
 	// Victorino: Hawaiian, of Portuguese, Japanese and native Hawaiian descent; a round face, wide
 	// cheekbones, narrow eyes, a broad nose (83571325)
 	425664: { african: 0.18, asian: 0.42, 'shape-round': 0.35, 'eye-epicanthus': 0.35, 'eye-size': - 0.2, 'eye-fold': 0.3 },
@@ -416,13 +431,17 @@ const FF3_MH = {
 	// Crawford: a lean face, high cheekbones, a broad nose and full lips
 	408307: { african: 0.9, 'shape-diamond': 0.25, 'mouth-out': 0.3, 'nose-height': - 0.15 },
 	// Longoria: Mexican-American; a square jaw, a heavy brow, a strong straight nose
-	446334: { african: 0.06, asian: 0.08, 'shape-square': 0.55, 'nose-curve': 0.1, 'eye-fold': 0.3 },
+	// (---- FK2 repair: broader and heavier in the brow and the cheek, the brows low, a wide mouth)
+	446334: { african: 0.06, asian: 0.08, 'shape-square': 0.6, 'nose-curve': 0.1, 'eye-fold': 0.3,
+		'brow-ridge': 0.6, 'brow-height': - 0.3, 'nose-width': 0.25, 'mouth-width': 0.25, cheeks: 0.25, 'head-fat': 0.2 },
 	// Upton: a long, lean face, high cheekbones, a wide nose (83484235)
 	425834: { african: 0.8, 'shape-oval': 0.5, 'cheek-inner': - 0.3, 'mouth-out': 0.3 },
 	// Pena: Dominican; a broad, heavy face, a big nose, the brow heavy
 	150289: { african: 0.35, asian: 0.04, 'shape-square': 0.45, 'nose-volume': 0.35, 'nose-curve': 0.2, 'eye-fold': 0.3 },
 	// Bartlett: a narrow, pointed face, small eyes
-	430583: { 'shape-triangular': 0.4, 'eye-size': - 0.25, 'nose-point': - 0.2 },
+	// (---- FK2 repair: pointed is MakeHuman's inverted triangle, the chin its point; shape-triangular is
+	// the other way up, a pear. The cheekbones out, the chin forward, a longer, sharper nose, small eyes)
+	430583: { 'shape-invertedtriangular': 0.5, 'eye-size': - 0.4, 'nose-point': 0.3, 'nose-length': 0.3, cheekbones: 0.45, 'chin-out': 0.4, 'brow-angle': 0.3, 'forehead-temple': 0.3 },
 	// Navarro: Venezuelan; round and fleshy, a broad nose, a small chin
 	425900: { african: 0.25, asian: 0.08, 'shape-round': 0.65, 'neck-double': 0.35, 'eye-size': - 0.2 },
 	// Price: a long face, a broad nose and full lips, big ears
@@ -434,7 +453,9 @@ const FF3_MH = {
 	// Baldelli: a long Italian face, a strong nose
 	408306: { 'shape-oval': 0.35, 'nose-curve': 0.3, 'eye-fold': 0.25 },
 	// Kazmir: youthful, a soft round chin, big eyes
-	431148: { 'shape-oval': 0.3, 'eye-size': 0.3, 'cheeks': 0.2 },
+	// (---- FK2 repair: 24 and boyish: a round face, full cheeks, a short chin, a small soft nose, full lips;
+	// he was the oval the others were)
+	431148: { 'shape-round': 0.5, cheeks: 0.5, 'head-fat': 0.3, 'chin-height': - 0.35, 'eye-size': 0.4, 'nose-length': - 0.3, 'nose-tip': 0.3, 'lip-upper': 0.25, 'lip-lower': 0.3, jaw: 0.2, 'brow-ridge': - 0.3 },
 	// Aybar and Fernando Perez: Dominican
 	430632: { african: 0.5, 'shape-square': 0.3, 'eye-fold': 0.35 },
 	445010: { african: 0.7, 'shape-oval': 0.35 },
