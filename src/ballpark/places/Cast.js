@@ -126,6 +126,39 @@ function skullAt( dir ) {
 
 }
 // ---- end FK5
+// ---- FK5 repair (CR1-16): the record (FanHead.js's, plus one) of the skull's vertex under a direction from
+// the head's centre, on the level of head the figure wears ('near' or 'mid'): the one nearest that way of
+// those on the skull there (not the ear or the nose beyond it). A cap's crown and bill and a knit hat's
+// pom-pom carry it (two: the cap's way and, for a cap on backwards, turned half round), so the shader moves
+// them with the face's own morph as it moves the head under them: built on the bare head, they stayed put
+// while the morph took the skull's top from 29 mm down to 27 mm up, so the skull came out through the crown
+// on 43% of faces and the pom-pom floated on 27% (the skeptic's count over 3000 faces)
+const _skullRec = new Map();
+function skullRec( dir, name ) {
+
+	const l = Math.hypot( ...dir ) || 1, u = dir.map( ( v ) => v / l );
+	const key = name + u.map( ( v ) => v.toFixed( 3 ) ).join( ',' );
+	if ( _skullRec.has( key ) ) return _skullRec.get( key );
+	const L = fanHeadLevel( name ), k = HEAD_R.map( ( r, i ) => r / FH.R[ i ] ), P = L.position, r0 = skullAt( u );
+	let best = - 2, rec = 0;
+	for ( let i = 0; i < L.count; i ++ ) {
+
+		const x = P[ i * 3 ] * k[ 0 ], y = P[ i * 3 + 1 ] * k[ 1 ], z = P[ i * 3 + 2 ] * k[ 2 ], r = Math.hypot( x, y, z ) || 1;
+		if ( Math.abs( r - r0 ) > 0.12 * r0 ) continue;
+		const c = ( x * u[ 0 ] + y * u[ 1 ] + z * u[ 2 ] ) / r;
+		if ( c > best ) { best = c; rec = L.rec + i + 1; }
+
+	}
+
+	_skullRec.set( key, rec );
+	return rec;
+
+}
+
+// (both in the one float: the way the cap's on, and turned half round about the head's up, times 2048: the
+// heads have 875 records, and a float holds the integers to 2^24 whole)
+const skullRecs = ( p, name ) => skullRec( p, name ) + 2048 * skullRec( [ - p[ 0 ], p[ 1 ], - p[ 2 ] ], name );
+// ---- end FK5 repair
 
 // bones
 const B = { pelvis: 0, spine: 1, head: 2, uarm: [ 3, 4 ], farm: [ 5, 6 ], thigh: [ 7, 8 ], shin: [ 9, 10 ], prop: [ 11, 12 ] };
@@ -797,7 +830,9 @@ export function figureGeometry( lod = 0 ) {
 		if ( ! tiny ) {
 
 			const cw = fine ? F( 12, 10 ) : 8, ck = fine ? F( 4, 3 ) : 3;
-			const apex = vert( add( h, fine ? add( onSkull( [ 0, 1, 0 ], 0.012 ), [ 0, 0.004, - 0.004 ] ) : [ 0, R[ 1 ] + 0.017, - 0.004 ] ), [ 0, 1, 0 ], B.head, PART.crown );
+			// (FK5 repair: the near and middle ones' crown and bill carry the skull's records under them, skullRecs)
+			const lvl = mid ? 'mid' : 'near';
+			const apex = vert( add( h, fine ? add( onSkull( [ 0, 1, 0 ], 0.012 ), [ 0, 0.004, - 0.004 ] ) : [ 0, R[ 1 ] + 0.017, - 0.004 ] ), [ 0, 1, 0 ], B.head, PART.crown, fine ? skullRecs( [ 0, 1, - 0.04 ], lvl ) : 0 );
 			const ringsC = [];
 			for ( let k = 1; k <= ck; k ++ ) {
 
@@ -810,7 +845,7 @@ export function figureGeometry( lod = 0 ) {
 					if ( fine ) {
 
 						const grow = 0.006 + 0.006 * ( 1 - u * u ), lift = 0.004 * ( 1 - u ), p = onSkull( d, grow );
-						ring.push( vert( add( h, [ p[ 0 ], p[ 1 ] + lift, p[ 2 ] - 0.011 * Math.max( 0, front ) * Math.sin( Math.PI * u ) ] ), d, B.head, PART.crown ) );
+						ring.push( vert( add( h, [ p[ 0 ], p[ 1 ] + lift, p[ 2 ] - 0.011 * Math.max( 0, front ) * Math.sin( Math.PI * u ) ] ), d, B.head, PART.crown, skullRecs( p, lvl ) ) );
 						continue;
 
 					}
@@ -844,10 +879,12 @@ export function figureGeometry( lod = 0 ) {
 				const dir = norm( add( mul( out, 0.45 ), [ 0, 0, - 1 ] ) );
 				const tip = add( root, [ dir[ 0 ] * reach, - 0.16 * reach, dir[ 2 ] * reach ] );
 				const up = norm( [ out[ 0 ] * 0.35 * Math.abs( sg ), 1, - 0.12 ] );
-				top.push( vert( add( h, root ), up, B.head, PART.brim ) );
-				bot.push( vert( add( h, add( root, [ 0, - 0.006, 0 ] ) ), mul( up, - 1 ), B.head, PART.brim ) );
-				tipT.push( reach > 0 ? vert( add( h, tip ), up, B.head, PART.brim ) : top[ top.length - 1 ] );
-				tipB.push( reach > 0 ? vert( add( h, add( tip, [ 0, - 0.006, 0 ] ) ), mul( up, - 1 ), B.head, PART.brim ) : bot[ bot.length - 1 ] );
+				// (FK5 repair: each column of the bill with the crown's rim it comes out of)
+				const fr = fine ? skullRecs( root, lvl ) : 0;
+				top.push( vert( add( h, root ), up, B.head, PART.brim, fr ) );
+				bot.push( vert( add( h, add( root, [ 0, - 0.006, 0 ] ) ), mul( up, - 1 ), B.head, PART.brim, fr ) );
+				tipT.push( reach > 0 ? vert( add( h, tip ), up, B.head, PART.brim, fr ) : top[ top.length - 1 ] );
+				tipB.push( reach > 0 ? vert( add( h, add( tip, [ 0, - 0.006, 0 ] ) ), mul( up, - 1 ), B.head, PART.brim, fr ) : bot[ bot.length - 1 ] );
 
 			}
 
@@ -880,12 +917,14 @@ export function figureGeometry( lod = 0 ) {
 
 			const top = skullAt( [ 0, 1, 0 ] ), c = add( h, [ 0, top + 0.016 + 0.029 - 0.008, 0.008 ] ), r = [ 0.034, 0.029, 0.034 ];
 			const W = F( 14, 9 ), H = F( 9, 6 ), first = pos.length / 3;
+			// (FK5 repair: the whole ball with the skull's top under it, so it rides the face's morph whole)
+			const pr = skullRec( [ 0, 1, 0.08 ], mid ? 'mid' : 'near' ) * 2049;
 			for ( let j = 0; j <= H; j ++ ) for ( let i = 0; i < W; i ++ ) {
 
 				const th = j / H * Math.PI, ph = i / W * Math.PI * 2;
 				const d = [ Math.sin( th ) * Math.cos( ph ), Math.cos( th ), Math.sin( th ) * Math.sin( ph ) ];
 				const lump = j === 0 || j === H ? 1 : 1 + 0.11 * ( Math.sin( i * 12.9898 + j * 78.233 ) * 43758.5453 % 1 );
-				vert( add( c, [ d[ 0 ] * r[ 0 ] * lump, d[ 1 ] * r[ 1 ] * lump, d[ 2 ] * r[ 2 ] * lump ] ), [ d[ 0 ] / r[ 0 ], d[ 1 ] / r[ 1 ], d[ 2 ] / r[ 2 ] ], B.head, PART.pompom );
+				vert( add( c, [ d[ 0 ] * r[ 0 ] * lump, d[ 1 ] * r[ 1 ] * lump, d[ 2 ] * r[ 2 ] * lump ] ), [ d[ 0 ] / r[ 0 ], d[ 1 ] / r[ 1 ], d[ 2 ] / r[ 2 ] ], B.head, PART.pompom, pr );
 
 			}
 
@@ -1819,9 +1858,16 @@ function castMaterial( pool ) {
 	// ---- FF1 (step 10): the near and middle figures' MakeHuman head, moved by his face's weights (from who he
 	// is and his seed: FanHead.js fhCoefs); its ears folded flat under a hood (a poncho's, up), a knit hat,
 	// earmuffs, the motor helmet, long hair; the paint and what's shaped by it in the paint's frame (fhPaint)
-	let fhi = u32( v.aInfo.z + 0.5 );
+	// ---- FK5 repair (CR1-16): a cap's crown and bill and a knit hat's pom-pom carry the records of the skull
+	// under them (skullRecs: the cap's way, and turned round for a cap on backwards, x 2048), moved by the
+	// morph as the skull is (his shape only: not his normal or his paint)
+	let fhAll = u32( v.aInfo.z + 0.5 );
+	let fhCarry = part == ${ PART.crown }u || part == ${ PART.brim }u || part == ${ PART.pompom }u;
+	let fhi = select( fhAll, 0u, fhCarry );
+	let fhOn = select( fhAll, select( fhAll & 2047u, fhAll >> 11u, hat == ${ HAT.capBack }u ), fhCarry );
+	// ---- end FK5 repair
 	var fhPaint = vec3f( 0.0 );
-	if ( fhi > 0u ) {
+	if ( fhOn > 0u ) {
 		let hk = vec3f( ${ HEAD_R.map( ( r, i ) => ( r / FH.R[ i ] ).toFixed( 4 ) ).join( ', ' ) } );
 		let fc = fhCoefs( lk.w & 65535u, female, age, lx & 7u, build );
 		// ---- FF2: his expression (FanHead.js: MakeHuman's units): the mouth open as his act has it (talking,
@@ -1831,11 +1877,13 @@ function castMaterial( pool ) {
 		let mouthK = clamp( a3.y, 0.0, 1.0 );
 		let smileK = max( 0.25 * fr.x * fr.x, mouthK * ( 0.15 + 0.7 * fr.y ) ) * select( 1.0, 0.5, age == 1u );
 		let lidRest = 0.1 + 0.2 * fr.z + select( 0.0, 0.12, age == 1u );
-		let fh = fhBlend( fhi - 1u, fc[ 0 ], fc[ 1 ], vec3f( mouthK, smileK, max( clamp( a7.z, 0.0, 1.0 ), lidRest * ( 1.0 - 0.6 * smileK ) ) ), 0.0 ); // (---- FF3: no rest of its own: ex has it)
+		let fh = fhBlend( fhOn - 1u, fc[ 0 ], fc[ 1 ], vec3f( mouthK, smileK, max( clamp( a7.z, 0.0, 1.0 ), lidRest * ( 1.0 - 0.6 * smileK ) ) ), 0.0 ); // (---- FF3: no rest of its own: ex has it)
 		// ---- end FF2
 		q += fh.dp * hk;
-		n = normalize( n + fh.dn );
-		fhPaint = fh.d;
+		if ( fhi > 0u ) {
+			n = normalize( n + fh.dn );
+			fhPaint = fh.d;
+		}
 		let hoodUp = poncho > 0u && fract( f32( lk.w & 65535u ) / 65536.0 * 13.1 ) > 0.35;
 		if ( hat == ${ HAT.hood }u || hoodUp || ${ any( 'hat', knitHats ) } || hat == ${ HAT.earmuffs }u || hat == ${ HAT.motor }u || hairStyle == 1u ) { q += fh.fold * hk; }
 	}
