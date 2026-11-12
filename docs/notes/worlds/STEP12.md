@@ -9,6 +9,7 @@ Step 12 is the same loop as steps 9 and 11 ([STEP9.md](STEP9.md), [STEP11.md](ST
 - **It starts from a queue.** Step 11 ended at the usage limit with two fixers unfinished (the seats, the players) and five bundles waiting (`.claude/gauntlet/s11/TICKETS.md`). Round 1 picks those up before any new finding.
 - **Speed first.** The 400s seat is at 28.9 ms and left field at 28.0 ms, against a floor of 33.3 ms. A speed track runs from the start, so the fixers have room to add detail.
 - **The roles** are step 11's: critics (CR), spot checks (SC), breakers (AD), skeptics (SK), fixers (here **FK**, since `FX` is taken) and speed tracks (SP, from SP4).
+- **Fix pipelines run as workflows** (from 08:10): each bundle goes fixer → a skeptic who renders both trees and a code reviewer who reads the diff → one repair round if either sends it back → the coordinator's merge. The workflow holds its rendering agents to three at a time, since the GPU is shared.
 - **A zone nobody looked at in step 11:** the field, the game and the boards as the TV cameras show them on every pitch.
 
 ## The files

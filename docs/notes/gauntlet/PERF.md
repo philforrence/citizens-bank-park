@@ -176,3 +176,13 @@ After FX1, every view is ~1 ms faster than at 06:55. That's the machine going ba
 - FX3's back-bar bottles (28.5k triangles in their own mesh) and Harry's now see-through glass, which shows the bowl from inside.
 The floor holds, with a 4.4 ms margin. **Next step's speed track:** win it back without cutting detail. For example, cheapen the near level's hand (no thumb stub, no middle ring, FX4.md), and cull or LOD the back bars' bottles past ~15 m. No console errors.
 
+
+## Step 12
+
+Wall ms per frame at 1280 × 800, the standard views under the lock's exclusive mode (`.claude/gauntlet/perf/perf.sh TAG [root]`). TAAU's own pass time is the steadiness check: ~1.8-1.9 ms on a quiet machine on AC. A run whose TAAU reads higher was taken on a loaded machine, and its views read high by about the same ratio.
+
+| When | Merged | TV center | TV high | follow | concourse | lounge | real 3B seat | plaza | left field | **400s seat** | celebration | Harry's upstairs | TAAU |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 11-12 07:59 | step 11 as published, **loaded** (round 1's four agents started during the run) | 23.2 | 23.3 | 17.0 | 18.4 | 16.2 | 24.4 | 20.7 | 32.0 | **38.2** | 25.7 / 26.6 | 32.8 | 1.88-2.47 |
+
+**The start (07:59) is not a clean baseline.** The code is step 11's, which measured 28.9 ms in the 400s seat on 10-29 with TAAU at 1.78-1.93. Here TAAU climbs from 1.88 to 2.47 through the run as the agents start, and the last views (the 400s seat, Harry's upstairs) read 25-30% high with it. Scaled by TAAU, the 400s seat is ~30 ms: the same as step 11. With agents working all day the machine is never quiet, so merges in this step are judged by A/B pairs taken back to back (before and after trees in one sitting), and by TAAU-scaled numbers. No console errors.
