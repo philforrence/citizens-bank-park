@@ -50,7 +50,6 @@ export const PALETTE = [
 	// ---- end FX3
 ];
 export const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
-const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;
 
 // a cell's corner ( u, v in 0..1 across it ) as the uv that addresses it (offset by 100; by 200 to light a
 // printed cell from behind: the lineup's cards in their light boxes)
@@ -69,12 +68,22 @@ function kitMaterial() {
 
 	if ( _material ) return _material;
 	_atlas ||= canvasTexture( ATLAS_W, ATLAS_H, drawAtlas, 'leftfieldAtlas' );
+	// ---- SP4 (speed): the palette in a uniform array, [ albedo, roughness ] then [ glow, metalness ] per
+	// entry, rounded as the literals were. It was three arrays of 62 built in every pixel's registers and
+	// indexed there (SP1's find in inside/Kit.js)
+	const N = PALETTE.length, r = ( v, d ) => Number( v.toFixed( d ) );
+	const pal = new Float32Array( N * 8 );
+	PALETTE.forEach( ( p, i ) => {
+
+		pal.set( [ ...p[ 1 ].map( ( v ) => r( v, 3 ) ), r( p[ 2 ], 2 ) ], i * 4 );
+		pal.set( [ ...( p[ 4 ] || [ 0, 0, 0 ] ).map( ( v ) => r( v, 3 ) ), r( p[ 3 ], 2 ) ], ( N + i ) * 4 );
+
+	} );
+	// ---- end SP4
 	const mat = standard( {
 		name: 'leftfield-things', roughness: 0.5, modules: [ commonModule ], textures: { lfAtlas: _atlas },
+		uniforms: { lfPal: [ `vec4f[${ N * 2 }]`, pal ] }, // ---- SP4
 		surface: /* wgsl */`
-	var alb = array<vec3f, ${ PALETTE.length }>( ${ PALETTE.map( ( p ) => f3( p[ 1 ] ) ).join( ', ' ) } );
-	var rm = array<vec2f, ${ PALETTE.length }>( ${ PALETTE.map( ( p ) => `vec2f( ${ p[ 2 ].toFixed( 2 ) }, ${ p[ 3 ].toFixed( 2 ) } )` ).join( ', ' ) } );
-	var glo = array<vec3f, ${ PALETTE.length }>( ${ PALETTE.map( ( p ) => f3( p[ 4 ] || [ 0, 0, 0 ] ) ).join( ', ' ) } );
 	let nk = smoothstep( 0.1, 0.7, frame.night );
 	if ( in.uv.x >= 99.0 ) {
 		// printed (the atlas's lower half) or lit from behind (its upper half: the signs, the back bar,
@@ -88,10 +97,12 @@ function kitMaterial() {
 		s.emissive = t * lit * mix( 0.55, 1.35, nk );
 	} else {
 		let k = min( u32( max( in.uv.x, 0.0 ) ), ${ PALETTE.length - 1 }u );
-		s.albedo = alb[ k ];
-		s.roughness = rm[ k ].x;
-		s.metalness = rm[ k ].y;
-		s.emissive = glo[ k ] * mix( 0.7, 1.7, nk );
+		let pa = mat.lfPal[ k ];
+		let pg = mat.lfPal[ ${ N }u + k ];
+		s.albedo = pa.rgb;
+		s.roughness = pa.w;
+		s.metalness = pg.w;
+		s.emissive = pg.rgb * mix( 0.7, 1.7, nk );
 		// ---- FX3 (AD1-9): the bottles' glass, lit from behind: bright through its middle, dark at the edges
 		// where you look through more of it at a slant (and the room's reflections there)
 		if ( k >= ${ PAL.glassAmber }u && k <= ${ PAL.glassRed }u ) {

@@ -707,11 +707,29 @@ export class MeshRenderer {
 
 			}
 
+			// ---- SP4 (speed): an instanced mesh may draw only some of its instances, as runs ( first, count ) in
+			// `instanceRanges` (the first `instanceRangeCount` of them; 0: all). The crowd's pieces near a level's
+			// threshold draw their fans on either side of it at their own levels (Crowd.lod())
+			const nr = o.instanceRangeCount || 0, R = nr ? o.instanceRanges : null;
 			if ( index ) {
 
 				const count = Math.min( it.count, geo.index.count - it.start );
 				if ( count <= 0 ) continue;
 				rp.setIndexBuffer( index.buffer, index.format );
+				if ( R ) {
+
+					for ( let r = 0; r < nr; r ++ ) {
+
+						rp.drawIndexed( count, R[ r * 2 + 1 ], it.start, 0, R[ r * 2 ] );
+						this.stats.triangles += count / 3 * R[ r * 2 + 1 ];
+						this.stats.draws ++;
+
+					}
+
+					continue;
+
+				}
+
 				rp.drawIndexed( count, instances === Infinity ? 1 : instances, it.start, 0, 0 );
 				this.stats.triangles += count / 3 * instances;
 
@@ -720,10 +738,25 @@ export class MeshRenderer {
 				const total = geo.attributes.position ? geo.attributes.position.count : geo.vertexCount;
 				const count = Math.min( it.count, total - it.start );
 				if ( count <= 0 ) continue;
+				if ( R ) {
+
+					for ( let r = 0; r < nr; r ++ ) {
+
+						rp.draw( count, R[ r * 2 + 1 ], it.start, R[ r * 2 ] );
+						this.stats.triangles += count / 3 * R[ r * 2 + 1 ];
+						this.stats.draws ++;
+
+					}
+
+					continue;
+
+				}
+
 				rp.draw( count, instances, it.start, 0 );
 				this.stats.triangles += count / 3 * instances;
 
 			}
+			// ---- end SP4
 
 			this.stats.draws ++;
 

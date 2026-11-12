@@ -1466,25 +1466,18 @@ struct CwPose {
 // ---- FX4 (CR1-2): a raised arm's way (ARM_VARS): its elbow, wrist and hand, the right arm's, sitting to
 // standing
 fn cwArmVar( v: u32, st: f32 ) -> mat3x3f {
-	var SE = array<vec3f, 4>( ${ ARM_VARS[ 0 ].map( ( j ) => f3( j[ 0 ] ) ).join( ', ' ) } );
-	var SW = array<vec3f, 4>( ${ ARM_VARS[ 0 ].map( ( j ) => f3( j[ 1 ] ) ).join( ', ' ) } );
-	var SH = array<vec3f, 4>( ${ ARM_VARS[ 0 ].map( ( j ) => f3( j[ 2 ] ) ).join( ', ' ) } );
-	var TE = array<vec3f, 4>( ${ ARM_VARS[ 1 ].map( ( j ) => f3( j[ 0 ] ) ).join( ', ' ) } );
-	var TW = array<vec3f, 4>( ${ ARM_VARS[ 1 ].map( ( j ) => f3( j[ 1 ] ) ).join( ', ' ) } );
-	var TH = array<vec3f, 4>( ${ ARM_VARS[ 1 ].map( ( j ) => f3( j[ 2 ] ) ).join( ', ' ) } );
-	return mat3x3f( mix( SE[ v ], TE[ v ], st ), mix( SW[ v ], TW[ v ], st ), mix( SH[ v ], TH[ v ], st ) );
+	// (---- SP4: from the material's uniform arrays, ARM_U)
+	return mat3x3f( mix( mat.cwArmJ[ v ].xyz, mat.cwArmJ[ 12u + v ].xyz, st ), mix( mat.cwArmJ[ 4u + v ].xyz, mat.cwArmJ[ 16u + v ].xyz, st ), mix( mat.cwArmJ[ 8u + v ].xyz, mat.cwArmJ[ 20u + v ].xyz, st ) );
 }
 // a hand's shape: the index finger's curl at its knuckle and its middle joint (x, y), the other three's (z,
 // w), radians; 0 a fist, 1 the index up (the rest in a fist), 2 open, 3 a grip (a towel's corner, a cup),
 // 4 at rest (loose), 5 at his face (clapping, praying: near open)
 fn cwHand( k: u32 ) -> vec4f {
-	var H = array<vec4f, 6>( vec4f( 1.5, 2.0, 1.5, 2.0 ), vec4f( 0.0, 0.06, 1.5, 2.0 ), vec4f( - 0.1, 0.06, - 0.06, 0.1 ), vec4f( 1.1, 1.35, 1.15, 1.4 ), vec4f( ${ [ ...HAND_REST.index, ...HAND_REST.block ].join( ", " ) } ), vec4f( 0.14, 0.18, 0.16, 0.22 ) );
-	return H[ k ];
+	return mat.cwHandK[ k ]; // (---- SP4: HAND_U)
 }
 // and how far its thumb has come across the palm from out beside it
 fn cwThumb( k: u32 ) -> f32 {
-	var T = array<f32, 6>( 1.0, 0.95, 0.0, 0.7, ${ HAND_REST.thumb }, 0.12 );
-	return T[ k ];
+	return mat.cwHandK[ 6u + k / 4u ][ k % 4u ]; // (---- SP4: HAND_U)
 }
 // ---- end FX4
 
@@ -1864,6 +1857,16 @@ const SIGNS29 = ["28 YEARS... WHAT'S ANOTHER DAY?", 'IT ENDS TONIGHT', 'PHABULOU
 const SIGNS27 = ["RAIN? WE'RE FROM PHILLY", 'PHILS IN PHIVE', 'PHINALLY', 'WE BELIEVE', 'RED OCTOBER', 'HI MOM IN BOCA!', "RAIN? WE'RE FROM PHILLY", 'PHILS IN PHIVE', 'WE BELIEVE', 'RED OCTOBER', 'PHINALLY', 'RAYS RAYS GO AWAY'];
 const signCells = ( names ) => names.map( ( n ) => SIGN[ n ] ?? 0 ).join( 'u, ' ) + 'u';
 
+// ---- SP4 (speed): cwArmVar's joints (ARM_VARS: sitting then standing, the elbows, wrists and hands of the
+// four ways, as f3 rounds them) and cwHand's and cwThumb's shapes, as the material's uniform arrays. They
+// were arrays built in each vertex's registers and indexed there, for every finger's vertex several times
+// (and every arm's and towel's)
+const ARM_U = new Float32Array( 24 * 4 );
+ARM_VARS.forEach( ( set, s ) => set.forEach( ( j, v ) => j.forEach( ( p, J ) => ARM_U.set( p.map( ( x ) => Number( x.toFixed( 3 ) ) ), ( s * 12 + J * 4 + v ) * 4 ) ) ) );
+const HAND_U = new Float32Array( [ 1.5, 2.0, 1.5, 2.0, 0.0, 0.06, 1.5, 2.0, - 0.1, 0.06, - 0.06, 0.1, 1.1, 1.35, 1.15, 1.4, ...HAND_REST.index, ...HAND_REST.block, 0.14, 0.18, 0.16, 0.22,
+	1.0, 0.95, 0.0, 0.7, HAND_REST.thumb, 0.12, 0, 0 ] );
+// ---- end SP4
+
 function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 
 	const call = ( prev ) => `cwVertex( pos0, nrm0, stp0, nrm0s, v.aSitUp, v.aStandUp, v.aSitFace, v.aStandFace, v.aInfo, fan, ${ prev }, ${ lod }u, fhPaint, fhFold )`;
@@ -1881,7 +1884,7 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf, cwIds: idsBuf, fhRec: { storage: fanHeadBuffer(), access: 'read' } }, // (FF1: the heads)
 		// ---- FW1 (CP-12): the Cast's atlas, for the names and numbers on the backs; (FP2) the signs' boards
 		textures: { cwAtlas: () => castPool()?.atlas || BLANK(), cwSigns: () => signAtlas() },
-		uniforms: { cwNight: [ 'f32', 29 ], cwHome: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] },
+		uniforms: { cwNight: [ 'f32', 29 ], cwHome: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ], cwArmJ: [ 'vec4f[24]', ARM_U ], cwHandK: [ 'vec4f[8]', HAND_U ] }, // (---- SP4: the arms' and hands')
 		attributes: { aStand: 'vec3f', aStandN: 'vec3f', aSitUp: 'vec3f', aStandUp: 'vec3f', aSitFace: 'vec3f', aStandFace: 'vec3f', aInfo: 'vec4f' },
 		varyings: { vFan: 'u32', vLocal: 'vec3f' }, // (---- SP3: the part in vFan's low 5 bits, one varying fewer)
 		vertex: /* wgsl */`
@@ -2821,6 +2824,27 @@ export class Crowd {
 		const kd = k * Math.hypot( 1, camera.aspect || 1.6 );
 		const c = this._c || ( this._c = new Vector3() );
 		const fwd = ( this._f || ( this._f = new Vector3() ) ).set( 0, 0, - 1 ).transformDirection( camera.matrixWorld );
+		// ---- SP4 (speed): a piece takes its level from its nearest point, and a piece's rows run a long way
+		// round the bowl: from the 400s seat 672 fans out to 60 m were at the close level (408 of them within
+		// its edge, 9.5 m), from TV high 1,419 out to 51 m (258). A piece that straddles the close or the near
+		// level's edge draws each fan at the level his own size asks for (_split()), those over the edge at
+		// the next level. (`crowd.fanLod = false`: by piece, as before, for an A/B)
+		// (merged off, step 12: SP4's skeptic showed the levels don't agree at their edges yet. A fan moved
+		// down a level loses what that level drops: past 9.5 m the blanket, cup, pom-pom and shoes; past the
+		// near edge the hands, the lap sign and the towel's own motion, so two bands of the celebration's
+		// towels turn from cloth to sparkle on TV. `crowd.fanLod = true` turns it on; it goes on for good
+		// once the levels carry the same things across their edges)
+		const seats = this.fanLod === true ? this._seats : null;
+		if ( seats && ! this._fanSphere ) {
+
+			const g = this.geometries[ 0 ];
+			if ( ! g.boundingSphere ) g.computeBoundingSphere();
+			const s = g.boundingSphere;
+			// (a fan's sphere about his seat: the figure's centre over it, and its reach round it)
+			this._fanSphere = [ s.center.y, s.radius + Math.hypot( s.center.x, s.center.z ) ];
+
+		}
+		// ---- end SP4
 		for ( const ch of this.chunks ) {
 
 			const bs = ch.near.boundingSphere;
@@ -2835,11 +2859,72 @@ export class Crowd {
 			// never through a long lens, whose fans are all far off)
 			// ---- SP2: and the distant one beyond DISTANT (fans under ~8 px)
 			const level = d < 4 && k > 0.17 ? 0 : d < 11 ? 1 : d < 30 ? 2 : d < this.distant ? 3 : 4;
-			for ( let k = 0; k < ch.lods.length; k ++ ) ch.lods[ k ].visible = level === k;
+			// ---- SP4: its farthest fan over the level's edge: each fan by his own size
+			if ( seats && level <= 1 && Math.max( dist + R, ( lat + R ) / kd ) * k >= ( level === 0 ? 4 : 11 ) && this._split( ch, level, camera.position, fwd, k, kd ) ) continue;
+			for ( let k = 0; k < ch.lods.length; k ++ ) {
+
+				ch.lods[ k ].visible = level === k;
+				ch.lods[ k ].instanceRangeCount = 0;
+
+			}
+			// ---- end SP4
 
 		}
 
 	}
+
+	// ---- SP4 (speed): a piece at level L (close or near) whose far side is over the level's edge: the fans
+	// within it drawn at L, the rest at L + 1, as runs of the piece's instances (MeshRenderer's
+	// instanceRanges: the piece is in rows, so a run is a row's stretch). Each fan's size is lod()'s measure
+	// for his own sphere, which lies in the piece's: nobody is drawn coarser than his size asks for
+	_split( ch, L, cam, fwd, k, kd ) {
+
+		const n = ch.near.count, S = this._seats, [ oy, rf ] = this._fanSphere, edge = L === 0 ? 4 : 11;
+		const A = ch.lods[ L ], B = ch.lods[ L + 1 ];
+		const ra = A.instanceRanges || ( A.instanceRanges = new Uint32Array( n * 2 ) );
+		const rb = B.instanceRanges || ( B.instanceRanges = new Uint32Array( n * 2 ) );
+		let na = 0, nb = 0;
+		for ( let i = 0; i < n; i ++ ) {
+
+			const f = ( ch.base + i ) * 4;
+			const dx = S[ f ] - cam.x, dy = S[ f + 1 ] + oy - cam.y, dz = S[ f + 2 ] - cam.z;
+			const dist = Math.sqrt( dx * dx + dy * dy + dz * dz ), depth = dx * fwd.x + dy * fwd.y + dz * fwd.z;
+			const lat = Math.sqrt( Math.max( 0, dist * dist - depth * depth ) );
+			if ( Math.max( 0, dist - rf, ( lat - rf ) / kd ) * k < edge ) {
+
+				if ( na && ra[ na * 2 - 2 ] + ra[ na * 2 - 1 ] === i ) ra[ na * 2 - 1 ] ++;
+				else { ra[ na * 2 ] = i; ra[ na * 2 + 1 ] = 1; na ++; }
+
+			} else {
+
+				if ( nb && rb[ nb * 2 - 2 ] + rb[ nb * 2 - 1 ] === i ) rb[ nb * 2 - 1 ] ++;
+				else { rb[ nb * 2 ] = i; rb[ nb * 2 + 1 ] = 1; nb ++; }
+
+			}
+
+		}
+
+		for ( const m of ch.lods ) {
+
+			m.visible = false;
+			m.instanceRangeCount = 0;
+
+		}
+
+		A.visible = na > 0;
+		B.visible = nb > 0;
+		// (all of them on one side: the whole piece, one draw)
+		if ( na && nb ) {
+
+			A.instanceRangeCount = na;
+			B.instanceRangeCount = nb;
+
+		}
+
+		return true;
+
+	}
+	// ---- end SP4
 
 	// how the crowd feels about the game at the replay's time (a function of the timeline, so scrubbing
 	// shows the right thing): up on two strikes and two outs when the Phillies pitch, on their feet for a
