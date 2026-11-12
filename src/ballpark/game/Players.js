@@ -4,7 +4,7 @@ import { standard } from '../../materials/Materials.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
 import { buildPlayerGeometry, solvePose, skinMatrices, neutralPose, NB, BONES, PART, UNIFORM, FACE, DIM, JOINTS as BODY_JOINTS, PHAN, PHANATIC_PARTS } from './Rig.js';
 import { look as lookFor, FACE_PACK } from './Looks.js';
-import { HEAD, bakeFace, exprRecords } from './Faces.js'; // ---- FF3
+import { HEAD, bakeFace, exprRecords, EXPR_VEC4 } from './Faces.js'; // ---- FF3 (---- FK2: EXPR_VEC4)
 import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 
 // Everyone on the field in one instanced draw: each instance is a slot, its 17 skinning matrices (and
@@ -76,7 +76,7 @@ export class Players {
 		// ---- FF3: each slot's face (Faces.js bakeFace, when he comes on: update() writes it), and the
 		// expressions' records the near figure blends
 		this.faces = new StorageBuffer( { label: 'playerFaces', count: MAX * HEAD.count, type: 'vec4u' } );
-		this.exprs = new StorageBuffer( { label: 'playerExpressions', count: HEAD.count * 2, type: 'vec4u', data: exprRecords() } );
+		this.exprs = new StorageBuffer( { label: 'playerExpressions', count: HEAD.count * EXPR_VEC4, type: 'vec4u', data: exprRecords() } );
 		this._faceDirty = new Set();
 		this._faceCache = new Map();
 		// ---- end FF3
@@ -245,6 +245,7 @@ export class Players {
 			this.info.set( [ k.hair[ 0 ], k.hair[ 1 ], k.hair[ 2 ], k.face ], o + 8 );
 			this.info.set( [ k.style, k.belly, k.jaw, k.ageStubble ], o + 12 );
 			this.info.set( k.shape, o + 16 ); // ---- FY4
+			this.info[ o + 16 ] = _shout; // ---- FK2: the shout's weight (expression(), above)
 
 		}
 
@@ -411,8 +412,12 @@ export class Players {
 //  - from strike three (Director.champsAt) the Phillies shout and grin, in bursts, through the pile, and
 //    laugh and smile on through the celebration; Lidge on his knees, arms up, the mouth wide, his eyes
 //    screwed up (Getty 83485858, 83485929); the Rays' faces set; the crew smiling
+// ---- FK2: the shout's weight (0-1) for the slot's i4.x, set by expression() alongside the packed three
+let _shout = 0;
+const sstep = ( a, b, x ) => { const k = Math.min( 1, Math.max( 0, ( x - a ) / ( b - a ) ) ); return k * k * ( 3 - 2 * k ); };
 function expression( p, t, ch ) {
 
+	_shout = 0;
 	if ( p.kind === KIND.phanatic ) return 0;
 	const fr = ( x ) => x - Math.floor( x );
 	const s = fr( ( p.seed || 0 ) * 97.31 + p.slot * 0.6180339 );
@@ -430,7 +435,19 @@ function expression( p, t, ch ) {
 			open = lt < 40 ? 0.25 + 0.65 * burst : 0.12 * burst + 0.55 * Math.max( 0, Math.sin( lt * 0.31 + s * 20 ) ) ** 8;
 			// (---- FX1: the eyes screwed up harder, the cheeks pushed up into them, now the jaw drops on the
 			// GPU too: Getty 83485858 and 83485929, the eyes all but shut and the mouth wide)
-			if ( p.look.id === 400058 && lt < 4.5 ) { open = 1; smile = 0.45; blink = Math.max( blink, 0.9 ); }
+			// (---- FK2, SK1's F3: eased in over a quarter second at strike three and out over half a second from
+			// +4.5 s: it snapped in a frame. And the shout on top: the jaw lower, the lip up, the brows down)
+			// (---- FK2: the pile's biggest bursts in its first half minute shout too, the brows down with the jaw)
+			if ( lt < 40 ) _shout = 0.65 * Math.max( 0, ( burst - 0.55 ) / 0.45 ) * ( 1 - sstep( 28, 40, lt ) );
+			if ( p.look.id === 400058 ) {
+
+				const w = sstep( 0, 0.25, lt ) * ( 1 - sstep( 4.5, 5.0, lt ) );
+				open += ( 1 - open ) * w;
+				smile += ( 0.45 - smile ) * w;
+				blink += ( Math.max( blink, 0.9 ) - blink ) * w;
+				_shout = Math.max( _shout * ( 1 - w ), w );
+
+			}
 
 		} else if ( p.kind === KIND.away ) { open = Math.min( open, 0.05 ); }
 		else if ( p.kind === KIND.crew ) { smile = 0.45; }
@@ -846,8 +863,8 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		// expressions: they're the skull's. The lower ones take the jaw's)
 		if ( hq < 131072u && eq != 0u && pt != ${ P.teeth } ) {
 			let ex = vec3f( f32( eq & 255u ), f32( ( eq >> 8u ) & 255u ), f32( eq >> 16u ) ) / 255.0;
-			let e0 = plExpr[ hv * 2u ];
-			let e1 = plExpr[ hv * 2u + 1u ];
+			let e0 = plExpr[ hv * ${ EXPR_VEC4 }u ];
+			let e1 = plExpr[ hv * ${ EXPR_VEC4 }u + 1u ];
 			let oa = unpack2x16float( e0.x );
 			let oc = unpack2x16float( e0.y );
 			let oe = unpack2x16float( e0.z );
@@ -858,6 +875,19 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let ne = unpack2x16float( e1.z );
 			let ng = unpack2x16float( e1.w );
 			dn += vec3f( na, nc.x ) * ex.x + vec3f( nc.y, ne ) * ex.y + vec3f( 0.0, ng ) * ex.z;
+			// ---- FK2 (step 12, SK1's F1 and the squint): the shout on top (build-body's EXPR: the jaw lower,
+			// the upper lip lifted off the teeth, the corners in, the brows down and knit, the cheeks up), its
+			// weight the slot's i4.x (expression(), each frame; FY4's first face number there is no longer read)
+			let sw = plInfo[ slot * ${ K }u + 4u ].x;
+			if ( sw > 0.0 ) {
+				let e2 = plExpr[ hv * ${ EXPR_VEC4 }u + 2u ];
+				let sa = unpack2x16float( e2.x );
+				let sb = unpack2x16float( e2.y );
+				let sc = unpack2x16float( e2.z );
+				dp += vec3f( sa, sb.x ) * sw;
+				dn += vec3f( sb.y, sc ) * sw;
+			}
+			// ---- end FK2
 		}
 		lp3 += dp;
 		fd += dp;
@@ -1373,6 +1403,33 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 				let crow = smoothstep( 0.05, 0.054, ax ) * ( 1.0 - smoothstep( 0.061, 0.065, ax ) ) * ( 1.0 - smoothstep( 0.008, 0.013, abs( L.y - eye.y ) ) ) * smoothstep( 0.2, 0.0, abs( fract( L.y * 260.0 ) - 0.2 ) );
 				c = c * ( 1.0 - 0.15 * crow * fw );
 			}
+			// ---- FK2 (step 12, SK1's squint): the shout's frown and the laugh's lines. Crow's feet fanning
+			// from each eye's outer corner on anyone laughing or shouting; in the shout two short creases up
+			// from the inner brows over the knit (build-body's corrugator); the fold from the nose's wing round
+			// the mouth's corner, deep in the shout and the grin (Getty 83485858: Lidge's face screwed up under
+			// the bill; 83485929)
+			let eq4 = u32( plInfo[ slotU * ${ K }u ].y );
+			let smileW = f32( ( eq4 >> 8u ) & 255u ) / 255.0;
+			let shoutW = plInfo[ slotU * ${ K }u + 4u ].x;
+			let sq = clamp( shoutW + 0.6 * smileW, 0.0, 1.0 );
+			if ( sq > 0.0 ) {
+				let oc = vec2f( ax - 0.047, L.y - eye.y + 0.002 );
+				let r = length( oc );
+				let ang = atan2( oc.y, max( oc.x, 1e-4 ) );
+				let fan = smoothstep( 0.002, 0.005, r ) * ( 1.0 - smoothstep( 0.011, 0.017, r ) ) * smoothstep( 0.0, 0.004, oc.x ) * ( 1.0 - smoothstep( 0.85, 1.15, abs( ang ) ) );
+				let crease = smoothstep( 0.22, 0.0, abs( fract( ang * 2.4 + 0.5 + 0.12 * g2 ) - 0.5 ) );
+				c = c * ( 1.0 - 0.3 * sq * fan * crease * fw );
+				// the fold from the nose round the mouth
+				let ny = clamp( ( L.y - m.y + 0.006 ) / 0.029, 0.0, 1.0 );
+				let nlx = mix( 0.031, 0.0185, ny * ny );
+				let nl = ( 1.0 - smoothstep( 0.0009, 0.0032, abs( ax - nlx ) ) ) * smoothstep( m.y - 0.01, m.y - 0.004, L.y ) * ( 1.0 - smoothstep( m.y + 0.02, m.y + 0.025, L.y ) );
+				c = c * ( 1.0 - 0.32 * clamp( shoutW + 0.5 * smileW, 0.0, 1.0 ) * nl * fw );
+			}
+			if ( shoutW > 0.0 ) {
+				let gl = ( 1.0 - smoothstep( 0.0007, 0.0018, abs( ax - 0.0065 - 0.0015 * smoothstep( eye.y + 0.01, eye.y + 0.03, L.y ) ) ) ) * smoothstep( eye.y + 0.008, eye.y + 0.014, L.y ) * ( 1.0 - smoothstep( eye.y + 0.026, eye.y + 0.034, L.y ) );
+				c = c * ( 1.0 - 0.35 * shoutW * gl * fw );
+			}
+			// ---- end FK2
 			// under the cap's bill (or the helmet's) its shadow from the brow down over the eyes, the strongest
 			// thing on a ballplayer's face under the banks (FY2; FOX's close-up of Burrell, Getty 83485455),
 			// soft round the temples
@@ -1403,7 +1460,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 				// (---- FX1: from the slot's own record, not the interpolated vInfo: as above, the packed number
 				// has no room for a rounding error from 2^23 up)
 				let openW = f32( u32( plInfo[ slotU * ${ K }u ].y ) & 255u ) / 255.0;
-				let mk = smoothstep( 0.55, 0.95, mouthIn ) * smoothstep( 0.02, 0.15, openW );
+				// (---- FK2, SK1's F2: not the skin above the upper lip and under the lower one, a few vertices FF3's
+				// normal test flagged on the face's front: two dark-red marks over every open mouth)
+				let outerLip = clamp( smoothstep( 0.0058, 0.0078, dy ) + smoothstep( -0.0105, -0.0125, dy ), 0.0, 1.0 ) * ( 1.0 - smoothstep( 0.006, 0.01, dz ) );
+				let mk = smoothstep( 0.55, 0.95, mouthIn ) * smoothstep( 0.02, 0.15, openW ) * ( 1.0 - outerLip );
 				c = mix( c, mc, mk );
 				rough = mix( rough, mix( 0.3, 0.45, teeth ), mk );
 				s.translucency = s.translucency * ( 1.0 - mk );
