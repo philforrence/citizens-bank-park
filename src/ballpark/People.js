@@ -11,6 +11,7 @@ import { LEVELS, fencePoint } from './layout.js';
 import { Cast, HAT, TOP, PROP, restPose, castPool, castPalette } from './places/Cast.js';
 import { GESTURE, railArms, dress, sizeOf, rng, pick, armIK } from './places/Concourse3BKit.js';
 import { pitEdgeZ } from './places/alley/Promenade.js';
+import { Tempo } from './places/Tempo.js'; // ---- FK5 (AD1-14)
 // ---- end FW1
 
 // Everyone who isn't in a seat or on the field: the staff behind every concession stand and the lines
@@ -191,7 +192,8 @@ export function figureGeometry() {
 	// the shader folds it away on the rest. Rings [ y, half width, half depth, z ]
 	{
 
-		const rings = [ [ 0.6, 0.29, 0.2, 0.02 ], [ 0.86, 0.3, 0.2, 0.02 ], [ 1.12, 0.29, 0.17, 0.02 ], [ 1.31, 0.26, 0.14, 0.025 ], [ 1.43, 0.165, 0.1, 0.03 ], [ 1.51, 0.075, 0.07, 0.03 ] ];
+		// (FK5, CR1-25: on the shoulders, squarer there, flatter front and back; it was a bell 0.4 m deep)
+		const rings = [ [ 0.6, 0.285, 0.168, 0.02 ], [ 0.86, 0.292, 0.172, 0.02 ], [ 1.12, 0.285, 0.16, 0.02 ], [ 1.31, 0.262, 0.14, 0.025 ], [ 1.4, 0.236, 0.116, 0.028 ], [ 1.45, 0.16, 0.092, 0.03 ], [ 1.51, 0.075, 0.07, 0.03 ] ];
 		const n = 10, first = pos.length / 3;
 		rings.forEach( ( [ y, rx, rz, z ], r ) => {
 
@@ -1175,6 +1177,7 @@ export class People {
 		this.mesh.onBeforeRender = ( r, s, camera ) => {
 
 			if ( camera ) this._thrCam.setFromMatrixPosition( camera.matrixWorld ).applyMatrix4( this._thrInv.copy( this.field.group.matrixWorld ).invert() );
+			if ( camera ) this._waysCam = camera; // (FK5, AD1-14: the stairs' people's Tempo)
 
 		};
 		// the ones close to the camera: Cast figures (a troupe of PROXIES), each standing in for one of the
@@ -1739,7 +1742,7 @@ export class People {
 				else if ( u < 0.55 ) { set( GESTURE.fist ); p._pumpR = a.armR[ 0 ]; }
 				else if ( u < 0.68 && ! kid ) { set( GESTURE.holdUp ); a.propR = PROP.towel; p._pumpR = a.armR[ 0 ]; }
 				else if ( u < 0.78 && ! kid ) { set( GESTURE.photoHigh ); a.propR = v < 0.5 ? PROP.camera : PROP.phone; }
-				else if ( u < 0.88 ) set( GESTURE.head );
+				else if ( u < 0.88 ) set( [ armIK( - 1, [ - 0.05, 1.86, - 0.2 ] ), armIK( 1, [ 0.05, 1.87, - 0.2 ] ) ] ); // (clapping over his head: hands on it went through a knit hat)
 				else set( GESTURE.liftHigh );
 				a.mouth = 0.55 + 0.45 * r();
 				a.headPitch = - 0.12 - 0.1 * r();
@@ -2176,7 +2179,183 @@ export class People {
 		this.infoBuffer.write( this.info );
 		this.movedBuffer.write( this.moved );
 		this._throngUpdate( dt, d );
+		this._waysUpdate( dt, d ); // ---- FK5 (AD1-14)
 
 	}
+
+	// ---- FK5 (AD1-14): people on step 10's ways up. Every stair the park's colliders know as treads (the
+	// Pavilion's switchback from the Alley and the Deck's portal stairs, PavilionWays.js; the Porch's two
+	// towers, leftfield/Access.js; the 400s' stairs, terrace/Build.js) chained into flights (one tread to the
+	// next: a step up, a run along), the flights joined by their landings into routes from the floor to the
+	// top. On each, a few Cast figures going up and down, keeping right (the odd one with a hand on the
+	// rail), a stair's gait (the knee up going up, the lean back coming down), each trip its own: how many
+	// by the moment (the walk-in before the game, between innings, the rain delay going down under cover,
+	// after the last out going home; a few in play). They were empty on a sold-out night (AD1-14; Flickr
+	// 2008-08-14: fans on the Porch's stair). Built at the first update (the places add their stairs after
+	// People is made); on Tempo (every 4th frame unseen). Nothing for the walk to collide with: the walker
+	// steps round them as round everyone in the pool
+	_waysBuild() {
+
+		const C = this._bowl?.colliders, F = this.field;
+		this._ways = { routes: [], slots: [] };
+		if ( ! C?.boxes || ! F?.toField ) return;
+		const TAGS = /^(fa1-stair|terrace-400-stair|porch-stair-east|porch-stair-west|pavilion-deck-portal)$/;
+		// the treads in the order they were made: a flight is a run of them, each a step on from the last
+		const flights = [];
+		let cur = null;
+		for ( const b of C.boxes ) {
+
+			if ( ! b.walkable || ! TAGS.test( b.tag ) ) continue;
+			const c = [ b.center.x, b.top, b.center.z ], w = Math.max( b.half.x, b.half.z );
+			const last = cur && cur.t[ cur.t.length - 1 ];
+			let ok = !! last && cur.tag === b.tag;
+			if ( ok ) {
+
+				const dx = c[ 0 ] - last[ 0 ], dz = c[ 2 ] - last[ 2 ], h = Math.hypot( dx, dz ), dy = Math.abs( c[ 1 ] - last[ 1 ] );
+				ok = dy > 0.08 && dy < 0.32 && h > 0.12 && h < 0.6;
+				if ( ok && cur.t.length > 1 ) {
+
+					const p = cur.t[ cur.t.length - 2 ], ux = last[ 0 ] - p[ 0 ], uz = last[ 2 ] - p[ 2 ];
+					ok = ( ux * dx + uz * dz ) / ( Math.hypot( ux, uz ) * h || 1 ) > 0.8;
+
+				}
+
+			}
+
+			if ( ok ) { cur.t.push( c ); cur.w = Math.min( cur.w, w ); } else flights.push( cur = { tag: b.tag, t: [ c ], w } );
+
+		}
+
+		// each flight from its foot to its top, then the flights joined where one's top meets the next one's foot
+		const fl = flights.filter( ( f ) => f.t.length >= 4 ).map( ( f ) => ( { ...f, t: f.t[ 0 ][ 1 ] > f.t[ f.t.length - 1 ][ 1 ] ? f.t.slice().reverse() : f.t } ) );
+		const used = new Set();
+		const next = ( f ) => fl.find( ( g ) => g !== f && ! used.has( g ) && g.tag === f.tag && Math.abs( g.t[ 0 ][ 1 ] - f.t[ f.t.length - 1 ][ 1 ] ) < 0.4 && Math.hypot( g.t[ 0 ][ 0 ] - f.t[ f.t.length - 1 ][ 0 ], g.t[ 0 ][ 2 ] - f.t[ f.t.length - 1 ][ 2 ] ) < 4.5 );
+		const prev = ( f ) => fl.find( ( g ) => g !== f && g.tag === f.tag && Math.abs( f.t[ 0 ][ 1 ] - g.t[ g.t.length - 1 ][ 1 ] ) < 0.4 && Math.hypot( f.t[ 0 ][ 0 ] - g.t[ g.t.length - 1 ][ 0 ], f.t[ 0 ][ 2 ] - g.t[ g.t.length - 1 ][ 2 ] ) < 4.5 );
+		for ( const f of fl ) {
+
+			if ( used.has( f ) || prev( f ) ) continue;
+			const chain = [ f ];
+			used.add( f );
+			for ( let g = next( f ); g; g = next( g ) ) { chain.push( g ); used.add( g ); }
+			// the route (the field's frame): a step onto the floor before the foot, every tread, the landings
+			// between flights, a step off at the top
+			const pts = [], w = Math.min( ...chain.map( ( c ) => c.w ) );
+			const put = ( x, y, z ) => { const [ fx, fz ] = F.toField( x, z ); pts.push( [ fx, y - F.y0, fz ] ); };
+			const t0 = chain[ 0 ].t, a = t0[ 0 ], b = t0[ 1 ], ux = a[ 0 ] - b[ 0 ], uz = a[ 2 ] - b[ 2 ], ul = Math.hypot( ux, uz ) || 1;
+			put( a[ 0 ] + ux / ul * 1.4, a[ 1 ] - ( b[ 1 ] - a[ 1 ] ), a[ 2 ] + uz / ul * 1.4 );
+			for ( const c of chain ) for ( const q of c.t ) put( q[ 0 ], q[ 1 ], q[ 2 ] );
+			const tl = chain[ chain.length - 1 ].t, e = tl[ tl.length - 1 ], e1 = tl[ tl.length - 2 ], vx = e[ 0 ] - e1[ 0 ], vz = e[ 2 ] - e1[ 2 ], vl = Math.hypot( vx, vz ) || 1;
+			put( e[ 0 ] + vx / vl * 1.2, e[ 1 ], e[ 2 ] + vz / vl * 1.2 );
+			const s = [ 0 ];
+			for ( let k = 1; k < pts.length; k ++ ) s.push( s[ k - 1 ] + Math.hypot( pts[ k ][ 0 ] - pts[ k - 1 ][ 0 ], pts[ k ][ 2 ] - pts[ k - 1 ][ 2 ] ) );
+			this._ways.routes.push( { pts, s, L: s[ s.length - 1 ], w: Math.max( 0.45, w ), tag: f.tag } );
+
+		}
+
+		// the people: one for every 3.5 m of route (at least two a route), 48 in all at most
+		const routes = this._ways.routes.filter( ( r ) => r.L > 3 );
+		this._ways.routes = routes;
+		if ( ! routes.length ) return;
+		this.climbers = new Cast( { parent: this.field.group, max: 48 } );
+		this._waysTempo = new Tempo( [ this.climbers ], { every: 4 } );
+		let n = 0;
+		for ( const [ ri, R ] of routes.entries() ) {
+
+			const k = Math.max( 2, Math.min( 14, Math.round( R.L / 3.5 ) ) );
+			for ( let j = 0; j < k && n < 48; j ++, n ++ ) {
+
+				const r = rng( thrHash( 51000 + n * 7 ) );
+				const L = dress( r );
+				const p = this.climbers.add( L );
+				if ( ! p ) break;
+				p.scale = sizeOf( L, r );
+				p.visible = false;
+				// (spread along the route to begin with, so a route isn't empty the moment it's shown)
+				this._ways.slots.push( { p, R, ri, s: ( j + r() ) / k * R.L, up: r() < 0.5, on: false, wait: r() * 4, rail: r() < 0.3, speed: 0.38 + 0.12 * r(), lat: 0.12 + 0.2 * r(), trip: 0, seed: n, look: L } );
+
+			}
+
+		}
+
+	}
+
+	_waysUpdate( dt, d ) {
+
+		if ( ! this._ways ) this._waysBuild();
+		const W = this._ways;
+		if ( ! W.slots.length ) return;
+		const sdt = this._waysTempo.step( dt, this._waysCam );
+		this.climbers.update();
+		if ( ! sdt ) return;
+		// how many are on the stairs, and which way most of them are going, by the moment
+		const ns = nightState( d );
+		let dens = ns.top ? 0.3 : 0.2, up = 0.5;
+		if ( ns.seg?.kind === 'intro' || ( ns.inning === 1 && ns.half === 'top' && ( ns.snap?.outs || 0 ) === 0 ) ) dens = 1, up = 0.78;
+		else if ( ns.suspended ) dens = 0.65, up = 0.3;
+		else if ( ns.between ) dens = 0.85, up = 0.5;
+		if ( ns.inning === 9 && ! ns.celebrate ) dens = 0.08;
+		if ( ns.celebrate ) dens = ns.celebrateT < 90 ? 0.1 : 0.9, up = 0.15;
+		const rain = ns.first ? ns.rain : 0;
+		for ( const S of W.slots ) {
+
+			const R = S.R, p = S.p, a = p.pose;
+			if ( ! S.on ) {
+
+				// between trips: off the stair; a new trip when his wait's up (its way and whether he's out by
+				// the moment it starts: nobody turns round halfway)
+				S.wait -= sdt;
+				if ( S.wait > 0 ) { p.visible = false; continue; }
+				S.trip ++;
+				const h = rng( thrHash( S.seed * 131 + S.trip * 17 + 3 ) );
+				S.on = h() < dens;
+				S.up = h() < up;
+				S.s = 0;
+				S.rail = h() < 0.3;
+				S.wait = 1 + h() * 7;
+				if ( ! S.on ) { p.visible = false; continue; }
+				// (dressed for the night: a poncho on the 27th's rainy hours, as the throng has them)
+				const L = { ...S.look };
+				if ( ! ( rain > 0.45 && h() < 0.35 ) ) L.poncho = 0; else if ( ! L.poncho ) L.poncho = 1;
+				this.climbers.setLook( p, L );
+				Object.assign( a, restPose() );
+				if ( S.rail ) a.armR = armIK( 1, [ 0.36, 1.0, - 0.08 ] );
+				else if ( h() < 0.15 && L.age !== 2 ) { a.armR = GESTURE.carry[ 1 ].slice(); a.propR = PROP.beer; }
+
+			}
+
+			S.s += sdt * S.speed * ( S.up ? 1 : 1.18 );
+			if ( S.s >= R.L ) { S.on = false; p.visible = false; continue; }
+			// where he is: along the route (from its top coming down), kept right of the way he's going
+			const s = S.up ? S.s : R.L - S.s;
+			let k = 1;
+			while ( k < R.s.length - 1 && R.s[ k ] < s ) k ++;
+			const A = R.pts[ k - 1 ], B = R.pts[ k ], f = Math.max( 0, Math.min( 1, ( s - R.s[ k - 1 ] ) / Math.max( 1e-3, R.s[ k ] - R.s[ k - 1 ] ) ) );
+			let dx = B[ 0 ] - A[ 0 ], dz = B[ 2 ] - A[ 2 ];
+			const dl = Math.hypot( dx, dz ) || 1;
+			dx /= dl; dz /= dl;
+			if ( ! S.up ) { dx = - dx; dz = - dz; }
+			const lat = S.rail ? R.w - 0.3 : Math.min( R.w - 0.3, S.lat + 0.1 );
+			const climb = Math.abs( B[ 1 ] - A[ 1 ] ) > 0.05 && k > 1 && k < R.pts.length - 1;
+			p.x = A[ 0 ] + ( B[ 0 ] - A[ 0 ] ) * f - dz * lat;
+			p.z = A[ 2 ] + ( B[ 2 ] - A[ 2 ] ) * f + dx * lat;
+			p.y = A[ 1 ] + ( B[ 1 ] - A[ 1 ] ) * f;
+			p.yaw = Math.atan2( - dx, - dz );
+			p.visible = true;
+			a.walk = 1;
+			a.phase += sdt * S.speed * ( S.up ? 1 : 1.18 ) / 0.28 * Math.PI;
+			// the stair's gait: going up the leading knee lifted and the body over it; coming down a little back,
+			// the knees easing each step down
+			const st = Math.sin( a.phase ), kU = climb ? 1 : 0;
+			a.hipL = kU * ( S.up ? 0.55 : 0.2 ) * Math.max( 0, st );
+			a.kneeL = kU * ( S.up ? 0.85 : 0.45 ) * Math.max( 0, st );
+			a.hipR = kU * ( S.up ? 0.55 : 0.2 ) * Math.max( 0, - st );
+			a.kneeR = kU * ( S.up ? 0.85 : 0.45 ) * Math.max( 0, - st );
+			a.lean = kU * ( S.up ? 0.12 : - 0.04 );
+			a.headPitch = kU * ( S.up ? 0.12 : 0.28 );
+
+		}
+
+	}
+	// ---- end FK5
 
 }
