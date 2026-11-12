@@ -928,6 +928,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		// higher up, eased in over the 6 mm under it, as a band presses; the ears left as they are (they sit
 		// under its edge; pulled in, they'd fold). The helmets' shells clear every face (checked on the CPU,
 		// the shout's too). Moved with fd, so the paint stays on its vertices
+		// (---- FK2 repair, the pinpricks left along Burrell's bill: 1.2 mm at the band kept every vertex in, but
+		// the crown's facets cut up to 1.1 mm inside its own shell between their corners, and the head's
+		// triangles, sampled whole against the crown's, still came through by up to 0.8 mm on 12 of 63 looks
+		// (Burrell, Utley, Longoria, Balfour ...). 2.5 mm at the band to 3.8 higher up, eased in over 9 mm
+		// under it: none of the 63 within 0.3 mm of the crown, at rest, in the shout or in the pile's bursts)
 		if ( pt == ${ P.body } && ! helmet && ( role & ${ R.ccap | R.nocap | R.hood }u ) == 0u ) {
 			let cd = lp3 - vec3f( 0.0, ${ f( F.top[ 1 ] - 0.101 ) } - hdrop, ${ f( ( F.skull.z0 + F.skull.z1 ) / 2 ) } );
 			let cq = vec3f( cd.x / ${ f( F.skull.x + 0.013 ) }, ( ${ f( Math.cos( 0.3 ) ) } * cd.y + ${ f( Math.sin( 0.3 ) ) } * cd.z ) / 0.104, ( ${ f( - Math.sin( 0.3 ) ) } * cd.y + ${ f( Math.cos( 0.3 ) ) } * cd.z ) / ${ f( ( F.skull.z1 - F.skull.z0 ) / 2 + 0.011 ) } );
@@ -938,9 +943,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			if ( fz > 1e-4 && cq.y > 0.0 ) { yu = ( sqrt( 1.0 + 0.64 * fz * cq.y ) - 1.0 ) / ( 0.32 * fz ); }
 			let rho = length( vec2f( cr, yu ) );
 			let rim = ${ f( Math.cos( Math.PI * 0.56 ) ) };
-			let tgt = 0.988 - 0.02 * smoothstep( rim, rim + 0.15, yu );
+			let tgt = 0.975 - 0.013 * smoothstep( rim, rim + 0.15, yu );
 			let ear = smoothstep( 0.066, 0.076, abs( lp3.x ) ) * smoothstep( ${ f( F.eyeR[ 2 ] + 0.05 ) }, ${ f( F.eyeR[ 2 ] + 0.065 ) }, lp3.z ) * ( 1.0 - smoothstep( ${ f( F.eyeR[ 1 ] + 0.02 ) }, ${ f( F.eyeR[ 1 ] + 0.04 ) }, lp3.y + hdrop ) );
-			let cw = smoothstep( rim - 0.06, rim, yu ) * ( 1.0 - ear );
+			let cw = smoothstep( rim - 0.09, rim, yu ) * ( 1.0 - ear );
 			if ( rho > tgt && cw > 0.0 ) {
 				let mv = cd * ( pow( tgt / rho, 0.83 ) - 1.0 ) * cw;
 				lp3 += mv;
