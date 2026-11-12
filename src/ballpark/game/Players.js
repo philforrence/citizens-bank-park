@@ -3,8 +3,8 @@ import { StorageBuffer } from '../../engine/gpu/Texture.js';
 import { standard } from '../../materials/Materials.js';
 import { commonModule } from '../../engine/render/wgsl/common.js';
 import { buildPlayerGeometry, solvePose, skinMatrices, neutralPose, NB, BONES, PART, UNIFORM, FACE, DIM, JOINTS as BODY_JOINTS, PHAN, PHANATIC_PARTS } from './Rig.js';
-import { look as lookFor, FACE_PACK } from './Looks.js';
-import { HEAD, bakeFace, exprRecords } from './Faces.js'; // ---- FF3
+import { look as lookFor } from './Looks.js';
+import { HEAD, bakeFace, exprRecords, EXPR_VEC4 } from './Faces.js'; // ---- FF3 (---- FK2: EXPR_VEC4)
 import { canvasTexture, refreshCanvasTexture } from '../geo.js';
 
 // Everyone on the field in one instanced draw: each instance is a slot, its 17 skinning matrices (and
@@ -25,7 +25,10 @@ const MAX = 96;
 const COSTUMES = 4; // the Phanatic's costume's draw: at most this many of him at once
 const LOD_PX = 128; // ---- SP2: a player shorter than this on screen (px of the view's height) is drawn far
 const MID_PX = 480; // ---- SP2: ... and shorter than this from the middle figure
-const K = 5; // vec4s per slot (---- FY4: the fifth, the face's shape)
+// vec4s per slot. The fifth (FY4's, once the face's sixteen shape numbers, which FF3's MakeHuman faces
+// retired): x the shout's weight this frame (FK2), w the neck's thickness (0 to 62, 31 the base neck); y and
+// z are free
+const K = 5;
 const Z16 = new Float32Array( 16 );
 const CELL = 128, COLS = 8, ROWS = 16, ATLAS_W = CELL * COLS, ATLAS_H = CELL * ROWS;
 // where the chest's cell goes on the jersey (m: its width, its height, its bottom in the bind pose): the
@@ -76,7 +79,7 @@ export class Players {
 		// ---- FF3: each slot's face (Faces.js bakeFace, when he comes on: update() writes it), and the
 		// expressions' records the near figure blends
 		this.faces = new StorageBuffer( { label: 'playerFaces', count: MAX * HEAD.count, type: 'vec4u' } );
-		this.exprs = new StorageBuffer( { label: 'playerExpressions', count: HEAD.count * 2, type: 'vec4u', data: exprRecords() } );
+		this.exprs = new StorageBuffer( { label: 'playerExpressions', count: HEAD.count * EXPR_VEC4, type: 'vec4u', data: exprRecords() } );
 		this._faceDirty = new Set();
 		this._faceCache = new Map();
 		// ---- end FF3
@@ -240,11 +243,15 @@ export class Players {
 			}
 
 			const k = p.packed, o = i * K * 4;
-			this.info.set( [ p.kind, expression( p, et, champs ), p.role || 0, p.seed || 0 ], o ); // (---- FF3: his expression)
+			this.info.set( [ p.kind, 0, p.role || 0, p.seed || 0 ], o );
 			this.info.set( [ k.skin[ 0 ], k.skin[ 1 ], k.skin[ 2 ], p.dirt || 0 ], o + 4 );
 			this.info.set( [ k.hair[ 0 ], k.hair[ 1 ], k.hair[ 2 ], k.face ], o + 8 );
 			this.info.set( [ k.style, k.belly, k.jaw, k.ageStubble ], o + 12 );
-			this.info.set( k.shape, o + 16 ); // ---- FY4
+			this.info.set( [ 0, 0, 0, k.neck ], o + 16 ); // (---- FY4: the neck)
+			// (---- FF3: his expression's three weights into the first vec4's y; ---- FK2: the shout's into the
+			// fifth's x. ---- FK2 repair: expression() writes both where they go; the shout left it through a
+			// module variable)
+			expression( p, et, champs, this.info, o );
 
 		}
 
@@ -411,34 +418,62 @@ export class Players {
 //  - from strike three (Director.champsAt) the Phillies shout and grin, in bursts, through the pile, and
 //    laugh and smile on through the celebration; Lidge on his knees, arms up, the mouth wide, his eyes
 //    screwed up (Getty 83485858, 83485929); the Rays' faces set; the crew smiling
-function expression( p, t, ch ) {
+// ---- FK2: and the shout's weight (0-1). Written into the slot's numbers: the three weights packed into
+// info[ o + 1 ], the shout into info[ o + 16 ] (the fifth vec4's x)
+const sstep = ( a, b, x ) => { const k = Math.min( 1, Math.max( 0, ( x - a ) / ( b - a ) ) ); return k * k * ( 3 - 2 * k ); };
+export function expression( p, t, ch, info, o ) {
 
-	if ( p.kind === KIND.phanatic ) return 0;
+	info[ o + 1 ] = 0;
+	info[ o + 16 ] = 0;
+	if ( p.kind === KIND.phanatic ) return;
 	const fr = ( x ) => x - Math.floor( x );
 	const s = fr( ( p.seed || 0 ) * 97.31 + p.slot * 0.6180339 );
 	const per = 2.5 + 3.5 * fr( s * 37.1 ), bt = fr( t / per + s ) * per;
 	let blink = Math.max( bt < 0.16 ? Math.sin( bt / 0.16 * Math.PI ) : 0, 0.1 + 0.14 * fr( s * 3.1 ) );
-	let open = 0, smile = 0;
+	let open = 0, smile = 0, shout = 0;
 	if ( fr( s * 7.3 ) < 0.4 && p.kind !== KIND.ump ) open = 0.04 + 0.06 * Math.max( 0, Math.sin( t * ( 7 + 3 * fr( s * 5.1 ) ) + s * 40 ) );
 	if ( ch ) {
 
 		const lt = ch.lt;
+		// ---- FK2 repair (step 12, SK1's F3 again): strike three still stepped. Lidge's own shout eased in, but
+		// under it the champions' face (the grin, the mouth a quarter to nine tenths open) landed in one frame
+		// on every Phillie: open 10 and smile 0 of 255 at K - 0.05, open 71 and smile 152 at K + 0.03. Each man's
+		// face now goes from the one he had to the champions' over a quarter second, starting when he sees it:
+		// Lidge at once (he threw it), the rest up to an eighth of a second after him, each his own; the
+		// crew's smile and the Rays' set jaws the same way
+		const lidge = p.look.id === 400058;
+		const lag = lidge ? 0 : 0.125 * fr( s * 4.7 );
+		const e = sstep( lag, lag + 0.25, lt );
 		if ( p.kind === KIND.home ) {
 
 			const burst = Math.max( 0, Math.sin( lt * ( 1.6 + fr( s * 2.3 ) ) + s * 30 ) );
-			smile = 0.5 + 0.35 * fr( s * 1.9 );
-			open = lt < 40 ? 0.25 + 0.65 * burst : 0.12 * burst + 0.55 * Math.max( 0, Math.sin( lt * 0.31 + s * 20 ) ) ** 8;
+			smile = ( 0.5 + 0.35 * fr( s * 1.9 ) ) * e;
+			open += ( ( lt < 40 ? 0.25 + 0.65 * burst : 0.12 * burst + 0.55 * Math.max( 0, Math.sin( lt * 0.31 + s * 20 ) ) ** 8 ) - open ) * e;
 			// (---- FX1: the eyes screwed up harder, the cheeks pushed up into them, now the jaw drops on the
 			// GPU too: Getty 83485858 and 83485929, the eyes all but shut and the mouth wide)
-			if ( p.look.id === 400058 && lt < 4.5 ) { open = 1; smile = 0.45; blink = Math.max( blink, 0.9 ); }
+			// (---- FK2, SK1's F3: eased in over a quarter second at strike three and out over half a second from
+			// +4.5 s: it snapped in a frame. And the shout on top: the jaw lower, the lip up, the brows down)
+			// (---- FK2: the pile's biggest bursts in its first half minute shout too, the brows down with the jaw)
+			if ( lt < 40 ) shout = 0.65 * Math.max( 0, ( burst - 0.55 ) / 0.45 ) * ( 1 - sstep( 28, 40, lt ) ) * e;
+			if ( lidge ) {
 
-		} else if ( p.kind === KIND.away ) { open = Math.min( open, 0.05 ); }
-		else if ( p.kind === KIND.crew ) { smile = 0.45; }
+				const w = sstep( 0, 0.25, lt ) * ( 1 - sstep( 4.5, 5.0, lt ) );
+				open += ( 1 - open ) * w;
+				smile += ( 0.45 - smile ) * w;
+				blink += ( Math.max( blink, 0.9 ) - blink ) * w;
+				shout = Math.max( shout * ( 1 - w ), w );
+
+			}
+
+		} else if ( p.kind === KIND.away ) { open += ( Math.min( open, 0.05 ) - open ) * e; }
+		else if ( p.kind === KIND.crew ) { smile = 0.45 * e; }
+		// ---- end FK2 repair
 
 	}
 
 	const q = ( x ) => Math.round( Math.max( 0, Math.min( 1, x ) ) * 255 );
-	return q( open ) + q( smile ) * 256 + q( blink ) * 65536;
+	info[ o + 1 ] = q( open ) + q( smile ) * 256 + q( blink ) * 65536;
+	info[ o + 16 ] = shout;
 
 }
 // ---- end FF3
@@ -447,7 +482,10 @@ function expression( p, t, ch ) {
 function packLook( L ) {
 
 	const beard = Math.max( 0, Math.min( 7, L.beard | 0 ) );
-	const face = beard + ( L.eyeBlack ? 8 : 0 ) + ( L.glasses ? 16 : 0 );
+	// (---- FK2, CR1-14: the beard's density in 3 bits from 32, 0.45 to 1, and the moustache's shape in 2 from
+	// 256: Looks.js' beardD and mous)
+	const bdq = Math.round( ( Math.max( 0.45, Math.min( 1, L.beardD ?? 1 ) ) - 0.45 ) / 0.55 * 7 );
+	const face = beard + ( L.eyeBlack ? 8 : 0 ) + ( L.glasses ? 16 : 0 ) + bdq * 32 + ( ( L.mous | 0 ) & 3 ) * 256;
 	const palm = L.gloves ? L.gloves[ 0 ] : 0, strap = L.gloves ? L.gloves[ 1 ] : 0;
 	const style = ( L.socks === 'high' ? 1 : 0 ) + ( L.sleeves === 'short' ? 2 : 0 ) + ( L.sleeves === 'elbow' ? 4 : 0 ) +
 		( L.bands & 1 ? 8 : 0 ) + ( L.bands & 2 ? 16 : 0 ) + ( palm & 7 ) * 32 + ( strap & 7 ) * 256;
@@ -455,22 +493,13 @@ function packLook( L ) {
 	return {
 		skin: L.skin, hair: L.hair, face, style, belly: L.belly || 0, jaw: L.jaw || 0,
 		ageStubble: age + Math.max( 0, Math.min( 0.99, L.stubble ?? 0.4 ) ),
-		shape: packFace( L.face ), // ---- FY4
+		// ---- FY4: the neck's thickness (the look's face.neck, -1 to 1) as 0 to 62, 31 the base neck exactly.
+		// (---- FK2 repair: the neck alone. FY4 packed the face's sixteen numbers here, six bits each in four
+		// floats; FF3's faces retired the other fifteen and nothing read them)
+		neck: Math.round( ( Math.max( - 1, Math.min( 1, ( L.face && L.face.neck ) || 0 ) ) + 1 ) * 31 ),
 	};
 
 }
-
-// ---- FY4: the face's sixteen numbers (Looks.js' FACE_PACK, -1 to 1) six bits each, four to a float (whole
-// numbers under 2^24, exact in an f32)
-function packFace( face ) {
-
-	const b = ( k ) => Math.round( ( Math.max( - 1, Math.min( 1, ( face && face[ k ] ) || 0 ) ) + 1 ) * 31 ); // (0 to 62: 31 is the base face exactly)
-	const out = [ 0, 0, 0, 0 ];
-	FACE_PACK.forEach( ( k, i ) => out[ i >> 2 ] += b( k ) * 64 ** ( i & 3 ) );
-	return out;
-
-}
-// ---- end FY4
 
 // the rig's geometry split by its triangles' parts: [ the rest, those in `parts` ], sharing the vertices
 function splitByPart( g, parts ) {
@@ -714,6 +743,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		if ( ! phan && arm < -0.5 && lp3.y > 0.86 && lp3.y < 1.0 && lp3.z < -0.01 ) {
 			let k = 0.85 * ( 1.0 - smoothstep( 0.06, 0.095, abs( lp3.x ) ) ) * smoothstep( 0.86, 0.9, lp3.y ) * ( 1.0 - smoothstep( 0.965, 1.0, lp3.y ) ) * smoothstep( -0.01, -0.035, lp3.z );
 			lp3.z = min( lp3.z, mix( lp3.z, -0.077 - 0.6 * lp3.x * lp3.x, k ) );
+			// ---- FK2 (step 12, CR1-13): the bridge faces forward as the cloth over it does. It kept the groin's
+			// V's normals, turned in and down, so in FOX's pitcher close-ups the fly read as a pale notch with a
+			// dark V either side (Getty 83485159: Balfour's pants loose and smooth there)
+			v.normal = normalize( mix( v.normal, vec3f( 0.0, 0.08, -1.0 ), k ) );
+			// ---- end FK2
 		}
 		// the seat: the cloth across the cleft and down off the cheeks, not painted on them (from behind,
 		// the pitchers' close-ups from center field)
@@ -800,11 +834,12 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 	// The face's paint (the brows, lids, lips and beards: the surface stage's vLocal) stays on its vertices:
 	// vLocal is the unshaped position
 	var fd = vec3f( 0.0 );
+	var hdrop = 0.0; // (---- FK2: the head's drop, for the cap's clamp below)
 	if ( keep && ! phan && lp3.y > ${ f( U.collar - 0.012 ) } && arm < -0.5 && leg < -0.5 ) {
-		let qa = vec4u( plInfo[ slot * ${ K }u + 4u ] + 0.5 );
-		let neckN = f32( ( qa.w >> 12u ) & 63u ) / 31.0 - 1.0;
+		let neckN = floor( plInfo[ slot * ${ K }u + 4u ].w + 0.5 ) / 31.0 - 1.0; // (---- FK2 repair: the fifth vec4's w is the neck alone)
 		let x = lp3.x; let y = lp3.y; let z = lp3.z;
 		let drop = 0.007 + 0.003 * neckN;
+		hdrop = drop;
 		let onHead = u32( v.aBones.x + 0.5 ) == ${ BONES.head }u && v.aWeights.x > 0.99;
 		if ( pt == ${ P.body } ) {
 			// the neck: thicker (a ballplayer's), more for the big men; not the chin's underside or the
@@ -844,8 +879,8 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		// expressions: they're the skull's. The lower ones take the jaw's)
 		if ( hq < 131072u && eq != 0u && pt != ${ P.teeth } ) {
 			let ex = vec3f( f32( eq & 255u ), f32( ( eq >> 8u ) & 255u ), f32( eq >> 16u ) ) / 255.0;
-			let e0 = plExpr[ hv * 2u ];
-			let e1 = plExpr[ hv * 2u + 1u ];
+			let e0 = plExpr[ hv * ${ EXPR_VEC4 }u ];
+			let e1 = plExpr[ hv * ${ EXPR_VEC4 }u + 1u ];
 			let oa = unpack2x16float( e0.x );
 			let oc = unpack2x16float( e0.y );
 			let oe = unpack2x16float( e0.z );
@@ -856,9 +891,68 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let ne = unpack2x16float( e1.z );
 			let ng = unpack2x16float( e1.w );
 			dn += vec3f( na, nc.x ) * ex.x + vec3f( nc.y, ne ) * ex.y + vec3f( 0.0, ng ) * ex.z;
+			// ---- FK2 (step 12, SK1's F1 and the squint): the shout on top (build-body's EXPR: the jaw lower,
+			// the upper lip lifted off the teeth, the corners in, the brows down and knit, the cheeks up), its
+			// weight the slot's i4.x (expression(), each frame)
+			let sw = plInfo[ slot * ${ K }u + 4u ].x;
+			if ( sw > 0.0 ) {
+				let e2 = plExpr[ hv * ${ EXPR_VEC4 }u + 2u ];
+				let sa = unpack2x16float( e2.x );
+				let sb = unpack2x16float( e2.y );
+				let sc = unpack2x16float( e2.z );
+				dp += vec3f( sa, sb.x ) * sw;
+				dn += vec3f( sb.y, sc ) * sw;
+			}
+			// ---- end FK2
+			// ---- FK2 repair (step 12, SK1's F2, the dashes at the mouth's corners): the two ragged dark marks
+			// beside every shouting mouth were the mouth's own inside. The bag the lips curl into runs out to
+			// 3.8 cm either side behind the cheeks, and its upper side walls belong to the skull: they stay put
+			// while the open jaw, the grin and the shout draw the cheek beside the mouth's corner back 4, 7 and
+			// 2 mm (the records' own moves there), so the walls stood out through it, 7 mm wide and 2 cm tall,
+			// painted as the dark inside. The walls go back with the cheek and a little further; not the lips'
+			// own rim, in front, or the middle of the bag (the teeth's carriers)
+			if ( i32( v.aPart + 0.5 ) == ${ P.mouth } ) {
+				let wall = smoothstep( 0.021, 0.027, abs( v.position.x ) ) * smoothstep( 0.009, 0.014, v.position.z - ${ f( F.mouth[ 2 ] ) } );
+				dp.z += ( 0.006 * ex.x + 0.01 * ex.y + 0.004 * sw ) * wall;
+			}
+			// ---- end FK2 repair
 		}
 		lp3 += dp;
 		fd += dp;
+		// ---- FK2 (CR1-5): the forehead kept under the cap. A man's own face (his brows', forehead's and
+		// head's targets) and the shout's brows-up came out through the crown's front panels: a patch of
+		// skin either side of the P just above the bill (CR1's crops p10-cap, Burrell; p02-cap, Lidge; 0.5-2 mm
+		// through at rest, 3-4 mm in the shout, enough on a surface that meets the crown so nearly flat). Every
+		// head vertex above the band held inside the crown's own shell (Rig.js' crown(): the dome tipped back
+		// 0.3, its radius squared to r^0.72, its front raised) less 1.2 mm at the band (its facets) to 3 mm
+		// higher up, eased in over the 6 mm under it, as a band presses; the ears left as they are (they sit
+		// under its edge; pulled in, they'd fold). The helmets' shells clear every face (checked on the CPU,
+		// the shout's too). Moved with fd, so the paint stays on its vertices
+		// (---- FK2 repair, the pinpricks left along Burrell's bill: 1.2 mm at the band kept every vertex in, but
+		// the crown's facets cut up to 1.1 mm inside its own shell between their corners, and the head's
+		// triangles, sampled whole against the crown's, still came through by up to 0.8 mm on 11 of 63 looks
+		// (Burrell, Utley, Longoria, Balfour ...). 2.5 mm at the band to 3.8 higher up, eased in over 9 mm
+		// under it: none of the 63 within 0.3 mm of the crown, at rest, in the shout or in the pile's bursts)
+		if ( pt == ${ P.body } && ! helmet && ( role & ${ R.ccap | R.nocap | R.hood }u ) == 0u ) {
+			let cd = lp3 - vec3f( 0.0, ${ f( F.top[ 1 ] - 0.101 ) } - hdrop, ${ f( ( F.skull.z0 + F.skull.z1 ) / 2 ) } );
+			let cq = vec3f( cd.x / ${ f( F.skull.x + 0.013 ) }, ( ${ f( Math.cos( 0.3 ) ) } * cd.y + ${ f( Math.sin( 0.3 ) ) } * cd.z ) / 0.104, ( ${ f( - Math.sin( 0.3 ) ) } * cd.y + ${ f( Math.cos( 0.3 ) ) } * cd.z ) / ${ f( ( F.skull.z1 - F.skull.z0 ) / 2 + 0.011 ) } );
+			let cR = max( length( cq.xz ), 1e-6 );
+			let cr = pow( cR, ${ f( 1 / 0.72 ) } );
+			let fz = max( 0.0, - cq.z / cR * cr );
+			var yu = cq.y;
+			if ( fz > 1e-4 && cq.y > 0.0 ) { yu = ( sqrt( 1.0 + 0.64 * fz * cq.y ) - 1.0 ) / ( 0.32 * fz ); }
+			let rho = length( vec2f( cr, yu ) );
+			let rim = ${ f( Math.cos( Math.PI * 0.56 ) ) };
+			let tgt = 0.975 - 0.013 * smoothstep( rim, rim + 0.15, yu );
+			let ear = smoothstep( 0.066, 0.076, abs( lp3.x ) ) * smoothstep( ${ f( F.eyeR[ 2 ] + 0.05 ) }, ${ f( F.eyeR[ 2 ] + 0.065 ) }, lp3.z ) * ( 1.0 - smoothstep( ${ f( F.eyeR[ 1 ] + 0.02 ) }, ${ f( F.eyeR[ 1 ] + 0.04 ) }, lp3.y + hdrop ) );
+			let cw = smoothstep( rim - 0.09, rim, yu ) * ( 1.0 - ear );
+			if ( rho > tgt && cw > 0.0 ) {
+				let mv = cd * ( pow( tgt / rho, 0.83 ) - 1.0 ) * cw;
+				lp3 += mv;
+				fd += mv;
+			}
+		}
+		// ---- end FK2
 		nb = select( normalize( nb + dn ), nb, pt == ${ P.teeth } || pt == ${ P.teethLow } ); // (---- FX1: the teeth keep their own)
 	}
 	// ---- end FF3
@@ -1006,22 +1100,48 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let nk = ${ v3( J.neck ) };
 			let r = length( vec2f( L.x, L.z - nk.z ) );
 			let cy = nk.y - 0.03 + 0.3 * clamp( L.z - nk.z, -0.08, 0.07 );
-			let vee = L.z < nk.z - 0.03 && L.y > cy - 0.05 && abs( L.x ) < 0.022 * clamp( ( L.y - cy + 0.05 ) / 0.045, 0.0, 1.0 );
+			// ---- FK2 (step 12, CR1-24): the jersey's V-neck, not a bib. The undershirt showed as a broad red
+			// crescent from the collarbones nearly to the sternum (its band 2.3 cm tall all round and a V 5 cm
+			// deep, 4.4 cm across); the 2008 jersey buttons to a small V and the undershirt shows as a crew
+			// collar about a centimetre tall and a narrow triangle above the top button (Getty 83485929,
+			// Howard; 83485858). The jersey's edge just under the collar's top line all round, dropping in
+			// front to a V 3.6 cm deep and 5 cm across at the top
+			let frontV = smoothstep( -0.035, -0.06, L.z - nk.z ) * max( 0.0, 1.0 - abs( L.x ) / 0.025 );
+			// ---- end FK2
+			// ---- FK2 repair (step 12, CR1-24's torn edge): the collar's two edges were heights (a plane tipped
+			// down to the front), cut off at 10 and 11 cm from the neck's axis. Over the flat of the shoulders
+			// a height is no edge at all: the skin ran out to the 10 cm circle, the undershirt's band was the
+			// 1 cm between the circles with a square tab where each met the plane, and the line stepped from
+			// facet to facet. Both edges are now a cone round the neck's axis: the same heights on the neck's
+			// own column (5.8 cm out), and a centimetre higher for every centimetre further out, so they cross
+			// the trapezius' slope squarely and close round the neck's base: an even ring about a centimetre
+			// wide all the way round (Getty 83485929, Howard; 83485858, Lidge)
+			let cone = max( r - 0.058, 0.0 );
+			let yJ = cy + 0.001 + cone - 0.036 * frontV;
+			// ---- end FK2 repair
 			// ---- FY3: the underside of a jutting chin is skin (the ring round the neck took it for the jersey and
 			// the undershirt's collar: a white and red crescent under every jaw in the close-ups); the
 			// undershirt's collar rides up the neck, a crew neck's 1.2 cm for most, a mock turtleneck's 4 cm for
 			// some (Balfour's navy mock: Getty 83485159)
-			let chinU = L.z < nk.z - 0.075 && L.y > cy + 0.02;
+			// (---- FK2 repair: and only from 1.5 cm under the neck's joint up. L is the shaped cloth below the
+			// collar (the hull's push), so the jersey's front, stood 0.6 to 1.3 cm off the chest there, also
+			// passed for a chin's underside: a tab of skin on a jacket's front over its zip, once the neckline
+			// closed in round the neck and left it on its own: FK2-repair's a3/N10, Foley)
+			let chinU = L.z < nk.z - 0.075 && L.y > max( cy + 0.02, nk.y - 0.015 );
 			// (the umpires' jackets close round the neck in a collar: Getty 83485455)
 			let mock = select( select( 0.012, 0.038, fract( seed * 17.3 ) < 0.3 && ! crew && ! jacket && ! phan ), 0.03, ump );
-			if ( L.y > nk.y + 0.03 || chinU || ( L.y > cy + mock && r < 0.1 ) ) { part = ${ P.skin }; skinArea = 1; }
+			if ( L.y > nk.y + 0.03 || chinU || L.y > cy + mock + cone ) { part = ${ P.skin }; skinArea = 1; } // (---- FK2 repair: the cone)
 			// ---- end FY3
-			else if ( ( L.y > cy - 0.011 && r < 0.11 ) || vee ) { part = select( ${ P.sleeve }, ${ P.jersey }, jacket ); }
+			else if ( L.y > yJ ) { part = select( ${ P.sleeve }, ${ P.jersey }, jacket ); } // (---- FK2: yJ, was cy - 0.011)
 			else if ( L.y > ${ f( U.belt[ 1 ] ) } ) { part = ${ P.jersey }; }
 			else if ( L.y > ${ f( U.belt[ 0 ] ) } ) { part = ${ P.belt }; }
 			else { part = ${ P.pants }; }
 			// a jacket's collar rides up the neck a little further
-			if ( jacket && part == ${ P.skin } && L.y < nk.y + 0.005 && L.z > nk.z - 0.06 ) { part = ${ P.jersey }; cuffKnit = true; }
+			// (---- FK2 repair: and closes round the front, 2 cm lower under the chin (Getty 83571347: Manuel's
+			// collar stands all round his neck). It stopped 6 cm short of the middle on each side, the throat in
+			// a square notch between its ends; with the neckline's cone the jacket's own edge crossed under the
+			// notch and left a tab of skin over the zip's top)
+			if ( jacket && part == ${ P.skin } && ! chinU && L.y < nk.y + 0.005 - 0.02 * smoothstep( -0.05, -0.075, L.z - nk.z ) ) { part = ${ P.jersey }; cuffKnit = true; }
 			// ---- FR1: a jacket comes down past the belt to its knit hem at the hip (it stopped at the belt)
 			if ( jacket && L.y > ${ f( U.belt[ 0 ] - 0.075 ) } && ( part == ${ P.belt } || part == ${ P.pants } ) ) { part = ${ P.jersey }; cuffKnit = L.y < ${ f( U.belt[ 0 ] - 0.047 ) }; }
 			// ---- end FR1
@@ -1178,16 +1298,26 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z < -0.35 && ! billPart ) {
 		cell = select( ${ C.capAway }.0, ${ C.capHome }.0, home || crew ); lu = 0.5 - L.x / 0.09; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.062 ) } ) / 0.09;
 		// ---- FR1: the black champions cap's round emblem, not the plain P
-		if ( ( role & ${ R.champCap }u ) != 0u && part == ${ P.cap } ) { cell = ${ C.capChamp }.0; }
+		if ( ( role & ${ R.champCap }u ) != 0u && part == ${ P.cap } ) { cell = ${ C.capChamp }.0; lu = 0.5 - L.x / 0.12; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.035 ) } ) / 0.12; } // (---- FK2, CR1-23: 12 cm of the front)
 		// ---- end FR1
 	}
 	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z > 0.5 && Nb.y < 0.75 ) {
 		// the batterman at the back
 		cell = ${ C.mlb }.0; lu = 0.5 + L.x / 0.036; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.07 ) } ) / 0.04;
+		// ---- FK2 repair (step 12, CR1-23): on the champions' cap the Series logo is here, low on the back and
+		// about 6 cm across, not on the side (Getty 83485940: the cap of the man hugging Manuel, from behind;
+		// 83486314, Hamels, and 83912493, Werth, theirs on backwards with the logo over the forehead). Its own
+		// batterman is the logo's top corner
+		if ( ( role & ${ R.champCap }u ) != 0u && part == ${ P.cap } ) { cell = ${ C.patch }.0; lu = 0.5 + L.x / 0.066; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.116 ) } ) / 0.066; }
+		// ---- end FK2 repair
 	}
 	// ---- FY3 (CY-18): the 2008 World Series logo on the cap's left side, as both clubs wore it in the
 	// Series (Getty 83485858, Lidge at the last out; 83485159, Balfour)
-	if ( part == ${ P.cap } && ! billPart && ( role & ${ R.champCap | R.navyCap }u ) == 0u && Nb.x < -0.5 && abs( Nb.y ) < 0.6 ) {
+	// (---- FK2 repair: not the champions' cap, whose logo is on its back (above). And only where the logo's
+	// own cell reaches (L.z > -0.065): this test is true on the crown's front too from 3.5 cm to the wearer's
+	// left of centre, where it took the cell from the front's emblem and drew nothing: with the champions'
+	// cap let into it, the arch read CHAMPION, its last S and half the N gone, on every man: SK-FK2's M09)
+	if ( part == ${ P.cap } && ! billPart && ( role & ${ R.navyCap | R.champCap }u ) == 0u && Nb.x < -0.5 && abs( Nb.y ) < 0.6 && L.z > -0.065 ) {
 		cell = ${ C.patch }.0; lu = 0.5 + ( L.z + 0.044 ) / 0.044; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.052 ) } ) / 0.044;
 	}
 	// ---- end FY3
@@ -1257,7 +1387,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			// grains: a hair's (a millimetre), and a coarser one that breaks the edges of the beard and the hair
 			// (faded to their mean once a hair is under a pixel, so the far faces don't sparkle)
 			let px = length( fwidth( L ) );
-			let g1 = mix( 0.5, mx_noise_float3( L * vec3f( 950.0, 380.0, 950.0 ) + seed * 5.0 ) * 0.5 + 0.5, 1.0 - smoothstep( 0.0006, 0.0018, px ) );
+			// (---- FK2 repair: the hair's grain itself and how far it is resolved, for the beard's hairs below)
+			let n1 = mx_noise_float3( L * vec3f( 950.0, 380.0, 950.0 ) + seed * 5.0 ) * 0.5 + 0.5;
+			let nearK = 1.0 - smoothstep( 0.0006, 0.0018, px );
+			let g1 = mix( 0.5, n1, nearK );
 			let g2 = mx_noise_float3( L * 190.0 + seed * 3.0 ) * ( 1.0 - smoothstep( 0.003, 0.008, px ) );
 			let earK = smoothstep( 0.062, 0.068, ax ) * smoothstep( eye.y - 0.062, eye.y - 0.054, L.y ) * ( 1.0 - smoothstep( eye.y + 0.008, eye.y + 0.016, L.y ) ) * smoothstep( eye.z + 0.055, eye.z + 0.065, L.z ) * ( 1.0 - smoothstep( eye.z + 0.125, eye.z + 0.135, L.z ) );
 			// the skin's colour: the cheeks, the nose's tip and the ears a little redder, the brow a shade paler
@@ -1274,7 +1407,19 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let hairBack = max( max( smoothstep( eye.y + 0.022, eye.y + 0.032, L.y ) * smoothstep( eye.z + 0.038, eye.z + 0.052, L.z ),
 				smoothstep( eye.y - 0.068, eye.y - 0.054, L.y ) * smoothstep( eye.z + 0.098, eye.z + 0.112, L.z ) ), smoothstep( eye.y + 0.055, eye.y + 0.065, L.y ) * smoothstep( eye.z + 0.035, eye.z + 0.06, L.z ) );
 			let burn = 0.8 * smoothstep( 0.05, 0.062, ax ) * smoothstep( eye.z + 0.028, eye.z + 0.052, L.z ) * smoothstep( eye.y - 0.04, eye.y - 0.012, L.y );
-			let hairK = clamp( max( hairBack, burn ) * ( 1.0 - earK ) * ( 0.95 + 0.25 * g2 ), 0.0, 1.0 );
+			// ---- FK2 (step 12, CR1-22): under the cap the temples were bare skin from the bill to the ear. The
+			// short hair comes down the side of the head to the top of the ear and round it, its front edge
+			// at the temple broken by the grain; the sideburns to the ear's middle (Getty 83485858: Lidge's
+			// reddish hair over the ears; 83483794: Feliz's black sideburns into the beard; 83483743:
+			// Manuel's white hair over the ears)
+			// (a2/M06: the ear's mask reaches 2 cm in front of the ear, so the temple's hair stood off it as a
+			// grainy patch with skin between: the temple's hair starts further back, and only the ear's own
+			// protruding part is kept clear of it)
+			let temple2 = smoothstep( 0.046, 0.058, ax ) * smoothstep( eye.y - 0.004, eye.y + 0.006, L.y ) * smoothstep( eye.z + 0.04 + 0.006 * g2, eye.z + 0.052 + 0.006 * g2, L.z );
+			let burn2 = smoothstep( 0.05, 0.06, ax ) * smoothstep( eye.z + 0.042, eye.z + 0.054, L.z ) * smoothstep( eye.y - 0.03, eye.y - 0.02, L.y );
+			let earOwn = earK * smoothstep( 0.078, 0.084, ax );
+			let hairK = clamp( max( max( hairBack, burn ) * ( 1.0 - earK ), max( temple2, burn2 * 0.9 ) * ( 1.0 - earOwn ) ) * ( 0.95 + 0.25 * g2 ), 0.0, 1.0 );
+			// ---- end FK2
 			if ( hairK > 0.0 ) {
 				let temple = smoothstep( 0.05, 0.075, ax ) * smoothstep( eye.z + 0.13, eye.z + 0.06, L.z ) * age;
 				let hc = mix( hairC, vec3f( 0.42, 0.41, 0.4 ), temple * 0.7 ) * ( 0.7 + 0.6 * g1 );
@@ -1297,7 +1442,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let lip = ( 1.0 - smoothstep( 0.7, 1.05, lq ) ) * fw;
 			c = mix( c, c * vec3f( 0.86, 0.6, 0.58 ), lip * 0.8 );
 			rough = mix( rough, 0.4, lip );
-			c = c * ( 1.0 - 0.35 * fw * smoothstep( 0.0026, 0.0008, abs( L.y - m.y + 0.001 ) ) * ( 1.0 - smoothstep( 0.018, 0.026, ax ) ) );
+			// (---- FK2 repair: the line between the lips is a shut mouth's. On an open one it lay along both lips'
+			// rims, a dark edge round every shout: gone by the time the mouth is a third open)
+			let lipsShut = 1.0 - smoothstep( 0.08, 0.35, f32( u32( plInfo[ slotU * ${ K }u ].y ) & 255u ) / 255.0 );
+			c = c * ( 1.0 - 0.35 * fw * lipsShut * smoothstep( 0.0026, 0.0008, abs( L.y - m.y + 0.001 ) ) * ( 1.0 - smoothstep( 0.018, 0.026, ax ) ) );
 			c = c * ( 1.0 - 0.2 * fw * ( 1.0 - smoothstep( 0.012, 0.022, ax ) ) * smoothstep( m.y + 0.009, m.y + 0.013, L.y ) * ( 1.0 - smoothstep( m.y + 0.02, m.y + 0.026, L.y ) ) );
 			c = c * ( 1.0 - 0.14 * fw * ( 1.0 - smoothstep( 0.018, 0.026, ax ) ) * smoothstep( m.y - 0.018, m.y - 0.014, L.y ) * ( 1.0 - smoothstep( m.y - 0.01, m.y - 0.006, L.y ) ) );
 			// the beard: how dense the hair is at this point, by style. The masks: the moustache over the
@@ -1309,43 +1457,138 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let front = smoothstep( -0.058, -0.082, L.z );
 			let jl = jawY - 0.008 + 0.034 * smoothstep( 0.02, 0.07, ax ); // the jaw's edge, rising to the ear
 			let mx2 = ( ax / 0.028 ) * ( ax / 0.028 );
-			let mous = smoothstep( m.y + 0.003 + 0.004 * mx2, m.y + 0.008 + 0.004 * mx2, L.y ) * ( 1.0 - smoothstep( m.y + 0.016 - 0.007 * mx2, m.y + 0.022 - 0.007 * mx2, L.y ) ) * ( 1.0 - smoothstep( 0.02, 0.031, ax ) ) * lipsOut * fw;
-			let chinM = ( 1.0 - smoothstep( 0.012, 0.032, ax ) * 0.85 ) * ( 1.0 - smoothstep( 0.024, 0.034, ax ) ) * ( 1.0 - smoothstep( m.y - 0.016, m.y - 0.009, L.y ) ) * smoothstep( jawY - 0.018, jawY - 0.006, L.y ) * front * lipsOut;
+			// ---- FK2 (step 12, CR1-14): the moustache his own (Looks.js' mous: 0 full, 1 a thin line along the
+			// lip, 2 down round the corners, 3 sparse), and the beard's density (beardD: the skin through it)
+			let mShape = ( face >> 8u ) & 3u;
+			let bDen = 0.45 + f32( ( face >> 5u ) & 7u ) / 7.0 * 0.55;
+			let mTop = select( 0.0, 0.0065, mShape == 1u );
+			let mW = select( select( 0.031, 0.026, mShape == 1u ), 0.034, mShape == 2u );
+			var mous = smoothstep( m.y + 0.003 + 0.004 * mx2, m.y + 0.008 + 0.004 * mx2, L.y ) * ( 1.0 - smoothstep( m.y + 0.016 - mTop - 0.007 * mx2, m.y + 0.022 - mTop - 0.007 * mx2, L.y ) ) * ( 1.0 - smoothstep( mW - 0.011, mW, ax ) ) * lipsOut * fw;
+			if ( mShape == 2u ) { mous = max( mous, 0.85 * smoothstep( 0.019, 0.024, ax ) * ( 1.0 - smoothstep( 0.029, 0.034, ax ) ) * smoothstep( m.y - 0.022, m.y - 0.012, L.y ) * ( 1.0 - smoothstep( m.y + 0.006, m.y + 0.012, L.y ) ) * lipsOut * fw ); }
+			// ---- end FK2
+			// (---- FK2 repair: the sparse moustache is fewer hairs, below; it was this mask cut by the grain's
+			// threshold, hard-edged blotches that read as a printed pattern: SK-FK2's N02, Navarro)
+			// (---- FK2, CR1-14: not down the throat: the goatee stops at the chin's underside, where the face turns
+			// under (the face's own normal), so in profile it's on the chin, not a block hanging off it)
+			let chinUnder = smoothstep( -0.35, -0.75, Nb.y ) * ( 1.0 - smoothstep( jawY - 0.004, jawY + 0.006, L.y ) );
+			let chinM = ( 1.0 - smoothstep( 0.012, 0.032, ax ) * 0.85 ) * ( 1.0 - smoothstep( 0.024, 0.034, ax ) ) * ( 1.0 - smoothstep( m.y - 0.016, m.y - 0.009, L.y ) ) * smoothstep( jawY - 0.012, jawY - 0.002, L.y ) * front * lipsOut * ( 1.0 - 0.7 * chinUnder );
 			let corner = 0.62 * smoothstep( 0.017, 0.022, ax ) * ( 1.0 - smoothstep( 0.027, 0.033, ax ) ) * smoothstep( m.y - 0.028, m.y - 0.018, L.y ) * ( 1.0 - smoothstep( m.y + 0.006, m.y + 0.012, L.y ) ) * lipsOut * fw;
 			let yTop = mix( m.y + 0.016, eye.y - 0.034, smoothstep( 0.022, 0.064, ax ) ) + 0.004 * g2;
 			let cheekTop = 1.0 - smoothstep( yTop - 0.012, yTop + 0.004, L.y );
 			// (under the jaw only where the chin juts forward, not down the throat)
 			let fullM = cheekTop * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * smoothstep( jl - 0.024, jl - 0.01, L.y ) * max( smoothstep( jl - 0.008, jl + 0.004, L.y ), smoothstep( -0.05, -0.075, L.z ) ) * lipsOut * ( 1.0 - nose );
-			let strap = ( 1.0 - smoothstep( 0.009, 0.017, abs( L.y - jl - 0.004 ) ) ) * ( 1.0 - smoothstep( eye.z + 0.07, eye.z + 0.085, L.z ) ) * max( front, smoothstep( 0.015, 0.03, ax ) );
+			// ---- FK2 repair (step 12, CR1-14): the chin strap along the jaw, where the jaw is. FY3's band was
+			// centred 4 mm over a line (jl) that runs 1.6 to 2.3 cm under the base head's jaw edge (where its
+			// surface turns under: 1.657 at 2 cm from the middle, 1.677 at 5.5 cm, then up the back of the jaw
+			// to the ear's lobe), so it lay on the throat. Now it's on the face's side of the edge: from the
+			// sideburn down in front of the ear, round the jaw's angle in a curve and along the jaw to the
+			// chin, 1.3 cm wide at the side and 2 at the chin, with the patch under the lower lip
+			// (Getty 83483794, Feliz: black, cropped close and edged, the cheeks bare)
+			let jE = jawY + 0.013 + 0.6 * clamp( ax - 0.02, 0.0, 0.04 ) + 1.4 * max( L.z - eye.z - 0.048, 0.0 );
+			let sY = L.y - jE;
+			let sW = mix( 0.02, 0.013, smoothstep( 0.025, 0.05, ax ) );
+			let earZ = eye.z + 0.058;
+			let sRise = smoothstep( earZ - 0.04, earZ - 0.012, L.z ) * smoothstep( 0.044, 0.054, ax );
+			let sTop = sW + ( eye.y - 0.016 - jE - sW ) * sRise * sRise;
+			let strap = smoothstep( -0.007, -0.001, sY ) * ( 1.0 - smoothstep( sTop - 0.003, sTop + 0.003, sY ) ) * ( 1.0 - smoothstep( earZ, earZ + 0.008, L.z ) ) * ( 1.0 - chinUnder );
+			let soul = ( 1.0 - smoothstep( 0.006, 0.012, ax ) ) * ( 1.0 - smoothstep( m.y - 0.011, m.y - 0.007, L.y ) ) * smoothstep( m.y - 0.03, m.y - 0.022, L.y ) * lipsOut * fw;
+			// (a strap at full density is a barber's: its edge clean, not broken by the grain. A thinner one is
+			// scruff along the jaw: Werth's, Lidge's)
+			let groomed = select( 0.0, smoothstep( 0.86, 1.0, bDen ), beardK == 7u );
+			// ---- end FK2 repair
 			var bd = 0.0;
 			if ( beardK == 3u ) { bd = chinM; }
 			if ( beardK == 4u ) { bd = max( max( chinM, mous ), corner ); }
 			if ( beardK == 5u ) { bd = max( fullM, mous ); }
 			if ( beardK == 6u ) { bd = mous; }
-			if ( beardK == 7u ) { bd = max( max( strap, mous ), chinM ); }
+			if ( beardK == 7u ) { bd = max( max( strap, mous ), max( chinM, soul * groomed ) ); }
 			// the stubble: the beard's whole ground in shade, and the dots of the hairs where it's heavy
 			let stubZone = max( fullM, max( mous, chinM ) ) * fw;
 			let stub = stubble * select( 0.45, 0.85, beardK == 2u );
 			c = mix( c, c * mix( vec3f( 0.74, 0.72, 0.75 ), min( hairC / max( skinC, vec3f( 0.01 ) ), vec3f( 1.0 ) ), 0.15 ), stub * stubZone );
 			c = mix( c, hairC, stub * stubZone * 0.5 * smoothstep( 0.55, 0.8, g1 ) );
 			// the beard itself: its edge broken, the hairs grained, the skin under it showing at its thin edge
-			let bk = smoothstep( 0.3, 0.75, bd + 0.22 * g2 );
-			if ( bk > 0.0 ) {
-				c = mix( c, hairC * 0.9 * ( 0.55 + 0.75 * g1 ), bk * ( 0.78 + 0.2 * g1 ) );
+			// (---- FK2, CR1-14: thinner than a decal: his density, the skin through it hair by hair, and the
+			// full beard darker and denser at the chin and the moustache than up the cheeks, as it grows)
+			// ---- FK2 repair (step 12, CR1-14): thinned by hairs, not by a blend. The density scaled the whole
+			// beard's opacity, so black hair at 0.8 was a brown wash over the skin (Feliz, Werth). It's now how
+			// much of the skin the hairs cover: each hair its own colour at full strength, the skin between
+			// them, the grain's threshold set by the density (about half the skin covered at 0.45, all of it
+			// at 1); once a hair is under a pixel, the cover's mean, as the eye takes a thin beard from across
+			// the infield. A sparse moustache (mous 3) is the same at six tenths of his density
+			let bEdge = smoothstep( mix( 0.3, 0.44, groomed ), mix( 0.75, 0.58, groomed ), bd + 0.22 * g2 * ( 1.0 - 0.8 * groomed ) );
+			var bk = 0.0;
+			if ( bEdge > 0.0 ) {
+				let den = bDen * select( 1.0, mix( 1.0, 0.62, smoothstep( 0.2, 0.6, mous ) ), mShape == 3u );
+				let hTh = mix( 0.52, 0.36, smoothstep( 0.45, 0.9, den ) ) - 0.5 * smoothstep( 0.9, 1.0, den );
+				bk = bEdge * mix( den, smoothstep( hTh - 0.1, hTh + 0.1, n1 ), nearK );
+				let core = select( 1.0, mix( 1.0, 0.72, max( chinM, mous ) ), beardK == 5u );
+				c = mix( c, hairC * 0.9 * core * ( 0.55 + 0.75 * g1 ), bk * ( 0.88 + 0.12 * g1 ) );
 				rough = mix( rough, 0.82, bk );
 			}
+			// ---- end FK2 repair
 			// eye black: a greasy smudge on each cheekbone (FY2: a smudge, not a bar)
-			let ebk = length( vec2f( ( ax - 0.032 ) / 0.017, ( L.y - eye.y + 0.022 ) / 0.0085 ) );
-			if ( ( face & 8u ) != 0u && ebk < 1.0 ) { c = mix( c, vec3f( 0.012 ), smoothstep( 1.0, 0.55, ebk ) * fw ); rough = 0.35; }
+			// ---- FK2 (step 12, CR1-21): a greasy smear, not two holes: a rounded rectangle on the cheekbone's top,
+			// a little wider than tall and tipped down to the outside, its edge broken and thinning, the skin's
+			// sheen across it (it read as a second pair of empty sockets, round and pure black)
+			// (---- FK2 repair: only for the men who wear it: the three pows ran for every face pixel)
+			if ( ( face & 8u ) != 0u ) {
+				let ebq = vec2f( ( ax - 0.033 ) / 0.019, ( L.y - eye.y + 0.021 + 0.12 * ( ax - 0.033 ) ) / 0.0095 );
+				let ebk = pow( pow( abs( ebq.x ), 4.0 ) + pow( abs( ebq.y ), 4.0 ), 0.25 ) + 0.18 * g2;
+				let eb = smoothstep( 1.0, 0.7, ebk ) * fw * ( 0.82 + 0.16 * g1 );
+				c = mix( c, vec3f( 0.022, 0.02, 0.019 ), eb );
+				rough = mix( rough, 0.36, eb );
+			}
+			// ---- end FK2
 			// age: the lines round the eyes and down from the nose
 			if ( age > 0.5 ) {
 				let crow = smoothstep( 0.05, 0.054, ax ) * ( 1.0 - smoothstep( 0.061, 0.065, ax ) ) * ( 1.0 - smoothstep( 0.008, 0.013, abs( L.y - eye.y ) ) ) * smoothstep( 0.2, 0.0, abs( fract( L.y * 260.0 ) - 0.2 ) );
 				c = c * ( 1.0 - 0.15 * crow * fw );
 			}
+			// ---- FK2 (step 12, SK1's squint): the shout's frown and the laugh's lines. Crow's feet fanning
+			// from each eye's outer corner on anyone laughing or shouting; in the shout two short creases up
+			// from the inner brows over the knit (build-body's corrugator); the fold from the nose's wing round
+			// the mouth's corner, deep in the shout and the grin (Getty 83485858: Lidge's face screwed up under
+			// the bill; 83485929)
+			let eq4 = u32( plInfo[ slotU * ${ K }u ].y );
+			let smileW = f32( ( eq4 >> 8u ) & 255u ) / 255.0;
+			let shoutW = plInfo[ slotU * ${ K }u + 4u ].x;
+			let sq = clamp( shoutW + 0.6 * smileW, 0.0, 1.0 );
+			if ( sq > 0.0 ) {
+				let oc = vec2f( ax - 0.047, L.y - eye.y + 0.002 );
+				let r = length( oc );
+				let ang = atan2( oc.y, max( oc.x, 1e-4 ) );
+				let fan = smoothstep( 0.002, 0.005, r ) * ( 1.0 - smoothstep( 0.011, 0.017, r ) ) * smoothstep( 0.0, 0.004, oc.x ) * ( 1.0 - smoothstep( 0.85, 1.15, abs( ang ) ) );
+				let crease = smoothstep( 0.22, 0.0, abs( fract( ang * 2.4 + 0.5 + 0.12 * g2 ) - 0.5 ) );
+				c = c * ( 1.0 - 0.3 * sq * fan * crease * fw );
+				// the fold from the nose round the mouth
+				let ny = clamp( ( L.y - m.y + 0.006 ) / 0.029, 0.0, 1.0 );
+				let nlx = mix( 0.031, 0.0185, ny * ny );
+				// (---- FK2 repair: a fold's soft shade, 5 mm across and a fifth down at its middle, not a 3 mm line a
+				// third down: with the shout's own modelling under it, it read as a drawn crease and the whole
+				// muzzle went dark against Getty 83485858's pale face)
+				let nl = ( 1.0 - smoothstep( 0.0006, 0.0052, abs( ax - nlx ) ) ) * smoothstep( m.y - 0.01, m.y - 0.004, L.y ) * ( 1.0 - smoothstep( m.y + 0.02, m.y + 0.025, L.y ) );
+				c = c * ( 1.0 - 0.2 * clamp( shoutW + 0.5 * smileW, 0.0, 1.0 ) * nl * fw );
+			}
+			if ( shoutW > 0.0 ) {
+				let gl = ( 1.0 - smoothstep( 0.0007, 0.0018, abs( ax - 0.0065 - 0.0015 * smoothstep( eye.y + 0.01, eye.y + 0.03, L.y ) ) ) ) * smoothstep( eye.y + 0.008, eye.y + 0.014, L.y ) * ( 1.0 - smoothstep( eye.y + 0.026, eye.y + 0.034, L.y ) );
+				c = c * ( 1.0 - 0.35 * shoutW * gl * fw );
+			}
+			// ---- end FK2
 			// under the cap's bill (or the helmet's) its shadow from the brow down over the eyes, the strongest
 			// thing on a ballplayer's face under the banks (FY2; FOX's close-up of Burrell, Getty 83485455),
 			// soft round the temples
-			if ( ( role & ${ R.nocap }u ) == 0u ) { c = c * mix( 1.0, 0.62, smoothstep( eye.y - 0.075, eye.y + 0.025, L.y ) * fw2 ); }
+			// ---- FK2 (step 12, CR1-12): it was a domino mask, a band from the cheekbones up with an edge across
+			// the cheeks, the same on every man at any tilt. Now it falls from the bill over the brows and the
+			// upper lids (Getty 83483794: Feliz's eyes read in it), its edge soft and lower as he looks down,
+			// higher as his head goes back (Lidge's shout: his face out from under it), from the head's own pitch
+			if ( ( role & ${ R.nocap }u ) == 0u ) {
+				let Mh = plBones[ slotU * ${ NB }u + ${ BONES.head }u ];
+				let hf = normalize( ( Mh * vec4f( 0.0, 0.0, -1.0, 0.0 ) ).xyz );
+				let edgeY = eye.y - 0.008 - 0.045 * clamp( - hf.y * 2.0, 0.0, 1.0 ) + 0.035 * clamp( hf.y * 2.0, 0.0, 1.0 );
+				c = c * mix( 1.0, 0.6, smoothstep( edgeY - 0.022, edgeY + 0.03, L.y ) * fw2 );
+			}
+			// ---- end FK2
 			// the jaw's underside in shade
 			c = c * ( 1.0 - 0.24 * smoothstep( -0.2, -0.65, Nb.y ) * ( 1.0 - smoothstep( jawY, jawY + 0.025, L.y ) ) );
 			// hair doesn't carry the skin's light under it (the wrap lit the goatees orange)
@@ -1360,7 +1603,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			if ( mouthIn > 0.0 ) {
 				let dz = L.z - ${ f( F.mouth[ 2 ] ) };
 				let dy = L.y - m.y;
-				let deep = smoothstep( 0.002, 0.012, dz );
+				// (---- FK2 repair: how far in, from the lips' own front, which runs back 8.5 mm by the mouth's
+				// corners: measured from the middle's, the corners' rims were already "deep" and painted black, the
+				// last of the dark ticks beside a shouting mouth. They're the lips' red there)
+				let deep = smoothstep( 0.002, 0.012, dz - 0.0085 * smoothstep( 0.014, 0.026, ax ) );
 				var mc = mix( skinC * vec3f( 0.62, 0.3, 0.28 ), vec3f( 0.018, 0.005, 0.005 ), deep );
 				let upT = smoothstep( 0.0005, 0.002, dy ) * ( 1.0 - smoothstep( 0.0055, 0.0075, dy ) );
 				let loT = smoothstep( -0.0005, -0.002, dy ) * ( 1.0 - smoothstep( -0.0045, -0.006, dy ) ) * 0.7;
@@ -1372,7 +1618,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 				// (---- FX1: from the slot's own record, not the interpolated vInfo: as above, the packed number
 				// has no room for a rounding error from 2^23 up)
 				let openW = f32( u32( plInfo[ slotU * ${ K }u ].y ) & 255u ) / 255.0;
-				let mk = smoothstep( 0.55, 0.95, mouthIn ) * smoothstep( 0.02, 0.15, openW );
+				// (---- FK2, SK1's F2: not the skin above the upper lip and under the lower one, a few vertices FF3's
+				// normal test flagged on the face's front: two dark-red marks over every open mouth)
+				let outerLip = clamp( smoothstep( 0.0058, 0.0078, dy ) + smoothstep( -0.0105, -0.0125, dy ), 0.0, 1.0 ) * ( 1.0 - smoothstep( 0.006, 0.01, dz ) );
+				let mk = smoothstep( 0.55, 0.95, mouthIn ) * smoothstep( 0.02, 0.15, openW ) * ( 1.0 - outerLip );
 				c = mix( c, mc, mk );
 				rough = mix( rough, mix( 0.3, 0.45, teeth ), mk );
 				s.translucency = s.translucency * ( 1.0 - mk );
@@ -1387,11 +1636,23 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		let side = sign( L.x );
 		let ec = vec3f( side * ${ f( F.eyeR[ 0 ] ) }, ${ f( F.eyeR[ 1 ] ) }, ${ f( F.eyeR[ 2 ] ) } );
 		let d = normalize( L - ec );
-		c = vec3f( 0.62, 0.6, 0.56 ); rough = 0.08;
+		c = vec3f( 0.7, 0.68, 0.64 ); rough = 0.06; // (---- FK2, CR1-12: the whites a shade brighter: 0.62)
 		// (FY3: blue or grey-green eyes for some of the fair-skinned men, by seed; brown for the rest)
 		let iris = select( vec3f( 0.06, 0.035, 0.02 ), select( vec3f( 0.07, 0.1, 0.14 ), vec3f( 0.08, 0.09, 0.06 ), fract( seed * 53.1 ) < 0.15 ), skinC.r > 0.45 && fract( seed * 31.7 ) < 0.45 );
 		if ( d.z < -0.93 ) { c = iris * ( 0.8 + 0.4 * smoothstep( -0.93, -0.975, d.z ) ); }
 		if ( d.z < -0.985 ) { c = vec3f( 0.005 ); }
+		// ---- FK2 (CR1-12): a catchlight on the cornea, up and to the outside of the pupil (the banks' and the
+		// sky's reflection; the eyes read as glass, not paint)
+		// (---- FK2 repair: it couldn't be seen, by night or day: 11 degrees up and 9 out it sat under the upper
+		// lid, which at rest comes down to the pupil's top on these faces (a ballplayer's lids under a bill),
+		// and at a fifth of the light's strength it was dimmer than the lit white beside it. Now on the
+		// pupil's edge just under its middle, the same side in both eyes (one bank of lights, not two), 2 mm
+		// across and as bright as the light it mirrors; and gone once a pixel is wider than it is (from 1.5 to
+		// 4 mm of him a pixel), so a far face doesn't spark when a pixel's middle happens to land on it)
+		let cl = length( d - normalize( vec3f( 0.12, -0.03, -1.0 ) ) );
+		let clNear = 1.0 - smoothstep( 0.0015, 0.004, length( fwidth( L ) ) );
+		s.emissive = s.emissive + frame.sunColor * vec3f( 0.95, 0.97, 1.0 ) * ( 0.6 + 2.0 * smoothstep( 0.15, 0.7, frame.night ) * ${ f( NIGHT_FILL ) } ) * smoothstep( 0.1, 0.05, cl ) * clNear;
+		// ---- end FK2
 	}
 	// ---- FX1 (step 11): the teeth (Rig.js' two arches): enamel, a shade down between each pair, the edges
 	// a little grey where they thin, the gum above the upper ones and below the lower; darker round toward
@@ -1472,8 +1733,35 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		c = c * ( 1.0 - 0.35 * clamp( ( 0.025 - sd ) / fsd + 0.5, 0.0, 1.0 ) * smoothstep( ${ f( F.top[ 1 ] - 0.08 ) }, ${ f( F.top[ 1 ] - 0.06 ) }, L.y ) );
 	}
 	// ---- end FY3
+	// ---- FK2 (step 12, CR1-23): the champions' cap piped in white, a cord about 3 mm wide outlining the two
+	// front panels: up their outer seams from the band to the button (Getty 83571347: Manuel's and Rollins's
+	// caps on the stage; 83485940)
+	// (---- FK2 repair: no line across the front above the bill: the photos have none. The cord comes down
+	// each seam to the bill's corner and runs on round the bill's rim to its tip: below)
+	if ( part == ${ P.cap } && ! billPart && ( role & ${ R.champCap }u ) != 0u ) {
+		let pz = L.z + 0.04;
+		let prxz = length( vec2f( L.x, pz ) );
+		let paz = atan2( L.x, - pz ) / 1.0472;
+		let dS = abs( abs( paz ) - 1.0 ) * 1.0472 * max( prxz, 0.02 );
+		let seamP = clamp( ( 0.0015 - dS ) / max( fwidth( dS ), 1e-5 ) + 0.5, 0.0, 1.0 ) * smoothstep( 0.012, 0.022, prxz );
+		c = mix( c, vec3f( 0.78, 0.77, 0.74 ), seamP );
+	}
+	// ---- end FK2
 	// (FY2, CY-18) under the bill, the undervisor's dark grey-green
 	if ( part == ${ P.cap } && billPart && Nb.y < -0.3 ) { c = vec3f( 0.03, 0.045, 0.035 ); rough = 0.85; }
+	// ---- FK2 repair (step 12, CR1-23): the champions' cap's cord round the bill's rim, about 4 mm of white
+	// binding from one corner round the tip to the other, over the edge and just under it (Flickr
+	// puffygreenjacket 2993502271: two caps, one from the front-left and one side on, the rim white all the
+	// way round; Getty 83485940, the same rim on the bill's right). The bill is Rig.js' lathed disc, 9 cm in
+	// its own frame (tipped 0.05, 0.95 wide and 0.9 long): the distance from its middle there
+	if ( part == ${ P.cap } && billPart && ( role & ${ R.champCap }u ) != 0u ) {
+		let bq = L - vec3f( 0.0, ${ f( F.top[ 1 ] - 0.1 + 0.0145 ) }, ${ f( ( F.skull.z0 + F.skull.z1 ) / 2 - ( ( F.skull.z1 - F.skull.z0 ) / 2 + 0.011 ) + 0.012 ) } );
+		let rb = length( vec2f( bq.x / 0.95, ( ${ f( Math.sin( 0.05 ) ) } * bq.y + ${ f( Math.cos( 0.05 ) ) } * bq.z ) / 0.9 ) );
+		let rimP = clamp( ( rb - 0.0856 ) / max( fwidth( rb ), 1e-5 ) + 0.5, 0.0, 1.0 );
+		c = mix( c, vec3f( 0.78, 0.77, 0.74 ), rimP );
+		rough = mix( rough, 0.65, rimP );
+	}
+	// ---- end FK2 repair
 	if ( part == ${ P.belt } ) { c = beltC; rough = 0.4; }
 	if ( part == ${ P.shoes } ) {
 		// ---- FY3: 2008's cleats (Getty 83485858, Lidge's red Nikes with the white swoosh; 83485159,
@@ -1927,59 +2215,83 @@ function drawChest( ctx, i, home, jacket = false ) {
 // the caps' fronts: the white script P on the Phillies' red; TB in white outlined in Columbia blue on the
 // Rays' navy
 // ---- FR1: the black 2008 champions cap's front (Getty 83570999, 83571356, 83486314; FOX's interview
-// frames): a round emblem, the Phillies' P in red on a navy disc in a white ring, a red ribbon across
-// its foot with 2008, CHAMPIONS arched over it; at a cap's size it reads as the round red, white and
-// blue mark it was, where the plain P read as the everyday cap
+// frames)
+// ---- FK2 (step 12, CR1-23): not a little roundel. The New Era locker-room cap's front was filled by the
+// arch of CHAMPIONS in red letters edged in white, WORLD SERIES small over it, and under the arch's middle
+// the Phillies' red roundel with the white P, 20 and 08 in gold either side (Getty 83571347, Manuel on the
+// stage, and Rollins beside him; 83485940, Manuel on the field). The cell spans 12 cm of the front (the
+// fragment maps it so for this cap), the logo its upper half: the arch about 10.5 cm across
+// (---- FK2 repair: 10.5 again, as 83485940 has it, the arch from seam to seam. It was narrowed to 9.5 when
+// its last S vanished, but the S was taken by the side logo's test, not by the cell's edge: the fragment)
 function drawChampCap( ctx, i ) {
 
 	const [ x, y ] = cellXY( i );
 	ctx.save();
 	ctx.clearRect( x, y, CELL, CELL );
-	ctx.translate( x + CELL / 2, y + CELL / 2 + 4 );
-	ctx.fillStyle = '#e9e7e2';
 	ctx.beginPath();
-	ctx.arc( 0, 0, 40, 0, Math.PI * 2 );
-	ctx.fill();
-	ctx.fillStyle = '#13285e';
-	ctx.beginPath();
-	ctx.arc( 0, 0, 31, 0, Math.PI * 2 );
-	ctx.fill();
-	// the P
-	ctx.fillStyle = '#c8102e';
+	ctx.rect( x, y, CELL, CELL );
+	ctx.clip();
+	ctx.translate( x + CELL / 2, y + CELL / 2 );
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
-	ctx.font = 'italic 700 46px Georgia, "Times New Roman", serif';
-	ctx.fillText( 'P', 1, - 3 );
-	// the ribbon and the year
+	ctx.lineJoin = 'round';
+	// (1.07 px a millimetre; the cell's middle is 1.85 m up the body, the bill's join 54 px below it)
+	const arc = ( word, R, cy, step, font, fill, edge, ew, sx ) => {
+
+		ctx.font = font;
+		for ( let k = 0; k < word.length; k ++ ) {
+
+			const a = - Math.PI / 2 + ( k - ( word.length - 1 ) / 2 ) * step;
+			ctx.save();
+			ctx.translate( Math.cos( a ) * R, cy + Math.sin( a ) * R );
+			ctx.rotate( a + Math.PI / 2 );
+			ctx.scale( sx, 1 );
+			if ( edge ) { ctx.strokeStyle = edge; ctx.lineWidth = ew; ctx.strokeText( word[ k ], 0, 0 ); }
+			ctx.fillStyle = fill;
+			ctx.fillText( word[ k ], 0, 0 );
+			ctx.restore();
+
+		}
+
+	};
+	// the arch's ground: a thin white-edged black band under WORLD SERIES
+	ctx.strokeStyle = '#d9d6cf';
+	ctx.lineWidth = 9;
+	ctx.beginPath();
+	ctx.arc( 0, 78, 106, - Math.PI / 2 - 0.32, - Math.PI / 2 + 0.32 );
+	ctx.stroke();
+	ctx.strokeStyle = '#0b0b0d';
+	ctx.lineWidth = 6.5;
+	ctx.stroke();
+	arc( 'WORLD SERIES', 106, 78, 0.052, '800 6px "Helvetica Neue", Arial, sans-serif', '#eceae4', null, 0, 1 );
+	// CHAMPIONS: red, edged white, a dark keyline outside the white
+	arc( 'CHAMPIONS', 86, 70, 0.142, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#101012', 7, 0.74 );
+	arc( 'CHAMPIONS', 86, 70, 0.142, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#f2f0ea', 4.2, 0.74 );
+	// the roundel: white ring, the red disc, the white P
+	ctx.fillStyle = '#f2f0ea';
+	ctx.beginPath();
+	ctx.arc( 0, 10, 13.5, 0, Math.PI * 2 );
+	ctx.fill();
 	ctx.fillStyle = '#c8102e';
 	ctx.beginPath();
-	ctx.moveTo( - 46, 16 );
-	ctx.lineTo( 46, 16 );
-	ctx.lineTo( 40, 34 );
-	ctx.lineTo( - 40, 34 );
-	ctx.closePath();
+	ctx.arc( 0, 10, 11.5, 0, Math.PI * 2 );
 	ctx.fill();
 	ctx.fillStyle = '#f4f2ec';
-	ctx.font = '900 17px "Helvetica Neue", Arial, sans-serif';
-	ctx.fillText( '2008', 0, 26 );
-	// CHAMPIONS round the top of the ring
-	ctx.font = '900 11px "Helvetica Neue", Arial, sans-serif';
-	ctx.fillStyle = '#13285e';
-	const word = 'CHAMPIONS';
-	for ( let k = 0; k < word.length; k ++ ) {
-
-		const a = - Math.PI / 2 + ( k - ( word.length - 1 ) / 2 ) * 0.2;
-		ctx.save();
-		ctx.translate( Math.cos( a ) * 35.5, Math.sin( a ) * 35.5 );
-		ctx.rotate( a + Math.PI / 2 );
-		ctx.fillText( word[ k ], 0, 0 );
-		ctx.restore();
-
-	}
-
+	ctx.font = 'italic 700 19px Georgia, "Times New Roman", serif';
+	ctx.fillText( 'P', 0.5, 10.5 );
+	// 20 and 08 in gold, edged dark, tucked under the arch's ends
+	ctx.font = '900 10px "Helvetica Neue", Arial, sans-serif';
+	ctx.strokeStyle = '#101012';
+	ctx.lineWidth = 2.5;
+	ctx.fillStyle = '#e3a33a';
+	ctx.strokeText( '20', - 25, 7 );
+	ctx.fillText( '20', - 25, 7 );
+	ctx.strokeText( '08', 25, 7 );
+	ctx.fillText( '08', 25, 7 );
 	ctx.restore();
 
 }
+// ---- end FK2
 // ---- end FR1
 
 function drawCapLogo( ctx, i, home ) {
@@ -2030,31 +2342,88 @@ function drawCapLogo( ctx, i, home ) {
 
 }
 
-// the 2008 World Series patch worn on the right sleeve: a navy disc, WORLD SERIES and 2008
+// the 2008 World Series patch worn on the right sleeve, on the caps' left side and on the back of the
+// champions' cap
+// ---- FK2 repair (step 12, CR1-23): the Series' own logo, not a navy disc. Getty 83485940 has it close, on
+// the back of a champions' cap: a diamond edged in navy and gold, its field green, WORLD over SERIES in
+// white capitals edged in navy across its middle and out past its sides, rising a little to the right, the
+// batterman in its top corner, 2008 under the words and a small base at its foot (83486314, Hamels's cap on
+// backwards: the same)
 function drawPatch( ctx, i ) {
 
 	const [ x, y ] = cellXY( i );
 	ctx.save();
 	ctx.clearRect( x, y, CELL, CELL );
+	ctx.beginPath();
+	ctx.rect( x, y, CELL, CELL );
+	ctx.clip();
 	ctx.translate( x + CELL / 2, y + CELL / 2 );
-	ctx.fillStyle = '#f4f2ec';
-	ctx.beginPath(); ctx.arc( 0, 0, 60, 0, Math.PI * 2 ); ctx.fill();
-	ctx.fillStyle = '#10275f';
-	ctx.beginPath(); ctx.arc( 0, 0, 54, 0, Math.PI * 2 ); ctx.fill();
+	ctx.lineJoin = 'round';
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
+	const diamond = ( w, h ) => {
+
+		ctx.beginPath();
+		ctx.moveTo( 0, - h );
+		ctx.lineTo( w, 0 );
+		ctx.lineTo( 0, h );
+		ctx.lineTo( - w, 0 );
+		ctx.closePath();
+
+	};
+	// (a little wider than it's tall, as 83485940 has it)
+	diamond( 56, 52 );
 	ctx.fillStyle = '#f4f2ec';
-	ctx.font = '700 20px Georgia, serif';
-	ctx.fillText( 'WORLD', 0, - 14 );
-	ctx.fillText( 'SERIES', 0, 8 );
-	ctx.fillStyle = '#e3b23c';
-	ctx.font = '800 18px Georgia, serif';
-	ctx.fillText( '2008', 0, 30 );
+	ctx.fill();
+	diamond( 52.5, 48.5 );
+	ctx.fillStyle = '#14235c';
+	ctx.fill();
+	diamond( 46.5, 42.5 );
+	ctx.fillStyle = '#e0aa2e';
+	ctx.fill();
+	diamond( 43.5, 39.5 );
+	ctx.fillStyle = '#7f9a3a';
+	ctx.fill();
+	// the batterman in the top corner: white, the blue to the left of the batter and the red to the right
+	ctx.fillStyle = '#f4f2ec';
+	ctx.beginPath();
+	ctx.roundRect( - 9, - 35.5, 18, 10.5, 2.5 );
+	ctx.fill();
+	ctx.fillStyle = '#0b2a6b';
+	ctx.fillRect( - 7.5, - 34, 8, 7.5 );
 	ctx.fillStyle = '#c8102e';
-	ctx.fillRect( - 16, - 44, 32, 14 );
+	ctx.fillRect( 2, - 34, 5.5, 7.5 );
+	// 2008 under the words, the base at the foot
+	ctx.fillStyle = '#1d3a14';
+	ctx.font = '800 11px Georgia, "Times New Roman", serif';
+	ctx.fillText( '2008', 2, 23.5 );
+	ctx.fillStyle = '#f4f2ec';
+	ctx.beginPath();
+	ctx.moveTo( 0, 30 ); ctx.lineTo( 6.5, 36.5 ); ctx.lineTo( 0, 43 ); ctx.lineTo( - 6.5, 36.5 );
+	ctx.closePath();
+	ctx.fill();
+	ctx.fillStyle = '#c8102e';
+	ctx.beginPath();
+	ctx.moveTo( 0, 36.5 ); ctx.lineTo( 3.5, 36.5 ); ctx.lineTo( 0, 40 ); ctx.lineTo( - 3.5, 36.5 );
+	ctx.closePath();
+	ctx.fill();
+	// WORLD over SERIES: white, edged in navy, wider than the diamond
+	ctx.rotate( - 0.1 );
+	ctx.strokeStyle = '#14235c';
+	ctx.fillStyle = '#f7f5ef';
+	for ( const [ word, size, ty, w ] of [ [ 'WORLD', 21, - 10, 88 ], [ 'SERIES', 25, 10, 114 ] ] ) {
+
+		ctx.font = `900 ${ size }px Georgia, "Times New Roman", serif`;
+		ctx.lineWidth = 6;
+		ctx.strokeText( word, 0, ty, w );
+		ctx.fillText( word, 0, ty, w );
+
+	}
+
 	ctx.restore();
 
 }
+// ---- end FK2 repair
 
 // ---- FY3: the Rays' 2008 sleeve logo: a manta ray from above, navy edged in Columbia blue, its wings
 // swept, its tail trailing (Getty 83485159, Balfour's left sleeve)

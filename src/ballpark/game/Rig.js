@@ -424,7 +424,9 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 	// one over the teeth that the jaw doesn't move, the lower one under them that drops and swings back
 	// with the jaw (Players.js: the upper takes none of the expressions' moves, the lower all of them).
 	// Bone: the head
-	if ( ! lod ) {
+	// ---- FK2 (step 12, SK1's R3): on the middle figure too, half as many teeth round the arch (they went at
+	// the near -> middle swap, at ~480 px: a pale sliver, then dark), riding the middle's head vertex (+65536)
+	if ( ! lod || mid ) {
 
 		const BP = decode( BODY.position, Int16Array ), BG = decode( BODY.flag, Uint8Array );
 		const [ , my, mz ] = F.mouth;
@@ -445,7 +447,7 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 		};
 		const arch = ( p, carrier, front, rx, rz, rows ) => {
 
-			const base = pos.length / 3, A = 80 * Math.PI / 180, N = 18;
+			const base = pos.length / 3, A = 80 * Math.PI / 180, N = mid ? 9 : 18; // (---- FK2: mid)
 			for ( let j = 0; j <= N; j ++ ) {
 
 				const a = - A + 2 * A * j / N, sa = Math.sin( a ), ca = Math.cos( a ), side = Math.abs( a ) / A;
@@ -458,7 +460,7 @@ export function buildPlayerGeometry( { lod = false } = {} ) {
 					bones.push( B.head, 0, 0, 0 );
 					weights.push( 1, 0, 0, 0 );
 					part.push( p );
-					field.push( - 1, - 1, carrier );
+					field.push( - 1, - 1, carrier + ( mid ? 65536 : 0 ) ); // (---- FK2: mid)
 
 				}
 

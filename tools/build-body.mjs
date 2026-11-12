@@ -728,6 +728,15 @@ const ffHead = await ( async () => {
 		[ 'open', [ [ 'mouth-open', 1 ], [ 'eyebrows-left-up', 0.55 ], [ 'eyebrows-right-up', 0.55 ] ] ],
 		[ 'smile', [ [ 'mouth-corner-puller', 1 ], [ 'mouth-upward-retraction', 0.35 ], [ 'eye-left-slit', 0.7 ], [ 'eye-right-slit', 0.7 ] ] ],
 		[ 'blink', [ [ 'eye-left-closure', 1 ], [ 'eye-right-closure', 1 ] ] ],
+		// ---- FK2 (step 12, SK1's F1 and the squint): the shout, on top of the open mouth, the smile and the
+		// shut lids (Lidge at strike three, Getty 83485858; the pile's shouts, 83485929). The photo's mouth is
+		// a tall oval, about 1.2 x as tall as it's wide; MakeHuman's open unit only drops the jaw, to about
+		// 0.55 x. So: the jaw lower (the open unit 1.4 in all), the upper lip lifted off the teeth (the
+		// levator: mouth-elevation), the corners drawn in a little against the smile's pull; and the squint:
+		// the brows down (the open unit's brows-up undone and past it), the cheeks up into the lids (the
+		// slit), the inner brows knit (below: MakeHuman has no corrugator unit)
+		[ 'shout', [ [ 'mouth-open', 0.4 ], [ 'mouth-elevation', 0.75 ], [ 'mouth-corner-puller', - 0.25 ], [ 'eyebrows-left-up', - 1.1 ], [ 'eyebrows-right-up', - 1.1 ], [ 'eye-left-slit', 0.35 ], [ 'eye-right-slit', 0.35 ] ] ],
+		// ---- end FK2
 	];
 	const ex = [];
 	for ( const [ , units ] of EXPR ) {
@@ -737,6 +746,26 @@ const ffHead = await ( async () => {
 		ex.push( lin( terms ) );
 
 	}
+	// ---- FK2: the knit (the corrugator) in the shout: the inner brows drawn toward each other and down,
+	// bunched a little forward between them (the frown's two creases are the surface's paint, Players.js)
+	{
+
+		const E = face.eyeR;
+		hk.forEach( ( k, h ) => {
+
+			const p = pos[ k ];
+			if ( eyeIds.has( order[ k ] ) ) return;
+			const ax = Math.abs( p[ 0 ] ), sx = Math.sign( p[ 0 ] ), dy = p[ 1 ] - E[ 1 ];
+			const kk = smooth( - 0.002, 0.012, dy ) * ( 1 - smooth( 0.03, 0.05, dy ) ) * ( 1 - smooth( 0.02, 0.055, ax ) ) * smooth( E[ 2 ] + 0.03, E[ 2 ] - 0.005, p[ 2 ] );
+			if ( kk <= 0 ) return;
+			ex[ 3 ][ h * 3 ] += - sx * 0.0035 * kk * smooth( 0, 0.012, ax );
+			ex[ 3 ][ h * 3 + 1 ] += - 0.002 * kk;
+			ex[ 3 ][ h * 3 + 2 ] += - 0.0012 * kk * ( 1 - smooth( 0, 0.02, ax ) );
+
+		} );
+
+	}
+	// ---- end FK2
 	const N0 = normals( pos );
 	const exN = ex.map( ( D ) => {
 
@@ -762,13 +791,15 @@ const ffHead = await ( async () => {
 	const eIdx = [], eRec = [];
 	for ( let h = 0; h < HV; h ++ ) {
 
-		const [ o, s, b ] = ex.map( ( D ) => [ D[ h * 3 ], D[ h * 3 + 1 ], D[ h * 3 + 2 ] ] );
-		const [ no, ns, nb ] = exN.map( ( N ) => N[ h ] );
-		if ( Math.max( ...o.map( Math.abs ), ...s.map( Math.abs ), ...b.map( Math.abs ) ) < 3e-5 && Math.max( ...no.map( Math.abs ), ...ns.map( Math.abs ), ...nb.map( Math.abs ) ) < 0.004 ) continue;
+		const [ o, s, b, x ] = ex.map( ( D ) => [ D[ h * 3 ], D[ h * 3 + 1 ], D[ h * 3 + 2 ] ] );
+		const [ no, ns, nb, nx ] = exN.map( ( N ) => N[ h ] );
+		if ( Math.max( ...o.map( Math.abs ), ...s.map( Math.abs ), ...b.map( Math.abs ), ...x.map( Math.abs ) ) < 3e-5 && Math.max( ...no.map( Math.abs ), ...ns.map( Math.abs ), ...nb.map( Math.abs ), ...nx.map( Math.abs ) ) < 0.004 ) continue;
 		eIdx.push( h );
 		// [ open x y | open z, smile x | smile y z | blink y z ], then their normals' the same (FF2's records)
 		eRec.push( pack2( o[ 0 ], o[ 1 ] ), pack2( o[ 2 ], s[ 0 ] ), pack2( s[ 1 ], s[ 2 ] ), pack2( b[ 1 ], b[ 2 ] ),
-			pack2( no[ 0 ], no[ 1 ] ), pack2( no[ 2 ], ns[ 0 ] ), pack2( ns[ 1 ], ns[ 2 ] ), pack2( nb[ 1 ], nb[ 2 ] ) );
+			pack2( no[ 0 ], no[ 1 ] ), pack2( no[ 2 ], ns[ 0 ] ), pack2( ns[ 1 ], ns[ 2 ] ), pack2( nb[ 1 ], nb[ 2 ] ),
+			// (---- FK2: a third record, the shout: [ x y | z, its normal's x | y z | 0 ])
+			pack2( x[ 0 ], x[ 1 ] ), pack2( x[ 2 ], nx[ 0 ] ), pack2( nx[ 1 ], nx[ 2 ] ), 0 );
 
 	}
 
@@ -935,7 +966,7 @@ export const BODY = {
 	// skull and the face); the shapes, x y z as int8 times the shape's scale, sparse (with the head
 	// vertex's number) or dense (every head vertex): [ name, first value, values, scale, first index or -1
 	// for a dense one ]; the
-	// expressions (${ [ 'open', 'smile', 'blink' ].join( ', ' ) }) at the vertices they move, 8 u32 each (halves)
+	// expressions (${ [ 'open', 'smile', 'blink', 'shout' ].join( ', ' ) }) at the vertices they move, 12 u32 each (halves; ---- FK2: the shout)
 	head: {
 		count: ${ ffHead.HV },
 		vertices: '${ b64( new Uint16Array( ffHead.hk ) ) }',
@@ -943,7 +974,7 @@ export const BODY = {
 		shapes: ${ JSON.stringify( ffHead.table ) },
 		index: '${ b64( new Uint16Array( ffHead.sIdx ) ) }',
 		value: '${ b64( new Int8Array( ffHead.sVal ) ) }',
-		expressions: [ 'open', 'smile', 'blink' ],
+		expressions: [ 'open', 'smile', 'blink', 'shout' ], // (---- FK2: 12 u32 a vertex, the shout's the third vec4)
 		exprIndex: '${ b64( new Uint16Array( ffHead.eIdx ) ) }',
 		exprRec: '${ b64( new Uint32Array( ffHead.eRec ) ) }',
 	},

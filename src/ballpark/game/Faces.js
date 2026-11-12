@@ -16,7 +16,8 @@ import { BODY } from './data/body.js';
 //                              read a vertex; the normals worked out again from the moved head's own
 //                              triangles, so he shades as his own shape
 //   exprRecords()              the expressions (the mouth open, the smile, the blink: MakeHuman's units,
-//                              FF2's), 2 records of 4 u32 a head vertex, for the near figure's blend
+//                              FF2's; ---- FK2: the shout), 3 records of 4 u32 a head vertex, for the near
+//                              and middle figures' blend
 
 const dec = ( s, T ) => {
 
@@ -199,11 +200,14 @@ export function bakeFace( mh ) {
 }
 
 // the expressions' records, dense over the head (zero where they move nothing)
+export const EXPR_VEC4 = 3; // ---- FK2: the open mouth, the smile and the blink; the shout (vec4u a vertex)
 export function exprRecords() {
 
+	// (---- FK2: 3 records a vertex now, the shout the third: EXPR_VEC4)
 	const idx = dec( H.exprIndex, Uint16Array ), rec = dec( H.exprRec, Uint32Array );
-	const out = new Uint32Array( HV * 8 );
-	idx.forEach( ( h, e ) => out.set( rec.subarray( e * 8, e * 8 + 8 ), h * 8 ) );
+	const R = EXPR_VEC4 * 4;
+	const out = new Uint32Array( HV * R );
+	idx.forEach( ( h, e ) => out.set( rec.subarray( e * R, e * R + R ), h * R ) );
 	return out;
 
 }
