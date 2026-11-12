@@ -397,7 +397,7 @@ export class Fair {
 	if ( kind == 4 ) { col = vec3f( 0.75, 0.28, 0.03 ); }
 	let st = floor( in.uv.x );
 	var c = select( col, vec3f( 0.76, 0.75, 0.71 ), fract( st * 0.5 ) > 0.25 );
-	let wv = fract( sin( dot( floor( in.position_world.xz * 90.0 + in.position_world.y * 37.0 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	let wv = fract( sin( dot( floor( in.P.xz * 90.0 + in.P.y * 37.0 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
 	c = c * ( 0.93 + 0.07 * wv ) * select( 1.0, 0.86, fract( in.uv.y ) > 0.5 );
 	s.albedo = c; s.roughness = 0.85;
 	s.emissive = c * smoothstep( 0.2, 0.8, frame.night ) * 0.06;

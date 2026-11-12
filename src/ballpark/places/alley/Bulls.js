@@ -83,7 +83,9 @@ function drawPanel( ctx, w, h ) {
 	ctx.fillStyle = '#ece8df'; ctx.fillRect( 0, 0, w, h );
 	ctx.save();
 	ctx.translate( w / 2, h * 0.6 );
-	ctx.scale( 2.3, 1 );
+	// (u runs clockwise seen from above: mirrored here, it reads from outside, and backwards from under it,
+	// as a printed canopy does with the light through it)
+	ctx.scale( - 2.3, 1 );
 	ctx.font = 'italic 700 26px Georgia, "Times New Roman", serif';
 	ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 	ctx.fillStyle = '#c8102e'; ctx.fillText( 'Phillies', 0, 0, 80 );
