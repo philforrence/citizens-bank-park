@@ -36,6 +36,9 @@ import { DUGOUT_ZONES, DUGOUT_ROOF, DUGOUT_WIDTH } from './Field.js'; // ---- FK
 //                               'aisles', open at each aisle's head, onto a concourse behind)
 //   soffit                      an upper deck: its underside runs this far below the rows (m), and
 //                               the stepped profile is closed at the tier's two ends
+//   openEnd: [ start, end ]     (---- FK1, AD1-16) with a soffit: which of the two ends is not one closed slab
+//                               but what the deck is made of, seen end on: the stepped precast units' ends
+//                               and under them the maroon raker they sit on, down to the underside
 //   portals: { every, row, rows, width }   a tunnel portal (vomitory) in the middle of every `every`th
 //                               section, `rows` rows deep from row `row`, `width` wide
 //   ---- FA3 (step 10, the walk):
@@ -277,6 +280,19 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			// ---- FA1 (WA2-1): the tread drawn and collided over [ f0, f1 ] at its front and [ b0, b1 ] at its back,
 			// once, or twice either side of an open portal (a cut end paints no aisle: `cut0`, `cut1`)
 			const well = portals.length || mouths.size ? wellOf( S, r ) : null; // ---- FA3 (WA1-2, WA2-4)
+			// ---- FK1 repair (SC1-12): the nosing's strip runs to about 0.1 m from the row's first seat (Commons
+			// 2008-03-29 2371427833); it stopped 0.5 m from the section's end, a quarter to half a metre of bare
+			// tread short of the seats, which stand in from the aisle by half of what's left over when the row's
+			// seats are counted. The tread's distance from its end is shifted by that much (the concrete paints
+			// the strip to 0.5)
+			let strip = 0;
+			if ( S.seats ) {
+
+				const [ e0, e1 ] = seatEnds( d0 + D * 0.55 ), room = e1 - e0 - A, n = Math.floor( room / W );
+				if ( n >= 1 ) strip = Math.max( 0, A / 2 + ( room - n * W ) / 2 + W / 2 - 0.23 - 0.1 - 0.5 );
+
+			}
+			// ---- end FK1 repair
 			const slab = ( f0, f1, b0, b1, cut0 = false, cut1 = false ) => {
 
 				// tread
@@ -286,7 +302,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 				// the concrete's painted nosings and worn edges; the riser flagged, for its shade
 				const w = Math.min( A / 2 + 0.6, ( f1 - f0 ) / 2 ), wb = Math.min( A / 2 + 0.6, ( b1 - b0 ) / 2 );
 				const F = [ f0, f0 + w, f1 - w, f1 ].map( ( s ) => at( s, d0 ) ), Bq = [ b0, b0 + wb, b1 - wb, b1 ].map( ( s ) => at( s, d1 ) );
-				const ua = [ cut0 ? 3 : 0, w, w, cut1 ? 3 : 0 ], ub = [ cut0 ? 3 : 0, wb, wb, cut1 ? 3 : 0 ];
+				const ua = [ cut0 ? 3 : - strip, w - strip, w - strip, cut1 ? 3 : - strip ], ub = [ cut0 ? 3 : - strip, wb - strip, wb - strip, cut1 ? 3 : - strip ]; // ---- FK1 repair: strip
 				for ( let j = 0; j < 3; j ++ ) {
 
 					// ---- FA3 (WA1-2): the middle piece open over a portal's well
@@ -471,7 +487,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const band = [ [ S0, bandY( S0 ) ] ];
 		for ( let r = 0; r < tier.rows; r ++ ) band.push( [ S0 + r * D, ys[ r ] ], [ S0 + ( r + 1 ) * D, ys[ r ] ] );
 		band.push( [ dB, bandY( dB ) ] );
-		const bandTris = triangulateShape( band.map( ( [ d, y ] ) => new Vector2( d, y ) ), [] );
+		const bandTris = tier.openEnd ? triangulateShape( band.map( ( [ d, y ] ) => new Vector2( d, y ) ), [] ) : [];
 		// ---- end FK1
 		for ( const [ S, end ] of [ [ secs[ 0 ], false ], [ secs[ secs.length - 1 ], true ] ] ) {
 
@@ -657,7 +673,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	const tq = new Quads();
 	const towels = ( S, P, s0, s1, dE ) => {
 
-		const yR = DUGOUT_ROOF + 0.004, dEdge = Math.min( dE - 0.02, DUGOUT_WIDTH + 0.25 );
+		// (---- FK1 repair: 15 mm over the roof, a towel's thickness. At 4 mm they lay under the roof's lettered
+		// top, Details2008.js at 5 mm, and under the rain's water on it, rail/Drips.js at 9: none could be seen)
+		const yR = DUGOUT_ROOF + 0.015, dEdge = Math.min( dE - 0.02, DUGOUT_WIDTH + 0.25 );
 		for ( let s = s0 + 0.6 + 1.6 * hash( S.a[ 0 ] * 3.1 + S.a[ 1 ] ); s < s1 - 0.4; s += 1.8 + 1.6 * hash( s * 7.3 + S.a[ 0 ] ) ) {
 
 			const h = hash( s * 13.7 + S.a[ 1 ] * 2.3 ), turn = ( h - 0.5 ) * ( h < 0.45 ? 1.2 : 0.2 );
@@ -732,6 +750,12 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 				// ---- end FK1
 				for ( const [ sF, sB ] of [ [ Math.min( S.len, S.m0 * ( S0 - 0.15 ) ), a0 ], [ Math.max( 0, S.len - S.m1 * ( S0 - 0.15 ) ), a1 ] ] ) {
 
+					// ---- FK1 repair: nor across the roof. Where a section ends inside the roof's span (the aisle
+					// down the middle of a dugout's two sections) FA3's rail down the end stood alone across the
+					// white roof once the back rail had gone; neither 2008 photo has anything there (Getty 83824852,
+					// flickr puffygreenjacket 2994329550: the roof clear from end to end). Its wall goes with it:
+					// nothing drawn stands there (the edge's collider keeps you off the roof)
+					if ( roofS && sB > roofS[ 0 ] + 0.3 && sB < roofS[ 1 ] - 0.3 ) continue;
 					const A = P( sF, S0 - 0.15, 0 ), B = P( sB, dF, 0 );
 					runs.push( [ A, B ] );
 					wallLine( [ A[ 0 ], A[ 2 ] ], [ B[ 0 ], B[ 2 ] ], y - 1.2, y + FR.height );
@@ -907,7 +931,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	// (WA1-2) a portal's box: its cheeks, its back and the face round its mouth are walls up to the pipe rail
 	// round its top. Under the deck the stair's side clears the cheek (the cheek's foot at the deck's
 	// underside, over the climber's head)
-	// (an open portal, FA1's, walls itself: its top is flush with the rows and its stair comes up under the cheeks)
+	// (an open portal, FK1's stairwell, has its own colliders where it is drawn, below: its floor, cheeks and back)
 	for ( const p of PO?.open ? [] : portals ) {
 
 		const { S } = p, w = PO.width / 2 + 0.3, mw = PO.width / 2 - 0.2;
@@ -956,9 +980,9 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const { S } = p;
 		const w = PO.width / 2 + 0.3;
 		const dF = S0 + p.r0 * D, dB = S0 + p.r1 * D;
-		// (---- FA1: an open portal is a vomitory flush with the rows round it, its top a landing level with its
-		// last row, railed: the 2008 photos of the Pavilion Deck show no boxes standing out of its rows)
-		const yF = ys[ Math.max( 0, p.r0 - 1 ) ], yTop = ys[ Math.min( tier.rows - 1, p.r1 - 1 ) ] + ( PO.open ? 0.05 : 1.1 );
+		// (---- FA1: the 2008 photos of the Pavilion Deck show no boxes standing out of its rows: an `open`
+		// portal is FK1's stairwell, below, and the box is the closed ones')
+		const yF = ys[ Math.max( 0, p.r0 - 1 ) ], yTop = ys[ Math.min( tier.rows - 1, p.r1 - 1 ) ] + 1.1;
 		const at = ( s, d, y ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, y, S.a[ 1 ] + S.uz * s + S.nz * d ];
 		const f = [ - S.nx, 0, - S.nz ];
 		// ---- FK1 (AD1-7): an open portal is a stairwell, open over it to the roof, not a box. FA1's had a lid
@@ -1021,7 +1045,11 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 				box( p.s - w, p.s + w, dF, dm - hw, yF - 0.3, yF, { walkable: true, tag: tier.name + '-portal' } );
 				box( p.s - w, p.s + w, dm + hw, dB, yF - 0.3, yF, { walkable: true, tag: tier.name + '-portal' } );
 				for ( const e of [ - 1, 1 ] ) box( p.s + e * w - 0.1, p.s + e * w + 0.1, dF, dB, yF - 0.3, yBack + 1.1, { tag: tier.name + '-portal-cheek' } );
-				box( p.s - w - 0.1, p.s + w + 0.1, dB, dB + 0.15, yF - 0.3, yRow + 0.9, { tag: tier.name + '-portal-back' } );
+				// (---- FK1 repair: the back to 1.1 m over the row behind, the cheeks' height over theirs: over the
+				// 1.04 m jump. At 0.9 a jump from the rows behind cleared it and came down on the strip of floor
+				// behind the stair's hole, shut in by the cheeks, the back and the stair's own rail. The drawn rail
+				// stays at 0.85, under the row's fans' eyes)
+				box( p.s - w - 0.1, p.s + w + 0.1, dB, dB + 0.15, yF - 0.3, yRow + 1.1, { tag: tier.name + '-portal-back' } );
 
 			}
 			continue;
@@ -1033,7 +1061,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		pq.add( at( p.s - w, dF, yF ), at( m0, dF, yF ), at( m0, dF, yTop ), at( p.s - w, dF, yTop ), f );
 		pq.add( at( m1, dF, yF ), at( p.s + w, dF, yF ), at( p.s + w, dF, yTop ), at( m1, dF, yTop ), f );
 		pq.add( at( m0, dF, mTop ), at( m1, dF, mTop ), at( m1, dF, yTop ), at( m0, dF, yTop ), f );
-		if ( ! PO.open ) tunnelMouth( mq, at( m0, dF + 0.05, 0 ), at( m1, dF + 0.05, 0 ), yF, mTop, f ); // ---- FA1: an open portal's mouth is open (---- FK1, AD1-12: traced)
+		tunnelMouth( mq, at( m0, dF + 0.05, 0 ), at( m1, dF + 0.05, 0 ), yF, mTop, f ); // (---- FK1, AD1-12: traced)
 		// the cheeks and the top
 		for ( const e of [ - 1, 1 ] ) pq.add( at( p.s + e * w, dF, yF ), at( p.s + e * w, dB, yF ), at( p.s + e * w, dB, yTop ), at( p.s + e * w, dF, yTop ), [ S.ux * e, 0, S.uz * e ] );
 		pq.add( at( p.s - w, dF, yTop ), at( p.s + w, dF, yTop ), at( p.s + w, dB, yTop ), at( p.s - w, dB, yTop ), [ 0, 1, 0 ] );
@@ -1215,7 +1243,11 @@ export function seatGeometry( down = false ) {
 	// renders: under the banks hue ~231 at ~47% (it was 220 at 76-81%), by day in the roof's shade still the
 	// saturated blue of the day photos (it was 99%, a cobalt). The standards are painted the same navy, deeper
 	// (83511062: the aisle ends' "Phillies" castings in blue under the wet tops): they were a metal grey
-	const BLUE = [ 0.042, 0.05, 0.115 ], GREY = [ 0.014, 0.021, 0.062 ];
+	// ---- FK1 repair (step 12): twice as light at the same hue, and the standards the plastic's blue. Against
+	// the concrete beside them (seat over concrete, the brighter channel) the photos' seats under the banks
+	// are 0.55 to 1.1 (Getty 83511062, 83891095, AP 5516521282); FX2's were 0.13 dry and 0.41 wet, darker than
+	// the royal blue they replaced, and the standards near black where 83511062 has them blue (34, 48, 94)
+	const BLUE = [ 0.084, 0.1, 0.23 ], GREY = [ 0.06, 0.076, 0.2 ];
 	// ---- end FX2
 	const add = ( c, ...args ) => {
 
