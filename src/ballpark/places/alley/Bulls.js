@@ -75,6 +75,28 @@ function drawMenu( ctx, w, h ) {
 
 }
 
+// ---- FK3 (SC1-14): a white panel of the umbrellas, across it (u) and down it from the hub (v); the
+// valance below v 0.8. Off-white, the red Phillies script across its wide end (drawn 2.3 times wider than
+// tall: a panel's texel is that much narrower across than down it), a red piping at the rim and the hem
+function drawPanel( ctx, w, h ) {
+
+	ctx.fillStyle = '#ece8df'; ctx.fillRect( 0, 0, w, h );
+	ctx.save();
+	ctx.translate( w / 2, h * 0.6 );
+	// (u runs clockwise seen from above: mirrored here, it reads from outside, and backwards from under it,
+	// as a printed canopy does with the light through it)
+	ctx.scale( - 2.3, 1 );
+	ctx.font = 'italic 700 26px Georgia, "Times New Roman", serif';
+	ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+	ctx.fillStyle = '#c8102e'; ctx.fillText( 'Phillies', 0, 0, 80 );
+	ctx.restore();
+	ctx.fillStyle = '#b0101f';
+	ctx.fillRect( 0, h * 0.795, w, h * 0.018 );
+	ctx.fillRect( 0, h * 0.965, w, h * 0.035 );
+
+}
+// ---- end FK3
+
 export class Bulls {
 
 	// at: [ x, z ] the tent's front middle (it faces +z, the field); folk: the Alley's people (added here)
@@ -253,23 +275,126 @@ export class Bulls {
 		km.receiveShadow = true;
 		parent.add( km );
 
-		// the umbrellas over the tables: red and white segments, some furled (the wind), and the posts
-		const umb = standard( { name: 'bulls-umbrellas', color: new Color( 0.5, 0.03, 0.04 ), roughness: 0.7, side: 'double',
-			surface: 's.albedo = select( vec3f( 0.78, 0.77, 0.74 ), vec3f( 0.42, 0.02, 0.03 ), fract( in.uv.x * 0.5 ) < 0.5 );' } );
+		// ---- FK3 (SC1-14): the umbrellas as the 2008 photo of the plaza has them (commons 2008-03-29, Bull's
+		// BBQ): market umbrellas of eight panels, red and white, the Phillies script across the white ones, a
+		// finial on top. Open, a shallow canopy on its ribs, each panel sagging a little between them, a
+		// scalloped valance, the ribs and the stretchers under it; furled (the wind), the cloth gathered round
+		// the pole in loose folds from the hub, past a tie, to a loose hem, the ribs in the valleys. They were
+		// eight-sided paper cones, the furled ones flat red and white triangles.
+		const umbTex = canvasTexture( 256, 256, drawPanel, 'bullsUmbrella' );
+		const umb = standard( { name: 'bulls-umbrellas', color: new Color( 0.75, 0.74, 0.7 ), roughness: 0.8, side: 'double', textures: { bpUmb: umbTex },
+			surface: /* wgsl */`
+	// uv.x: the panel's index and across it; uv.y: down it from the hub (0) to the valance's hem (1); the
+	// tie below 0
+	let k = floor( in.uv.x );
+	let t = textureSample( bpUmb, smpAnisoClamp, vec2f( fract( in.uv.x ), clamp( in.uv.y, 0.0, 1.0 ) ) ).rgb;
+	var c = select( t, vec3f( 0.42, 0.02, 0.03 ), fract( k * 0.5 ) > 0.25 );
+	if ( in.uv.y < 0.0 ) { c = vec3f( 0.7, 0.69, 0.66 ); }
+	// the weave, and the dirt that gathers toward the hem
+	let wv = fract( sin( dot( floor( in.uv * vec2f( 64.0, 48.0 ) ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	c = c * ( 0.94 + 0.06 * wv ) * ( 1.0 - 0.1 * smoothstep( 0.6, 1.0, in.uv.y ) );
+	s.albedo = c;
+	// the eaves' bulbs and the lamp on it after dark
+	s.emissive = c * smoothstep( 0.2, 0.8, frame.night ) * 0.05;
+` } );
+		umb.setDefine( 'WET_FABRIC', 1 );
 		const uq = new Quads();
+		// a triangle with its own facet's normal, turned toward `hint`
+		const facet = ( a, b, c, hint, ua, ub, uc ) => {
+
+			const e1 = [ b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ], b[ 2 ] - a[ 2 ] ], e2 = [ c[ 0 ] - a[ 0 ], c[ 1 ] - a[ 1 ], c[ 2 ] - a[ 2 ] ];
+			let n = [ e1[ 1 ] * e2[ 2 ] - e1[ 2 ] * e2[ 1 ], e1[ 2 ] * e2[ 0 ] - e1[ 0 ] * e2[ 2 ], e1[ 0 ] * e2[ 1 ] - e1[ 1 ] * e2[ 0 ] ];
+			if ( n[ 0 ] * hint[ 0 ] + n[ 1 ] * hint[ 1 ] + n[ 2 ] * hint[ 2 ] < 0 ) n = n.map( ( v ) => - v );
+			uq.tri( a, b, c, n, ua, ub, uc );
+
+		};
+		// a sheet of points pt( i, j ) (i round, j down), cols x rows cells, uv( i, j ) at its corners
+		const grid = ( pt, cols, rows, hint, uvOf ) => {
+
+			for ( let i = 0; i < cols; i ++ ) for ( let j = 0; j < rows; j ++ ) {
+
+				const a = pt( i, j ), b = pt( i + 1, j ), c = pt( i + 1, j + 1 ), d = pt( i, j + 1 );
+				const h = hint( i + 0.5, j + 0.5 );
+				facet( a, b, c, h, uvOf( i, j ), uvOf( i + 1, j ), uvOf( i + 1, j + 1 ) );
+				facet( a, c, d, h, uvOf( i, j ), uvOf( i + 1, j + 1 ), uvOf( i, j + 1 ) );
+
+			}
+
+		};
+		const SUB = 4; // a panel's columns
+		const U = ( c ) => Math.min( c / SUB, 8 - 1e-3 );
 		this.tables.forEach( ( [ x, z ], i ) => {
 
-			beam( pq, [ x, Y + 0.72, z ], [ x, Y + 2.4, z ], 0.035 );
-			const open = i % 3 !== 1;
-			const R = open ? 1.2 : 0.18, top = Y + 2.5, rim = open ? Y + 2.05 : Y + 1.4;
-			for ( let k = 0; k < 8; k ++ ) {
+			const open = i % 3 !== 1, seed = Math.sin( i * 91.7 + 3.1 ) * 0.5 + 0.5, spin = seed * Math.PI / 4;
+			const hub = Y + ( open ? 2.45 : 2.55 );
+			beam( pq, [ x, Y + 0.72, z ], [ x, hub + 0.02, z ], 0.03 );
+			// the finial
+			beam( pq, [ x, hub, z ], [ x, hub + 0.12, z ], 0.022 );
+			beam( pq, [ x, hub + 0.1, z ], [ x, hub + 0.15, z ], 0.035 );
+			const ang = ( c ) => spin + c / ( 8 * SUB ) * Math.PI * 2;
+			if ( open ) {
 
-				const a0 = k / 8 * Math.PI * 2, a1 = ( k + 1 ) / 8 * Math.PI * 2, am = ( a0 + a1 ) / 2;
-				uq.tri( [ x, top, z ], [ x + Math.cos( a0 ) * R, rim, z + Math.sin( a0 ) * R ], [ x + Math.cos( a1 ) * R, rim, z + Math.sin( a1 ) * R ], [ Math.cos( am ) * 0.4, 0.9, Math.sin( am ) * 0.4 ], [ k + 0.5, 0 ], [ k + 0.5, 0 ], [ k + 0.5, 0 ] );
+				// the canopy: 1.35 m out, 0.42 m down to the ribs' tips, convex; a panel's middle hangs a little
+				// lower than its ribs (the cloth's slack)
+				const R = 1.35, drop = 0.42, rings = 4;
+				const P = ( c, j ) => {
+
+					const f = ( c % SUB ) / SUB, r = R * j / rings, a = ang( c ), pull = 1 - 0.07 * Math.sin( Math.PI * f );
+					const sag = 0.05 * Math.sin( Math.PI * f ) * ( j / rings );
+					return [ x + Math.cos( a ) * r * pull, hub - drop * Math.pow( j / rings, 1.5 ) - sag, z + Math.sin( a ) * r * pull ];
+
+				};
+				grid( P, 8 * SUB, rings, () => [ 0, 1, 0 ], ( c, j ) => [ U( c ), j / rings * 0.8 ] );
+				// the valance: a skirt off the rim, each panel's edge a scallop (6 cm at the ribs, 16 between)
+				const V = ( c, j ) => {
+
+					const p = P( c, rings ), f = ( c % SUB ) / SUB;
+					return [ p[ 0 ], p[ 1 ] - j * ( 0.06 + 0.1 * Math.sin( Math.PI * f ) ), p[ 2 ] ];
+
+				};
+				grid( V, 8 * SUB, 1, ( c ) => [ Math.cos( ang( c ) ), 0, Math.sin( ang( c ) ) ], ( c, j ) => [ U( c ), 0.8 + 0.2 * j ] );
+				// the ribs under it, the stretchers up to them from the runner, the runner
+				for ( let k = 0; k < 8; k ++ ) {
+
+					const tip = P( k * SUB, rings ), mid = P( k * SUB, rings / 2 );
+					beam( pq, [ x, hub - 0.03, z ], [ tip[ 0 ], tip[ 1 ] - 0.02, tip[ 2 ] ], 0.011 );
+					beam( pq, [ x, hub - 0.62, z ], [ mid[ 0 ], mid[ 1 ] - 0.03, mid[ 2 ] ], 0.009 );
+
+				}
+
+				beam( pq, [ x, hub - 0.7, z ], [ x, hub - 0.56, z ], 0.045 );
+
+			} else {
+
+				// furled: 1.3 m down from the hub; its radius down it (the hub, the bunched top, the tie, the
+				// loose hem), the folds out between the ribs, a little twist
+				const L = 1.3, T = [ 0, 0.05, 0.16, 0.3, 0.44, 0.5, 0.56, 0.7, 0.85, 1.0 ];
+				const RAD = [ 0.035, 0.09, 0.15, 0.17, 0.14, 0.11, 0.13, 0.19, 0.25, 0.29 ].map( ( r ) => r * ( 0.9 + 0.2 * seed ) );
+				const P = ( c, j ) => {
+
+					const k = Math.floor( c / SUB ) % 8, f = ( c % SUB ) / SUB, t = T[ j ];
+					const a = ang( c ) + t * 0.6 * ( seed - 0.5 );
+					const r = RAD[ j ] * ( 0.62 + 0.38 * Math.pow( Math.sin( Math.PI * f ), 0.7 ) * ( 0.85 + 0.3 * Math.sin( k * 2.3 + seed * 7 ) ) );
+					return [ x + Math.cos( a ) * r, hub - 0.02 - t * L, z + Math.sin( a ) * r ];
+
+				};
+				grid( P, 8 * SUB, T.length - 1, ( c ) => [ Math.cos( ang( c ) ), 0.2, Math.sin( ang( c ) ) ], ( c, j ) => [ U( c ), T[ j ] ] );
+				// the tie round its waist (the shader's pale strap, uv.y < 0)
+				const yT = hub - 0.02 - 0.5 * L, rT = RAD[ 5 ] * 0.8 + 0.012, tu = [ 0.5, - 1 ];
+				for ( let k = 0; k < 12; k ++ ) {
+
+					const a0 = k / 12 * Math.PI * 2, a1 = ( k + 1 ) / 12 * Math.PI * 2, am = ( a0 + a1 ) / 2;
+					const p = ( a, dy ) => [ x + Math.cos( a ) * rT, yT + dy, z + Math.sin( a ) * rT ];
+					const out = [ Math.cos( am ), 0, Math.sin( am ) ];
+					facet( p( a0, - 0.025 ), p( a1, - 0.025 ), p( a1, 0.025 ), out, tu, tu, tu );
+					facet( p( a0, - 0.025 ), p( a1, 0.025 ), p( a0, 0.025 ), out, tu, tu, tu );
+
+				}
 
 			}
 
 		} );
+		// ---- end FK3
 		const pm = new Mesh( pq.geometry(), steel );
 		pm.name = 'bulls-poles';
 		pm.castShadow = true;

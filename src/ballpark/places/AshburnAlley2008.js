@@ -15,6 +15,7 @@ import { Bulls } from './alley/Bulls.js';
 import { Fair } from './alley/Fair.js';
 import { MemoryLane } from './alley/MemoryLane.js';
 import { allStarWalk } from './alley/AllStarWalk.js';
+import { RightFieldGate } from './alley/Gate.js'; // ---- FK3 (SC1-8)
 import { Tempo } from './Tempo.js'; // ---- H
 import { StandSounds } from './Concourse3BSounds.js'; // ---- FW3 (C2W-15)
 import { nightState } from './Concourse3BPeople.js'; // ---- FW3
@@ -57,7 +58,8 @@ export default class AshburnAlley2008 {
 		// the people: one figure system for all of them (built once they're all added)
 		this.folk = new Folk( this.group, { signs: SIGNS } );
 		this.folk.frameYaw = field.group.rotation.y;
-		this.folk.bounds = new Sphere( new Vector3( 0, STREET, - 136 ), 80 );
+		// (FK3, SC1-8: on to the Right Field Gate's court, x 131)
+		this.folk.bounds = new Sphere( new Vector3( 25, STREET, - 128 ), 116 );
 		this._cast( L );
 		// Bull's BBQ at the left field end, its plaza, the Bull signing
 		this.bulls = new Bulls( { parent: this.group, folk: this.folk, at: [ - 71.5, - 140 ] } );
@@ -68,10 +70,17 @@ export default class AshburnAlley2008 {
 		this.fair = new Fair( {
 			parent: this.group, folk: this.folk, zFront: zf,
 			// (the funnel cake stand by the clock's pylons and the statue, as the research found it)
-			carts: [ [ - 40.5, - 132.5, 0 ], [ - 28.5, - 132.5, 1 ], [ - 16.5, - 132.8, 2 ], [ 42.5, - 132.5, 3 ], [ - 4.5, - 135.4, 4 ] ],
-			cans: [ [ - 51, zf + 1.3 ], [ - 37, zf + 1.3 ], [ - 25.3, zf + 1.3 ], [ 11.3, zf + 1.3 ], [ 20.7, zf + 1.3 ], [ 44, zf + 1.3 ], [ 52, zf + 1.3 ], [ - 60, - 133 ], [ 28, - 131.5 ] ],
+			carts: [ [ - 40.5, - 132.5, 0 ], [ - 28.5, - 132.5, 1 ], [ - 16.5, - 132.8, 2 ], [ 42.5, - 132.5, 3 ], [ - 4.5, - 135.4, 4 ],
+				// ---- FK3 (SC1-8): the programs and towels inside the Right Field Gate
+				[ 104.5, - 137.5, 3 ] ],
+			cans: [ [ - 51, zf + 1.3 ], [ - 37, zf + 1.3 ], [ - 25.3, zf + 1.3 ], [ 11.3, zf + 1.3 ], [ 20.7, zf + 1.3 ], [ 44, zf + 1.3 ], [ 52, zf + 1.3 ], [ - 60, - 133 ], [ 28, - 131.5 ],
+				// ---- FK3 (SC1-8): the gate's court, by its lamp posts and benches
+				[ 100.2, - 145.4 ], [ 121.0, - 145.4 ], [ 96.3, - 131.0 ], [ 127.4, - 131.0 ], [ 100.2, - 109.4 ], [ 121.0, - 109.4 ] ],
 			atm: [ 31.4, zf + 1.4 ], gamesAt: [ 63.3, zf + 0.9 ],
 		} );
+		// ---- FK3 (SC1-8): the court inside the Right Field Gate dressed as the Alley (alley/Gate.js)
+		this.rfGate = new RightFieldGate( { parent: this.group, folk: this.folk, field: this.field, colliders: this.colliders } );
+		// ---- end FK3
 		this._bleacherFans();
 		this._roofStair();
 		this.folk.build();
@@ -421,12 +430,29 @@ export default class AshburnAlley2008 {
 	update( dt, director, camera ) {
 
 		if ( ! director ) return;
+		// FK3 (SC1-7): the Pavilion walkway's domes (overhead, the Terrace place builds them) as local lights
+		if ( ! this._pavLit && this.app?.localLights ) {
+
+			this._pavLit = true;
+			this.app.places?.find( ( p ) => p.pavilion )?.pavilion?.lightUp( this.app );
+			// (SC1-8: and the Right Field Gate court's lamp posts, a pool of light under each)
+			for ( const [ x, y, z ] of this.rfGate?.lamps || [] ) {
+
+				const wp = this.field.toWorld( x, z );
+				this.app.localLights.add( { position: new Vector3( wp.x, this.field.y0 + y, wp.z ), dir: new Vector3( 0, - 1, 0 ), color: new Color( 1.0, 0.82, 0.6 ), intensity: 70, range: 13,
+					cosInner: Math.cos( 50 * Math.PI / 180 ), cosOuter: Math.cos( 80 * Math.PI / 180 ), kind: 'lamp' } );
+
+			}
+
+		}
+
 		const w = when( director );
 		// the clock over center field keeps the replay's time
 		this.app.landmarks?.setClock?.( w.clock );
 		// the floor: puddles while it rains, litter building through each night
 		const k = w.night === 27 ? Math.min( 1, director.t / 2143 ) : Math.min( 1, 0.35 + ( w.inning - 6 ) / 4 );
 		this.floor?.set( { litter: 0.25 + 0.75 * k, rain: w.rain } );
+		this.rfGate?.set( { litter: 0.25 + 0.75 * k, rain: w.rain } ); // FK3 (SC1-8)
 		if ( this.penLife ) {
 
 			this.penLife.setGame( director.game );
@@ -457,6 +483,7 @@ export default class AshburnAlley2008 {
 			this.cast.update( sdt, director, w, this.penLife );
 			this.bulls?.update( sdt, w, this.cast.time );
 			this.fair?.update( sdt, w, this.cast.time );
+			this.rfGate?.update( sdt, w, this.cast.time ); // FK3 (SC1-8)
 			this.memoryLane?.update( sdt, w, this.cast.time );
 			// ---- end H
 			if ( this.bulls ) {
