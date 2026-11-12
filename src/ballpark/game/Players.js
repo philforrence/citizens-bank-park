@@ -1251,7 +1251,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z < -0.35 && ! billPart ) {
 		cell = select( ${ C.capAway }.0, ${ C.capHome }.0, home || crew ); lu = 0.5 - L.x / 0.09; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.062 ) } ) / 0.09;
 		// ---- FR1: the black champions cap's round emblem, not the plain P
-		if ( ( role & ${ R.champCap }u ) != 0u && part == ${ P.cap } ) { cell = ${ C.capChamp }.0; }
+		if ( ( role & ${ R.champCap }u ) != 0u && part == ${ P.cap } ) { cell = ${ C.capChamp }.0; lu = 0.5 - L.x / 0.12; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.035 ) } ) / 0.12; } // (---- FK2, CR1-23: 12 cm of the front)
 		// ---- end FR1
 	}
 	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z > 0.5 && Nb.y < 0.75 ) {
@@ -1260,7 +1260,8 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 	}
 	// ---- FY3 (CY-18): the 2008 World Series logo on the cap's left side, as both clubs wore it in the
 	// Series (Getty 83485858, Lidge at the last out; 83485159, Balfour)
-	if ( part == ${ P.cap } && ! billPart && ( role & ${ R.champCap | R.navyCap }u ) == 0u && Nb.x < -0.5 && abs( Nb.y ) < 0.6 ) {
+	// (---- FK2, CR1-23: the champions' cap too: Getty 83485940, the black cap with the Series logo on its left side)
+	if ( part == ${ P.cap } && ! billPart && ( role & ${ R.navyCap }u ) == 0u && Nb.x < -0.5 && abs( Nb.y ) < 0.6 ) {
 		cell = ${ C.patch }.0; lu = 0.5 + ( L.z + 0.044 ) / 0.044; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.052 ) } ) / 0.044;
 	}
 	// ---- end FY3
@@ -1622,6 +1623,23 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		c = c * ( 1.0 - 0.35 * clamp( ( 0.025 - sd ) / fsd + 0.5, 0.0, 1.0 ) * smoothstep( ${ f( F.top[ 1 ] - 0.08 ) }, ${ f( F.top[ 1 ] - 0.06 ) }, L.y ) );
 	}
 	// ---- end FY3
+	// ---- FK2 (step 12, CR1-23): the champions' cap piped in white, a cord about 3 mm wide outlining the two
+	// front panels: up their outer seams from the band to the button, and across the front just above the
+	// bill's join (Getty 83571347: Manuel's and Rollins's caps on the stage; 83485940). The bill's edge
+	// plain black, as in those photos
+	if ( part == ${ P.cap } && ! billPart && ( role & ${ R.champCap }u ) != 0u ) {
+		let pz = L.z + 0.04;
+		let prxz = length( vec2f( L.x, pz ) );
+		let paz = atan2( L.x, - pz ) / 1.0472;
+		let dS = abs( abs( paz ) - 1.0 ) * 1.0472 * max( prxz, 0.02 );
+		let seamP = clamp( ( 0.0015 - dS ) / max( fwidth( dS ), 1e-5 ) + 0.5, 0.0, 1.0 ) * smoothstep( 0.012, 0.022, prxz );
+		let pcd = L - vec3f( 0.0, ${ f( F.top[ 1 ] - 0.101 ) }, ${ f( ( F.skull.z0 + F.skull.z1 ) / 2 ) } );
+		let up = ${ f( Math.cos( 0.3 ) ) } * pcd.y + ${ f( Math.sin( 0.3 ) ) } * pcd.z - ${ f( 0.104 * Math.cos( Math.PI * 0.56 ) ) };
+		let fU = max( fwidth( up ), 1e-5 );
+		let brimP = clamp( ( up - 0.0024 ) / fU + 0.5, 0.0, 1.0 ) * clamp( ( 0.0054 - up ) / fU + 0.5, 0.0, 1.0 ) * ( 1.0 - smoothstep( 0.985, 1.02, abs( paz ) ) );
+		c = mix( c, vec3f( 0.78, 0.77, 0.74 ), max( seamP, brimP ) );
+	}
+	// ---- end FK2
 	// (FY2, CY-18) under the bill, the undervisor's dark grey-green
 	if ( part == ${ P.cap } && billPart && Nb.y < -0.3 ) { c = vec3f( 0.03, 0.045, 0.035 ); rough = 0.85; }
 	if ( part == ${ P.belt } ) { c = beltC; rough = 0.4; }
@@ -2077,59 +2095,81 @@ function drawChest( ctx, i, home, jacket = false ) {
 // the caps' fronts: the white script P on the Phillies' red; TB in white outlined in Columbia blue on the
 // Rays' navy
 // ---- FR1: the black 2008 champions cap's front (Getty 83570999, 83571356, 83486314; FOX's interview
-// frames): a round emblem, the Phillies' P in red on a navy disc in a white ring, a red ribbon across
-// its foot with 2008, CHAMPIONS arched over it; at a cap's size it reads as the round red, white and
-// blue mark it was, where the plain P read as the everyday cap
+// frames)
+// ---- FK2 (step 12, CR1-23): not a little roundel. The New Era locker-room cap's front was filled by the
+// arch of CHAMPIONS in red letters edged in white, WORLD SERIES small over it, and under the arch's middle
+// the Phillies' red roundel with the white P, 20 and 08 in gold either side (Getty 83571347, Manuel on the
+// stage, and Rollins beside him; 83485940, Manuel on the field). The cell spans 12 cm of the front (the
+// fragment maps it so for this cap), the logo its upper half: the arch about 10.5 cm across
 function drawChampCap( ctx, i ) {
 
 	const [ x, y ] = cellXY( i );
 	ctx.save();
 	ctx.clearRect( x, y, CELL, CELL );
-	ctx.translate( x + CELL / 2, y + CELL / 2 + 4 );
-	ctx.fillStyle = '#e9e7e2';
 	ctx.beginPath();
-	ctx.arc( 0, 0, 40, 0, Math.PI * 2 );
-	ctx.fill();
-	ctx.fillStyle = '#13285e';
-	ctx.beginPath();
-	ctx.arc( 0, 0, 31, 0, Math.PI * 2 );
-	ctx.fill();
-	// the P
-	ctx.fillStyle = '#c8102e';
+	ctx.rect( x, y, CELL, CELL );
+	ctx.clip();
+	ctx.translate( x + CELL / 2, y + CELL / 2 );
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
-	ctx.font = 'italic 700 46px Georgia, "Times New Roman", serif';
-	ctx.fillText( 'P', 1, - 3 );
-	// the ribbon and the year
+	ctx.lineJoin = 'round';
+	// (1.07 px a millimetre; the cell's middle is 1.85 m up the body, the bill's join 54 px below it)
+	const arc = ( word, R, cy, step, font, fill, edge, ew, sx ) => {
+
+		ctx.font = font;
+		for ( let k = 0; k < word.length; k ++ ) {
+
+			const a = - Math.PI / 2 + ( k - ( word.length - 1 ) / 2 ) * step;
+			ctx.save();
+			ctx.translate( Math.cos( a ) * R, cy + Math.sin( a ) * R );
+			ctx.rotate( a + Math.PI / 2 );
+			ctx.scale( sx, 1 );
+			if ( edge ) { ctx.strokeStyle = edge; ctx.lineWidth = ew; ctx.strokeText( word[ k ], 0, 0 ); }
+			ctx.fillStyle = fill;
+			ctx.fillText( word[ k ], 0, 0 );
+			ctx.restore();
+
+		}
+
+	};
+	// the arch's ground: a thin white-edged black band under WORLD SERIES
+	ctx.strokeStyle = '#d9d6cf';
+	ctx.lineWidth = 9;
+	ctx.beginPath();
+	ctx.arc( 0, 78, 106, - Math.PI / 2 - 0.32, - Math.PI / 2 + 0.32 );
+	ctx.stroke();
+	ctx.strokeStyle = '#0b0b0d';
+	ctx.lineWidth = 6.5;
+	ctx.stroke();
+	arc( 'WORLD SERIES', 106, 78, 0.052, '800 6px "Helvetica Neue", Arial, sans-serif', '#eceae4', null, 0, 1 );
+	// CHAMPIONS: red, edged white, a dark keyline outside the white
+	arc( 'CHAMPIONS', 86, 70, 0.142, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#101012', 7, 0.74 );
+	arc( 'CHAMPIONS', 86, 70, 0.142, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#f2f0ea', 4.2, 0.74 );
+	// the roundel: white ring, the red disc, the white P
+	ctx.fillStyle = '#f2f0ea';
+	ctx.beginPath();
+	ctx.arc( 0, 10, 13.5, 0, Math.PI * 2 );
+	ctx.fill();
 	ctx.fillStyle = '#c8102e';
 	ctx.beginPath();
-	ctx.moveTo( - 46, 16 );
-	ctx.lineTo( 46, 16 );
-	ctx.lineTo( 40, 34 );
-	ctx.lineTo( - 40, 34 );
-	ctx.closePath();
+	ctx.arc( 0, 10, 11.5, 0, Math.PI * 2 );
 	ctx.fill();
 	ctx.fillStyle = '#f4f2ec';
-	ctx.font = '900 17px "Helvetica Neue", Arial, sans-serif';
-	ctx.fillText( '2008', 0, 26 );
-	// CHAMPIONS round the top of the ring
-	ctx.font = '900 11px "Helvetica Neue", Arial, sans-serif';
-	ctx.fillStyle = '#13285e';
-	const word = 'CHAMPIONS';
-	for ( let k = 0; k < word.length; k ++ ) {
-
-		const a = - Math.PI / 2 + ( k - ( word.length - 1 ) / 2 ) * 0.2;
-		ctx.save();
-		ctx.translate( Math.cos( a ) * 35.5, Math.sin( a ) * 35.5 );
-		ctx.rotate( a + Math.PI / 2 );
-		ctx.fillText( word[ k ], 0, 0 );
-		ctx.restore();
-
-	}
-
+	ctx.font = 'italic 700 19px Georgia, "Times New Roman", serif';
+	ctx.fillText( 'P', 0.5, 10.5 );
+	// 20 and 08 in gold, edged dark, tucked under the arch's ends
+	ctx.font = '900 10px "Helvetica Neue", Arial, sans-serif';
+	ctx.strokeStyle = '#101012';
+	ctx.lineWidth = 2.5;
+	ctx.fillStyle = '#e3a33a';
+	ctx.strokeText( '20', - 25, 7 );
+	ctx.fillText( '20', - 25, 7 );
+	ctx.strokeText( '08', 25, 7 );
+	ctx.fillText( '08', 25, 7 );
 	ctx.restore();
 
 }
+// ---- end FK2
 // ---- end FR1
 
 function drawCapLogo( ctx, i, home ) {
