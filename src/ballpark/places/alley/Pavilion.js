@@ -98,6 +98,8 @@ export function pavilionWalkway( app, bowl, group, gallery ) {
 	const Q = { body: new Quads(), face: new Quads(), glow: new Quads(), kick: new Quads(), lights: new Quads(), props: new C.props.constructor(), bay: new Quads() };
 	const posters = new Quads();
 	let nPlain = 0;
+	// (the domes' steel, ConcourseSteel's palette: the bays' undersides go in it too, below)
+	const steel = C.steel?.material, sq = new Pal();
 	// (the kit leaves its stands' spots and doors on the concourse: as galleries(), kept aside)
 	const keep = [ C.standSpots, C.doors ];
 	let spots = [];
@@ -137,7 +139,9 @@ export function pavilionWalkway( app, bowl, group, gallery ) {
 				const xs = UNIT / 2 - 0.1, zb = - 1.75, yb = - 0.3, N = [ U.n[ 0 ], 0, U.n[ 1 ] ], A = [ U.a[ 0 ], 0, U.a[ 1 ] ];
 				Q.body.add( P( xs, yb, zb ), P( - xs, yb, zb ), P( - xs, hW, zb ), P( xs, hW, zb ), N.map( ( v ) => - v ) );
 				for ( const s of [ - 1, 1 ] ) Q.body.add( P( s * xs, yb, 0 ), P( s * xs, yb, zb ), P( s * xs, hW, zb ), P( s * xs, hW, 0 ), A.map( ( v ) => v * s ) );
-				Q.body.add( P( - xs, yb, 0 ), P( xs, yb, 0 ), P( xs, yb, zb ), P( - xs, yb, zb ), [ 0, - 1, 0 ] );
+				// (the underside in concrete with the floor's bounce, the steel palette's: in the block it took the
+				// stands' downward grey, unlit, and in shade by day it read as a black slot under each box)
+				( steel ? sq.use( 'concrete' ) : Q.body ).add( P( - xs, yb, 0 ), P( xs, yb, 0 ), P( xs, yb, zb ), P( - xs, yb, zb ), [ 0, - 1, 0 ] );
 				Q.body.add( P( - xs, hW, zb ), P( xs, hW, zb ), P( xs, hW, 0 ), P( - xs, hW, 0 ), [ 0, 1, 0 ] );
 				Q.body.add( P( - xs, 0.005, zb ), P( xs, 0.005, zb ), P( xs, 0.005, 0 ), P( - xs, 0.005, 0 ), [ 0, 1, 0 ] );
 				Q.body.add( P( - xs, yb, 0 ), P( xs, yb, 0 ), P( xs, 0, 0 ), P( - xs, 0, 0 ), N );
@@ -192,11 +196,10 @@ export function pavilionWalkway( app, bowl, group, gallery ) {
 
 	// the domes, down the walkway's middle every ~9 m, hung from the Deck's underside
 	const lamps = [];
-	const steel = C.steel?.material;
 	if ( deck && steel ) {
 
 		const D = offsetPolyline( t.front, t.rows * t.depth + 2.0, [ 0, - 40 ] );
-		const q = new Pal();
+		const q = sq;
 		let acc = 4.5;
 		for ( let i = 0; i < D.length - 1; i ++ ) {
 
@@ -239,14 +242,14 @@ export function pavilionWalkway( app, bowl, group, gallery ) {
 
 		}
 
-		if ( q.count ) {
+	}
+	// (the domes, their conduits, and the bays' undersides: one mesh)
+	if ( steel && sq.count ) {
 
-			const mesh = new Mesh( q.geometry(), steel );
-			mesh.name = 'pavilion-walkway-domes';
-			mesh.receiveShadow = true;
-			group.add( mesh );
-
-		}
+		const mesh = new Mesh( sq.geometry(), steel );
+		mesh.name = 'pavilion-walkway-domes';
+		mesh.receiveShadow = true;
+		group.add( mesh );
 
 	}
 
