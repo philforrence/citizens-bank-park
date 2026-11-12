@@ -1133,7 +1133,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			else if ( L.y > ${ f( U.belt[ 0 ] ) } ) { part = ${ P.belt }; }
 			else { part = ${ P.pants }; }
 			// a jacket's collar rides up the neck a little further
-			if ( jacket && part == ${ P.skin } && L.y < nk.y + 0.005 && L.z > nk.z - 0.06 ) { part = ${ P.jersey }; cuffKnit = true; }
+			// (---- FK2 repair: and closes round the front, 2 cm lower under the chin (Getty 83571347: Manuel's
+			// collar stands all round his neck). It stopped 6 cm short of the middle on each side, the throat in
+			// a square notch between its ends; with the neckline's cone the jacket's own edge crossed under the
+			// notch and left a tab of skin over the zip's top)
+			if ( jacket && part == ${ P.skin } && ! chinU && L.y < nk.y + 0.005 - 0.02 * smoothstep( -0.05, -0.075, L.z - nk.z ) ) { part = ${ P.jersey }; cuffKnit = true; }
 			// ---- FR1: a jacket comes down past the belt to its knit hem at the hip (it stopped at the belt)
 			if ( jacket && L.y > ${ f( U.belt[ 0 ] - 0.075 ) } && ( part == ${ P.belt } || part == ${ P.pants } ) ) { part = ${ P.jersey }; cuffKnit = L.y < ${ f( U.belt[ 0 ] - 0.047 ) }; }
 			// ---- end FR1
