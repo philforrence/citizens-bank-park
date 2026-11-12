@@ -1,6 +1,6 @@
 # FK1: the seats, the Deck's portals and end, the dugouts' roofs (step 12, round 1)
 
-Fixer FK1, 2026-11-12, on branch `worktree-agent-a265194306130bb85`, off `ballpark` at 159da9d. The tickets are step 11's FX2 (its saved edits, `.claude/gauntlet/s12/FX2-wip.patch`: SC1-1, SC1-5, SC1-12, SC1-16), breaker AD1's AD1-7, AD1-12 and AD1-16 (WA2-10), FA3's rail over the dugouts' roofs and the one-sided hall wall. The usage limit cut the round short: the hall wall has its outer face but no doors or lights on it, and the rows behind the dugouts still sit too high (below, "What's left").
+Fixer FK1, 2026-11-12, on branch `worktree-agent-a265194306130bb85`, off `ballpark` at 159da9d. The tickets are step 11's FX2 (its saved edits, `.claude/gauntlet/s12/FX2-wip.patch`: SC1-1, SC1-5, SC1-12, SC1-16), breaker AD1's AD1-7, AD1-12 and AD1-16 (WA2-10), FA3's rail over the dugouts' roofs and the one-sided hall wall. The usage limit cut the round short: the rows behind the dugouts still sit too high, and some refinements are left (below, "What's left").
 
 ## How it was checked
 
@@ -57,13 +57,13 @@ Read before applying; all of it kept (commit fb06466).
 
 **What was wrong:** `ConcourseSteel._hallWall`'s brick faced the field only. From the ring behind it (the back of house, reached from the gates' ends 61-77 m from the plate) it was see-through onto the stands' backs and the concourse; the standard view `walk-concourse3b` (eye (-40, 8.6, 60)) stands in that ring.
 
-**What I changed:** its outer face, 0.3 m behind the inner one, and both ends, in the same block material (`concourse-brick`: red ground-face block over its dark base, as the 2008 concourse's walls, pompomflipflop 2591541163). One mesh as before, a few hundred more triangles. **Colliders:** unchanged (`concourse-wall`, 0.4 m thick on the inner face's line).
+**What I changed:** its outer face, 0.3 m behind the inner one, and both ends, in the same block material (`concourse-brick`: red ground-face block over its dark base, as the 2008 concourse's walls, pompomflipflop 2591541163). On the outer face, every 20-odd metres, a back-of-house door (grey hollow metal, a dark frame, a kick plate and a lever) with a warm wall pack over it, in ConcourseSteel's palette mesh (a new entry, `doorGrey`). A few hundred triangles in all. **Colliders:** unchanged (`concourse-wall`, 0.4 m thick on the inner face's line; the doors are drawn, not doors you open).
 
 **For the coordinator (don't edit `standard-views.json` here):** `walk-concourse3b` looks from inside that ring. A view of the concourse itself: eye (-36, 8.6, 46) looking at (-20, 8.6, 30), fov 60, play 60 (shot as `concourse-proper` in j1 and j2).
 
 ## What's left
 
-- **The hall wall's outer face is plain block:** no service doors, wall packs or signs on the ring side yet.
+- **The hall wall's ring side:** doors and wall packs, but no signs, conduit or stains yet; the doors' look is common sense, not a 2008 photo (none of the back of house found).
 - **The rows behind the dugouts sit too high.** In 83824852, 112874141 and 83434999 the roof's top is at the waist of a fan standing in the first row behind it (the floor ~0.9 m under the roof); here row 4 is 0.12 m under it, so from the field the first rows' legs show over the roof. Lowering the dugout sections' rows 4-8 (a `rowY` like the Diamond Club's) needs the joints with the neighbouring sections walled and railed, and the people who walk those rows from `rowHeights` (People.js's aisle walkers and security, the Phanatic's walk down to the roof, places/phanatic/Ways.js) moved onto `rowY`. Not started.
 - **AD1-7's portals beside the aisles.** In 2372036920 the wells look to be at the aisles (the 400s' `atAisle`), not mid-section; FA1's stairs (PavilionWays.js) are laid from `_portals`, so moving them is a Bowl.js setting plus a walk audit.
 - **The walk audit** was not run (`test/walk-audit.mjs`): run it on the merge for the Deck's portals.
