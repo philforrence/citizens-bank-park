@@ -2087,6 +2087,10 @@ function castMaterial( pool ) {
 	var rough = 0.85;
 	var metal = 0.0;
 	var e = vec3f( 0.0 );
+	// ---- FK5 repair (CR1-25): vinyl (the ponchos' film, their hoods, a raincoat, top and skirt): wet, it
+	// beads up and shines whatever its sheen dry (FW1's wet look below took anything over 0.32 for nylon)
+	var vinyl = false;
+	// ---- end FK5
 	// the print on a jersey's back (the name over the number, or a word) or its chest, from the atlas: 8 x 10 cells
 	var printA = 0.0;
 	var printC = vec3f( 0.72, 0.71, 0.68 );
@@ -2098,7 +2102,7 @@ function castMaterial( pool ) {
 		// along their folds, which the folds below now turn)
 		rough = select( 0.88, 0.52, shiny );
 		if ( top == ${ TOP.leather }u ) { rough = 0.46; }
-		if ( top == ${ TOP.raincoat }u ) { rough = 0.32; }
+		if ( top == ${ TOP.raincoat }u ) { rough = 0.32; vinyl = true; }
 		if ( top == ${ TOP.coat }u ) { rough = 0.95; }
 		// a jersey or a tee: the sleeves are the thermal or hoodie underneath, below the short sleeve
 		let shortSleeve = top == ${ TOP.homeJersey }u || top == ${ TOP.nameTee }u || top == ${ TOP.powder }u || top == ${ TOP.rays }u || top == ${ TOP.roadJersey }u || top == ${ TOP.champsTee }u || top == ${ TOP.staff }u || top == ${ TOP.cook }u || top == ${ TOP.polo }u;
@@ -2481,6 +2485,7 @@ function castMaterial( pool ) {
 			if ( poncho == 1u || poncho == 7u ) {
 				c = mix( c * 0.7, vec3f( 0.44, 0.46, 0.5 ), select( 0.0, 0.22 + 0.12 * hoodCr.w, d.z > - 0.35 || oval > 0.72 ) );
 				rough = 0.2;
+				vinyl = true; // (FK5 repair)
 			// ---- end FW4
 			} else if ( d.z > - 0.35 || oval > 0.72 ) {
 				c = select( topC, select( vec3f( 0.6 ), vec3f( 0.36, 0.02, 0.03 ), poncho == 2u ), poncho > 0u );
@@ -2488,7 +2493,10 @@ function castMaterial( pool ) {
 				if ( poncho == 5u ) { c = vec3f( 0.62, 0.2, 0.02 ); }
 				if ( poncho == 6u ) { c = vec3f( 0.15, 0.155, 0.16 ); }
 				c *= select( 1.0, 0.55, oval < 0.85 && d.z < - 0.2 ) * select( 1.0, 0.92 + 0.12 * hoodCr.w, poncho > 0u );
-				rough = select( 0.88, 0.26, poncho > 0u );
+				// (FK5 repair: a poncho's hood is its body's film, the same sheen as the body: it was 0.26 on a
+				// 0.3 body, glossier than the poncho under it in the rain)
+				rough = select( 0.88, select( select( 0.3, 0.2, poncho == 3u ), 0.45, poncho == 6u ), poncho > 0u );
+				vinyl = poncho > 0u && poncho != 6u;
 			}
 			// ---- end FP1
 		}
@@ -2584,7 +2592,10 @@ function castMaterial( pool ) {
 		if ( poncho == 0u ) {
 			// a long coat's skirt: the coat's own cloth, open down the front
 			c = topC * select( 1.0, 0.8, L.z < - 0.1 && abs( L.x ) < 0.025 );
-			rough = select( 0.95, 0.25, top == ${ TOP.raincoat }u );
+			// (FK5 repair: a raincoat's skirt is its top's vinyl, 0.32 as the top is: at 0.25 under a 0.32 top
+			// it was a glossy skirt under a satin coat, dry and wet)
+			rough = select( 0.95, 0.32, top == ${ TOP.raincoat }u );
+			vinyl = top == ${ TOP.raincoat }u;
 			if ( top == ${ TOP.raincoat }u && abs( L.y - 0.75 ) < 0.02 ) { c = vec3f( 0.75, 0.75, 0.7 ); e = vec3f( 0.3, 0.3, 0.25 ) * nk; }
 		} else {
 			// the poncho: clear plastic over the jacket (the jacket dulled through it), or red, white or
@@ -2598,8 +2609,9 @@ function castMaterial( pool ) {
 			// their size each poncho's own (it was an even hammered dimpling, grey metal)
 			let cr = filmCrumple( L * select( 0.8 + 0.45 * g.z, 0.7, poncho == 6u ), length( fwidth( L ) ) );
 			// (FK5, CR1-25: the clear film crinkled harder, 0.45 not 0.22: the light off it broke into a few
-			// round blobs, a glass bottle's, where the photos have it in streaks and glints along every crease)
-			s.normal = filmTilt( s.normal, cr.xyz * select( 0.45, 0.8, poncho > 1u && poncho != 7u ) );
+			// round blobs, a glass bottle's, where the photos have it in streaks and glints along every crease.
+			// FK5 repair: the poncho for two, 7, keeps its 0.8, as it was)
+			s.normal = filmTilt( s.normal, cr.xyz * select( 0.45, 0.8, poncho > 1u ) );
 			let fres = pow( 1.0 - abs( dot( s.normal, normalize( in.V ) ) ), 2.0 );
 			let under = select( topC, c, filmSleeve ) * 0.9;
 			let haze = vec3f( 0.44, 0.46, 0.5 );
@@ -2616,6 +2628,7 @@ function castMaterial( pool ) {
 			// (FK5, CR1-25: the coloured vinyl 0.3, not 0.24: a soft sheen with the glints in its creases, not a
 			// lacquered pin)
 			rough = select( select( 0.3, 0.2, poncho == 1u || poncho == 7u || poncho == 3u ), 0.45, poncho == 6u );
+			vinyl = poncho != 6u; // (FK5 repair: the trash bag stays dull, as FW1 had it)
 			// the clear film shows the jacket's print through it
 			if ( poncho == 1u ) { c = mix( c, printC * 0.8, printA * 0.5 ); }
 			// ---- end FW4
@@ -2917,7 +2930,9 @@ function castMaterial( pool ) {
 	// matte; a nylon shell goes darker and satin; plastic and vinyl (the ponchos, an umbrella) bead up and
 	// shine; skin takes a thin sheen. (Every one of them went to 0.25: the caps and jackets like vinyl)
 	let cloth = smoothstep( 0.55, 0.7, rough );
-	let slick = 1.0 - smoothstep( 0.22, 0.32, rough );
+	// (FK5 repair: vinyl's slick whatever its sheen dry; anything later in the part that made it cloth
+	// isn't vinyl)
+	let slick = select( 1.0 - smoothstep( 0.22, 0.32, rough ), 1.0, vinyl && rough < 0.4 );
 	c *= mix( 1.0, mix( 0.86, 0.72, cloth ), wetK * ( 1.0 - slick ) );
 	rough = mix( rough, mix( mix( 0.36, max( rough - 0.12, 0.62 ), cloth ), rough * 0.55, slick ), wetK );
 	// ---- end FW1
