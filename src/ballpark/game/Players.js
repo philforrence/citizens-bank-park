@@ -800,11 +800,13 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 	// The face's paint (the brows, lids, lips and beards: the surface stage's vLocal) stays on its vertices:
 	// vLocal is the unshaped position
 	var fd = vec3f( 0.0 );
+	var hdrop = 0.0; // (---- FK2: the head's drop, for the cap's clamp below)
 	if ( keep && ! phan && lp3.y > ${ f( U.collar - 0.012 ) } && arm < -0.5 && leg < -0.5 ) {
 		let qa = vec4u( plInfo[ slot * ${ K }u + 4u ] + 0.5 );
 		let neckN = f32( ( qa.w >> 12u ) & 63u ) / 31.0 - 1.0;
 		let x = lp3.x; let y = lp3.y; let z = lp3.z;
 		let drop = 0.007 + 0.003 * neckN;
+		hdrop = drop;
 		let onHead = u32( v.aBones.x + 0.5 ) == ${ BONES.head }u && v.aWeights.x > 0.99;
 		if ( pt == ${ P.body } ) {
 			// the neck: thicker (a ballplayer's), more for the big men; not the chin's underside or the
@@ -859,6 +861,35 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		}
 		lp3 += dp;
 		fd += dp;
+		// ---- FK2 (CR1-5): the forehead kept under the cap. A man's own face (his brows', forehead's and
+		// head's targets) and the shout's brows-up came out through the crown's front panels: a patch of
+		// skin either side of the P just above the bill (CR1's crops p10-cap, Burrell; p02-cap, Lidge; 0.5-2 mm
+		// through at rest, 3-4 mm in the shout, enough on a surface that meets the crown so nearly flat). Every
+		// head vertex above the band held inside the crown's own shell (Rig.js' crown(): the dome tipped back
+		// 0.3, its radius squared to r^0.72, its front raised) less 1.2 mm at the band (its facets) to 3 mm
+		// higher up, eased in over the 6 mm under it, as a band presses; the ears left as they are (they sit
+		// under its edge; pulled in, they'd fold). The helmets' shells clear every face (checked on the CPU,
+		// the shout's too). Moved with fd, so the paint stays on its vertices
+		if ( pt == ${ P.body } && ! helmet && ( role & ${ R.ccap | R.nocap | R.hood }u ) == 0u ) {
+			let cd = lp3 - vec3f( 0.0, ${ f( F.top[ 1 ] - 0.101 ) } - hdrop, ${ f( ( F.skull.z0 + F.skull.z1 ) / 2 ) } );
+			let cq = vec3f( cd.x / ${ f( F.skull.x + 0.013 ) }, ( ${ f( Math.cos( 0.3 ) ) } * cd.y + ${ f( Math.sin( 0.3 ) ) } * cd.z ) / 0.104, ( ${ f( - Math.sin( 0.3 ) ) } * cd.y + ${ f( Math.cos( 0.3 ) ) } * cd.z ) / ${ f( ( F.skull.z1 - F.skull.z0 ) / 2 + 0.011 ) } );
+			let cR = max( length( cq.xz ), 1e-6 );
+			let cr = pow( cR, ${ f( 1 / 0.72 ) } );
+			let fz = max( 0.0, - cq.z / cR * cr );
+			var yu = cq.y;
+			if ( fz > 1e-4 && cq.y > 0.0 ) { yu = ( sqrt( 1.0 + 0.64 * fz * cq.y ) - 1.0 ) / ( 0.32 * fz ); }
+			let rho = length( vec2f( cr, yu ) );
+			let rim = ${ f( Math.cos( Math.PI * 0.56 ) ) };
+			let tgt = 0.988 - 0.02 * smoothstep( rim, rim + 0.15, yu );
+			let ear = smoothstep( 0.066, 0.076, abs( lp3.x ) ) * smoothstep( ${ f( F.eyeR[ 2 ] + 0.05 ) }, ${ f( F.eyeR[ 2 ] + 0.065 ) }, lp3.z ) * ( 1.0 - smoothstep( ${ f( F.eyeR[ 1 ] + 0.02 ) }, ${ f( F.eyeR[ 1 ] + 0.04 ) }, lp3.y + hdrop ) );
+			let cw = smoothstep( rim - 0.06, rim, yu ) * ( 1.0 - ear );
+			if ( rho > tgt && cw > 0.0 ) {
+				let mv = cd * ( pow( tgt / rho, 0.83 ) - 1.0 ) * cw;
+				lp3 += mv;
+				fd += mv;
+			}
+		}
+		// ---- end FK2
 		nb = select( normalize( nb + dn ), nb, pt == ${ P.teeth } || pt == ${ P.teethLow } ); // (---- FX1: the teeth keep their own)
 	}
 	// ---- end FF3
