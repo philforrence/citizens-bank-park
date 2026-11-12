@@ -1466,25 +1466,18 @@ struct CwPose {
 // ---- FX4 (CR1-2): a raised arm's way (ARM_VARS): its elbow, wrist and hand, the right arm's, sitting to
 // standing
 fn cwArmVar( v: u32, st: f32 ) -> mat3x3f {
-	var SE = array<vec3f, 4>( ${ ARM_VARS[ 0 ].map( ( j ) => f3( j[ 0 ] ) ).join( ', ' ) } );
-	var SW = array<vec3f, 4>( ${ ARM_VARS[ 0 ].map( ( j ) => f3( j[ 1 ] ) ).join( ', ' ) } );
-	var SH = array<vec3f, 4>( ${ ARM_VARS[ 0 ].map( ( j ) => f3( j[ 2 ] ) ).join( ', ' ) } );
-	var TE = array<vec3f, 4>( ${ ARM_VARS[ 1 ].map( ( j ) => f3( j[ 0 ] ) ).join( ', ' ) } );
-	var TW = array<vec3f, 4>( ${ ARM_VARS[ 1 ].map( ( j ) => f3( j[ 1 ] ) ).join( ', ' ) } );
-	var TH = array<vec3f, 4>( ${ ARM_VARS[ 1 ].map( ( j ) => f3( j[ 2 ] ) ).join( ', ' ) } );
-	return mat3x3f( mix( SE[ v ], TE[ v ], st ), mix( SW[ v ], TW[ v ], st ), mix( SH[ v ], TH[ v ], st ) );
+	// (---- SP4: from the material's uniform arrays, ARM_U)
+	return mat3x3f( mix( mat.cwArmJ[ v ].xyz, mat.cwArmJ[ 12u + v ].xyz, st ), mix( mat.cwArmJ[ 4u + v ].xyz, mat.cwArmJ[ 16u + v ].xyz, st ), mix( mat.cwArmJ[ 8u + v ].xyz, mat.cwArmJ[ 20u + v ].xyz, st ) );
 }
 // a hand's shape: the index finger's curl at its knuckle and its middle joint (x, y), the other three's (z,
 // w), radians; 0 a fist, 1 the index up (the rest in a fist), 2 open, 3 a grip (a towel's corner, a cup),
 // 4 at rest (loose), 5 at his face (clapping, praying: near open)
 fn cwHand( k: u32 ) -> vec4f {
-	var H = array<vec4f, 6>( vec4f( 1.5, 2.0, 1.5, 2.0 ), vec4f( 0.0, 0.06, 1.5, 2.0 ), vec4f( - 0.1, 0.06, - 0.06, 0.1 ), vec4f( 1.1, 1.35, 1.15, 1.4 ), vec4f( ${ [ ...HAND_REST.index, ...HAND_REST.block ].join( ", " ) } ), vec4f( 0.14, 0.18, 0.16, 0.22 ) );
-	return H[ k ];
+	return mat.cwHandK[ k ]; // (---- SP4: HAND_U)
 }
 // and how far its thumb has come across the palm from out beside it
 fn cwThumb( k: u32 ) -> f32 {
-	var T = array<f32, 6>( 1.0, 0.95, 0.0, 0.7, ${ HAND_REST.thumb }, 0.12 );
-	return T[ k ];
+	return mat.cwHandK[ 6u + k / 4u ][ k % 4u ]; // (---- SP4: HAND_U)
 }
 // ---- end FX4
 
@@ -1864,6 +1857,16 @@ const SIGNS29 = ["28 YEARS... WHAT'S ANOTHER DAY?", 'IT ENDS TONIGHT', 'PHABULOU
 const SIGNS27 = ["RAIN? WE'RE FROM PHILLY", 'PHILS IN PHIVE', 'PHINALLY', 'WE BELIEVE', 'RED OCTOBER', 'HI MOM IN BOCA!', "RAIN? WE'RE FROM PHILLY", 'PHILS IN PHIVE', 'WE BELIEVE', 'RED OCTOBER', 'PHINALLY', 'RAYS RAYS GO AWAY'];
 const signCells = ( names ) => names.map( ( n ) => SIGN[ n ] ?? 0 ).join( 'u, ' ) + 'u';
 
+// ---- SP4 (speed): cwArmVar's joints (ARM_VARS: sitting then standing, the elbows, wrists and hands of the
+// four ways, as f3 rounds them) and cwHand's and cwThumb's shapes, as the material's uniform arrays. They
+// were arrays built in each vertex's registers and indexed there, for every finger's vertex several times
+// (and every arm's and towel's)
+const ARM_U = new Float32Array( 24 * 4 );
+ARM_VARS.forEach( ( set, s ) => set.forEach( ( j, v ) => j.forEach( ( p, J ) => ARM_U.set( p.map( ( x ) => Number( x.toFixed( 3 ) ) ), ( s * 12 + J * 4 + v ) * 4 ) ) ) );
+const HAND_U = new Float32Array( [ 1.5, 2.0, 1.5, 2.0, 0.0, 0.06, 1.5, 2.0, - 0.1, 0.06, - 0.06, 0.1, 1.1, 1.35, 1.15, 1.4, ...HAND_REST.index, ...HAND_REST.block, 0.14, 0.18, 0.16, 0.22,
+	1.0, 0.95, 0.0, 0.7, HAND_REST.thumb, 0.12, 0, 0 ] );
+// ---- end SP4
+
 function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 
 	const call = ( prev ) => `cwVertex( pos0, nrm0, stp0, nrm0s, v.aSitUp, v.aStandUp, v.aSitFace, v.aStandFace, v.aInfo, fan, ${ prev }, ${ lod }u, fhPaint, fhFold )`;
@@ -1881,7 +1884,7 @@ function crowdMaterial( lod, poseBuf, lookBuf, idsBuf ) {
 		storage: { cwPoseBuf: poseBuf, cwLookBuf: lookBuf, cwIds: idsBuf, fhRec: { storage: fanHeadBuffer(), access: 'read' } }, // (FF1: the heads)
 		// ---- FW1 (CP-12): the Cast's atlas, for the names and numbers on the backs; (FP2) the signs' boards
 		textures: { cwAtlas: () => castPool()?.atlas || BLANK(), cwSigns: () => signAtlas() },
-		uniforms: { cwNight: [ 'f32', 29 ], cwHome: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ] },
+		uniforms: { cwNight: [ 'f32', 29 ], cwHome: [ 'vec4f', new Vector4( 0, 0, 0, 0 ) ], cwArmJ: [ 'vec4f[24]', ARM_U ], cwHandK: [ 'vec4f[8]', HAND_U ] }, // (---- SP4: the arms' and hands')
 		attributes: { aStand: 'vec3f', aStandN: 'vec3f', aSitUp: 'vec3f', aStandUp: 'vec3f', aSitFace: 'vec3f', aStandFace: 'vec3f', aInfo: 'vec4f' },
 		varyings: { vFan: 'u32', vLocal: 'vec3f' }, // (---- SP3: the part in vFan's low 5 bits, one varying fewer)
 		vertex: /* wgsl */`
