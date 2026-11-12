@@ -1434,7 +1434,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let lip = ( 1.0 - smoothstep( 0.7, 1.05, lq ) ) * fw;
 			c = mix( c, c * vec3f( 0.86, 0.6, 0.58 ), lip * 0.8 );
 			rough = mix( rough, 0.4, lip );
-			c = c * ( 1.0 - 0.35 * fw * smoothstep( 0.0026, 0.0008, abs( L.y - m.y + 0.001 ) ) * ( 1.0 - smoothstep( 0.018, 0.026, ax ) ) );
+			// (---- FK2 repair: the line between the lips is a shut mouth's. On an open one it lay along both lips'
+			// rims, a dark edge round every shout: gone by the time the mouth is a third open)
+			let lipsShut = 1.0 - smoothstep( 0.08, 0.35, f32( u32( plInfo[ slotU * ${ K }u ].y ) & 255u ) / 255.0 );
+			c = c * ( 1.0 - 0.35 * fw * lipsShut * smoothstep( 0.0026, 0.0008, abs( L.y - m.y + 0.001 ) ) * ( 1.0 - smoothstep( 0.018, 0.026, ax ) ) );
 			c = c * ( 1.0 - 0.2 * fw * ( 1.0 - smoothstep( 0.012, 0.022, ax ) ) * smoothstep( m.y + 0.009, m.y + 0.013, L.y ) * ( 1.0 - smoothstep( m.y + 0.02, m.y + 0.026, L.y ) ) );
 			c = c * ( 1.0 - 0.14 * fw * ( 1.0 - smoothstep( 0.018, 0.026, ax ) ) * smoothstep( m.y - 0.018, m.y - 0.014, L.y ) * ( 1.0 - smoothstep( m.y - 0.01, m.y - 0.006, L.y ) ) );
 			// the beard: how dense the hair is at this point, by style. The masks: the moustache over the
@@ -1592,7 +1595,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			if ( mouthIn > 0.0 ) {
 				let dz = L.z - ${ f( F.mouth[ 2 ] ) };
 				let dy = L.y - m.y;
-				let deep = smoothstep( 0.002, 0.012, dz );
+				// (---- FK2 repair: how far in, from the lips' own front, which runs back 8.5 mm by the mouth's
+				// corners: measured from the middle's, the corners' rims were already "deep" and painted black, the
+				// last of the dark ticks beside a shouting mouth. They're the lips' red there)
+				let deep = smoothstep( 0.002, 0.012, dz - 0.0085 * smoothstep( 0.014, 0.026, ax ) );
 				var mc = mix( skinC * vec3f( 0.62, 0.3, 0.28 ), vec3f( 0.018, 0.005, 0.005 ), deep );
 				let upT = smoothstep( 0.0005, 0.002, dy ) * ( 1.0 - smoothstep( 0.0055, 0.0075, dy ) );
 				let loT = smoothstep( -0.0005, -0.002, dy ) * ( 1.0 - smoothstep( -0.0045, -0.006, dy ) ) * 0.7;
