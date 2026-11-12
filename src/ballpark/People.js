@@ -2275,7 +2275,7 @@ export class People {
 				tmp.set( w.x, wy, w.z );
 				if ( C.resolveCapsule( tmp, 0.3, 1.7 ) ) continue;
 				// (and out of the way of the people going by: the stairs' climbers, the throng's walkers)
-				if ( routes.some( ( R ) => R.pts.some( ( q ) => Math.abs( q[ 1 ] - st.y ) < 1 && Math.hypot( q[ 0 ] - fx, q[ 2 ] - fz ) < 0.9 ) ) ) continue;
+				if ( routes.some( ( R ) => R.pts.some( ( q ) => Math.abs( q[ 1 ] - st.y ) < 1 && Math.hypot( q[ 0 ] - fx, q[ 2 ] - fz ) < 1.3 ) ) ) continue;
 				if ( ( this._thrLines || [] ).some( ( ln ) => ln.pts.some( ( q, k ) => {
 
 					if ( Math.abs( st.y - STREET ) > 1 || k === ln.pts.length - 1 ) return false;
@@ -2353,6 +2353,8 @@ export class People {
 		const sdt = this._waysTempo.step( dt, this._waysCam );
 		this.climbers.update();
 		if ( ! sdt ) return;
+		this._waysView();
+		const seen = ( q, far ) => this._waysSeen( q[ 0 ], q[ 1 ], q[ 2 ], far );
 		// how many are on the stairs, and which way most of them are going, by the moment
 		const ns = nightState( d );
 		let dens = ns.top ? 0.3 : 0.2, up = 0.5;
@@ -2365,7 +2367,7 @@ export class People {
 		for ( const S of W.slots ) {
 
 			const R = S.R, p = S.p, a = p.pose;
-			if ( W.jump ) { S.on = false; S.wait = 0; }
+			if ( W.jump ) { S.on = false; S.wait = 0; S.hold = - 1; }
 			if ( ! S.on ) {
 
 				// between trips: off the stair; a new trip when his wait's up (its way and whether he's out by
@@ -2379,6 +2381,9 @@ export class People {
 				S.s = W.jump ? h() * R.L * 0.9 : 0;
 				S.rail = h() < 0.3;
 				S.wait = 1 + h() * 7;
+				// (nobody appears before your eyes: a trip starts from a stair's end only while that end's out of
+				// sight or 20 m off; at a jump, anywhere along)
+				if ( S.on && ! W.jump && seen( S.up ? R.pts[ 0 ] : R.pts[ R.pts.length - 1 ], 20 ) ) S.on = false;
 				if ( ! S.on ) { p.visible = false; continue; }
 				// (dressed for the night: a poncho on the 27th's rainy hours, as the throng has them)
 				const L = { ...S.look };
@@ -2390,8 +2395,18 @@ export class People {
 
 			}
 
-			S.s += sdt * S.speed * ( S.up ? 1 : 1.18 );
-			if ( S.s >= R.L ) { S.on = false; p.visible = false; continue; }
+			if ( ! ( S.hold >= 0 ) ) S.s += sdt * S.speed * ( S.up ? 1 : 1.18 );
+			// (nor goes: at the end of his trip, if you can see it from under 20 m, he stops there, waiting for
+			// someone, till you can't; the next one to finish there a step behind him, and so on back)
+			if ( S.hold >= 0 || S.s >= R.L ) {
+
+				if ( W.jump || ! seen( S.up ? R.pts[ R.pts.length - 1 ] : R.pts[ 0 ], 20 ) ) { S.on = false; S.hold = - 1; p.visible = false; continue; }
+				if ( ! ( S.hold >= 0 ) ) S.hold = W.slots.filter( ( o ) => o !== S && o.R === R && o.on && o.hold >= 0 && o.up === S.up ).length;
+				S.s = Math.max( 0, R.L - 0.75 * S.hold );
+
+			}
+
+			const hold = S.hold >= 0;
 			// where he is: along the route (from its top coming down), kept right of the way he's going
 			const s = S.up ? S.s : R.L - S.s;
 			let k = 1;
@@ -2408,11 +2423,11 @@ export class People {
 			p.y = A[ 1 ] + ( B[ 1 ] - A[ 1 ] ) * f;
 			p.yaw = Math.atan2( - dx, - dz );
 			p.visible = true;
-			a.walk = 1;
-			a.phase += sdt * S.speed * ( S.up ? 1 : 1.18 ) / 0.28 * Math.PI;
+			a.walk = hold ? 0 : 1;
+			if ( ! hold ) a.phase += sdt * S.speed * ( S.up ? 1 : 1.18 ) / 0.28 * Math.PI;
 			// the stair's gait: going up the leading knee lifted and the body over it; coming down a little back,
 			// the knees easing each step down
-			const st = Math.sin( a.phase ), kU = climb ? 1 : 0;
+			const st = Math.sin( a.phase ), kU = climb && ! hold ? 1 : 0;
 			a.hipL = kU * ( S.up ? 0.55 : 0.2 ) * Math.max( 0, st );
 			a.kneeL = kU * ( S.up ? 0.85 : 0.45 ) * Math.max( 0, st );
 			a.hipR = kU * ( S.up ? 0.55 : 0.2 ) * Math.max( 0, - st );
@@ -2427,6 +2442,33 @@ export class People {
 
 	}
 
+	// where the view is this step (the field's frame), and whether a place there (its floor; a person's chest
+	// over it) is in sight from under `far` metres: in front of the camera, not just cut to (a cut is
+	// everyone's chance to move unseen)
+	_waysView() {
+
+		const cam = this._waysCam, F = this.field, V = this._wv || ( this._wv = { on: false } );
+		V.on = !! cam && ! this._waysTempo.cut;
+		if ( ! V.on ) return;
+		const [ P, Q ] = this._waysV;
+		cam.getWorldPosition( P );
+		cam.getWorldDirection( Q );
+		[ V.x, V.z ] = F.toField( P.x, P.z );
+		V.y = P.y - F.y0;
+		[ V.fx, V.fz ] = F.toField( Q.x, Q.z );
+		V.fy = Q.y;
+
+	}
+
+	_waysSeen( x, y, z, far ) {
+
+		const V = this._wv;
+		if ( ! V?.on ) return false;
+		const dx = x - V.x, dy = y + 1.2 - V.y, dz = z - V.z, dl = Math.hypot( dx, dy, dz ) || 1;
+		return dl < far && ( dx * V.fx + dy * V.fy + dz * V.fz ) / dl > 0.3;
+
+	}
+
 	// the elevators' doors: a few waiting at each, by the moment (the walk-in, going home, the rain delay
 	// more; in play a few; at the last out nobody new), facing the doors, one watching the floor over them,
 	// hands in pockets, arms folded, a phone at the ear, a beer. A new lot only while the door's out of
@@ -2434,28 +2476,9 @@ export class People {
 	// a minute and a half. At strike three the ones there turn to the field with their arms up
 	_waitersUpdate( sdt, ns, rain ) {
 
-		const W = this._ways, cam = this._waysCam, F = this.field;
+		const W = this._ways;
 		if ( ! W.doors?.length ) return;
-		let cx = 0, cz = 0, cy = 0, fx = 0, fy = 0, fz = - 1;
-		if ( cam ) {
-
-			const [ P, Q ] = this._waysV;
-			cam.getWorldPosition( P );
-			cam.getWorldDirection( Q );
-			[ cx, cz ] = F.toField( P.x, P.z );
-			cy = P.y - F.y0;
-			[ fx, fz ] = F.toField( Q.x, Q.z );
-			fy = Q.y;
-
-		}
-
-		const unseen = ( st ) => {
-
-			if ( ! cam || W.jump || this._waysTempo.cut ) return true;
-			const dx = st.x - cx, dy = st.y + 1.2 - cy, dz = st.z - cz, dl = Math.hypot( dx, dy, dz ) || 1;
-			return dl > 45 || ( dx * fx + dy * fy + dz * fz ) / dl < 0.3;
-
-		};
+		const unseen = ( st ) => W.jump || ! this._waysSeen( st.x, st.y, st.z, 45 );
 
 		let want = ns.top ? 0.8 : 0.6;
 		if ( ns.seg?.kind === 'intro' || ( ns.inning === 1 && ns.half === 'top' && ( ns.snap?.outs || 0 ) === 0 ) ) want = 2.2;
