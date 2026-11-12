@@ -386,7 +386,13 @@ function figureMaterial() {
 		rough = 0.85;
 		// (---- FK2, AD1-10: the stripes along the leg's own axis, its tilt from the part's fraction)
 		let legT = ( fract( in.vs.vPart ) - 0.5 ) / 0.9 * 6.2831853;
-		if ( pin ) { c = c * ( 1.0 - 0.45 * step( 0.82, fract( ( L.x + L.y * sin( legT ) + L.z * cos( legT ) ) * 55.0 ) ) ); }
+		// (antialiased, and faded to their mean where they're finer than a pixel: along a seated man's thigh,
+		// seen edge on, the hard step broke them into dashes, a5/B01)
+		let pS = ( L.x + L.y * sin( legT ) + L.z * cos( legT ) ) * 55.0;
+		let pF = fract( pS );
+		let pW = max( fwidth( pS ), 1e-4 );
+		let pK = mix( clamp( ( pF - 0.82 ) / pW + 0.5, 0.0, 1.0 ) * clamp( ( 1.0 - pF ) / pW + 0.5, 0.0, 1.0 ), 0.18, smoothstep( 0.25, 0.6, pW ) );
+		if ( pin ) { c = c * ( 1.0 - 0.45 * pK ); }
 		// the Phillies' red socks, the Rays' navy, pulled up high
 		if ( ( o == 0 || o == 1 || o == 8 || o == 9 ) && L.y < 0.36 ) { c = red; }
 		if ( ( o == 2 || o == 3 || o == 10 ) && L.y < 0.36 ) { c = navy; }
