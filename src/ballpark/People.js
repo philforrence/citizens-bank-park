@@ -1048,7 +1048,12 @@ export class People {
 			const yaw = Math.atan2( - n[ 0 ], - n[ 1 ] ); // facing +n (out over the counter)
 			// behind the counter (the Alley's kitchens are painted into their windows: there the staff stand
 			// in the window itself, behind the counter's front)
-			const inset = st.inset ?? 0.6;
+			// (FK5 repair: the Alley's, inset 0, stood at the stand's mid, 10 cm out from the window's plane: on
+			// the customers' side of the counter's front panel, its ledge through their waists. In the window
+			// instead, their middle 7 cm behind its plane: the counter's panel hides the legs and the shoes (at
+			// 4 cm their toes came through its face), the ledge comes to their belt, and the painted kitchen
+			// takes their backs)
+			const inset = st.inset === 0 ? 0.17 : st.inset ?? 0.6;
 			const staff = ( st.staff || [ - 1.6, 1.6 ] ).map( ( k ) => this._add( ROLE.staff, mid[ 0 ] + u[ 0 ] * k - n[ 0 ] * inset, STREET, mid[ 1 ] + u[ 1 ] * k - n[ 1 ] * inset, yaw ) );
 			// the line: up to eight people out from the counter, facing it
 			const line = [];
@@ -1066,7 +1071,12 @@ export class People {
 
 			}
 
-			this.stands.push( { staff, line, len: 0, target: 0, next: rnd( this._seed ) * 8, base: 1 + Math.floor( rnd( this._seed * 5 ) * 4 ) } );
+			// (FK5 repair: how far they step up to the counter's front at strike three: to 15 cm behind it, a step
+			// at most: a food stand's 0.36, a ticket window's 0.1, a shop's 0.15, the Alley's none (they lean out
+			// over the ledge where they stand). A fixed 0.36 put the window clerks through the wall and the
+			// ledge, the Alley's out among the customers)
+			const step = st.inset === 0 ? 0 : Math.max( 0, Math.min( 0.36, inset - 0.15 ) );
+			this.stands.push( { staff, line, len: 0, target: 0, next: rnd( this._seed ) * 8, base: 1 + Math.floor( rnd( this._seed * 5 ) * 4 ), step } );
 
 		}
 
@@ -2510,7 +2520,7 @@ export class People {
 				const [ hx, hz ] = st.staffAt[ k ], f = Math.min( 1, ( p._out || 0 ) + ( out ? dt : - dt ) * 0.7 );
 				p._out = Math.max( 0, f );
 				const dir = p.yaw, fx = - Math.sin( dir ), fz = - Math.cos( dir ), e = p._out * p._out * ( 3 - 2 * p._out );
-				p.x = hx + fx * 0.36 * e; p.z = hz + fz * 0.36 * e;
+				p.x = hx + fx * st.step * e; p.z = hz + fz * st.step * e; // (FK5 repair: the stand's own step, above)
 				if ( out ) p.reach = Math.max( p.reach, 0.75 * e );
 
 			} );
