@@ -188,6 +188,68 @@ export class Fair {
 
 		};
 
+		// ---- FK3 (walk): the carts' awnings, cloth: uv.x the stripe (across x, white on the odd ones), uv.y
+		// the cart's kind (its colour) and, over 0.5, the valance
+		const aq = new Quads();
+		const awning = ( x, z, kind ) => {
+
+			const x0 = x - 1.15, x1 = x + 1.15, zb = z - 0.65, zf = z + 0.65, yE = Y + 2.22, yR = Y + 2.42, N = 24;
+			const tri = ( a, b, c, hint, ua, ub, uc ) => {
+
+				const e1 = [ b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ], b[ 2 ] - a[ 2 ] ], e2 = [ c[ 0 ] - a[ 0 ], c[ 1 ] - a[ 1 ], c[ 2 ] - a[ 2 ] ];
+				let n = [ e1[ 1 ] * e2[ 2 ] - e1[ 2 ] * e2[ 1 ], e1[ 2 ] * e2[ 0 ] - e1[ 0 ] * e2[ 2 ], e1[ 0 ] * e2[ 1 ] - e1[ 1 ] * e2[ 0 ] ];
+				if ( n[ 0 ] * hint[ 0 ] + n[ 1 ] * hint[ 1 ] + n[ 2 ] * hint[ 2 ] < 0 ) n = n.map( ( v ) => - v );
+				aq.tri( a, b, c, n, ua, ub, uc );
+
+			};
+			const sx = ( px ) => ( px - x0 ) / 0.383;
+			// the two slopes, ridge to eave, a slight belly in each between the frame's ends
+			for ( const [ ze, sgn ] of [ [ zf, 1 ], [ zb, - 1 ] ] ) {
+
+				for ( let i = 0; i < N; i ++ ) {
+
+					const xa = x0 + ( x1 - x0 ) * i / N, xb = x0 + ( x1 - x0 ) * ( i + 1 ) / N;
+					const sag = ( px ) => 0.025 * Math.sin( Math.PI * ( px - x0 ) / ( x1 - x0 ) );
+					const ra = [ xa, yR - sag( xa ) * 0.3, z ], rb = [ xb, yR - sag( xb ) * 0.3, z ];
+					const ea = [ xa, yE - sag( xa ), ze ], eb = [ xb, yE - sag( xb ), ze ];
+					const h = [ 0, 1, sgn * 0.6 ];
+					tri( ra, rb, eb, h, [ sx( xa ), kind + 0.25 ], [ sx( xb ), kind + 0.25 ], [ sx( xb ), kind + 0.25 ] );
+					tri( ra, eb, ea, h, [ sx( xa ), kind + 0.25 ], [ sx( xb ), kind + 0.25 ], [ sx( xa ), kind + 0.25 ] );
+					// the valance under the eave: a scallop to each stripe
+					const d = ( px ) => 0.05 + 0.08 * Math.abs( Math.sin( Math.PI * sx( px ) ) );
+					const la = [ xa, ea[ 1 ] - d( xa ), ze ], lb = [ xb, eb[ 1 ] - d( xb ), ze ];
+					const o = [ 0, 0, sgn ];
+					tri( ea, eb, lb, o, [ sx( xa ), kind + 0.75 ], [ sx( xb ), kind + 0.75 ], [ sx( xb ), kind + 0.75 ] );
+					tri( ea, lb, la, o, [ sx( xa ), kind + 0.75 ], [ sx( xb ), kind + 0.75 ], [ sx( xa ), kind + 0.75 ] );
+
+				}
+
+			}
+
+			// the gable ends, and the valance across each end
+			for ( const [ xe, sgn ] of [ [ x0, - 1 ], [ x1, 1 ] ] ) {
+
+				const se = [ sx( xe ) - sgn * 0.5, kind + 0.25 ];
+				tri( [ xe, yE, zb ], [ xe, yE, zf ], [ xe, yR, z ], [ sgn, 0, 0 ], se, se, se );
+				for ( let i = 0; i < 8; i ++ ) {
+
+					const za = zb + ( zf - zb ) * i / 8, zc = zb + ( zf - zb ) * ( i + 1 ) / 8;
+					const d = ( pz ) => 0.05 + 0.08 * Math.abs( Math.sin( Math.PI * ( pz - zb ) / 0.325 ) );
+					const sv = [ sx( xe ) - sgn * 0.5, kind + 0.75 ];
+					tri( [ xe, yE, za ], [ xe, yE, zc ], [ xe, yE - d( zc ), zc ], [ sgn, 0, 0 ], sv, sv, sv );
+					tri( [ xe, yE, za ], [ xe, yE - d( zc ), zc ], [ xe, yE - d( za ), za ], [ sgn, 0, 0 ], sv, sv, sv );
+
+				}
+
+			}
+
+			// the frame's ridge and eave rails
+			kbox( x0, x1, 2.4, 2.43, z - 0.015, z + 0.015, P.steel );
+			for ( const ze of [ zb + 0.02, zf - 0.04 ] ) kbox( x0 + 0.02, x1 - 0.02, 2.2, 2.22, ze, ze + 0.02, P.steel );
+
+		};
+		// ---- end FK3
+
 		this.people = [];
 		const F = folk;
 		// ---- the carts: a steel box on wheels, the board across its front, a striped umbrella or awning
@@ -199,8 +261,11 @@ export class Fair {
 			for ( const wx of [ x - 0.75, x + 0.75 ] ) kbox( wx - 0.05, wx + 0.05, 0, 0.3, z - 0.5, z + 0.5, P.black );
 			sign( [ 0, 1, 2, 4, 8 ][ kind ], x - 0.95, x + 0.95, 0.35, 0.95, z + 0.46 );
 			// the awning over it on four poles
-			for ( const [ ax, az ] of [ [ - 0.95, - 0.4 ], [ 0.95, - 0.4 ], [ - 0.95, 0.4 ], [ 0.95, 0.4 ] ] ) kbox( x + ax - 0.02, x + ax + 0.02, 1.04, 2.2, z + az - 0.02, z + az + 0.02, P.steel );
-			for ( let s = 0; s < 6; s ++ ) kbox( x - 1.15 + s * 0.383, x - 1.15 + ( s + 1 ) * 0.383, 2.2, 2.26, z - 0.65, z + 0.65, s % 2 ? P.white : [ P.red, P.red, P.blue, P.red, P.orange ][ kind ] );
+			for ( const [ ax, az ] of [ [ - 0.95, - 0.4 ], [ 0.95, - 0.4 ], [ - 0.95, 0.4 ], [ 0.95, 0.4 ] ] ) kbox( x + ax - 0.02, x + ax + 0.02, 1.04, 2.24, z + az - 0.02, z + az + 0.02, P.steel );
+			// ---- FK3 (walk): the awning a striped cloth on its frame (it was six loose slats, open
+			// underneath): a low gable, the stripes running over it front to back, a scalloped valance round it
+			awning( x, z, kind );
+			// ---- end FK3
 			// the cart man behind it, a customer or two in front
 			const man = F.add( 'serve', { x, y: Y, z: z - 0.85, yaw: Math.PI, look: { top: TOP.staff, hat: HAT.staffCap, pants: PANTS.black, open: true }, nights: 3 } );
 			this.people.push( { p: man, role: 'vendor', phase: i * 1.7 } );
@@ -321,7 +386,30 @@ export class Fair {
 ` } );
 		const signMat = standard( { name: 'alley-fair-signs', roughness: 0.4, alphaTest: 0.5, textures: { bpFair: tex }, side: 'double',
 			surface: 'let ta = textureSample( bpFair, smpAnisoClamp, in.uv ); let t = ta.rgb; s.alpha = ta.a; s.albedo = t * 0.7; s.emissive = t * mix( 0.12, 0.7, smoothstep( 0.2, 0.8, frame.night ) );' } );
-		for ( const m of [ mat, signMat ] ) m.underwaterLighting = 'none';
+		// ---- FK3 (walk): the awnings' cloth: the kind's colour on the even stripes (water ice red, the yellow
+		// cart red, the beer cart navy, red, the funnel cakes orange), white on the odd; the valance a shade
+		// darker (it hangs out of the light), the weave, grime toward the edges; the rain soaks it
+		const awnMat = standard( { name: 'alley-fair-awnings', roughness: 0.85, side: 'double',
+			surface: /* wgsl */`
+	let kind = i32( floor( in.uv.y ) );
+	var col = vec3f( 0.42, 0.02, 0.03 );
+	if ( kind == 2 ) { col = vec3f( 0.03, 0.07, 0.26 ); }
+	if ( kind == 4 ) { col = vec3f( 0.75, 0.28, 0.03 ); }
+	let st = floor( in.uv.x );
+	var c = select( col, vec3f( 0.76, 0.75, 0.71 ), fract( st * 0.5 ) > 0.25 );
+	let wv = fract( sin( dot( floor( in.P.xz * 90.0 + in.P.y * 37.0 ), vec2f( 12.9898, 78.233 ) ) ) * 43758.5453 );
+	c = c * ( 0.93 + 0.07 * wv ) * select( 1.0, 0.86, fract( in.uv.y ) > 0.5 );
+	s.albedo = c; s.roughness = 0.85;
+	s.emissive = c * smoothstep( 0.2, 0.8, frame.night ) * 0.06;
+` } );
+		awnMat.setDefine( 'WET_FABRIC', 1 );
+		const am = new Mesh( aq.geometry(), awnMat );
+		am.name = 'alley-fair-awnings';
+		am.castShadow = true;
+		am.receiveShadow = true;
+		parent.add( am );
+		// ---- end FK3
+		for ( const m of [ mat, signMat, awnMat ] ) m.underwaterLighting = 'none';
 		const km = new Mesh( q.geometry(), mat );
 		km.name = 'alley-fair';
 		km.castShadow = true;

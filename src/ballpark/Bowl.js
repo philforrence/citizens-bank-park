@@ -1936,6 +1936,170 @@ ${ open ? `	s.albedo = vec3f( 0.01 );
 
 		}
 
+		// ---- FK3 (SC1-13): the ring's top at the Terrace's level is a roof, seen over the Terrace concourse's
+		// back rail (from the LF end most, 30 m of it). It read as the concourse's floor: FW3's membrane too
+		// faint, nothing on it. Common sense, as the park's other flat roofs (the press box's, the light
+		// towers' in the refs) and any 2004 roof: a pale single-ply membrane in 3 m sheets with welded laps
+		// and staggered end laps, falling to drains on a 12 m grid with the grime gathered round them and
+		// darker where water stands, its sheen when it rains; on it the rooftop units on membrane-wrapped curbs
+		// (air handlers with louvred grilles, condensers with a fan in the top), their conduit on sleepers back
+		// to the building, and a prefinished metal coping on the edge. No colliders (nobody goes out there).
+		let roofWGSL = '';
+		if ( levels.includes( LEVELS.terraceConcourse ) ) {
+
+			const y = LEVELS.terraceConcourse, kit = new Quads();
+			const kq = ( a, b, c, d, n, code ) => {
+
+				kit.tri( a, b, c, n, [ code, 0 ], [ code + 0.999, 0 ], [ code + 0.999, 1 ] );
+				kit.tri( a, c, d, n, [ code, 0 ], [ code + 0.999, 1 ], [ code, 1 ] );
+
+			};
+			// a box on the roof: centre c, along t (half hl), across (half hw), y0..y1; its sides and top coded
+			const unit = ( c, t, hl, hw, y0, y1, side, top ) => {
+
+				const w = [ - t[ 1 ], t[ 0 ] ];
+				const C = ( i, j, yy ) => [ c[ 0 ] + t[ 0 ] * hl * i + w[ 0 ] * hw * j, yy, c[ 1 ] + t[ 1 ] * hl * i + w[ 1 ] * hw * j ];
+				for ( const [ i0, j0, i1, j1, n ] of [ [ - 1, - 1, 1, - 1, [ - w[ 0 ], 0, - w[ 1 ] ] ], [ 1, - 1, 1, 1, [ t[ 0 ], 0, t[ 1 ] ] ], [ 1, 1, - 1, 1, [ w[ 0 ], 0, w[ 1 ] ] ], [ - 1, 1, - 1, - 1, [ - t[ 0 ], 0, - t[ 1 ] ] ] ] ) kq( C( i0, j0, y0 ), C( i1, j1, y0 ), C( i1, j1, y1 ), C( i0, j0, y1 ), n, side );
+				kq( C( - 1, - 1, y1 ), C( 1, - 1, y1 ), C( 1, 1, y1 ), C( - 1, 1, y1 ), [ 0, 1, 0 ], top );
+
+			};
+			// (FK3 repair) a unit's spot is clear when every corner of its curbs is inside the footprint and
+			// 1.5 m from its edges (the rail, the precast edge, the brick's head), and each casing's centre 9 m
+			// from a gate's light tower (its legs 12.4 m across, 3.5 deep: Bowl._portalTower)
+			const towers = ( this.gateTowers || [] ).flatMap( ( g ) => g.pair );
+			const roofClear = ( cs, t, hl, hw ) => cs.every( ( cc ) => {
+
+				if ( towers.some( ( [ tx, tz ] ) => Math.hypot( cc[ 0 ] - tx, cc[ 1 ] - tz ) < 9 ) ) return false;
+				return [ [ - 1, - 1 ], [ 1, - 1 ], [ 1, 1 ], [ - 1, 1 ] ].every( ( [ i, j ] ) => {
+
+					const px = cc[ 0 ] + t[ 0 ] * hl * i - t[ 1 ] * hw * j, pz = cc[ 1 ] + t[ 1 ] * hl * i + t[ 0 ] * hw * j;
+					let inside = false, near = Infinity;
+					for ( let a = 0, b = F.length - 1; a < F.length; b = a ++ ) {
+
+						const [ ax, az ] = F[ a ], [ bx, bz ] = F[ b ];
+						if ( ( az > pz ) !== ( bz > pz ) && px < ( bx - ax ) * ( pz - az ) / ( bz - az ) + ax ) inside = ! inside;
+						const ex = bx - ax, ez = bz - az, u = Math.max( 0, Math.min( 1, ( ( px - ax ) * ex + ( pz - az ) * ez ) / ( ex * ex + ez * ez ) ) );
+						near = Math.min( near, Math.hypot( ax + ex * u - px, az + ez * u - pz ) );
+
+					}
+					return inside && near >= 1.5;
+
+				} );
+
+			} );
+			let run = 13, k = 0, arc = 0, at0 = null;
+			for ( let i = 0; i < S.length - 1; i ++ ) {
+
+				const A = S[ i ], B = S[ i + 1 ];
+				if ( A.d === null || B.d === null || A.d < 1 || B.d < 1 ) continue;
+				const ao = [ A.p[ 0 ] + A.n[ 0 ] * A.d, A.p[ 1 ] + A.n[ 1 ] * A.d ], bo = [ B.p[ 0 ] + B.n[ 0 ] * B.d, B.p[ 1 ] + B.n[ 1 ] * B.d ];
+				// the coping: 30 cm of metal cap over the edge's top, a drip down its face
+				const ai = [ ao[ 0 ] - A.n[ 0 ] * 0.3, ao[ 1 ] - A.n[ 1 ] * 0.3 ], bi = [ bo[ 0 ] - B.n[ 0 ] * 0.3, bo[ 1 ] - B.n[ 1 ] * 0.3 ];
+				const ax = [ ao[ 0 ] + A.n[ 0 ] * 0.04, ao[ 1 ] + A.n[ 1 ] * 0.04 ], bx = [ bo[ 0 ] + B.n[ 0 ] * 0.04, bo[ 1 ] + B.n[ 1 ] * 0.04 ];
+				const en = [ ( A.n[ 0 ] + B.n[ 0 ] ) / 2, 0, ( A.n[ 1 ] + B.n[ 1 ] ) / 2 ];
+				kq( [ ai[ 0 ], y + 0.27, ai[ 1 ] ], [ bi[ 0 ], y + 0.27, bi[ 1 ] ], [ bx[ 0 ], y + 0.27, bx[ 1 ] ], [ ax[ 0 ], y + 0.27, ax[ 1 ] ], [ 0, 1, 0 ], 3 );
+				kq( [ ax[ 0 ], y + 0.1, ax[ 1 ] ], [ bx[ 0 ], y + 0.1, bx[ 1 ] ], [ bx[ 0 ], y + 0.27, bx[ 1 ] ], [ ax[ 0 ], y + 0.27, ax[ 1 ] ], en, 3 );
+				kq( [ bi[ 0 ], y, bi[ 1 ] ], [ ai[ 0 ], y, ai[ 1 ] ], [ ai[ 0 ], y + 0.27, ai[ 1 ] ], [ bi[ 0 ], y + 0.27, bi[ 1 ] ], en.map( ( v ) => - v ), 3 );
+				// a unit every ~21 m where the roof is 8 m deep, 60 % of the way out; its conduit back in
+				const seg = Math.hypot( B.p[ 0 ] - A.p[ 0 ], B.p[ 1 ] - A.p[ 1 ] );
+				run += seg;
+				arc += seg;
+				if ( run < 21 || A.d < 8 || B.d < 8 ) continue;
+				const l = Math.hypot( B.p[ 0 ] - A.p[ 0 ], B.p[ 1 ] - A.p[ 1 ] ), t = [ ( B.p[ 0 ] - A.p[ 0 ] ) / l, ( B.p[ 1 ] - A.p[ 1 ] ) / l ];
+				const c = [ A.p[ 0 ] + A.n[ 0 ] * A.d * 0.6, A.p[ 1 ] + A.n[ 1 ] * A.d * 0.6 ];
+				const big = k % 3 === 0, hl = big ? 2.1 : 0.95, hw = big ? 1.0 : 0.6, h = big ? 1.55 : 1.05;
+				const c2 = [ c[ 0 ] + t[ 0 ] * 2.4, c[ 1 ] + t[ 1 ] * 2.4 ];
+				// (FK3 repair) clear of the facade and of the gates' light towers, or the next spot along: the
+				// first base air handler hung 1.9 m past the footprint over the facade's head; at the Third Base
+				// Gate a condenser stood in a leg of the left field side's tower, and two against the home plate
+				// side's, one of them in the brick's head. And not across a bend in the frame's line (a casing on
+				// its chord sat skew, its conduit's riser inside it)
+				// (the ones after it keep their places: the next counts from where this one was due)
+				if ( A.n[ 0 ] * B.n[ 0 ] + A.n[ 1 ] * B.n[ 1 ] < 0.98 || ! roofClear( big ? [ c ] : [ c, c2 ], t, hl + 0.12, hw + 0.12 ) ) {
+
+					if ( at0 === null ) at0 = arc;
+					continue;
+
+				}
+				run = at0 === null ? 0 : Math.min( arc - at0, 12 );
+				at0 = null;
+				unit( c, t, hl + 0.12, hw + 0.12, y, y + 0.3, 2, 2 );
+				unit( c, t, hl, hw, y + 0.3, y + 0.3 + h, 0, big ? 5 : 1 );
+				if ( ! big ) {
+
+					// a second condenser beside it
+					unit( c2, t, hl + 0.12, hw + 0.12, y, y + 0.3, 2, 2 );
+					unit( c2, t, hl, hw, y + 0.3, y + 0.3 + h, 0, 1 );
+
+				}
+
+				const c0 = [ c[ 0 ] - A.n[ 0 ] * ( hw + 0.15 ), c[ 1 ] - A.n[ 1 ] * ( hw + 0.15 ) ], c1 = [ A.p[ 0 ] + A.n[ 0 ] * 0.6, A.p[ 1 ] + A.n[ 1 ] * 0.6 ];
+				beam( rail, [ c0[ 0 ], y + 0.55, c0[ 1 ] ], [ c0[ 0 ], y + 0.16, c0[ 1 ] ], 0.03 );
+				beam( rail, [ c0[ 0 ], y + 0.16, c0[ 1 ] ], [ c1[ 0 ], y + 0.16, c1[ 1 ] ], 0.03 );
+				const cl = Math.hypot( c1[ 0 ] - c0[ 0 ], c1[ 1 ] - c0[ 1 ] );
+				for ( let s = 0.8; s < cl; s += 2.4 ) unit( [ c0[ 0 ] + ( c1[ 0 ] - c0[ 0 ] ) * s / cl, c0[ 1 ] + ( c1[ 1 ] - c0[ 1 ] ) * s / cl ], t, 0.2, 0.08, y, y + 0.12, 2, 2 );
+				k ++;
+
+			}
+
+			const km = standard( { name: 'outer-roof-units', color: new Color( 0.58, 0.59, 0.58 ), roughness: 0.5, side: 'double', surface: /* wgsl */`
+	let code = floor( in.uv.x ); let f = fract( in.uv.x ); let v = in.uv.y;
+	var c = vec3f( 0.58, 0.59, 0.58 ); var r = 0.5; var mt = 0.5;
+	if ( code < 0.5 ) {
+		// a casing's side: its access panels, a louvred grille in the middle, grime up from the curb
+		let grille = step( 0.3, v ) * step( v, 0.85 ) * step( 0.12, f ) * step( f, 0.88 );
+		let slat = 0.5 + 0.5 * sin( v * 160.0 );
+		let seam = step( 0.49, abs( fract( f * 3.0 ) - 0.5 ) );
+		c = c * mix( 1.0, 0.3 + 0.4 * slat, grille ) * ( 1.0 - 0.35 * seam ) * ( 0.8 + 0.2 * smoothstep( 0.0, 0.3, v ) );
+	} else if ( code < 1.5 ) {
+		// a condenser's top: the fan's guard in its ring
+		let d = length( vec2f( f, v ) - vec2f( 0.5 ) );
+		let ring = step( 0.3, d ) * step( d, 0.34 );
+		let fan = step( d, 0.3 ) * ( 0.7 + 0.3 * step( 0.5, fract( d * 40.0 ) ) );
+		c = mix( c, vec3f( 0.05 ), fan ) * ( 1.0 - 0.4 * ring );
+	} else if ( code < 2.5 ) {
+		// the curbs and sleepers, wrapped in the membrane
+		c = vec3f( 0.5, 0.495, 0.47 ); r = 0.75; mt = 0.0;
+	} else if ( code < 3.5 ) {
+		// the coping: prefinished metal, dark bronze
+		c = vec3f( 0.16, 0.13, 0.11 ); r = 0.4; mt = 0.6;
+	}
+	s.albedo = c; s.roughness = mix( r, 0.2, frame.wet * 0.7 ); s.metalness = mt;
+` } );
+			km.underwaterLighting = 'none';
+			const um = new Mesh( kit.geometry(), km );
+			um.name = 'outer-roof-units';
+			um.castShadow = true;
+			um.receiveShadow = true;
+			this.group.add( um );
+			// the membrane (FW3's sheets, more of it), over FW3's albedo in the roof's branch of outer-floors
+			roofWGSL = /* wgsl */`
+		{
+			let kix = floor( in.P.x / 3.0 );
+			let klx = fract( in.P.x / 3.0 ) * 3.0;
+			let klz = fract( ( in.P.z + kix * 4.5 ) / 9.0 ) * 9.0;
+			let klap = step( 2.94, klx );
+			let kweld = 1.0 - smoothstep( 0.0, 0.015, abs( klx - 2.94 ) );
+			let kend = 1.0 - smoothstep( 0.0, 0.02, min( klz, 9.0 - klz ) );
+			let kdc = ( fract( in.P.xz / 12.0 + 0.5 ) - 0.5 ) * 12.0;
+			let krd = length( kdc );
+			let kgrime = exp( - krd * krd / 18.0 ) * ( 0.6 + 0.4 * mx_noise_float2( in.P.xz * 0.5 ) );
+			let kstrainer = 1.0 - smoothstep( 0.16, 0.2, krd );
+			let kpond = clamp( smoothstep( 0.3, 0.75, mx_noise_float2( in.P.xz * 0.06 ) ) * 0.5 + kgrime * 0.5, 0.0, 1.0 );
+			var kc = vec3f( 0.56, 0.555, 0.53 ) * ( 0.95 + 0.05 * mx_noise_float2( in.P.xz * 2.3 ) );
+			kc = mix( kc, vec3f( 0.3, 0.29, 0.27 ), kpond * 0.55 );
+			kc = kc * ( 1.0 + 0.06 * klap ) * ( 1.0 - 0.35 * kweld ) * ( 1.0 - 0.25 * kend );
+			kc = mix( kc, vec3f( 0.06, 0.06, 0.065 ), kstrainer );
+			let kpad = step( abs( fract( in.P.x / 19.0 ) - 0.5 ), 0.025 ) * step( 0.5, fract( in.P.z / 1.3 ) );
+			kc = mix( kc, vec3f( 0.24, 0.24, 0.25 ), kpad );
+			s.albedo = kc * mix( 1.0, 0.75, frame.wet );
+			s.roughness = mix( 0.75 - 0.35 * kpond, 0.12, frame.wet * ( 0.5 + 0.5 * kpond ) );
+		}
+`;
+
+		}
+		// ---- end FK3
+
 		// ---- FW2 (C2W-13): the Third and First Base Gates (world x z, x z), for the frame's lit ceilings
 		const gw = GATES.slice( 0, 2 ).map( ( g ) => this.field.toWorld( g.at[ 0 ], g.at[ 1 ] ) );
 		const mat = standard( {
@@ -1953,6 +2117,7 @@ ${ open ? `	s.albedo = vec3f( 0.01 );
 		s.albedo = mix( vec3f( 0.34, 0.335, 0.32 ), vec3f( 0.2, 0.195, 0.185 ), pond * 0.6 ) * seam * ( 0.94 + 0.06 * mx_noise_float2( in.P.xz * 1.7 ) );
 		s.albedo = mix( s.albedo, vec3f( 0.2, 0.2, 0.21 ), pad );
 		s.roughness = 0.7 - 0.25 * pond;
+${ roofWGSL /* ---- FK3 (SC1-13) */ }
 		// ---- end FW3
 	} else if ( in.N.y > 0.6 ) {
 		// the concourse floor: sealed concrete

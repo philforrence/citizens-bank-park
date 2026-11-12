@@ -8,6 +8,7 @@ import { TerracePeople } from './terrace/People.js';
 import { TerraceSounds } from './terrace/Sounds.js';
 import { buildEscalator, plazaFittings } from './leftfield/Escalator.js';
 import { dress, sizeOf, rng } from './Concourse3BKit.js';
+import { pavilionWalkway } from './alley/Pavilion.js'; // FK3 (SC1-7)
 
 // FW3 (C2W-7, gauntlet r2): the Terrace concourse, the 300s' and 400s' level, 81 ft up. It was a 2.4 m
 // strip with the 400s' front row's feet on it and, behind the 400s, a bare unlit deck; the scouting found
@@ -47,6 +48,10 @@ export default class Terrace {
 		this.stands = app?.concourse?.terrace ? app.concourse.terrace( bowl, this.group ) : { units: [], open: [], spots: [], doors: [], meshes: [] };
 		// (CI-18) the Pavilion's and the Arcade's walkways' stands, batched with the park (always drawn)
 		this.stands.gallery = app?.concourse?.galleries ? app.concourse.galleries( bowl, this.group ).spots : [];
+		// ---- FK3 (SC1-7): the Pavilion's walkway laid out again, the curve round the pole taking the guide's
+		// stands and family restrooms (205-208 were blank block), its domes hung from the Deck (alley/Pavilion.js)
+		this.pavilion = pavilionWalkway( app, bowl, this.group, this.stands.gallery );
+		// ---- end FK3
 		this.T.backRail( this.stands.open );
 		this.T.finish();
 		this.meshes = [ ...this.T.meshes, ...this.stands.meshes ];
