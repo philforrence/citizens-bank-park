@@ -1123,7 +1123,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			// the undershirt's collar: a white and red crescent under every jaw in the close-ups); the
 			// undershirt's collar rides up the neck, a crew neck's 1.2 cm for most, a mock turtleneck's 4 cm for
 			// some (Balfour's navy mock: Getty 83485159)
-			let chinU = L.z < nk.z - 0.075 && L.y > cy + 0.02;
+			// (---- FK2 repair: and only from 1.5 cm under the neck's joint up. L is the shaped cloth below the
+			// collar (the hull's push), so the jersey's front, stood 0.6 to 1.3 cm off the chest there, also
+			// passed for a chin's underside: a tab of skin on a jacket's front over its zip, once the neckline
+			// closed in round the neck and left it on its own: FK2-repair's a3/N10, Foley)
+			let chinU = L.z < nk.z - 0.075 && L.y > max( cy + 0.02, nk.y - 0.015 );
 			// (the umpires' jackets close round the neck in a collar: Getty 83485455)
 			let mock = select( select( 0.012, 0.038, fract( seed * 17.3 ) < 0.3 && ! crew && ! jacket && ! phan ), 0.03, ump );
 			if ( L.y > nk.y + 0.03 || chinU || L.y > cy + mock + cone ) { part = ${ P.skin }; skinArea = 1; } // (---- FK2 repair: the cone)
