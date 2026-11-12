@@ -186,3 +186,11 @@ Wall ms per frame at 1280 × 800, the standard views under the lock's exclusive 
 | 11-12 07:59 | step 11 as published, **loaded** (round 1's four agents started during the run) | 23.2 | 23.3 | 17.0 | 18.4 | 16.2 | 24.4 | 20.7 | 32.0 | **38.2** | 25.7 / 26.6 | 32.8 | 1.88-2.47 |
 
 **The start (07:59) is not a clean baseline.** The code is step 11's, which measured 28.9 ms in the 400s seat on 10-29 with TAAU at 1.78-1.93. Here TAAU climbs from 1.88 to 2.47 through the run as the agents start, and the last views (the 400s seat, Harry's upstairs) read 25-30% high with it. Scaled by TAAU, the 400s seat is ~30 ms: the same as step 11. With agents working all day the machine is never quiet, so merges in this step are judged by A/B pairs taken back to back (before and after trees in one sitting), and by TAAU-scaled numbers. No console errors.
+| 11-12 12:46 | step 11 as published, **quiet** (the clean baseline: the mean of two runs either side of SP4's) | 19.8 | 20.0 | 14.9 | 15.7 | 14.1 | 21.4 | 17.4 | 27.9 | **28.5** | 20.9 / 21.2 | 23.3 | 1.74-1.85 |
+| 11-12 12:49 | **SP4's branch, not merged yet** (each fan at his own level; the crowd's and left field's tables as uniform arrays) | 19.7 | 18.6 | 14.9 | 15.4 | 13.4 | 19.4 | 18.8 | **21.3** | **26.7** | 19.7 / 20.2 | 21.0 | 1.75-1.86 |
+
+**SP4's clean A/B (12:46-12:54):** `ballpark`, SP4's branch, `ballpark` again, back to back under exclusive just after the usage limit reset, with the machine quiet (`s12-ab-a1`, `-b`, `-a2`). The two `ballpark` runs agree to 0.1 ms in every view but left field (0.23), so differences over about 0.3 ms are real.
+- **Left field: 27.9 → 21.3 ms (-6.6).** Harry's upstairs 23.3 → 21.0 (-2.3). The real 3B seat 21.4 → 19.4 (-2.1). **The 400s seat 28.5 → 26.7 (-1.8)**, short of its 26 ms target. The upper home seat -1.5, TV high -1.4, the rain's TV high -1.3, the celebration -1.2 and -1.1, the lounge -0.7, the concourse -0.3.
+- **TV center and the follow camera: unchanged** (-0.04, -0.02).
+- **The 3B plaza on the 27th reads 1.4 ms slower in wall time** (17.4 → 18.8) with the GPU time the same (17.4 → 17.6) and the opaque pass identical. That points at the CPU, or at one slow frame. SP4's reviewer is asked why; it's measured again at the merge.
+- No console errors in any run.
