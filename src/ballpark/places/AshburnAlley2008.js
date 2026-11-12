@@ -421,6 +421,14 @@ export default class AshburnAlley2008 {
 	update( dt, director, camera ) {
 
 		if ( ! director ) return;
+		// FK3 (SC1-7): the Pavilion walkway's domes (overhead, the Terrace place builds them) as local lights
+		if ( ! this._pavLit && this.app?.localLights ) {
+
+			this._pavLit = true;
+			this.app.places?.find( ( p ) => p.pavilion )?.pavilion?.lightUp( this.app );
+
+		}
+
 		const w = when( director );
 		// the clock over center field keeps the replay's time
 		this.app.landmarks?.setClock?.( w.clock );
