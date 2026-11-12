@@ -40,14 +40,24 @@ export function pavilionWays( bowl, { pav, deck } ) {
 		const dT = 11.0; // the top landing's front: on the concourse's depth (10.08-14.08)
 		const dL = dT - n2 * RUN; // the half landing's back
 		// the lower flight climbs toward the field, out past the end; the upper one back up beside the end
-		K.flight( E, { s0: - 3.45, s1: - 2.05, d0: dL + n1 * RUN, dir: - 1, y0: STREET, n: n1, r } );
-		K.landing( E, { s0: - 3.45, s1: - 0.3, d0: dL - 1.5, d1: dL, y: yMid, rails: [ 'd0', 's0' ], posts: true } );
+		// ---- FK3 (AD1-3): the lower flight's foot on the pier between the core's two cars (Concourse's brick
+		// core: its doors at s -4.65 and -1.85, 1.16 m wide), 0.4 m clear of each door's path; it was at -3.45
+		// to -2.05, its stringer and rail across the right-hand car's door
+		K.flight( E, { s0: - 3.95, s1: - 2.55, d0: dL + n1 * RUN, dir: - 1, y0: STREET, n: n1, r } );
+		K.landing( E, { s0: - 3.95, s1: - 0.3, d0: dL - 1.5, d1: dL, y: yMid, rails: [ 'd0', 's0' ], posts: true } );
+		// ---- end FK3
 		K.flight( E, { s0: - 1.75, s1: - 0.35, d0: dL, dir: 1, y0: yMid, n: n2, r } );
 		// the top landing, a bridge from the elevator's upper door to the concourse
 		const dD = dT + 2.6; // the elevator's doors (behind the concourse's stand at the Alley's end: Concourse)
-		K.landing( E, { s0: - 4.6, s1: 0.06, d0: dT, d1: dD, y: yPav, rails: [ 'd0:-4.6:-1.8', 'd1:-1.9:0.06', 's0' ], posts: true } );
-		// the elevator's tower behind it, its doors toward the field at both levels
-		K.tower( E, { s0: - 4.5, s1: - 2.0, d0: dD, d1: dD + 2.6, y0: STREET, y1: yPav + 3.4 } );
+		// ---- FK3 (AD1-3, AD1-11): the bridge along the whole of the core's face, its back edge carried on the
+		// core (a column stood 15 cm in front of the left-hand car's door), its front on two columns clear of
+		// both doors' paths. The tower: Concourse builds the bank's brick core at the Alley stop (6.4 x 4.2, to
+		// 18.0) and FA1's precast tower shared its face, so the two fought in a ragged noise edge; the precast
+		// is now the core's head, the storey of the bridge and the machine room over it, 5 cm proud of the
+		// brick all round from a cast band at the bridge's underside, the brick below it the core's
+		K.landing( E, { s0: - 5.75, s1: 0.06, d0: dT, d1: dD - 0.05, y: yPav, rails: [ 'd0:-5.75:-1.8', 's0' ], posts: [ [ - 5.6, dT + 0.15 ], [ - 0.09, dT + 0.15 ] ] } );
+		K.tower( E, { s0: - 6.5, s1: 0.0, d0: dD - 0.05, d1: dD + 4.35, y0: yPav - 0.3, y1: yPav + 3.4 } );
+		// ---- end FK3
 		const door = E.at( - 3.25, dD ), out = [ - E.n[ 0 ], - E.n[ 1 ] ];
 		banks.push( { stops: [
 			{ name: 'Ashburn Alley', y: STREET, door, out },
@@ -339,7 +349,9 @@ class Kit {
 
 		}
 
-		if ( posts ) for ( const [ s, d ] of [ [ s0 + 0.15, d0 + 0.15 ], [ s1 - 0.15, d0 + 0.15 ], [ s0 + 0.15, d1 - 0.15 ], [ s1 - 0.15, d1 - 0.15 ] ] ) {
+		// (FK3: `posts` true for the four corners, or a list of [ s, d ])
+		const at = Array.isArray( posts ) ? posts : posts ? [ [ s0 + 0.15, d0 + 0.15 ], [ s1 - 0.15, d0 + 0.15 ], [ s0 + 0.15, d1 - 0.15 ], [ s1 - 0.15, d1 - 0.15 ] ] : [];
+		for ( const [ s, d ] of at ) {
 
 			beam( this.steel, P( s, d, STREET ), P( s, d, y - 0.3 ), 0.25 );
 			const w = this.field.toWorld( ...F.at( s, d ) );
@@ -382,11 +394,13 @@ class Kit {
 			const mx = ( a[ 0 ] + b[ 0 ] ) / 2 - F.at( ( s0 + s1 ) / 2, ( d0 + d1 ) / 2 )[ 0 ], mz = ( a[ 1 ] + b[ 1 ] ) / 2 - F.at( ( s0 + s1 ) / 2, ( d0 + d1 ) / 2 )[ 1 ];
 			const ml = Math.hypot( mx, mz );
 			this.precast.add( P( sa, da, y0 ), P( sb, db, y0 ), P( sb, db, y1 ), P( sa, da, y1 ), [ mx / ml, 0, mz / ml ] );
-			for ( const yy of [ y0 + 3.6, y0 + 7.2, y1 - 0.6 ] ) beam( this.steel, P( sa, da, yy ), P( sb, db, yy ), 0.08 );
+			// (FK3, AD1-11: the head over the brick core: a cast band at its foot, a reveal under the cap)
+			for ( const yy of [ y0 + 0.05, y1 - 0.6 ] ) beam( this.steel, P( sa, da, yy ), P( sb, db, yy ), 0.08 );
 
 		}
 
 		this.precast.add( P( s0, d0, y1 ), P( s1, d0, y1 ), P( s1, d1, y1 ), P( s0, d1, y1 ), [ 0, 1, 0 ] );
+		this.precast.add( P( s0, d0, y0 ), P( s0, d1, y0 ), P( s1, d1, y0 ), P( s1, d0, y0 ), [ 0, - 1, 0 ] );
 		this.box( F.at( ( s0 + s1 ) / 2, ( d0 + d1 ) / 2 ), F.u, ( s1 - s0 ) / 2, ( d1 - d0 ) / 2, y0, y1, { tag: 'fa1-elevator' } );
 
 	}
