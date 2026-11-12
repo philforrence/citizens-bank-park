@@ -484,6 +484,19 @@ export class ConcourseSteel {
 
 			const a = pts[ i ], b = pts[ i + 1 ], l = Math.hypot( b.x - a.x, b.z - a.z );
 			brick.add( [ a.x, STREET, a.z ], [ b.x, STREET, b.z ], [ b.x, yU, b.z ], [ a.x, yU, a.z ], [ a.nx, 0, a.nz ], u, u + l );
+			// ---- FK1 (the one-sided wall): its outer face, 0.3 m behind, the same block (the ring behind it is the
+			// back of house you reach from the gates' ends: from there the wall was a see-through nothing onto
+			// the stands' backs and the concourse)
+			const T = 0.3, ao = [ a.x - a.nx * T, a.z - a.nz * T ], bo = [ b.x - b.nx * T, b.z - b.nz * T ];
+			brick.add( [ ao[ 0 ], STREET, ao[ 1 ] ], [ bo[ 0 ], STREET, bo[ 1 ] ], [ bo[ 0 ], yU, bo[ 1 ] ], [ ao[ 0 ], yU, ao[ 1 ] ], [ - a.nx, 0, - a.nz ], u, u + l );
+			if ( i === 0 || i === pts.length - 2 ) {
+
+				// its ends, where the open ring meets it
+				const e = i === 0 ? a : b, eo = i === 0 ? ao : bo, sg = i === 0 ? - 1 : 1;
+				brick.add( [ e.x, STREET, e.z ], [ eo[ 0 ], STREET, eo[ 1 ] ], [ eo[ 0 ], yU, eo[ 1 ] ], [ e.x, yU, e.z ], [ ( b.x - a.x ) / l * sg, 0, ( b.z - a.z ) / l * sg ], 0, T );
+
+			}
+			// ---- end FK1
 			u += l;
 			if ( this.colliders && this.field ) {
 
