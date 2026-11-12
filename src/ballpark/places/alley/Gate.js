@@ -140,10 +140,14 @@ function drawSigns( ctx ) {
 		}
 		ctx.fillRect( w / 2 - 34, 236, 68, 10 ); ctx.fillRect( w / 2 - 24, 246, 48, 18 );
 		ctx.fillStyle = '#ffffff'; ctx.font = '700 19px Helvetica, Arial, sans-serif';
-		ctx.fillText( 'GAMES 3 · 4 · 5', w / 2, 290, w - 24 ); ctx.font = '600 15px Helvetica, Arial, sans-serif'; ctx.fillText( 'CITIZENS BANK PARK  ·  OCT. 25 - 27', w / 2, 316, w - 20 );
-		ctx.fillStyle = '#e81828'; ctx.font = 'italic 800 24px Georgia, serif'; ctx.fillText( 'Phillies', w / 2 - 44, 342 );
-		ctx.fillStyle = '#9fc3e8'; ctx.font = '800 20px Helvetica, Arial, sans-serif'; ctx.fillText( 'RAYS', w / 2 + 48, 342 );
-		ctx.fillStyle = '#ffffff'; ctx.font = '600 14px Helvetica, Arial, sans-serif'; ctx.fillText( 'vs', w / 2 + 6, 342 );
+		ctx.fillText( 'GAMES 3 · 4 · 5', w / 2, 284, w - 24 ); ctx.font = '600 15px Helvetica, Arial, sans-serif'; ctx.fillText( 'CITIZENS BANK PARK  ·  OCT. 25 - 27', w / 2, 308, w - 20 );
+		// the two clubs on a line, set by their widths (the script ran into the "vs"), clear of the gold rule
+		const line = [ [ 'Phillies', 'italic 800 24px Georgia, serif', '#e81828' ], [ 'vs', '600 14px Helvetica, Arial, sans-serif', '#ffffff' ], [ 'RAYS', '800 20px Helvetica, Arial, sans-serif', '#9fc3e8' ] ];
+		const ws = line.map( ( [ t, f ] ) => ( ctx.font = f, ctx.measureText( t ).width ) );
+		let lx = ( w - ws.reduce( ( a, b ) => a + b, 0 ) - 2 * 9 ) / 2;
+		ctx.save(); ctx.textAlign = 'left';
+		line.forEach( ( [ t, f, c ], k ) => { ctx.font = f; ctx.fillStyle = c; ctx.fillText( t, lx, 331 ); lx += ws[ k ] + 9; } );
+		ctx.restore();
 
 	} );
 	poster( 2, ( w, h ) => {
@@ -335,8 +339,10 @@ export class RightFieldGate {
 
 				const a = a0 + i / 4 * Math.PI * 2, rr = 0.42 + 0.06 * rnd();
 				mound( x + Math.cos( a ) * rr, z + Math.sin( a ) * rr, 0.62, 0.32 + 0.08 * rnd(), 0.34 + 0.12 * rnd(), 26, K.leaf, 0.09 );
-				const b = a + Math.PI / 4, rm = 0.6;
-				if ( i < 3 ) mound( x + Math.cos( b ) * rm, z + Math.sin( b ) * rm, 0.62, 0.2 + 0.05 * rnd(), 0.2 + 0.06 * rnd(), 18, K.mum, 0.065 );
+				// (the mums out to the rim, fuller: under the evergreens' skirts they showed as a patch or two of
+				// colour)
+				const b = a + Math.PI / 4, rm = 0.66;
+				if ( i < 3 ) mound( x + Math.cos( b ) * rm, z + Math.sin( b ) * rm, 0.62, 0.24 + 0.05 * rnd(), 0.26 + 0.06 * rnd(), 26, K.mum, 0.065 );
 
 			}
 			mound( x, z, 0.62, 0.4, 0.62, 34, K.leaf, 0.1 );
