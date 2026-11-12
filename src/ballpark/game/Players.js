@@ -1102,9 +1102,18 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			// Howard; 83485858). The jersey's edge just under the collar's top line all round, dropping in
 			// front to a V 3.6 cm deep and 5 cm across at the top
 			let frontV = smoothstep( -0.035, -0.06, L.z - nk.z ) * max( 0.0, 1.0 - abs( L.x ) / 0.025 );
-			let yJ = cy + 0.001 - 0.036 * frontV;
-			let vee = frontV > 0.0 && L.y > yJ && L.y < cy;
 			// ---- end FK2
+			// ---- FK2 repair (step 12, CR1-24's torn edge): the collar's two edges were heights (a plane tipped
+			// down to the front), cut off at 10 and 11 cm from the neck's axis. Over the flat of the shoulders
+			// a height is no edge at all: the skin ran out to the 10 cm circle, the undershirt's band was the
+			// 1 cm between the circles with a square tab where each met the plane, and the line stepped from
+			// facet to facet. Both edges are now a cone round the neck's axis: the same heights on the neck's
+			// own column (5.8 cm out), and a centimetre higher for every centimetre further out, so they cross
+			// the trapezius' slope squarely and close round the neck's base: an even ring about a centimetre
+			// wide all the way round (Getty 83485929, Howard; 83485858, Lidge)
+			let cone = max( r - 0.058, 0.0 );
+			let yJ = cy + 0.001 + cone - 0.036 * frontV;
+			// ---- end FK2 repair
 			// ---- FY3: the underside of a jutting chin is skin (the ring round the neck took it for the jersey and
 			// the undershirt's collar: a white and red crescent under every jaw in the close-ups); the
 			// undershirt's collar rides up the neck, a crew neck's 1.2 cm for most, a mock turtleneck's 4 cm for
@@ -1112,9 +1121,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let chinU = L.z < nk.z - 0.075 && L.y > cy + 0.02;
 			// (the umpires' jackets close round the neck in a collar: Getty 83485455)
 			let mock = select( select( 0.012, 0.038, fract( seed * 17.3 ) < 0.3 && ! crew && ! jacket && ! phan ), 0.03, ump );
-			if ( L.y > nk.y + 0.03 || chinU || ( L.y > cy + mock && r < 0.1 ) ) { part = ${ P.skin }; skinArea = 1; }
+			if ( L.y > nk.y + 0.03 || chinU || L.y > cy + mock + cone ) { part = ${ P.skin }; skinArea = 1; } // (---- FK2 repair: the cone)
 			// ---- end FY3
-			else if ( ( L.y > yJ && r < 0.11 ) || vee ) { part = select( ${ P.sleeve }, ${ P.jersey }, jacket ); } // (---- FK2: yJ, was cy - 0.011)
+			else if ( L.y > yJ ) { part = select( ${ P.sleeve }, ${ P.jersey }, jacket ); } // (---- FK2: yJ, was cy - 0.011)
 			else if ( L.y > ${ f( U.belt[ 1 ] ) } ) { part = ${ P.jersey }; }
 			else if ( L.y > ${ f( U.belt[ 0 ] ) } ) { part = ${ P.belt }; }
 			else { part = ${ P.pants }; }
