@@ -1055,8 +1055,15 @@ export function figureGeometry( lod = 0 ) {
 	// (FW6, C4W-4: narrower, over the narrower shoulders: it stood 9 cm out from the arms at the elbow, a
 	// bell 0.67 m across; and falling in a little under the hands to its hem, as film does round the legs,
 	// not a box's straight sides)
-	loft( B.spine, PART.poncho, fine ? [ [ 0.7, 0.29, 0.186, 0.02 ], [ 0.82, 0.3, 0.192, 0.02 ], [ 0.98, 0.302, 0.19, 0.018 ], [ 1.14, 0.296, 0.178, 0.018 ],
-		[ 1.27, 0.288, 0.162, 0.022 ], [ 1.35, 0.272, 0.142, 0.026 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.45, 0.163, 0.088, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ]
+	// ---- FK5 (CR1-25): close up the film lies on the shoulders: down the trapezius from the collar to the
+	// point of the shoulder (squared there, over the deltoid), then falling straight over the arms; flatter
+	// front and back, the film hanging against the chest and the back, and no wider at the hem than at the
+	// hands (Getty 83891095, AP 4551238/4551250: the shoulders' shape shows through a poncho). It was a dome
+	// from the collar to a bulge at the hips, round in plan: a bowling pin, a bell
+	loft( B.spine, PART.poncho, fine ? [ [ 0.7, 0.292, 0.17, 0.02, 2.2 ], [ 0.82, 0.297, 0.175, 0.02, 2.2 ], [ 0.98, 0.298, 0.178, 0.018, 2.2 ], [ 1.14, 0.288, 0.17, 0.018, 2.3 ],
+		[ 1.27, 0.272, 0.156, 0.022, 2.5 ], [ 1.34, 0.258, 0.14, 0.026, 2.7 ], [ 1.385, 0.244, 0.122, 0.028, 2.8 ], [ 1.415, 0.222, 0.108, 0.03, 2.6 ], [ 1.44, 0.172, 0.095, 0.03, 2.3 ],
+		[ 1.462, 0.12, 0.08, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ]
+	// ---- end FK5
 		: [ [ 0.7, 0.29, 0.186, 0.02 ], [ 0.98, 0.302, 0.19, 0.018 ], [ 1.27, 0.288, 0.162, 0.022 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ],
 	fine ? F( 18, 12 ) : tiny ? 5 : 8, false, false, fine );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
@@ -2086,9 +2093,12 @@ function castMaterial( pool ) {
 	if ( part == ${ PART.torso }u || part == ${ PART.sleeve }u ) {
 		// what he wears: the top's cloth, its sheen, its seams
 		let shiny = top == ${ TOP.jacket }u || top == ${ TOP.puffer }u || top == ${ TOP.leather }u || top == ${ TOP.satin }u || top == ${ TOP.usher }u || top == ${ TOP.flyers }u || top == ${ TOP.raincoat }u;
-		rough = select( 0.88, 0.45, shiny );
-		if ( top == ${ TOP.leather }u ) { rough = 0.38; }
-		if ( top == ${ TOP.raincoat }u ) { rough = 0.25; }
+		// (FK5, CR1-25: nylon and satin 0.52, leather 0.46, a raincoat's vinyl 0.32: they were 0.45, 0.38 and
+		// 0.25, plastic shells with a round highlight on each; Getty 83486360's jackets have a sheen that runs
+		// along their folds, which the folds below now turn)
+		rough = select( 0.88, 0.52, shiny );
+		if ( top == ${ TOP.leather }u ) { rough = 0.46; }
+		if ( top == ${ TOP.raincoat }u ) { rough = 0.32; }
 		if ( top == ${ TOP.coat }u ) { rough = 0.95; }
 		// a jersey or a tee: the sleeves are the thermal or hoodie underneath, below the short sleeve
 		let shortSleeve = top == ${ TOP.homeJersey }u || top == ${ TOP.nameTee }u || top == ${ TOP.powder }u || top == ${ TOP.rays }u || top == ${ TOP.roadJersey }u || top == ${ TOP.champsTee }u || top == ${ TOP.staff }u || top == ${ TOP.cook }u || top == ${ TOP.polo }u;
@@ -2587,7 +2597,9 @@ function castMaterial( pool ) {
 			// under it at 0.9 (it was 0.72 under a 20% grey: an opaque grey shell), the folds' tilt halved and
 			// their size each poncho's own (it was an even hammered dimpling, grey metal)
 			let cr = filmCrumple( L * select( 0.8 + 0.45 * g.z, 0.7, poncho == 6u ), length( fwidth( L ) ) );
-			s.normal = filmTilt( s.normal, cr.xyz * select( 0.22, 0.8, poncho > 1u ) );
+			// (FK5, CR1-25: the clear film crinkled harder, 0.45 not 0.22: the light off it broke into a few
+			// round blobs, a glass bottle's, where the photos have it in streaks and glints along every crease)
+			s.normal = filmTilt( s.normal, cr.xyz * select( 0.45, 0.8, poncho > 1u && poncho != 7u ) );
 			let fres = pow( 1.0 - abs( dot( s.normal, normalize( in.V ) ) ), 2.0 );
 			let under = select( topC, c, filmSleeve ) * 0.9;
 			let haze = vec3f( 0.44, 0.46, 0.5 );
@@ -2601,7 +2613,9 @@ function castMaterial( pool ) {
 			if ( poncho == 7u ) { pc = mix( topC * 0.8, haze, 0.12 + 0.04 * cr.w + 0.32 * fres ); }
 			if ( poncho == 6u ) { pc = vec3f( 0.15, 0.155, 0.16 ) * ( 0.9 + 0.15 * cr.w ); }
 			c = pc;
-			rough = select( select( 0.24, 0.2, poncho == 1u || poncho == 7u || poncho == 3u ), 0.45, poncho == 6u );
+			// (FK5, CR1-25: the coloured vinyl 0.3, not 0.24: a soft sheen with the glints in its creases, not a
+			// lacquered pin)
+			rough = select( select( 0.3, 0.2, poncho == 1u || poncho == 7u || poncho == 3u ), 0.45, poncho == 6u );
 			// the clear film shows the jacket's print through it
 			if ( poncho == 1u ) { c = mix( c, printC * 0.8, printA * 0.5 ); }
 			// ---- end FW4
@@ -2809,7 +2823,8 @@ function castMaterial( pool ) {
 	let fk = 1.0 - smoothstep( 0.0035, 0.012, length( fwidth( L ) ) );
 	let fax = abs( L.x );
 	let fph = g.x * 6.2832;
-	let fold = select( select( select( 1.0, 1.45, top == ${ TOP.hoodie }u || top == ${ TOP.fleece }u ), 0.6, top == ${ TOP.leather }u || top == ${ TOP.coat }u || top == ${ TOP.trooper }u ), 0.5, top == ${ TOP.puffer }u );
+	// (FK5, CR1-25: leather creases as much as nylon, 0.9 not 0.6: the black leather jacket was a smooth shell)
+	let fold = select( select( select( select( 1.0, 1.45, top == ${ TOP.hoodie }u || top == ${ TOP.fleece }u ), 0.6, top == ${ TOP.coat }u || top == ${ TOP.trooper }u ), 0.5, top == ${ TOP.puffer }u ), 0.9, top == ${ TOP.leather }u );
 	if ( part == ${ PART.torso }u ) {
 		let sideA = smoothstep( 0.105, 0.17, fax ) * smoothstep( 0.86, 1.0, L.y ) * smoothstep( 1.42, 1.32, L.y );
 		let pit = smoothstep( 0.135, 0.175, fax ) * smoothstep( 1.2, 1.29, L.y ) * smoothstep( 1.4, 1.33, L.y );
@@ -2825,6 +2840,18 @@ function castMaterial( pool ) {
 			let jersey = top == ${ TOP.homeJersey }u || top == ${ TOP.roadJersey }u || top == ${ TOP.powder }u;
 			fh = select( 0.0034 * drag + 0.0028 * bunch + 0.0024 * hemF, 0.0012 * drag + 0.003 * hang + 0.0018 * hemF, jersey ) * fold;
 			if ( top == ${ TOP.puffer }u ) { let b = fract( L.y / 0.09 ) * 2.0 - 1.0; fh += 0.0055 * ( 1.0 - b * b ); }
+			// ---- FK5 (CR1-25): the seams: over the top of each shoulder (the front panel sewn to the back),
+			// down each side from the armpit, a jacket's yoke across the back; a fine dark line with the cloth
+			// drawn into it (Getty 83486360, auds 2982693299: a satin jacket's seams and piping catch the light).
+			// (The tops were one seamless panel)
+			let shSeam = smoothstep( 0.0035, 0.0012, abs( L.z - 0.027 ) ) * smoothstep( 0.065, 0.085, fax ) * smoothstep( 1.37, 1.395, L.y );
+			let sdSeam = smoothstep( 0.004, 0.0015, abs( L.z - 0.008 - 0.01 * smoothstep( 1.2, 1.35, L.y ) ) ) * smoothstep( 0.125, 0.145, fax ) * smoothstep( 1.29, 1.25, L.y );
+			let yokeT = top == ${ TOP.jacket }u || top == ${ TOP.leather }u || top == ${ TOP.satin }u || top == ${ TOP.work }u || top == ${ TOP.flyers }u || top == ${ TOP.raincoat }u || top == ${ TOP.usher }u || top == ${ TOP.coat }u || top == ${ TOP.trooper }u || top == ${ TOP.camo }u;
+			let ySeam = select( 0.0, smoothstep( 0.0035, 0.0012, abs( L.y - 1.31 - 0.03 * fax ) ) * smoothstep( 0.045, 0.075, L.z ), yokeT );
+			let seam = max( max( shSeam, sdSeam ), ySeam );
+			ao *= 1.0 - 0.3 * seam * fk;
+			fh -= 0.0008 * seam;
+			// ---- end FK5
 		}
 	}
 	if ( part == ${ PART.sleeve }u ) {
@@ -2840,8 +2867,31 @@ function castMaterial( pool ) {
 			let twist = sin( L.y * 55.0 + atan2( L.x - sign( L.x ) * ax0, L.z ) + fph ) * smoothstep( 1.3, 1.15, L.y );
 			fh = ( 0.0022 * rings * el + 0.0016 * cuff + 0.0018 * twist ) * fold;
 			if ( top == ${ TOP.puffer }u ) { let b = fract( L.y / 0.075 ) * 2.0 - 1.0; fh += 0.005 * ( 1.0 - b * b ); }
+			// ---- FK5 (CR1-25): the armhole's seam round the sleeve's head, high over the shoulder and down
+			// into the armpit
+			let ahS = smoothstep( 0.004, 0.0015, abs( L.y - 1.29 - ( fax - 0.15 ) * 1.25 ) ) * smoothstep( 1.25, 1.29, L.y ) * select( 1.0, 0.0, poncho > 0u && poncho < 7u );
+			ao *= 1.0 - 0.3 * ahS * fk;
+			fh -= 0.0008 * ahS;
+			// ---- end FK5
 		}
 	}
+	// ---- FK5 (CR1-25): a poncho's film hangs in long folds from the shoulders, sharp-crested (film
+	// creases, it doesn't roll as cloth does), uneven, each poncho its own, deeper toward the hem, and finer
+	// ones between them (Getty 83891095, AP 4551250: deep vertical folds, the light along their crests in
+	// streaks); a long coat's skirt in softer, wider ones. Across them the film's crinkle (filmCrumple). (The
+	// film was smooth: one round highlight on each, a bottle)
+	if ( part == ${ PART.poncho }u && fk > 0.0 ) {
+		let pa = atan2( L.x, L.z - 0.02 );
+		let w1 = sin( pa * 9.0 + fph + 1.3 * sin( L.y * 5.0 + fph * 2.0 ) );
+		let w2 = sin( pa * 21.0 + fph * 3.0 + 2.0 * sin( L.y * 9.0 + pa * 2.0 + fph ) );
+		let crest = 1.0 - abs( w1 );
+		if ( poncho > 0u ) {
+			fh = ( 0.005 * ( crest * crest - 0.35 ) + 0.0018 * w2 ) * smoothstep( 1.42, 1.22, L.y ) * ( 0.55 + 0.45 * smoothstep( 1.15, 0.8, L.y ) );
+		} else {
+			fh = 0.003 * sin( pa * 7.0 + fph + 1.1 * sin( L.y * 4.0 + fph ) ) * smoothstep( 0.95, 0.75, L.y );
+		}
+	}
+	// ---- end FK5
 	if ( part == ${ PART.neck }u ) { ao *= 0.72; }
 	if ( part == ${ PART.pants }u ) {
 		ao *= 1.0 - 0.3 * smoothstep( 0.06, 0.015, fax ) * smoothstep( 0.68, 0.84, L.y );
