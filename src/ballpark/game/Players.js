@@ -1638,9 +1638,9 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		// (---- FK2 repair: it couldn't be seen, by night or day: 11 degrees up and 9 out it sat under the upper
 		// lid, which at rest comes down to the pupil's top on these faces (a ballplayer's lids under a bill),
 		// and at a fifth of the light's strength it was dimmer than the lit white beside it. Now on the
-		// pupil's edge at its own height, the same side in both eyes (one bank of lights, not two), 2 mm
+		// pupil's edge just under its middle, the same side in both eyes (one bank of lights, not two), 2 mm
 		// across and as bright as the light it mirrors)
-		let cl = length( d - normalize( vec3f( 0.12, 0.0, -1.0 ) ) );
+		let cl = length( d - normalize( vec3f( 0.12, -0.03, -1.0 ) ) );
 		s.emissive = s.emissive + frame.sunColor * vec3f( 0.95, 0.97, 1.0 ) * ( 0.6 + 2.0 * smoothstep( 0.15, 0.7, frame.night ) * ${ f( NIGHT_FILL ) } ) * smoothstep( 0.1, 0.05, cl );
 		// ---- end FK2
 	}
