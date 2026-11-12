@@ -1262,11 +1262,20 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 	if ( ( part == ${ P.cap } || part == ${ P.helmet } ) && Nb.z > 0.5 && Nb.y < 0.75 ) {
 		// the batterman at the back
 		cell = ${ C.mlb }.0; lu = 0.5 + L.x / 0.036; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.07 ) } ) / 0.04;
+		// ---- FK2 repair (step 12, CR1-23): on the champions' cap the Series logo is here, low on the back and
+		// about 6 cm across, not on the side (Getty 83485940: the cap of the man hugging Manuel, from behind;
+		// 83486314, Hamels, and 83912493, Werth, theirs on backwards with the logo over the forehead). Its own
+		// batterman is the logo's top corner
+		if ( ( role & ${ R.champCap }u ) != 0u && part == ${ P.cap } ) { cell = ${ C.patch }.0; lu = 0.5 + L.x / 0.066; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.107 ) } ) / 0.066; }
+		// ---- end FK2 repair
 	}
 	// ---- FY3 (CY-18): the 2008 World Series logo on the cap's left side, as both clubs wore it in the
 	// Series (Getty 83485858, Lidge at the last out; 83485159, Balfour)
-	// (---- FK2, CR1-23: the champions' cap too: Getty 83485940, the black cap with the Series logo on its left side)
-	if ( part == ${ P.cap } && ! billPart && ( role & ${ R.navyCap }u ) == 0u && Nb.x < -0.5 && abs( Nb.y ) < 0.6 ) {
+	// (---- FK2 repair: not the champions' cap, whose logo is on its back (above). And only where the logo's
+	// own cell reaches (L.z > -0.065): this test is true on the crown's front too from 3.5 cm to the wearer's
+	// left of centre, where it took the cell from the front's emblem and drew nothing: with the champions'
+	// cap let into it, the arch read CHAMPION, its last S and half the N gone, on every man: SK-FK2's M09)
+	if ( part == ${ P.cap } && ! billPart && ( role & ${ R.navyCap | R.champCap }u ) == 0u && Nb.x < -0.5 && abs( Nb.y ) < 0.6 && L.z > -0.065 ) {
 		cell = ${ C.patch }.0; lu = 0.5 + ( L.z + 0.044 ) / 0.044; lv = 0.5 - ( L.y - ${ f( F.top[ 1 ] - 0.052 ) } ) / 0.044;
 	}
 	// ---- end FY3
@@ -2109,8 +2118,9 @@ function drawChest( ctx, i, home, jacket = false ) {
 // arch of CHAMPIONS in red letters edged in white, WORLD SERIES small over it, and under the arch's middle
 // the Phillies' red roundel with the white P, 20 and 08 in gold either side (Getty 83571347, Manuel on the
 // stage, and Rollins beside him; 83485940, Manuel on the field). The cell spans 12 cm of the front (the
-// fragment maps it so for this cap), the logo its upper half: the arch about 9.5 cm across (at 10.5 its
-// last S went round the side, out of the front's cell, on a turned head: a5/M01)
+// fragment maps it so for this cap), the logo its upper half: the arch about 10.5 cm across
+// (---- FK2 repair: 10.5 again, as 83485940 has it, the arch from seam to seam. It was narrowed to 9.5 when
+// its last S vanished, but the S was taken by the side logo's test, not by the cell's edge: the fragment)
 function drawChampCap( ctx, i ) {
 
 	const [ x, y ] = cellXY( i );
@@ -2153,8 +2163,8 @@ function drawChampCap( ctx, i ) {
 	ctx.stroke();
 	arc( 'WORLD SERIES', 106, 78, 0.052, '800 6px "Helvetica Neue", Arial, sans-serif', '#eceae4', null, 0, 1 );
 	// CHAMPIONS: red, edged white, a dark keyline outside the white
-	arc( 'CHAMPIONS', 86, 70, 0.13, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#101012', 7, 0.7 );
-	arc( 'CHAMPIONS', 86, 70, 0.13, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#f2f0ea', 4.2, 0.7 );
+	arc( 'CHAMPIONS', 86, 70, 0.142, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#101012', 7, 0.74 );
+	arc( 'CHAMPIONS', 86, 70, 0.142, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#f2f0ea', 4.2, 0.74 );
 	// the roundel: white ring, the red disc, the white P
 	ctx.fillStyle = '#f2f0ea';
 	ctx.beginPath();
@@ -2230,31 +2240,87 @@ function drawCapLogo( ctx, i, home ) {
 
 }
 
-// the 2008 World Series patch worn on the right sleeve: a navy disc, WORLD SERIES and 2008
+// the 2008 World Series patch worn on the right sleeve, on the caps' left side and on the back of the
+// champions' cap
+// ---- FK2 repair (step 12, CR1-23): the Series' own logo, not a navy disc. Getty 83485940 has it close, on
+// the back of a champions' cap: a diamond edged in navy and gold, its field green, WORLD over SERIES in
+// white capitals edged in navy across its middle and out past its sides, rising a little to the right, the
+// batterman in its top corner, 2008 under the words and a small base at its foot (83486314, Hamels's cap on
+// backwards: the same)
 function drawPatch( ctx, i ) {
 
 	const [ x, y ] = cellXY( i );
 	ctx.save();
 	ctx.clearRect( x, y, CELL, CELL );
+	ctx.beginPath();
+	ctx.rect( x, y, CELL, CELL );
+	ctx.clip();
 	ctx.translate( x + CELL / 2, y + CELL / 2 );
-	ctx.fillStyle = '#f4f2ec';
-	ctx.beginPath(); ctx.arc( 0, 0, 60, 0, Math.PI * 2 ); ctx.fill();
-	ctx.fillStyle = '#10275f';
-	ctx.beginPath(); ctx.arc( 0, 0, 54, 0, Math.PI * 2 ); ctx.fill();
+	ctx.lineJoin = 'round';
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
+	const diamond = ( w, h ) => {
+
+		ctx.beginPath();
+		ctx.moveTo( 0, - h );
+		ctx.lineTo( w, 0 );
+		ctx.lineTo( 0, h );
+		ctx.lineTo( - w, 0 );
+		ctx.closePath();
+
+	};
+	diamond( 50, 58 );
 	ctx.fillStyle = '#f4f2ec';
-	ctx.font = '700 20px Georgia, serif';
-	ctx.fillText( 'WORLD', 0, - 14 );
-	ctx.fillText( 'SERIES', 0, 8 );
-	ctx.fillStyle = '#e3b23c';
-	ctx.font = '800 18px Georgia, serif';
-	ctx.fillText( '2008', 0, 30 );
+	ctx.fill();
+	diamond( 46.5, 54 );
+	ctx.fillStyle = '#14235c';
+	ctx.fill();
+	diamond( 41, 47.5 );
+	ctx.fillStyle = '#e0aa2e';
+	ctx.fill();
+	diamond( 38, 44 );
+	ctx.fillStyle = '#7f9a3a';
+	ctx.fill();
+	// the batterman in the top corner: white, the blue to the left of the batter and the red to the right
+	ctx.fillStyle = '#f4f2ec';
+	ctx.beginPath();
+	ctx.roundRect( - 11, - 39, 22, 12, 2.5 );
+	ctx.fill();
+	ctx.fillStyle = '#0b2a6b';
+	ctx.fillRect( - 9.5, - 37.5, 10, 9 );
 	ctx.fillStyle = '#c8102e';
-	ctx.fillRect( - 16, - 44, 32, 14 );
+	ctx.fillRect( 2.5, - 37.5, 7, 9 );
+	// 2008 under the words, the base at the foot
+	ctx.fillStyle = '#1d3a14';
+	ctx.font = '800 11px Georgia, "Times New Roman", serif';
+	ctx.fillText( '2008', 2, 25 );
+	ctx.fillStyle = '#f4f2ec';
+	ctx.beginPath();
+	ctx.moveTo( 0, 33 ); ctx.lineTo( 7, 40 ); ctx.lineTo( 0, 47 ); ctx.lineTo( - 7, 40 );
+	ctx.closePath();
+	ctx.fill();
+	ctx.fillStyle = '#c8102e';
+	ctx.beginPath();
+	ctx.moveTo( 0, 40 ); ctx.lineTo( 4, 40 ); ctx.lineTo( 0, 44 ); ctx.lineTo( - 4, 40 );
+	ctx.closePath();
+	ctx.fill();
+	// WORLD over SERIES: white, edged in navy, wider than the diamond
+	ctx.rotate( - 0.1 );
+	ctx.strokeStyle = '#14235c';
+	ctx.fillStyle = '#f7f5ef';
+	for ( const [ word, size, ty, w ] of [ [ 'WORLD', 21, - 11, 86 ], [ 'SERIES', 25, 9, 112 ] ] ) {
+
+		ctx.font = `900 ${ size }px Georgia, "Times New Roman", serif`;
+		ctx.lineWidth = 6;
+		ctx.strokeText( word, 0, ty, w );
+		ctx.fillText( word, 0, ty, w );
+
+	}
+
 	ctx.restore();
 
 }
+// ---- end FK2 repair
 
 // ---- FY3: the Rays' 2008 sleeve logo: a manta ray from above, navy edged in Columbia blue, its wings
 // swept, its tail trailing (Getty 83485159, Balfour's left sleeve)
