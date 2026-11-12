@@ -1879,13 +1879,17 @@ function castMaterial( pool ) {
 		let lidRest = 0.1 + 0.2 * fr.z + select( 0.0, 0.12, age == 1u );
 		let fh = fhBlend( fhOn - 1u, fc[ 0 ], fc[ 1 ], vec3f( mouthK, smileK, max( clamp( a7.z, 0.0, 1.0 ), lidRest * ( 1.0 - 0.6 * smileK ) ) ), 0.0 ); // (---- FF3: no rest of its own: ex has it)
 		// ---- end FF2
-		q += fh.dp * hk;
+		// (FK5 repair: a cap on backwards is turned half round about the head's centre below (FP2), after this:
+		// the skull's move under it, from the turned record, is turned with it beforehand, so it comes out as
+		// the skull's own; unturned, the cap went in where the skull came out at its sides, front and back)
+		let fhTurn = select( vec3f( 1.0 ), vec3f( - 1.0, 1.0, - 1.0 ), ( part == ${ PART.brim }u || part == ${ PART.crown }u ) && hat == ${ HAT.capBack }u );
+		q += fh.dp * hk * fhTurn;
 		if ( fhi > 0u ) {
 			n = normalize( n + fh.dn );
 			fhPaint = fh.d;
 		}
 		let hoodUp = poncho > 0u && fract( f32( lk.w & 65535u ) / 65536.0 * 13.1 ) > 0.35;
-		if ( hat == ${ HAT.hood }u || hoodUp || ${ any( 'hat', knitHats ) } || hat == ${ HAT.earmuffs }u || hat == ${ HAT.motor }u || hairStyle == 1u ) { q += fh.fold * hk; }
+		if ( hat == ${ HAT.hood }u || hoodUp || ${ any( 'hat', knitHats ) } || hat == ${ HAT.earmuffs }u || hat == ${ HAT.motor }u || hairStyle == 1u ) { q += fh.fold * hk * fhTurn; }
 	}
 	// ---- end FF1
 	if ( bone == 2u && part != ${ PART.neck }u ) {
