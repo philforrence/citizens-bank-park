@@ -2821,6 +2821,22 @@ export class Crowd {
 		const kd = k * Math.hypot( 1, camera.aspect || 1.6 );
 		const c = this._c || ( this._c = new Vector3() );
 		const fwd = ( this._f || ( this._f = new Vector3() ) ).set( 0, 0, - 1 ).transformDirection( camera.matrixWorld );
+		// ---- SP4 (speed): a piece takes its level from its nearest point, and a piece's rows run a long way
+		// round the bowl: from the 400s seat 672 fans out to 60 m were at the close level (408 of them within
+		// its edge, 9.5 m), from TV high 1,419 out to 51 m (258). A piece that straddles the close or the near
+		// level's edge draws each fan at the level his own size asks for (_split()), those over the edge at
+		// the next level. (`crowd.fanLod = false`: by piece, as before, for an A/B)
+		const seats = this.fanLod !== false ? this._seats : null;
+		if ( seats && ! this._fanSphere ) {
+
+			const g = this.geometries[ 0 ];
+			if ( ! g.boundingSphere ) g.computeBoundingSphere();
+			const s = g.boundingSphere;
+			// (a fan's sphere about his seat: the figure's centre over it, and its reach round it)
+			this._fanSphere = [ s.center.y, s.radius + Math.hypot( s.center.x, s.center.z ) ];
+
+		}
+		// ---- end SP4
 		for ( const ch of this.chunks ) {
 
 			const bs = ch.near.boundingSphere;
@@ -2835,11 +2851,72 @@ export class Crowd {
 			// never through a long lens, whose fans are all far off)
 			// ---- SP2: and the distant one beyond DISTANT (fans under ~8 px)
 			const level = d < 4 && k > 0.17 ? 0 : d < 11 ? 1 : d < 30 ? 2 : d < this.distant ? 3 : 4;
-			for ( let k = 0; k < ch.lods.length; k ++ ) ch.lods[ k ].visible = level === k;
+			// ---- SP4: its farthest fan over the level's edge: each fan by his own size
+			if ( seats && level <= 1 && Math.max( dist + R, ( lat + R ) / kd ) * k >= ( level === 0 ? 4 : 11 ) && this._split( ch, level, camera.position, fwd, k, kd ) ) continue;
+			for ( let k = 0; k < ch.lods.length; k ++ ) {
+
+				ch.lods[ k ].visible = level === k;
+				ch.lods[ k ].instanceRangeCount = 0;
+
+			}
+			// ---- end SP4
 
 		}
 
 	}
+
+	// ---- SP4 (speed): a piece at level L (close or near) whose far side is over the level's edge: the fans
+	// within it drawn at L, the rest at L + 1, as runs of the piece's instances (MeshRenderer's
+	// instanceRanges: the piece is in rows, so a run is a row's stretch). Each fan's size is lod()'s measure
+	// for his own sphere, which lies in the piece's: nobody is drawn coarser than his size asks for
+	_split( ch, L, cam, fwd, k, kd ) {
+
+		const n = ch.near.count, S = this._seats, [ oy, rf ] = this._fanSphere, edge = L === 0 ? 4 : 11;
+		const A = ch.lods[ L ], B = ch.lods[ L + 1 ];
+		const ra = A.instanceRanges || ( A.instanceRanges = new Uint32Array( n * 2 ) );
+		const rb = B.instanceRanges || ( B.instanceRanges = new Uint32Array( n * 2 ) );
+		let na = 0, nb = 0;
+		for ( let i = 0; i < n; i ++ ) {
+
+			const f = ( ch.base + i ) * 4;
+			const dx = S[ f ] - cam.x, dy = S[ f + 1 ] + oy - cam.y, dz = S[ f + 2 ] - cam.z;
+			const dist = Math.sqrt( dx * dx + dy * dy + dz * dz ), depth = dx * fwd.x + dy * fwd.y + dz * fwd.z;
+			const lat = Math.sqrt( Math.max( 0, dist * dist - depth * depth ) );
+			if ( Math.max( 0, dist - rf, ( lat - rf ) / kd ) * k < edge ) {
+
+				if ( na && ra[ na * 2 - 2 ] + ra[ na * 2 - 1 ] === i ) ra[ na * 2 - 1 ] ++;
+				else { ra[ na * 2 ] = i; ra[ na * 2 + 1 ] = 1; na ++; }
+
+			} else {
+
+				if ( nb && rb[ nb * 2 - 2 ] + rb[ nb * 2 - 1 ] === i ) rb[ nb * 2 - 1 ] ++;
+				else { rb[ nb * 2 ] = i; rb[ nb * 2 + 1 ] = 1; nb ++; }
+
+			}
+
+		}
+
+		for ( const m of ch.lods ) {
+
+			m.visible = false;
+			m.instanceRangeCount = 0;
+
+		}
+
+		A.visible = na > 0;
+		B.visible = nb > 0;
+		// (all of them on one side: the whole piece, one draw)
+		if ( na && nb ) {
+
+			A.instanceRangeCount = na;
+			B.instanceRangeCount = nb;
+
+		}
+
+		return true;
+
+	}
+	// ---- end SP4
 
 	// how the crowd feels about the game at the replay's time (a function of the timeline, so scrubbing
 	// shows the right thing): up on two strikes and two outs when the Phillies pitch, on their feet for a
