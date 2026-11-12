@@ -87,6 +87,45 @@ const HEAD_R = [ 0.079, 0.104, 0.096 ];
 // ---- FP1: where a cap's crown comes down to on the head (d.y on the head's unit sphere), by how far
 // round to the front it is: just above the brows in front, the tops of the ears at the sides, low behind
 const capRim = ( front ) => 0.18 + 0.225 * front;
+// ---- FK5 (CR1-16): how far out the skull is from the head's centre along a direction (a unit vector),
+// on the MakeHuman head the near and middle figures wear (FanHead.js, sized to HEAD_R as FF1 sizes it).
+// A cap's crown and a knit hat's pom-pom sit on it: they were built on the seats' egg, which stands 1.4 cm
+// over the MakeHuman skull at the top and 2 cm off the back of it, so every cap rode up on its owner's
+// head like a helmet a size too big and the pom-pom hung in the air over the hat
+const _skull = new Map();
+function skullAt( dir ) {
+
+	const key = dir.map( ( v ) => v.toFixed( 3 ) ).join( ',' );
+	if ( _skull.has( key ) ) return _skull.get( key );
+	const L = fanHeadLevel( 'near' ), k = HEAD_R.map( ( r, i ) => r / FH.R[ i ] ), P = L.position, I = L.index;
+	const at = ( i ) => [ P[ i * 3 ] * k[ 0 ], P[ i * 3 + 1 ] * k[ 1 ], P[ i * 3 + 2 ] * k[ 2 ] ];
+	let best = Infinity;
+	// (Moller-Trumbore from the centre: the nearest face the ray goes through is the skull's)
+	for ( let t = 0; t < I.length; t += 3 ) {
+
+		const a = at( I[ t ] ), b = at( I[ t + 1 ] ), c = at( I[ t + 2 ] );
+		const e1 = [ b[ 0 ] - a[ 0 ], b[ 1 ] - a[ 1 ], b[ 2 ] - a[ 2 ] ], e2 = [ c[ 0 ] - a[ 0 ], c[ 1 ] - a[ 1 ], c[ 2 ] - a[ 2 ] ];
+		const p = [ dir[ 1 ] * e2[ 2 ] - dir[ 2 ] * e2[ 1 ], dir[ 2 ] * e2[ 0 ] - dir[ 0 ] * e2[ 2 ], dir[ 0 ] * e2[ 1 ] - dir[ 1 ] * e2[ 0 ] ];
+		const det = e1[ 0 ] * p[ 0 ] + e1[ 1 ] * p[ 1 ] + e1[ 2 ] * p[ 2 ];
+		if ( Math.abs( det ) < 1e-12 ) continue;
+		const s = [ - a[ 0 ], - a[ 1 ], - a[ 2 ] ];
+		const u = ( s[ 0 ] * p[ 0 ] + s[ 1 ] * p[ 1 ] + s[ 2 ] * p[ 2 ] ) / det;
+		if ( u < 0 || u > 1 ) continue;
+		const q = [ s[ 1 ] * e1[ 2 ] - s[ 2 ] * e1[ 1 ], s[ 2 ] * e1[ 0 ] - s[ 0 ] * e1[ 2 ], s[ 0 ] * e1[ 1 ] - s[ 1 ] * e1[ 0 ] ];
+		const v = ( dir[ 0 ] * q[ 0 ] + dir[ 1 ] * q[ 1 ] + dir[ 2 ] * q[ 2 ] ) / det;
+		if ( v < 0 || u + v > 1 ) continue;
+		const d = ( e2[ 0 ] * q[ 0 ] + e2[ 1 ] * q[ 1 ] + e2[ 2 ] * q[ 2 ] ) / det;
+		if ( d > 0.02 && d < best ) best = d;
+
+	}
+
+	// (not through it: the egg's own, a little in)
+	if ( ! ( best < 0.2 ) ) best = 0.95 / Math.hypot( dir[ 0 ] / HEAD_R[ 0 ], dir[ 1 ] / HEAD_R[ 1 ], dir[ 2 ] / HEAD_R[ 2 ] );
+	_skull.set( key, best );
+	return best;
+
+}
+// ---- end FK5
 
 // bones
 const B = { pelvis: 0, spine: 1, head: 2, uarm: [ 3, 4 ], farm: [ 5, 6 ], thigh: [ 7, 8 ], shin: [ 9, 10 ], prop: [ 11, 12 ] };
@@ -736,16 +775,29 @@ export function figureGeometry( lod = 0 ) {
 		// little down, with thickness and an underside. (It was a painted skullcap with a flat blade
 		// through its middle.) The distant figure keeps the paint and a flat bill at the rim
 		const R = HEAD_R;
+		// ---- FK5 (CR1-16): the near and middle figures' crown on their own skull (skullAt), the band a
+		// finger's thickness of hair and sweatband off it at the rim, a little more over the top, the front
+		// panels standing up off the forehead as a structured cap's do (Flickr hcwoodward 2983666367, auds
+		// 2982693299: the caps on the 3B concourse sit down on the head, the bill at the brows, no daylight
+		// under the crown). The far figure keeps the egg's
+		const onSkull = ( d, out ) => {
+
+			const dir = norm( [ d[ 0 ] * R[ 0 ], d[ 1 ] * R[ 1 ], d[ 2 ] * R[ 2 ] ] );
+			return mul( dir, skullAt( dir ) + out );
+
+		};
 		const rimAt = ( psi, out ) => {
 
 			const dy = capRim( Math.cos( psi ) ), sxz = Math.sqrt( 1 - dy * dy );
+			if ( fine ) return onSkull( [ Math.sin( psi ) * sxz, dy, - Math.cos( psi ) * sxz ], 0.006 + out );
 			return [ Math.sin( psi ) * sxz * ( R[ 0 ] + out ), dy * ( R[ 1 ] + out ), - Math.cos( psi ) * sxz * ( R[ 2 ] + out ) ];
 
 		};
+		// ---- end FK5
 		if ( ! tiny ) {
 
 			const cw = fine ? F( 12, 10 ) : 8, ck = fine ? F( 4, 3 ) : 3;
-			const apex = vert( add( h, [ 0, R[ 1 ] + 0.017, - 0.004 ] ), [ 0, 1, 0 ], B.head, PART.crown );
+			const apex = vert( add( h, fine ? add( onSkull( [ 0, 1, 0 ], 0.012 ), [ 0, 0.004, - 0.004 ] ) : [ 0, R[ 1 ] + 0.017, - 0.004 ] ), [ 0, 1, 0 ], B.head, PART.crown );
 			const ringsC = [];
 			for ( let k = 1; k <= ck; k ++ ) {
 
@@ -754,6 +806,16 @@ export function figureGeometry( lod = 0 ) {
 
 					const u = k / ck, psi = ( i / cw ) * Math.PI * 2, front = Math.cos( psi ), th = u * Math.acos( capRim( front ) );
 					const d = [ Math.sin( th ) * Math.sin( psi ), Math.cos( th ), - Math.sin( th ) * Math.cos( psi ) ];
+					// ---- FK5 (CR1-16): on the skull (above)
+					if ( fine ) {
+
+						const grow = 0.006 + 0.006 * ( 1 - u * u ), lift = 0.004 * ( 1 - u ), p = onSkull( d, grow );
+						ring.push( vert( add( h, [ p[ 0 ], p[ 1 ] + lift, p[ 2 ] - 0.011 * Math.max( 0, front ) * Math.sin( Math.PI * u ) ] ), d, B.head, PART.crown ) );
+						continue;
+
+					}
+
+					// ---- end FK5
 					const grow = 0.005 + 0.011 * ( 1 - u * u ), lift = 0.012 * ( 1 - u );
 					ring.push( vert( add( h, [ d[ 0 ] * ( R[ 0 ] + grow ), d[ 1 ] * ( R[ 1 ] + grow ) + lift, d[ 2 ] * ( R[ 2 ] + grow + 0.008 * Math.max( 0, front ) * Math.sin( Math.PI * u ) ) ] ), d, B.head, PART.crown ) );
 
@@ -810,6 +872,33 @@ export function figureGeometry( lod = 0 ) {
 		if ( ! tiny ) quad( B.spine, PART.scarf, [ 0.015, 1.41, - 0.098 ], [ 0.085, 1.41, - 0.09 ], [ 0.08, 1.14, - 0.13 ], [ 0.02, 1.14, - 0.132 ] );
 		// ---- end FP1
 		// (FW6, C4W-2: close up on 10 x 6, a fuzz in the shaders: it was a 12-faced polyhedron)
+		// ---- FK5 (CR1-16): the near and middle figures' pom-pom sewn down onto the knit hat's top (the
+		// skull, the knit a finger out and its crown slouched up and back: FW6's knit in the vertex shader),
+		// pressed into it a little; a ball of yarn ends, lumpy round its edge (it floated a hand's width over
+		// the hat, a round bead on 10 x 6). The far one's on the egg as it was
+		if ( fine ) {
+
+			const top = skullAt( [ 0, 1, 0 ] ), c = add( h, [ 0, top + 0.016 + 0.029 - 0.008, 0.008 ] ), r = [ 0.034, 0.029, 0.034 ];
+			const W = F( 14, 9 ), H = F( 9, 6 ), first = pos.length / 3;
+			for ( let j = 0; j <= H; j ++ ) for ( let i = 0; i < W; i ++ ) {
+
+				const th = j / H * Math.PI, ph = i / W * Math.PI * 2;
+				const d = [ Math.sin( th ) * Math.cos( ph ), Math.cos( th ), Math.sin( th ) * Math.sin( ph ) ];
+				const lump = j === 0 || j === H ? 1 : 1 + 0.11 * ( Math.sin( i * 12.9898 + j * 78.233 ) * 43758.5453 % 1 );
+				vert( add( c, [ d[ 0 ] * r[ 0 ] * lump, d[ 1 ] * r[ 1 ] * lump, d[ 2 ] * r[ 2 ] * lump ] ), [ d[ 0 ] / r[ 0 ], d[ 1 ] / r[ 1 ], d[ 2 ] / r[ 2 ] ], B.head, PART.pompom );
+
+			}
+
+			for ( let j = 0; j < H; j ++ ) for ( let i = 0; i < W; i ++ ) {
+
+				const a = first + j * W + i, b = first + j * W + ( i + 1 ) % W, cc = a + W, d = b + W;
+				if ( j > 0 ) index.push( a, cc, b );
+				if ( j < H - 1 ) index.push( b, cc, d );
+
+			}
+
+		} else
+		// ---- end FK5
 		if ( ! tiny ) ellipsoid( B.head, PART.pompom, add( h, [ 0, HEAD_R[ 1 ] + 0.045, 0.012 ] ), [ 0.035, 0.031, 0.035 ], fine ? F( 10, 6 ) : N6, fine ? F( 6, 4 ) : 3 );
 		// long hair: (FP2) a shell round the back and sides of the head, from the crown down past the
 		// shoulders, framing the face in front of the ears, fuller and further out as it falls over the
@@ -966,8 +1055,15 @@ export function figureGeometry( lod = 0 ) {
 	// (FW6, C4W-4: narrower, over the narrower shoulders: it stood 9 cm out from the arms at the elbow, a
 	// bell 0.67 m across; and falling in a little under the hands to its hem, as film does round the legs,
 	// not a box's straight sides)
-	loft( B.spine, PART.poncho, fine ? [ [ 0.7, 0.29, 0.186, 0.02 ], [ 0.82, 0.3, 0.192, 0.02 ], [ 0.98, 0.302, 0.19, 0.018 ], [ 1.14, 0.296, 0.178, 0.018 ],
-		[ 1.27, 0.288, 0.162, 0.022 ], [ 1.35, 0.272, 0.142, 0.026 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.45, 0.163, 0.088, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ]
+	// ---- FK5 (CR1-25): close up the film lies on the shoulders: down the trapezius from the collar to the
+	// point of the shoulder (squared there, over the deltoid), then falling straight over the arms; flatter
+	// front and back, the film hanging against the chest and the back, and no wider at the hem than at the
+	// hands (Getty 83891095, AP 4551238/4551250: the shoulders' shape shows through a poncho). It was a dome
+	// from the collar to a bulge at the hips, round in plan: a bowling pin, a bell
+	loft( B.spine, PART.poncho, fine ? [ [ 0.7, 0.292, 0.17, 0.02, 2.2 ], [ 0.82, 0.297, 0.175, 0.02, 2.2 ], [ 0.98, 0.298, 0.178, 0.018, 2.2 ], [ 1.14, 0.288, 0.17, 0.018, 2.3 ],
+		[ 1.27, 0.272, 0.156, 0.022, 2.5 ], [ 1.34, 0.258, 0.14, 0.026, 2.7 ], [ 1.385, 0.244, 0.122, 0.028, 2.8 ], [ 1.415, 0.222, 0.108, 0.03, 2.6 ], [ 1.44, 0.172, 0.095, 0.03, 2.3 ],
+		[ 1.462, 0.12, 0.08, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ]
+	// ---- end FK5
 		: [ [ 0.7, 0.29, 0.186, 0.02 ], [ 0.98, 0.302, 0.19, 0.018 ], [ 1.27, 0.288, 0.162, 0.022 ], [ 1.41, 0.243, 0.113, 0.03 ], [ 1.485, 0.078, 0.068, 0.03 ] ],
 	fine ? F( 18, 12 ) : tiny ? 5 : 8, false, false, fine );
 	// an apron (the concession staff), a hi-vis vest (security): thin shells just over the trunk
@@ -1997,9 +2093,12 @@ function castMaterial( pool ) {
 	if ( part == ${ PART.torso }u || part == ${ PART.sleeve }u ) {
 		// what he wears: the top's cloth, its sheen, its seams
 		let shiny = top == ${ TOP.jacket }u || top == ${ TOP.puffer }u || top == ${ TOP.leather }u || top == ${ TOP.satin }u || top == ${ TOP.usher }u || top == ${ TOP.flyers }u || top == ${ TOP.raincoat }u;
-		rough = select( 0.88, 0.45, shiny );
-		if ( top == ${ TOP.leather }u ) { rough = 0.38; }
-		if ( top == ${ TOP.raincoat }u ) { rough = 0.25; }
+		// (FK5, CR1-25: nylon and satin 0.52, leather 0.46, a raincoat's vinyl 0.32: they were 0.45, 0.38 and
+		// 0.25, plastic shells with a round highlight on each; Getty 83486360's jackets have a sheen that runs
+		// along their folds, which the folds below now turn)
+		rough = select( 0.88, 0.52, shiny );
+		if ( top == ${ TOP.leather }u ) { rough = 0.46; }
+		if ( top == ${ TOP.raincoat }u ) { rough = 0.32; }
 		if ( top == ${ TOP.coat }u ) { rough = 0.95; }
 		// a jersey or a tee: the sleeves are the thermal or hoodie underneath, below the short sleeve
 		let shortSleeve = top == ${ TOP.homeJersey }u || top == ${ TOP.nameTee }u || top == ${ TOP.powder }u || top == ${ TOP.rays }u || top == ${ TOP.roadJersey }u || top == ${ TOP.champsTee }u || top == ${ TOP.staff }u || top == ${ TOP.cook }u || top == ${ TOP.polo }u;
@@ -2416,7 +2515,9 @@ function castMaterial( pool ) {
 	// ---- FP1 (CP-1, CP-5): a cap's crown: the cloth, the six panels' seams and the button, the P the
 	// right way round on the front panels (the back, on a cap turned round)
 	if ( part == ${ PART.crown }u ) {
-		let d = ( L - ${ f3( J.head ) } ) / vec3f( ${ HEAD_R.map( ( r ) => r.toFixed( 3 ) ).join( ', ' ) } );
+		// (FK5, CR1-16: the egg's direction, at the old crown's reach out: the near crown is on the skull now,
+		// inside the egg, and the P and the button would have slid down it)
+		let d = normalize( ( L - ${ f3( J.head ) } ) / vec3f( ${ HEAD_R.map( ( r ) => r.toFixed( 3 ) ).join( ', ' ) } ) ) * 1.1;
 		let back = hat == ${ HAT.capBack }u;
 		var cc = select( select( vec3f( 0.014, 0.02, 0.06 ), vec3f( 0.33, 0.015, 0.02 ), hat == ${ HAT.capRed }u || back ), vec3f( 0.12, 0.018, 0.026 ), hat == ${ HAT.cap1980 }u );
 		if ( hat == ${ HAT.capRays }u ) { cc = vec3f( 0.012, 0.025, 0.08 ); }
@@ -2426,7 +2527,7 @@ function castMaterial( pool ) {
 		let lx = select( d.x, - d.x, back );
 		let lz = select( d.z, - d.z, back );
 		if ( abs( fract( atan2( lx, - lz ) * 0.955 + 0.5 ) - 0.5 ) < 0.03 ) { c *= 0.7; }
-		if ( d.y > 1.1 && length( d.xz ) < 0.12 ) { c *= 0.8; }
+		if ( d.y > 1.093 && length( d.xz ) < 0.12 ) { c *= 0.8; }
 		if ( lz < - 0.55 ) {
 			let lp = vec2f( lx / 0.26, ( d.y - 0.72 ) / 0.26 );
 			let a = 1.0 - smoothstep( 0.1, 0.3, fwidth( lp.x ) + fwidth( lp.y ) );
@@ -2496,7 +2597,9 @@ function castMaterial( pool ) {
 			// under it at 0.9 (it was 0.72 under a 20% grey: an opaque grey shell), the folds' tilt halved and
 			// their size each poncho's own (it was an even hammered dimpling, grey metal)
 			let cr = filmCrumple( L * select( 0.8 + 0.45 * g.z, 0.7, poncho == 6u ), length( fwidth( L ) ) );
-			s.normal = filmTilt( s.normal, cr.xyz * select( 0.22, 0.8, poncho > 1u ) );
+			// (FK5, CR1-25: the clear film crinkled harder, 0.45 not 0.22: the light off it broke into a few
+			// round blobs, a glass bottle's, where the photos have it in streaks and glints along every crease)
+			s.normal = filmTilt( s.normal, cr.xyz * select( 0.45, 0.8, poncho > 1u && poncho != 7u ) );
 			let fres = pow( 1.0 - abs( dot( s.normal, normalize( in.V ) ) ), 2.0 );
 			let under = select( topC, c, filmSleeve ) * 0.9;
 			let haze = vec3f( 0.44, 0.46, 0.5 );
@@ -2510,7 +2613,9 @@ function castMaterial( pool ) {
 			if ( poncho == 7u ) { pc = mix( topC * 0.8, haze, 0.12 + 0.04 * cr.w + 0.32 * fres ); }
 			if ( poncho == 6u ) { pc = vec3f( 0.15, 0.155, 0.16 ) * ( 0.9 + 0.15 * cr.w ); }
 			c = pc;
-			rough = select( select( 0.24, 0.2, poncho == 1u || poncho == 7u || poncho == 3u ), 0.45, poncho == 6u );
+			// (FK5, CR1-25: the coloured vinyl 0.3, not 0.24: a soft sheen with the glints in its creases, not a
+			// lacquered pin)
+			rough = select( select( 0.3, 0.2, poncho == 1u || poncho == 7u || poncho == 3u ), 0.45, poncho == 6u );
 			// the clear film shows the jacket's print through it
 			if ( poncho == 1u ) { c = mix( c, printC * 0.8, printA * 0.5 ); }
 			// ---- end FW4
@@ -2718,7 +2823,8 @@ function castMaterial( pool ) {
 	let fk = 1.0 - smoothstep( 0.0035, 0.012, length( fwidth( L ) ) );
 	let fax = abs( L.x );
 	let fph = g.x * 6.2832;
-	let fold = select( select( select( 1.0, 1.45, top == ${ TOP.hoodie }u || top == ${ TOP.fleece }u ), 0.6, top == ${ TOP.leather }u || top == ${ TOP.coat }u || top == ${ TOP.trooper }u ), 0.5, top == ${ TOP.puffer }u );
+	// (FK5, CR1-25: leather creases as much as nylon, 0.9 not 0.6: the black leather jacket was a smooth shell)
+	let fold = select( select( select( select( 1.0, 1.45, top == ${ TOP.hoodie }u || top == ${ TOP.fleece }u ), 0.6, top == ${ TOP.coat }u || top == ${ TOP.trooper }u ), 0.5, top == ${ TOP.puffer }u ), 0.9, top == ${ TOP.leather }u );
 	if ( part == ${ PART.torso }u ) {
 		let sideA = smoothstep( 0.105, 0.17, fax ) * smoothstep( 0.86, 1.0, L.y ) * smoothstep( 1.42, 1.32, L.y );
 		let pit = smoothstep( 0.135, 0.175, fax ) * smoothstep( 1.2, 1.29, L.y ) * smoothstep( 1.4, 1.33, L.y );
@@ -2734,6 +2840,18 @@ function castMaterial( pool ) {
 			let jersey = top == ${ TOP.homeJersey }u || top == ${ TOP.roadJersey }u || top == ${ TOP.powder }u;
 			fh = select( 0.0034 * drag + 0.0028 * bunch + 0.0024 * hemF, 0.0012 * drag + 0.003 * hang + 0.0018 * hemF, jersey ) * fold;
 			if ( top == ${ TOP.puffer }u ) { let b = fract( L.y / 0.09 ) * 2.0 - 1.0; fh += 0.0055 * ( 1.0 - b * b ); }
+			// ---- FK5 (CR1-25): the seams: over the top of each shoulder (the front panel sewn to the back),
+			// down each side from the armpit, a jacket's yoke across the back; a fine dark line with the cloth
+			// drawn into it (Getty 83486360, auds 2982693299: a satin jacket's seams and piping catch the light).
+			// (The tops were one seamless panel)
+			let shSeam = smoothstep( 0.0035, 0.0012, abs( L.z - 0.027 ) ) * smoothstep( 0.065, 0.085, fax ) * smoothstep( 1.37, 1.395, L.y );
+			let sdSeam = smoothstep( 0.004, 0.0015, abs( L.z - 0.008 - 0.01 * smoothstep( 1.2, 1.35, L.y ) ) ) * smoothstep( 0.125, 0.145, fax ) * smoothstep( 1.29, 1.25, L.y );
+			let yokeT = top == ${ TOP.jacket }u || top == ${ TOP.leather }u || top == ${ TOP.satin }u || top == ${ TOP.work }u || top == ${ TOP.flyers }u || top == ${ TOP.raincoat }u || top == ${ TOP.usher }u || top == ${ TOP.coat }u || top == ${ TOP.trooper }u || top == ${ TOP.camo }u;
+			let ySeam = select( 0.0, smoothstep( 0.0035, 0.0012, abs( L.y - 1.31 - 0.03 * fax ) ) * smoothstep( 0.045, 0.075, L.z ), yokeT );
+			let seam = max( max( shSeam, sdSeam ), ySeam );
+			ao *= 1.0 - 0.3 * seam * fk;
+			fh -= 0.0008 * seam;
+			// ---- end FK5
 		}
 	}
 	if ( part == ${ PART.sleeve }u ) {
@@ -2749,8 +2867,31 @@ function castMaterial( pool ) {
 			let twist = sin( L.y * 55.0 + atan2( L.x - sign( L.x ) * ax0, L.z ) + fph ) * smoothstep( 1.3, 1.15, L.y );
 			fh = ( 0.0022 * rings * el + 0.0016 * cuff + 0.0018 * twist ) * fold;
 			if ( top == ${ TOP.puffer }u ) { let b = fract( L.y / 0.075 ) * 2.0 - 1.0; fh += 0.005 * ( 1.0 - b * b ); }
+			// ---- FK5 (CR1-25): the armhole's seam round the sleeve's head, high over the shoulder and down
+			// into the armpit
+			let ahS = smoothstep( 0.004, 0.0015, abs( L.y - 1.29 - ( fax - 0.15 ) * 1.25 ) ) * smoothstep( 1.25, 1.29, L.y ) * select( 1.0, 0.0, poncho > 0u && poncho < 7u );
+			ao *= 1.0 - 0.3 * ahS * fk;
+			fh -= 0.0008 * ahS;
+			// ---- end FK5
 		}
 	}
+	// ---- FK5 (CR1-25): a poncho's film hangs in long folds from the shoulders, sharp-crested (film
+	// creases, it doesn't roll as cloth does), uneven, each poncho its own, deeper toward the hem, and finer
+	// ones between them (Getty 83891095, AP 4551250: deep vertical folds, the light along their crests in
+	// streaks); a long coat's skirt in softer, wider ones. Across them the film's crinkle (filmCrumple). (The
+	// film was smooth: one round highlight on each, a bottle)
+	if ( part == ${ PART.poncho }u && fk > 0.0 ) {
+		let pa = atan2( L.x, L.z - 0.02 );
+		let w1 = sin( pa * 9.0 + fph + 1.3 * sin( L.y * 5.0 + fph * 2.0 ) );
+		let w2 = sin( pa * 21.0 + fph * 3.0 + 2.0 * sin( L.y * 9.0 + pa * 2.0 + fph ) );
+		let crest = 1.0 - abs( w1 );
+		if ( poncho > 0u ) {
+			fh = ( 0.005 * ( crest * crest - 0.35 ) + 0.0018 * w2 ) * smoothstep( 1.42, 1.22, L.y ) * ( 0.55 + 0.45 * smoothstep( 1.15, 0.8, L.y ) );
+		} else {
+			fh = 0.003 * sin( pa * 7.0 + fph + 1.1 * sin( L.y * 4.0 + fph ) ) * smoothstep( 0.95, 0.75, L.y );
+		}
+	}
+	// ---- end FK5
 	if ( part == ${ PART.neck }u ) { ao *= 0.72; }
 	if ( part == ${ PART.pants }u ) {
 		ao *= 1.0 - 0.3 * smoothstep( 0.06, 0.015, fax ) * smoothstep( 0.68, 0.84, L.y );

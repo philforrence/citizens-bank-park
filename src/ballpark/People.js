@@ -9,8 +9,9 @@ import { offsetPolyline } from './Bowl.js';
 import { LEVELS, fencePoint } from './layout.js';
 // ---- FW1: the throng's close-up figures and their dress
 import { Cast, HAT, TOP, PROP, restPose, castPool, castPalette } from './places/Cast.js';
-import { GESTURE, railArms, dress, sizeOf, rng, pick } from './places/Concourse3BKit.js';
+import { GESTURE, railArms, dress, sizeOf, rng, pick, armIK } from './places/Concourse3BKit.js';
 import { pitEdgeZ } from './places/alley/Promenade.js';
+import { Tempo } from './places/Tempo.js'; // ---- FK5 (AD1-14)
 // ---- end FW1
 
 // Everyone who isn't in a seat or on the field: the staff behind every concession stand and the lines
@@ -191,7 +192,8 @@ export function figureGeometry() {
 	// the shader folds it away on the rest. Rings [ y, half width, half depth, z ]
 	{
 
-		const rings = [ [ 0.6, 0.29, 0.2, 0.02 ], [ 0.86, 0.3, 0.2, 0.02 ], [ 1.12, 0.29, 0.17, 0.02 ], [ 1.31, 0.26, 0.14, 0.025 ], [ 1.43, 0.165, 0.1, 0.03 ], [ 1.51, 0.075, 0.07, 0.03 ] ];
+		// (FK5, CR1-25: on the shoulders, squarer there, flatter front and back; it was a bell 0.4 m deep)
+		const rings = [ [ 0.6, 0.285, 0.168, 0.02 ], [ 0.86, 0.292, 0.172, 0.02 ], [ 1.12, 0.285, 0.16, 0.02 ], [ 1.31, 0.262, 0.14, 0.025 ], [ 1.4, 0.236, 0.116, 0.028 ], [ 1.45, 0.16, 0.092, 0.03 ], [ 1.51, 0.075, 0.07, 0.03 ] ];
 		const n = 10, first = pos.length / 3;
 		rings.forEach( ( [ y, rx, rz, z ], r ) => {
 
@@ -319,7 +321,10 @@ function peopleMaterial( info, moved, throng = null ) {
 	let hood = hat == ${ HAT.hood }u || ( wear & ${ WEAR.hood }u ) != 0u;
 	let ponchoOn = ( wear & ${ WEAR.poncho }u ) != 0u;
 	let kid = ( ( dress.y >> 14u ) & 3u ) == 2u;
-	let reachK = max( inf.w, 0.0 );
+	// ---- FK5 (SC1-3): the pass's act: reaching out (0..1), or cheering (1 + k)
+	let reachK = select( max( inf.w, 0.0 ), 0.0, inf.w >= 1.0 );
+	let cheerK = clamp( inf.w - 1.0, 0.0, 1.0 );
+	// ---- end FK5
 #else
 	let inf = pplInfo[ v.instance ];
 	let dress = vec4u( 0u );
@@ -336,6 +341,32 @@ function peopleMaterial( info, moved, throng = null ) {
 	let walkK = inf.y;
 	let sw = sin( inf.x );
 	var p = v.position + v.aWalk * sw * walkK + v.aReach * reachK;
+	var nIn = v.normal;
+#if THRONG
+	// ---- FK5 (SC1-3): cheering at strike three: the arms up about the shoulders, each his own way (both up
+	// in a V, pumping; one fist pumping, the other at his side; both straight up over the head), a third of
+	// them jumping (Getty 83486358, 112874578: the rail after the last out)
+	if ( cheerK > 0.0 ) {
+		let style = fract( seedV * 7.31 );
+		let beat = frame.time * ( 5.5 + 2.0 * fract( seedV * 3.7 ) ) + seedV * 40.0;
+		if ( abs( v.aPart - 6.0 ) < 0.5 || abs( v.aPart - 2.0 ) < 0.5 ) {
+			let s = select( - 1.0, 1.0, p.x > 0.0 );
+			let pump = 0.5 + 0.5 * sin( beat );
+			var ang = 2.45 + 0.35 * pump;
+			if ( style > 0.62 ) { ang = 2.9 + 0.12 * pump; }
+			if ( style > 0.35 && style <= 0.62 && s < 0.0 ) { ang = 0.12; }
+			let th = s * ang * cheerK;
+			let sh = vec3f( ${ STAND.shoulder[ 0 ] } * s, ${ STAND.shoulder[ 1 ] }, ${ STAND.shoulder[ 2 ] } );
+			let r = p - sh;
+			let c = cos( th );
+			let sn = sin( th );
+			p = sh + vec3f( r.x * c - r.y * sn, r.x * sn + r.y * c, r.z - 0.06 * abs( sn ) );
+			nIn = vec3f( nIn.x * c - nIn.y * sn, nIn.x * sn + nIn.y * c, nIn.z );
+		}
+		if ( fract( seedV * 5.13 ) < 0.33 ) { p.y += 0.11 * cheerK * max( 0.0, sin( beat * 0.9 ) ); }
+	}
+	// ---- end FK5
+#endif
 	// a bob in the stride, a sway standing
 	p.y += abs( cos( inf.x ) ) * 0.03 * walkK;
 	p.x += sin( frame.time * 0.7 + seedV * 30.0 ) * 0.01 * ( 1.0 - walkK ) * ( p.y - 0.4 );
@@ -393,7 +424,7 @@ function peopleMaterial( info, moved, throng = null ) {
 	let q = lp.xyz * sc;
 	v.worldPos = ( v.model * vec4f( thrAt.xyz + vec3f( q.x * ca + q.z * sa, q.y, - q.x * sa + q.z * ca ), 1.0 ) ).xyz;
 	v.prevWorldPos = ( v.model * vec4f( thrWas.xyz + vec3f( q.x * cb + q.z * sb, q.y, - q.x * sb + q.z * cb ), 1.0 ) ).xyz;
-	v.worldNormal = normalize( ( v.model * vec4f( v.normal.x * ca + v.normal.z * sa, v.normal.y, - v.normal.x * sa + v.normal.z * ca, 0.0 ) ).xyz );
+	v.worldNormal = normalize( ( v.model * vec4f( nIn.x * ca + nIn.z * sa, nIn.y, - nIn.x * sa + nIn.z * ca, 0.0 ) ).xyz ); // (FK5: nIn, the arms up)
 #else
 	v.worldPos = ( v.model * lp ).xyz;
 	v.worldNormal = normalize( ( v.model * vec4f( v.normal, 0.0 ) ).xyz );
@@ -639,6 +670,8 @@ function thrHash( n ) {
 }
 
 const fract = ( x ) => x - Math.floor( x );
+// ---- FK5 (SC1-3): the pass's thrH(): a number in [ 0, 1 ) from an integer, the same bits as the GPU's
+const thrH = ( n ) => ( thrHash( n ) >>> 8 ) / 16777216;
 
 // a polyline with points no further apart than step (so a line can be cut where it passes something)
 function densify( P, step ) {
@@ -696,7 +729,18 @@ function throngDress( i ) {
 }
 
 const throngCode = /* wgsl */`
-struct ThrPlace { at: vec4f, phase: f32, walking: f32 };
+// (FK5, SC1-3: act, what his arms do: 0 at his sides, up to 1 reaching out (the rail's lean, a hug), 1 + k
+// cheering, his arms up)
+struct ThrPlace { at: vec4f, phase: f32, walking: f32, act: f32 };
+
+// ---- FK5 (SC1-3): a number in [ 0, 1 ) from an integer (thrHash()'s, exact on the CPU too)
+fn thrH( n: u32 ) -> f32 {
+	var x = n * 747796405u + 2891336453u;
+	x = ( ( x >> ( ( x >> 28u ) + 4u ) ) ^ x ) * 277803737u;
+	x = ( x >> 22u ) ^ x;
+	return f32( x >> 8u ) / 16777216.0;
+}
+// ---- end FK5
 
 // the segment of line k at s metres along it (each segment 4 vec4s: its ends, [ s0, length, the way
 // along ], the walkway's band across it at each end (min, max, metres outward of the line), [ the rail,
@@ -742,10 +786,16 @@ fn thrPlace( P0: vec4f, P1: vec4f, t: f32 ) -> ThrPlace {
 	var heading = 1.0;
 	var o: ThrPlace;
 	o.walking = 0.0;
+	o.act = select( 0.0, 0.55, kind == 1u );
+	// ---- FK5 (SC1-3): in the 9th and from strike three (thr.cel: x on, y the throng's clock when they
+	// stopped, z at strike three) the walkers stop where they were, all but a few (the share's last slice)
+	let gather = thr.cel.x > 0.5 && ! ( kind == 0u && P1.z > 0.8 );
+	let tw = select( t, min( t, thr.cel.y ), gather );
+	// ---- end FK5
 	if ( kind == 0u ) {
 		let speed = 0.8 + 0.65 * P0.z;
 		let dir = select( - 1.0, 1.0, P0.w > 0.5 );
-		let u = fract( P0.x + dir * speed * t / ( 2.0 * L ) ) * 2.0 * L;
+		let u = fract( P0.x + dir * speed * tw / ( 2.0 * L ) ) * 2.0 * L;
 		let back = u > L;
 		s = select( u, 2.0 * L - u, back );
 		heading = select( dir, - dir, back );
@@ -760,15 +810,72 @@ fn thrPlace( P0: vec4f, P1: vec4f, t: f32 ) -> ThrPlace {
 	let wMin = mix( W.x, W.z, f );
 	let wMax = mix( W.y, W.w, f );
 	var lane = mix( wMin, wMax, P1.w );
-	if ( kind == 0u ) { lane = clamp( lane + 0.6 * sin( t * 0.06 + P0.y * 40.0 ), wMin, wMax ); }
+	if ( kind == 0u ) { lane = clamp( lane + 0.6 * sin( tw * 0.06 + P0.y * 40.0 ), wMin, wMax ); }
 	if ( kind == 1u ) { lane = E.x + select( 0.0, 0.7, P1.w > 0.5 ) + 0.16 * ( fract( P1.w * 7.0 ) - 0.5 ); }
 	let nrm = vec2f( - C.w, C.z ) * E.y;
-	let p = thrPush( mix( A.xy, A.zw, f ) + nrm * lane );
+	var p = thrPush( mix( A.xy, A.zw, f ) + nrm * lane );
 	var yaw = atan2( - C.z * heading, - C.w * heading );
 	if ( kind == 1u ) { yaw = atan2( nrm.x, nrm.y ) + 0.5 * ( fract( P0.z * 5.3 ) - 0.5 ) + 0.6 * sin( t * 0.09 + P0.y * 30.0 ) * step( 0.75, fract( P0.w * 3.7 ) ); }
 	if ( kind == 2u ) { yaw = P0.z * 6.2832 + 0.5 * sin( t * 0.15 + P0.y * 20.0 ); }
-	o.at = vec4f( p.x, ${ STREET.toFixed( 3 ) }, p.y, yaw );
 	o.phase = s * 5.2 * heading;
+	// ---- FK5 (SC1-3): the concourse in the 9th and at strike three (Flickr 2009-10-21 at 135-136: wall to
+	// wall; Flickr 2008-10-29 19:43, the Terrace's rail full with people behind the rank; Getty 83486358: a
+	// rail after the last out, packed shoulder to shoulder). It was one rank at the rail and an empty floor
+	// behind it. The walkers and those standing about go to the rail, three more ranks behind its two
+	// (each rank half a place along from the one in front, the heads between the shoulders), or gather in
+	// knots of two to five on the floor, face to face or turned to the field; over two to six seconds, each
+	// setting off in his own time. From strike three the arms go up: at the rail, in the ranks, the knots'
+	// own (the rest of a knot reaching out to each other: hugs, high fives)
+	if ( gather ) {
+		let age = t - thr.cel.y;
+		let hid = u32( P0.y * 16777216.0 );
+		let hs = vec3f( thrH( hid ), thrH( hid + 1u ), thrH( hid + 2u ) );
+		let cheerOn = smoothstep( 0.0, 0.8, t - thr.cel.z - 0.9 * hs.z );
+		if ( kind == 1u ) {
+			yaw = mix( yaw, atan2( nrm.x, nrm.y ) + 0.3 * ( hs.y - 0.5 ), cheerOn );
+			o.act = select( 0.55, 1.0 + cheerOn, cheerOn > 0.01 );
+		} else {
+			let rail = abs( E.x ) > 0.01;
+			let toRail = rail && hs.x < select( 0.5, 0.68, kind == 0u );
+			let along = C.zw;
+			var ts: f32;
+			var tl: f32;
+			var face: vec2f;
+			var act = 1.0 + cheerOn;
+			if ( toRail ) {
+				let rank = floor( hs.y * 2.999 );
+				ts = ( floor( s / 0.56 ) + fract( rank * 0.5 ) ) * 0.56 + 0.08 * hs.z;
+				tl = E.x + 1.3 + 0.58 * rank + 0.1 * ( hs.z - 0.5 );
+				face = - nrm;
+			} else {
+				let cell = floor( s / 3.4 );
+				let ch = thrH( u32( cell ) + k * 7919u );
+				let cl = mix( wMin + select( 0.8, 2.4, rail ), wMax - 0.8, ch );
+				let ang = hs.z * 6.2832;
+				let rad = 0.36 + 0.14 * hs.y;
+				ts = ( cell + 0.5 ) * 3.4 + cos( ang ) * rad;
+				tl = cl + sin( ang ) * rad;
+				// (toward the knot's middle, or the field's: the middle of the park)
+				let inward = - ( along * cos( ang ) + nrm * sin( ang ) );
+				let pt = A.xy + along * ( ts - C.x ) + nrm * tl;
+				let fieldward = normalize( vec2f( 0.0, - 40.0 ) - pt );
+				let toKnot = hs.y < 0.55;
+				face = select( fieldward, inward, toKnot );
+				act = select( 1.0 + cheerOn, 0.35 + 0.35 * cheerOn, toKnot );
+			}
+			let pT = thrPush( A.xy + along * ( ts - C.x ) + nrm * tl );
+			let m = smoothstep( 0.0, 1.0, clamp( ( age - 0.4 - 1.6 * hs.x ) / ( 1.5 + 3.5 * hs.y ), 0.0, 1.0 ) );
+			let way = pT - p;
+			let moving = m > 0.02 && m < 0.98 && length( way ) > 0.15;
+			p = mix( p, pT, m );
+			yaw = select( select( yaw, atan2( - face.x, - face.y ), m >= 0.98 ), atan2( - way.x, - way.y ), moving );
+			o.walking = select( 0.0, 1.0, moving );
+			o.phase = select( o.phase, age * 6.3, moving || m >= 0.98 );
+			o.act = select( 0.0, act, m >= 0.98 );
+		}
+	}
+	// ---- end FK5
+	o.at = vec4f( p.x, ${ STREET.toFixed( 3 ) }, p.y, yaw );
 	return o;
 }
 
@@ -797,7 +904,7 @@ fn main( @builtin( global_invocation_id ) gid: vec3u ) {
 	let dw = thrDress[ i ].w;
 	let wear = select( 0u, dw & 7u, thr.misc.w * 15.0 > f32( ( dw >> 4u ) & 15u ) );
 	thrOut[ i * 3u ] = cur.at;
-	thrOut[ i * 3u + 1u ] = vec4f( cur.phase, cur.walking, f32( wear ), select( - 1.0, select( 0.0, 0.55, kind == 1u ), shown ) );
+	thrOut[ i * 3u + 1u ] = vec4f( cur.phase, cur.walking, f32( wear ), select( - 1.0, cur.act, shown ) ); // (FK5: act, SC1-3)
 	thrOut[ i * 3u + 2u ] = was.at;
 	// (FW1: only those shown are drawn: each takes the next place in the list, the draw's instance count)
 	if ( shown ) {
@@ -1039,7 +1146,9 @@ export class People {
 		this.thrHide = new StorageBuffer( { label: 'throng hidden', count: this._thrHide.length, type: 'u32' } );
 		this.thrParams = new UniformBlock( 'ThrongParams', {
 			misc: [ 'vec4f', new Vector4( 0, 0.016, 1, 0 ) ], cam: [ 'vec4f', new Vector4( 0, - 100, 0, 0 ) ], share: [ 'vec4f', new Vector4( 0.5, 0.8, 0.5, 0.3 ) ],
+			cel: [ 'vec4f', new Vector4( 0, 0, 1e9, 0 ) ], // ---- FK5 (SC1-3): the 9th and strike three (thrPlace)
 		} );
+		this._thrCel = [ 0, 0, 1e9 ];
 		this.thrKernel = new ComputeKernel( {
 			label: 'throng', workgroupSize: [ 64, 1, 1 ],
 			bindings: {
@@ -1068,6 +1177,7 @@ export class People {
 		this.mesh.onBeforeRender = ( r, s, camera ) => {
 
 			if ( camera ) this._thrCam.setFromMatrixPosition( camera.matrixWorld ).applyMatrix4( this._thrInv.copy( this.field.group.matrixWorld ).invert() );
+			if ( camera ) this._waysCam = camera; // (FK5, AD1-14: the stairs' people's Tempo)
 
 		};
 		// the ones close to the camera: Cast figures (a troupe of PROXIES), each standing in for one of the
@@ -1199,10 +1309,16 @@ export class People {
 		const L = this._thrL[ k * 4 + 2 ];
 		let s = W[ o ] * L, heading = 1;
 		out.walking = 0;
+		out.act = kind === 1 ? 0.55 : 0;
+		out.role = 0;
+		// ---- FK5 (SC1-3): the pass's (thrPlace)
+		const CEL = this._thrCel, gather = CEL[ 0 ] > 0.5 && ! ( kind === 0 && W[ o + 6 ] > 0.8 );
+		const tw = gather ? Math.min( t, CEL[ 1 ] ) : t;
+		// ---- end FK5
 		if ( kind === 0 ) {
 
 			const speed = 0.8 + 0.65 * W[ o + 2 ], dir = W[ o + 3 ] > 0.5 ? 1 : - 1;
-			const u = fract( W[ o ] + dir * speed * t / ( 2 * L ) ) * 2 * L, back = u > L;
+			const u = fract( W[ o ] + dir * speed * tw / ( 2 * L ) ) * 2 * L, back = u > L;
 			s = back ? 2 * L - u : u;
 			heading = back ? - dir : dir;
 			out.walking = 1;
@@ -1221,32 +1337,96 @@ export class People {
 		const f = Math.max( 0, Math.min( 1, ( s - S[ g + 4 ] ) / Math.max( S[ g + 5 ], 0.001 ) ) );
 		const wMin = S[ g + 8 ] + ( S[ g + 10 ] - S[ g + 8 ] ) * f, wMax = S[ g + 9 ] + ( S[ g + 11 ] - S[ g + 9 ] ) * f;
 		let lane = wMin + ( wMax - wMin ) * laneF;
-		if ( kind === 0 ) lane = Math.max( wMin, Math.min( wMax, lane + 0.6 * Math.sin( t * 0.06 + W[ o + 1 ] * 40 ) ) );
+		if ( kind === 0 ) lane = Math.max( wMin, Math.min( wMax, lane + 0.6 * Math.sin( tw * 0.06 + W[ o + 1 ] * 40 ) ) );
 		if ( kind === 1 ) lane = S[ g + 12 ] + ( laneF > 0.5 ? 0.7 : 0 ) + 0.16 * ( fract( laneF * 7 ) - 0.5 );
 		const dx = S[ g + 6 ], dz = S[ g + 7 ], nx = - dz * S[ g + 13 ], nz = dx * S[ g + 13 ];
-		let x = S[ g ] + ( S[ g + 2 ] - S[ g ] ) * f + nx * lane, z = S[ g + 1 ] + ( S[ g + 3 ] - S[ g + 1 ] ) * f + nz * lane;
-		if ( push ) {
+		const pushed = ( x, z ) => {
 
-			const O = this._thrObs;
-			for ( let j = 0; j < this._thrObsN; j ++ ) {
+			if ( push ) {
 
-				const ox = O[ j * 4 ], oz = O[ j * 4 + 1 ], R = O[ j * 4 + 2 ];
-				const ex = x - ox, ez = z - oz, r = Math.hypot( ex, ez );
-				if ( r < 2 * R ) {
+				const O = this._thrObs;
+				for ( let j = 0; j < this._thrObsN; j ++ ) {
 
-					const ux = r > 1e-4 ? ex / r : 1, uz = r > 1e-4 ? ez / r : 0, kk = 1 - r / ( 2 * R ), rr = r + R * kk * kk;
-					x = ox + ux * rr; z = oz + uz * rr;
+					const ox = O[ j * 4 ], oz = O[ j * 4 + 1 ], R = O[ j * 4 + 2 ];
+					const ex = x - ox, ez = z - oz, r = Math.hypot( ex, ez );
+					if ( r < 2 * R ) {
+
+						const ux = r > 1e-4 ? ex / r : 1, uz = r > 1e-4 ? ez / r : 0, kk = 1 - r / ( 2 * R ), rr = r + R * kk * kk;
+						x = ox + ux * rr; z = oz + uz * rr;
+
+					}
 
 				}
 
 			}
 
-		}
+			return [ x, z ];
+
+		};
+		let [ x, z ] = pushed( S[ g ] + ( S[ g + 2 ] - S[ g ] ) * f + nx * lane, S[ g + 1 ] + ( S[ g + 3 ] - S[ g + 1 ] ) * f + nz * lane );
 
 		let yaw = Math.atan2( - dx * heading, - dz * heading );
 		if ( kind === 1 ) yaw = Math.atan2( nx, nz ) + 0.5 * ( fract( W[ o + 2 ] * 5.3 ) - 0.5 ) + 0.6 * Math.sin( t * 0.09 + W[ o + 1 ] * 30 ) * ( fract( W[ o + 3 ] * 3.7 ) >= 0.75 ? 1 : 0 );
 		if ( kind === 2 ) yaw = W[ o + 2 ] * 6.2832 + 0.5 * Math.sin( t * 0.15 + W[ o + 1 ] * 20 );
-		out.x = x; out.z = z; out.yaw = yaw; out.s = s; out.phase = s * 5.2 * heading; out.kind = kind; out.line = k;
+		out.phase = s * 5.2 * heading;
+		// ---- FK5 (SC1-3): the pass's gathering (thrPlace): the rail's ranks, the knots, the arms up. role: 1
+		// at the rail (its own two ranks or the three behind), 2 in a knot face to face, 3 in a knot turned
+		// to the field (the Cast figures' poses)
+		if ( gather ) {
+
+			const age = t - CEL[ 1 ], hid = Math.floor( W[ o + 1 ] * 16777216 );
+			const h0 = thrH( hid ), h1 = thrH( hid + 1 ), h2 = thrH( hid + 2 );
+			const sm = ( a, b, v ) => { const q = Math.max( 0, Math.min( 1, ( v - a ) / ( b - a ) ) ); return q * q * ( 3 - 2 * q ); };
+			const cheerOn = sm( 0, 0.8, t - CEL[ 2 ] - 0.9 * h2 );
+			out.cheer = cheerOn;
+			if ( kind === 1 ) {
+
+				yaw = yaw + ( Math.atan2( nx, nz ) + 0.3 * ( h1 - 0.5 ) - yaw ) * cheerOn;
+				out.act = cheerOn > 0.01 ? 1 + cheerOn : 0.55;
+				out.role = 1;
+
+			} else {
+
+				const rail = Math.abs( S[ g + 12 ] ) > 0.01, toRail = rail && h0 < ( kind === 0 ? 0.68 : 0.5 );
+				let ts, tl, fx, fz, act = 1 + cheerOn;
+				if ( toRail ) {
+
+					const rank = Math.floor( h1 * 2.999 );
+					ts = ( Math.floor( s / 0.56 ) + fract( rank * 0.5 ) ) * 0.56 + 0.08 * h2;
+					tl = S[ g + 12 ] + 1.3 + 0.58 * rank + 0.1 * ( h2 - 0.5 );
+					fx = - nx; fz = - nz;
+					out.role = 1;
+
+				} else {
+
+					const cell = Math.floor( s / 3.4 ), ch = thrH( ( cell + k * 7919 ) >>> 0 );
+					const cl = wMin + ( rail ? 2.4 : 0.8 ) + ( wMax - 0.8 - wMin - ( rail ? 2.4 : 0.8 ) ) * ch;
+					const ang = h2 * 6.2832, rad = 0.36 + 0.14 * h1;
+					ts = ( cell + 0.5 ) * 3.4 + Math.cos( ang ) * rad;
+					tl = cl + Math.sin( ang ) * rad;
+					const px = S[ g ] + dx * ( ts - S[ g + 4 ] ) + nx * tl, pz = S[ g + 1 ] + dz * ( ts - S[ g + 4 ] ) + nz * tl;
+					const toKnot = h1 < 0.55;
+					if ( toKnot ) { fx = - ( dx * Math.cos( ang ) + nx * Math.sin( ang ) ); fz = - ( dz * Math.cos( ang ) + nz * Math.sin( ang ) ); } else { const l = Math.hypot( px, - 40 - pz ) || 1; fx = - px / l; fz = ( - 40 - pz ) / l; }
+					act = toKnot ? 0.35 + 0.35 * cheerOn : 1 + cheerOn;
+					out.role = toKnot ? 2 : 3;
+
+				}
+
+				const [ tx, tz ] = pushed( S[ g ] + dx * ( ts - S[ g + 4 ] ) + nx * tl, S[ g + 1 ] + dz * ( ts - S[ g + 4 ] ) + nz * tl );
+				const m = sm( 0, 1, Math.max( 0, Math.min( 1, ( age - 0.4 - 1.6 * h0 ) / ( 1.5 + 3.5 * h1 ) ) ) );
+				const wx = tx - x, wz = tz - z, moving = m > 0.02 && m < 0.98 && Math.hypot( wx, wz ) > 0.15;
+				x += wx * m; z += wz * m;
+				yaw = moving ? Math.atan2( - wx, - wz ) : m >= 0.98 ? Math.atan2( - fx, - fz ) : yaw;
+				out.walking = moving ? 1 : 0;
+				if ( moving || m >= 0.98 ) out.phase = age * 6.3;
+				out.act = m >= 0.98 ? act : 0;
+				if ( m < 0.98 ) out.role = 0;
+
+			}
+
+		} else out.cheer = 0;
+		// ---- end FK5
+		out.x = x; out.z = z; out.yaw = yaw; out.s = s; out.kind = kind; out.line = k;
 		return out;
 
 	}
@@ -1295,11 +1475,32 @@ export class People {
 		if ( ns.suspended ) w = 0.8, s = 1, g = 0.3, rail = 0.9;
 		// (the 29th's evening, before the resumption: the gates open, the fans streaming in)
 		if ( ! ns.suspended && ns.seg?.kind === 'switch' && ns.inning === 6 && ns.half === 'bottom' && ! ns.first ) w = 0.8, s = 0.7, g = 1, of = 1.4, rail = 0.7;
-		if ( ns.inning === 9 && ! ns.celebrate ) w *= 0.5, s *= 0.5, rail = 1;
-		if ( ns.celebrate ) w = 0.12, s = 0.5, g = 0, rail = 1;
+		// ---- FK5 (SC1-3): the 9th and strike three: the walkers stop and go to the rail or gather on the
+		// floor (thrPlace), so most of them are out now: they're the rail's ranks and the knots, not strollers
+		// (it was w 0.12, s 0.5 at the celebration, the 9th half of the night's: one rank and an empty floor)
+		const gather = ns.celebrate || ( ns.inning === 9 && ! ns.between && ! ns.first );
+		if ( ns.inning === 9 && ! ns.celebrate ) w = 0.75, s = 0.7, rail = 1;
+		if ( ns.celebrate ) w = 0.85, s = 0.9, g = 0, rail = 1;
+		// ---- end FK5
 		// (easing in and out over a few seconds; a jump in the replay starts on the new moment)
 		const jump = d && this._thrT !== undefined && Math.abs( d.t - this._thrT - dt ) > 2;
+		const cont = d && this._thrT !== undefined && ! jump; // (FK5: carried on from the last frame)
 		this._thrT = d ? d.t : undefined;
+		// ---- FK5 (SC1-3): when they stopped (the throng's clock): now, if the replay plays into the 9th;
+		// on landing in it (a jump, the first frame), as if half a minute ago; landing in the celebration, 20 s
+		// before strike three. Strike three on the throng's clock, for the arms
+		const C = this._thrCel;
+		if ( ! gather ) C[ 0 ] = 0;
+		else if ( ! C[ 0 ] || jump || ! cont ) {
+
+			C[ 1 ] = ns.celebrate ? this.time - ns.celebrateT - 20 : this.time - ( cont && ! C[ 0 ] && this._thrGatherWas === false ? 0 : 30 );
+			C[ 0 ] = 1;
+
+		}
+
+		this._thrGatherWas = gather;
+		C[ 2 ] = ns.celebrate ? this.time - ns.celebrateT : 1e9;
+		// ---- end FK5
 		const k = jump ? 1 : 1 - Math.exp( - dt * 0.5 );
 		const want = [ w, rail, s, g, of ];
 		for ( let i = 0; i < 5; i ++ ) this.thrShare[ i ] += ( want[ i ] - this.thrShare[ i ] ) * k;
@@ -1336,6 +1537,7 @@ export class People {
 		U.misc.value.set( t, Math.max( 1e-3, dt ), this._thrShareF[ 4 ], ns.first ? ns.rain : 0 );
 		U.cam.value.set( c.x, c.y, c.z, this._thrObsN );
 		U.share.value.set( ...this._thrShareF.slice( 0, 4 ) );
+		U.cel.value.set( this._thrCel[ 0 ], this._thrCel[ 1 ], this._thrCel[ 2 ], 0 ); // (FK5, SC1-3)
 		this.thrObs.write( this._thrObs );
 		this.thrArgs.write( this._thrArgs );
 		this.thrKernel.dispatch( Math.ceil( THRONG / 64 ) );
@@ -1467,6 +1669,24 @@ export class People {
 			a.walk = P.walking;
 			a.phase = P.phase * 0.87;
 			if ( P.walking === 0 ) a.headYaw = 0.35 * Math.sin( t * 0.23 + i );
+			// ---- FK5 (SC1-3): posed afresh as he takes his place (the rail's ranks, a knot) and again at
+			// strike three; then the arms pump and a third of them jump (a few numbers each, 72 at most)
+			const cel = P.role ? ( P.cheer > 0.5 ? 2 : 1 ) : 0;
+			if ( cel !== ( p._cel || 0 ) ) {
+
+				this._thrDressUp( p, i, ns, cel, P.role );
+
+			}
+
+			if ( p._cel === 2 && p._pump ) {
+
+				const beat = t * p._pump[ 0 ] + p._pump[ 1 ];
+				if ( p._pump[ 2 ] ) p.y = STREET + 0.1 * Math.max( 0, Math.sin( beat * 0.9 ) );
+				if ( p._pumpL ) a.armL[ 0 ] = p._pumpL + 0.18 * Math.sin( beat );
+				if ( p._pumpR ) a.armR[ 0 ] = p._pumpR + 0.18 * Math.sin( beat + 0.4 );
+
+			}
+			// ---- end FK5
 			// the rain's gear on (or off) as the rain comes on (the pass's rule)
 			const D = this._thrDress[ i ], wear = rain * 15 > D.at ? D.wear : 0;
 			const outdoors = P.s < ( this._thrLines[ P.line ].outdoors || 0 );
@@ -1486,7 +1706,7 @@ export class People {
 	}
 
 	// a Cast figure dressed as throng person i (his record's look), posed for what he's doing
-	_thrDressUp( p, i, ns ) {
+	_thrDressUp( p, i, ns, cel = 0, role = 0 ) {
 
 		const D = this._thrDress[ i ], W = this._thrWho, kind = Math.round( W[ i * 8 + 5 ] );
 		p.scale = D.scale;
@@ -1500,6 +1720,47 @@ export class People {
 
 		};
 		const u = r(), kid = D.look.age === 2;
+		// ---- FK5 (SC1-3): the 9th and strike three (cel 1, 2; role: 1 the rail's ranks, 2 a knot face to
+		// face, 3 a knot turned to the field). At strike three: both fists up, one fist pumping, a rally
+		// towel waved over the head, a camera or a phone held up high to film it, hands on the head, clapping
+		// over the head; in a knot, hugs and high fives. In the 9th they watch: arms folded, hands in the
+		// pockets, a beer, hands at the mouth, clapping
+		p._cel = cel;
+		p._pump = p._pumpL = p._pumpR = null;
+		if ( cel === 2 ) {
+
+			const v = r();
+			if ( role === 2 ) {
+
+				if ( v < 0.6 ) set( [ armIK( - 1, [ - 0.2, 1.36, - 0.26 ] ), armIK( 1, [ 0.17, 1.3, - 0.27 ] ) ] );
+				else set( [ null, armIK( 1, [ 0.13, 1.86, - 0.36 ] ) ] );
+				a.mouth = 0.4 + 0.4 * r();
+
+			} else {
+
+				if ( u < 0.36 ) { set( GESTURE.cheer ); p._pumpL = a.armL[ 0 ]; p._pumpR = a.armR[ 0 ]; }
+				else if ( u < 0.55 ) { set( GESTURE.fist ); p._pumpR = a.armR[ 0 ]; }
+				else if ( u < 0.68 && ! kid ) { set( GESTURE.holdUp ); a.propR = PROP.towel; p._pumpR = a.armR[ 0 ]; }
+				else if ( u < 0.78 && ! kid ) { set( GESTURE.photoHigh ); a.propR = v < 0.5 ? PROP.camera : PROP.phone; }
+				else if ( u < 0.88 ) set( [ armIK( - 1, [ - 0.05, 1.86, - 0.2 ] ), armIK( 1, [ 0.05, 1.87, - 0.2 ] ) ] ); // (clapping over his head: hands on it went through a knit hat)
+				else set( GESTURE.liftHigh );
+				a.mouth = 0.55 + 0.45 * r();
+				a.headPitch = - 0.12 - 0.1 * r();
+
+			}
+
+			p._pump = [ 5.5 + 2 * r(), r() * 40, r() < 0.33 ];
+
+		} else if ( cel === 1 ) {
+
+			if ( u < 0.3 ) set( GESTURE.fold );
+			else if ( u < 0.5 ) { set( GESTURE.pockets ); a.propL = a.propR = PROP.pocket; }
+			else if ( u < 0.68 && ! kid ) { set( GESTURE.carry ); a.propR = PROP.beer; }
+			else if ( u < 0.82 ) set( GESTURE.blow );
+			else set( GESTURE.clap );
+
+		} else
+		// ---- end FK5
 		if ( kind === 1 ) {
 
 			// at the rail: leaning on it, a beer on the shelf; or arms folded, hands in the pockets
@@ -1755,12 +2016,28 @@ export class People {
 
 			} );
 			st.staff.forEach( ( p, k ) => { if ( p ) p.reach = st.len > k ? 0.5 + 0.5 * Math.max( 0, Math.sin( this.time * 0.9 + p.seed * 20 ) ) : 0.1; } );
+			// ---- FK5 (SC1-3): at strike three the stand's people step up to the counter's front and lean out
+			// over it toward the field, hands out on the counter (the line's gone to the rail); back after
+			if ( ! st.staffAt ) st.staffAt = st.staff.map( ( p ) => p && [ p.x, p.z ] );
+			const out = seg?.kind === 'celebrate';
+			st.staff.forEach( ( p, k ) => {
+
+				if ( ! p ) return;
+				const [ hx, hz ] = st.staffAt[ k ], f = Math.min( 1, ( p._out || 0 ) + ( out ? dt : - dt ) * 0.7 );
+				p._out = Math.max( 0, f );
+				const dir = p.yaw, fx = - Math.sin( dir ), fz = - Math.cos( dir ), e = p._out * p._out * ( 3 - 2 * p._out );
+				p.x = hx + fx * 0.36 * e; p.z = hz + fz * 0.36 * e;
+				if ( out ) p.reach = Math.max( p.reach, 0.75 * e );
+
+			} );
+			// ---- end FK5
 
 		}
 
 		// the concourse: busier while the Rays bat
 		const walkers = this.list.filter( ( p ) => p.walker );
-		const share = seg?.kind === 'celebrate' ? 0.15 : between ? 1 : snap.half === 'top' ? 0.85 : 0.45;
+		// (FK5, SC1-3: almost nobody strolls off in the minute after strike three: 0.03, not 0.15)
+		const share = seg?.kind === 'celebrate' ? 0.03 : between ? 1 : snap.half === 'top' ? 0.85 : 0.45;
 		for ( const p of walkers ) {
 
 			const w = p.walker;
@@ -1902,7 +2179,376 @@ export class People {
 		this.infoBuffer.write( this.info );
 		this.movedBuffer.write( this.moved );
 		this._throngUpdate( dt, d );
+		this._waysUpdate( dt, d ); // ---- FK5 (AD1-14)
 
 	}
+
+	// ---- FK5 (AD1-14): people on step 10's ways up. Every stair the park's colliders know as treads (the
+	// Pavilion's switchback from the Alley and the Deck's portal stairs, PavilionWays.js; the Porch's two
+	// towers, leftfield/Access.js; the 400s' stairs, terrace/Build.js) chained into flights (one tread to the
+	// next: a step up, a run along), the flights joined by their landings into routes from the floor to the
+	// top. On each, a few Cast figures going up and down, keeping right (the odd one with a hand on the
+	// rail), a stair's gait (the knee up going up, the lean back coming down), each trip its own: how many
+	// by the moment (the walk-in before the game, between innings, the rain delay going down under cover,
+	// after the last out going home; a few in play). They were empty on a sold-out night (AD1-14; Flickr
+	// 2008-08-14: fans on the Porch's stair). Built at the first update (the places add their stairs after
+	// People is made); on Tempo (every 4th frame unseen). Nothing for the walk to collide with: the walker
+	// steps round them as round everyone in the pool
+	_waysBuild() {
+
+		const C = this._bowl?.colliders, F = this.field;
+		this._ways = { routes: [], slots: [] };
+		if ( ! C?.boxes || ! F?.toField ) return;
+		const TAGS = /^(fa1-stair|terrace-400-stair|porch-stair-east|porch-stair-west|pavilion-deck-portal)$/;
+		// the treads in the order they were made: a flight is a run of them, each a step on from the last
+		const flights = [];
+		let cur = null;
+		for ( const b of C.boxes ) {
+
+			if ( ! b.walkable || ! TAGS.test( b.tag ) ) continue;
+			const c = [ b.center.x, b.top, b.center.z ], w = Math.max( b.half.x, b.half.z );
+			const last = cur && cur.t[ cur.t.length - 1 ];
+			let ok = !! last && cur.tag === b.tag;
+			if ( ok ) {
+
+				const dx = c[ 0 ] - last[ 0 ], dz = c[ 2 ] - last[ 2 ], h = Math.hypot( dx, dz ), dy = Math.abs( c[ 1 ] - last[ 1 ] );
+				ok = dy > 0.08 && dy < 0.32 && h > 0.12 && h < 0.6;
+				if ( ok && cur.t.length > 1 ) {
+
+					const p = cur.t[ cur.t.length - 2 ], ux = last[ 0 ] - p[ 0 ], uz = last[ 2 ] - p[ 2 ];
+					ok = ( ux * dx + uz * dz ) / ( Math.hypot( ux, uz ) * h || 1 ) > 0.8;
+
+				}
+
+			}
+
+			if ( ok ) { cur.t.push( c ); cur.w = Math.min( cur.w, w ); } else flights.push( cur = { tag: b.tag, t: [ c ], w } );
+
+		}
+
+		// each flight from its foot to its top, then the flights joined where one's top meets the next one's foot
+		const fl = flights.filter( ( f ) => f.t.length >= 4 ).map( ( f ) => ( { ...f, t: f.t[ 0 ][ 1 ] > f.t[ f.t.length - 1 ][ 1 ] ? f.t.slice().reverse() : f.t } ) );
+		const used = new Set();
+		const next = ( f ) => fl.find( ( g ) => g !== f && ! used.has( g ) && g.tag === f.tag && Math.abs( g.t[ 0 ][ 1 ] - f.t[ f.t.length - 1 ][ 1 ] ) < 0.4 && Math.hypot( g.t[ 0 ][ 0 ] - f.t[ f.t.length - 1 ][ 0 ], g.t[ 0 ][ 2 ] - f.t[ f.t.length - 1 ][ 2 ] ) < 4.5 );
+		const prev = ( f ) => fl.find( ( g ) => g !== f && g.tag === f.tag && Math.abs( f.t[ 0 ][ 1 ] - g.t[ g.t.length - 1 ][ 1 ] ) < 0.4 && Math.hypot( f.t[ 0 ][ 0 ] - g.t[ g.t.length - 1 ][ 0 ], f.t[ 0 ][ 2 ] - g.t[ g.t.length - 1 ][ 2 ] ) < 4.5 );
+		for ( const f of fl ) {
+
+			if ( used.has( f ) || prev( f ) ) continue;
+			const chain = [ f ];
+			used.add( f );
+			for ( let g = next( f ); g; g = next( g ) ) { chain.push( g ); used.add( g ); }
+			// the route (the field's frame): a step onto the floor before the foot, every tread, the landings
+			// between flights, a step off at the top
+			const pts = [], w = Math.min( ...chain.map( ( c ) => c.w ) );
+			const put = ( x, y, z ) => { const [ fx, fz ] = F.toField( x, z ); pts.push( [ fx, y - F.y0, fz ] ); };
+			const t0 = chain[ 0 ].t, a = t0[ 0 ], b = t0[ 1 ], ux = a[ 0 ] - b[ 0 ], uz = a[ 2 ] - b[ 2 ], ul = Math.hypot( ux, uz ) || 1;
+			put( a[ 0 ] + ux / ul * 1.4, a[ 1 ] - ( b[ 1 ] - a[ 1 ] ), a[ 2 ] + uz / ul * 1.4 );
+			for ( const c of chain ) for ( const q of c.t ) put( q[ 0 ], q[ 1 ], q[ 2 ] );
+			const tl = chain[ chain.length - 1 ].t, e = tl[ tl.length - 1 ], e1 = tl[ tl.length - 2 ], vx = e[ 0 ] - e1[ 0 ], vz = e[ 2 ] - e1[ 2 ], vl = Math.hypot( vx, vz ) || 1;
+			put( e[ 0 ] + vx / vl * 1.2, e[ 1 ], e[ 2 ] + vz / vl * 1.2 );
+			const s = [ 0 ];
+			for ( let k = 1; k < pts.length; k ++ ) s.push( s[ k - 1 ] + Math.hypot( pts[ k ][ 0 ] - pts[ k - 1 ][ 0 ], pts[ k ][ 2 ] - pts[ k - 1 ][ 2 ] ) );
+			this._ways.routes.push( { pts, s, L: s[ s.length - 1 ], w: Math.max( 0.45, w ), tag: f.tag } );
+
+		}
+
+		// the people: one for every 3.5 m of route (at least two a route), 48 in all at most
+		const routes = this._ways.routes.filter( ( r ) => r.L > 3 );
+		this._ways.routes = routes;
+		// and the elevators' doors (Bowl._elevators: the infield's banks on the main concourse, FI1's cores; the
+		// Alley's tower at the Alley and the Pavilion, FA1's): a place for three to wait at each, either side
+		// of the doors and a step out from them, where there's floor and nothing in the way (the middle kept
+		// clear: the walker arrives there off a ride, and rides from there)
+		const doors = [], tmp = new Vector3();
+		for ( const bank of this._bowl?.elevators || [] ) for ( const st of bank.stops ) {
+
+			if ( ! /^(Main concourse|Ashburn Alley|Pavilion)$/.test( st.name ) || doors.length >= 8 ) continue;
+			const n = st.face, a = [ n[ 1 ], - n[ 0 ] ], spots = [];
+			for ( const [ l, o ] of [ [ - 1.4, 0.9 ], [ 1.45, 1.0 ], [ - 2.1, 1.3 ], [ 2.05, 1.35 ], [ - 0.95, 1.55 ], [ 0.9, 1.6 ] ] ) {
+
+				if ( spots.length >= 3 ) break;
+				const fx = st.x - n[ 0 ] * ( 1.8 - o ) + a[ 0 ] * l, fz = st.z - n[ 1 ] * ( 1.8 - o ) + a[ 1 ] * l;
+				const w = F.toWorld( fx, fz ), wy = F.y0 + st.y;
+				// (the bowl's ground is the field's frame, the colliders' the world's)
+				const gy = Math.max( this._bowl.heightAt ? this._bowl.heightAt( fx, fz ) + F.y0 : - Infinity, C.groundHeightAt( w.x, w.z, wy + 0.4 ) );
+				if ( Math.abs( gy - wy ) > 0.15 ) continue;
+				tmp.set( w.x, wy, w.z );
+				if ( C.resolveCapsule( tmp, 0.3, 1.7 ) ) continue;
+				// (and out of the way of the people going by: the stairs' climbers, the throng's walkers)
+				if ( routes.some( ( R ) => R.pts.some( ( q ) => Math.abs( q[ 1 ] - st.y ) < 1 && Math.hypot( q[ 0 ] - fx, q[ 2 ] - fz ) < 1.3 ) ) ) continue;
+				if ( ( this._thrLines || [] ).some( ( ln ) => ln.pts.some( ( q, k ) => {
+
+					if ( Math.abs( st.y - STREET ) > 1 || k === ln.pts.length - 1 ) return false;
+					const r = ln.pts[ k + 1 ], ux = r[ 0 ] - q[ 0 ], uz = r[ 1 ] - q[ 1 ], ul2 = ux * ux + uz * uz || 1;
+					const u = Math.max( 0, Math.min( 1, ( ( fx - q[ 0 ] ) * ux + ( fz - q[ 1 ] ) * uz ) / ul2 ) );
+					const B = ln.band[ k ] || [ - 3, 3 ];
+					return Math.hypot( q[ 0 ] + ux * u - fx, q[ 1 ] + uz * u - fz ) < Math.max( - B[ 0 ], B[ 1 ] ) + 0.6;
+
+				} ) ) ) continue;
+				spots.push( [ fx, fz ] );
+
+			}
+
+			if ( spots.length ) doors.push( { st, spots, n: 0, until: 0, roll: 0, ppl: [] } );
+
+		}
+
+		if ( ! routes.length && ! doors.length ) return;
+		this.climbers = new Cast( { parent: this.field.group, max: 48 + doors.length * 3 } );
+		this._waysTempo = new Tempo( [ this.climbers ], { every: 4 } );
+		let n = 0;
+		// (one for every 3.5 m, fewer all round when that's over 48, so every route has its two: the 400s'
+		// ten stairs came last and went without)
+		const want = routes.map( ( R ) => Math.min( 14, R.L / 3.5 ) ), sum = want.reduce( ( a, b ) => a + b, 0 );
+		const sc = Math.min( 1, ( 48 - 2 * routes.length ) / Math.max( 1e-3, sum - 2 * routes.length ) );
+		for ( const [ ri, R ] of routes.entries() ) {
+
+			const k = Math.max( 2, Math.min( 14, 2 + Math.floor( ( want[ ri ] - 2 ) * Math.max( 0, sc ) ) ) );
+			for ( let j = 0; j < k && n < 48; j ++, n ++ ) {
+
+				const r = rng( thrHash( 51000 + n * 7 ) );
+				const L = dress( r );
+				const p = this.climbers.add( L );
+				if ( ! p ) break;
+				p.scale = sizeOf( L, r );
+				p.visible = false;
+				// (spread along the route to begin with, so a route isn't empty the moment it's shown)
+				this._ways.slots.push( { p, R, ri, s: ( j + r() ) / k * R.L, up: r() < 0.5, on: false, wait: r() * 4, rail: r() < 0.3, speed: 0.38 + 0.12 * r(), lat: 0.12 + 0.2 * r(), trip: 0, seed: n, look: L } );
+
+			}
+
+		}
+
+		for ( const [ i, D ] of doors.entries() ) {
+
+			for ( let j = 0; j < D.spots.length; j ++ ) {
+
+				const r = rng( thrHash( 61000 + i * 13 + j * 5 ) );
+				const L = dress( r );
+				const p = this.climbers.add( L );
+				if ( ! p ) break;
+				p.scale = sizeOf( L, r );
+				p.visible = false;
+				D.ppl.push( { p, look: L, seed: 900 + i * 3 + j } );
+
+			}
+
+		}
+
+		this._ways.doors = doors.filter( ( D ) => D.ppl.length );
+		this._waysV = [ new Vector3(), new Vector3() ];
+
+	}
+
+	_waysUpdate( dt, d ) {
+
+		if ( ! this._ways ) this._waysBuild();
+		const W = this._ways;
+		if ( ! W.slots.length && ! W.doors?.length ) return;
+		// a jump in the night's time (the first frame, a seek): everyone dealt again for the new moment, the
+		// climbers part-way along their trips (so a stair isn't empty the moment it's shown)
+		const t = d ? d.t : ( this._waysT ?? 0 ) + dt;
+		if ( this._waysT === undefined || Math.abs( t - this._waysT - dt ) > 2 ) W.jump = true;
+		this._waysT = t;
+		const sdt = this._waysTempo.step( dt, this._waysCam );
+		this.climbers.update();
+		if ( ! sdt ) return;
+		this._waysView();
+		const seen = ( q, far ) => this._waysSeen( q[ 0 ], q[ 1 ], q[ 2 ], far );
+		// how many are on the stairs, and which way most of them are going, by the moment
+		const ns = nightState( d );
+		let dens = ns.top ? 0.3 : 0.2, up = 0.5;
+		if ( ns.seg?.kind === 'intro' || ( ns.inning === 1 && ns.half === 'top' && ( ns.snap?.outs || 0 ) === 0 ) ) dens = 1, up = 0.78;
+		else if ( ns.suspended ) dens = 0.65, up = 0.3;
+		else if ( ns.between ) dens = 0.85, up = 0.5;
+		if ( ns.inning === 9 && ! ns.celebrate ) dens = 0.08;
+		if ( ns.celebrate ) dens = ns.celebrateT < 90 ? 0.1 : 0.9, up = 0.15;
+		const rain = ns.first ? ns.rain : 0;
+		for ( const S of W.slots ) {
+
+			const R = S.R, p = S.p, a = p.pose;
+			if ( W.jump ) { S.on = false; S.wait = 0; S.hold = - 1; }
+			if ( ! S.on ) {
+
+				// between trips: off the stair; a new trip when his wait's up (its way and whether he's out by
+				// the moment it starts: nobody turns round halfway)
+				S.wait -= sdt;
+				if ( S.wait > 0 ) { p.visible = false; continue; }
+				S.trip ++;
+				const h = rng( thrHash( S.seed * 131 + S.trip * 17 + 3 ) );
+				S.on = h() < dens;
+				S.up = h() < up;
+				S.s = W.jump ? h() * R.L * 0.9 : 0;
+				S.rail = h() < 0.3;
+				S.wait = 1 + h() * 7;
+				// (nobody appears before your eyes: a trip starts from a stair's end only while that end's out of
+				// sight or 20 m off; at a jump, anywhere along)
+				if ( S.on && ! W.jump && seen( S.up ? R.pts[ 0 ] : R.pts[ R.pts.length - 1 ], 20 ) ) S.on = false;
+				if ( ! S.on ) { p.visible = false; continue; }
+				// (dressed for the night: a poncho on the 27th's rainy hours, as the throng has them)
+				const L = { ...S.look };
+				if ( ! ( rain > 0.45 && h() < 0.35 ) ) L.poncho = 0; else if ( ! L.poncho ) L.poncho = 1;
+				this.climbers.setLook( p, L );
+				Object.assign( a, restPose() );
+				if ( S.rail ) a.armR = armIK( 1, [ 0.36, 1.0, - 0.08 ] );
+				else if ( h() < 0.15 && L.age !== 2 ) { a.armR = GESTURE.carry[ 1 ].slice(); a.propR = PROP.beer; }
+
+			}
+
+			if ( ! ( S.hold >= 0 ) ) S.s += sdt * S.speed * ( S.up ? 1 : 1.18 );
+			// (nor goes: at the end of his trip, if you can see it from under 20 m, he stops there, waiting for
+			// someone, till you can't; the next one to finish there a step behind him, and so on back)
+			if ( S.hold >= 0 || S.s >= R.L ) {
+
+				if ( W.jump || ! seen( S.up ? R.pts[ R.pts.length - 1 ] : R.pts[ 0 ], 20 ) ) { S.on = false; S.hold = - 1; p.visible = false; continue; }
+				if ( ! ( S.hold >= 0 ) ) S.hold = W.slots.filter( ( o ) => o !== S && o.R === R && o.on && o.hold >= 0 && o.up === S.up ).length;
+				S.s = Math.max( 0, R.L - 0.75 * S.hold );
+
+			}
+
+			const hold = S.hold >= 0;
+			// where he is: along the route (from its top coming down), kept right of the way he's going
+			const s = S.up ? S.s : R.L - S.s;
+			let k = 1;
+			while ( k < R.s.length - 1 && R.s[ k ] < s ) k ++;
+			const A = R.pts[ k - 1 ], B = R.pts[ k ], f = Math.max( 0, Math.min( 1, ( s - R.s[ k - 1 ] ) / Math.max( 1e-3, R.s[ k ] - R.s[ k - 1 ] ) ) );
+			let dx = B[ 0 ] - A[ 0 ], dz = B[ 2 ] - A[ 2 ];
+			const dl = Math.hypot( dx, dz ) || 1;
+			dx /= dl; dz /= dl;
+			if ( ! S.up ) { dx = - dx; dz = - dz; }
+			const lat = S.rail ? R.w - 0.3 : Math.min( R.w - 0.3, S.lat + 0.1 );
+			const climb = Math.abs( B[ 1 ] - A[ 1 ] ) > 0.05 && k > 1 && k < R.pts.length - 1;
+			p.x = A[ 0 ] + ( B[ 0 ] - A[ 0 ] ) * f - dz * lat;
+			p.z = A[ 2 ] + ( B[ 2 ] - A[ 2 ] ) * f + dx * lat;
+			p.y = A[ 1 ] + ( B[ 1 ] - A[ 1 ] ) * f;
+			p.yaw = Math.atan2( - dx, - dz );
+			p.visible = true;
+			a.walk = hold ? 0 : 1;
+			if ( ! hold ) a.phase += sdt * S.speed * ( S.up ? 1 : 1.18 ) / 0.28 * Math.PI;
+			// the stair's gait: going up the leading knee lifted and the body over it; coming down a little back,
+			// the knees easing each step down
+			const st = Math.sin( a.phase ), kU = climb && ! hold ? 1 : 0;
+			a.hipL = kU * ( S.up ? 0.55 : 0.2 ) * Math.max( 0, st );
+			a.kneeL = kU * ( S.up ? 0.85 : 0.45 ) * Math.max( 0, st );
+			a.hipR = kU * ( S.up ? 0.55 : 0.2 ) * Math.max( 0, - st );
+			a.kneeR = kU * ( S.up ? 0.85 : 0.45 ) * Math.max( 0, - st );
+			a.lean = kU * ( S.up ? 0.12 : - 0.04 );
+			a.headPitch = kU * ( S.up ? 0.12 : 0.28 );
+
+		}
+
+		this._waitersUpdate( sdt, ns, rain );
+		W.jump = false;
+
+	}
+
+	// where the view is this step (the field's frame), and whether a place there (its floor; a person's chest
+	// over it) is in sight from under `far` metres: in front of the camera, not just cut to (a cut is
+	// everyone's chance to move unseen)
+	_waysView() {
+
+		const cam = this._waysCam, F = this.field, V = this._wv || ( this._wv = { on: false } );
+		V.on = !! cam && ! this._waysTempo.cut;
+		if ( ! V.on ) return;
+		const [ P, Q ] = this._waysV;
+		cam.getWorldPosition( P );
+		cam.getWorldDirection( Q );
+		[ V.x, V.z ] = F.toField( P.x, P.z );
+		V.y = P.y - F.y0;
+		[ V.fx, V.fz ] = F.toField( Q.x, Q.z );
+		V.fy = Q.y;
+
+	}
+
+	_waysSeen( x, y, z, far ) {
+
+		const V = this._wv;
+		if ( ! V?.on ) return false;
+		const dx = x - V.x, dy = y + 1.2 - V.y, dz = z - V.z, dl = Math.hypot( dx, dy, dz ) || 1;
+		return dl < far && ( dx * V.fx + dy * V.fy + dz * V.fz ) / dl > 0.3;
+
+	}
+
+	// the elevators' doors: a few waiting at each, by the moment (the walk-in, going home, the rain delay
+	// more; in play a few; at the last out nobody new), facing the doors, one watching the floor over them,
+	// hands in pockets, arms folded, a phone at the ear, a beer. A new lot only while the door's out of
+	// sight (over 45 m off or behind you: nobody appears or goes before your eyes), every half a minute to
+	// a minute and a half. At strike three the ones there turn to the field with their arms up
+	_waitersUpdate( sdt, ns, rain ) {
+
+		const W = this._ways;
+		if ( ! W.doors?.length ) return;
+		const unseen = ( st ) => W.jump || ! this._waysSeen( st.x, st.y, st.z, 45 );
+
+		let want = ns.top ? 0.8 : 0.6;
+		if ( ns.seg?.kind === 'intro' || ( ns.inning === 1 && ns.half === 'top' && ( ns.snap?.outs || 0 ) === 0 ) ) want = 2.2;
+		else if ( ns.suspended ) want = 1.4;
+		else if ( ns.between ) want = 1.6;
+		if ( ns.inning === 9 && ! ns.celebrate ) want = 0.25;
+		if ( ns.celebrate ) want = ns.celebrateT < 90 ? 0 : 2.6;
+		const cheer = ns.celebrate && ns.celebrateT < 90;
+		for ( const [ i, D ] of W.doors.entries() ) {
+
+			const st = D.st;
+			D.until = W.jump ? 0 : D.until - sdt;
+			if ( D.until <= 0 && unseen( st ) ) {
+
+				D.roll ++;
+				const h = rng( thrHash( 77000 + i * 911 + D.roll * 31 ) );
+				D.n = Math.min( D.ppl.length, Math.round( want * ( 0.3 + 1.4 * h() ) ) );
+				D.until = 30 + 60 * h();
+				D.cheer = false;
+				for ( const [ j, Q ] of D.ppl.entries() ) {
+
+					const p = Q.p, a = p.pose;
+					p.visible = j < D.n;
+					if ( ! p.visible ) continue;
+					const L = { ...Q.look };
+					if ( ! ( rain > 0.45 && h() < 0.35 ) ) L.poncho = 0; else if ( ! L.poncho ) L.poncho = 1;
+					this.climbers.setLook( p, L );
+					Object.assign( a, restPose() );
+					const [ x, z ] = D.spots[ j ];
+					p.x = x + ( h() - 0.5 ) * 0.24;
+					p.z = z + ( h() - 0.5 ) * 0.24;
+					p.y = st.y;
+					// facing the doors (st.face points out from them), turned a little either way
+					p.yaw = Math.atan2( st.face[ 0 ], st.face[ 1 ] ) + ( h() - 0.5 ) * 0.6;
+					Q.yaw = p.yaw;
+					a.headPitch = j === 0 ? - 0.24 : h() * 0.15;
+					const g = h();
+					const put = ( G ) => { if ( G[ 0 ] ) a.armL = G[ 0 ].slice(); if ( G[ 1 ] ) a.armR = G[ 1 ].slice(); };
+					if ( g < 0.25 ) put( GESTURE.pockets );
+					else if ( g < 0.4 ) put( GESTURE.fold );
+					else if ( g < 0.55 ) { put( GESTURE.phone ); a.propR = PROP.phone; a.headPitch = 0.1; }
+					else if ( g < 0.7 ) { put( GESTURE.carry ); a.propR = PROP.beer; }
+
+				}
+
+			}
+
+			// strike three: the ones waiting turn to the field, arms up
+			if ( cheer && ! D.cheer && D.n ) {
+
+				D.cheer = true;
+				for ( let j = 0; j < D.n; j ++ ) {
+
+					const a = D.ppl[ j ].p.pose, R0 = restPose();
+					D.ppl[ j ].p.yaw = Math.atan2( - st.face[ 0 ], - st.face[ 1 ] ) + ( j - 1 ) * 0.25;
+					a.armL = R0.armL; a.armR = R0.armR;
+					const G = j % 2 ? GESTURE.fist : GESTURE.cheer;
+					if ( G[ 0 ] ) a.armL = G[ 0 ].slice();
+					if ( G[ 1 ] ) a.armR = G[ 1 ].slice();
+					a.propR = 0;
+					a.headPitch = - 0.2;
+					a.mouth = 1;
+
+				}
+
+			}
+
+		}
+
+	}
+	// ---- end FK5
 
 }
