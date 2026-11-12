@@ -194,3 +194,9 @@ Wall ms per frame at 1280 × 800, the standard views under the lock's exclusive 
 - **TV center and the follow camera: unchanged** (-0.04, -0.02).
 - **The 3B plaza on the 27th reads 1.4 ms slower in wall time** (17.4 → 18.8) with the GPU time the same (17.4 → 17.6) and the opaque pass identical. That points at the CPU, or at one slow frame. SP4's reviewer is asked why; it's measured again at the merge.
 - No console errors in any run.
+
+| When | Merged | TV center | TV high | follow | concourse | lounge | real 3B seat | plaza | left field | **400s seat** | celebration | Harry's upstairs | TAAU |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 11-12 14:00 | **SP4 merged**, each fan at his own level switched off (the uniform arrays only) | 19.7 | 19.6 | 14.9 | 15.8 | 14.1 | 21.4 | 17.4 | **22.1** | **28.2** | 20.6 / 21.2 | 21.5 | 1.75-1.86 |
+
+**SP4 as merged (14:00, steady).** Against the quiet baseline: left field 27.9 → 22.1 ms (-5.8) and Harry's upstairs 23.3 → 21.5 (-1.8), both from left field's palette. Everything else is within 0.4 ms of the baseline, the 400s seat included (28.5 → 28.2): the crowd's tables as uniform arrays save little there on a quiet machine, and most of SP4's -1.8 ms in that seat came from the per-fan levels, which are merged off until the levels agree at their edges (SP5). The plaza is back at 17.4, so the branch's 18.8 was a slow frame. Every view is 35 fps or better; the 400s seat has 5.1 ms of margin. No console errors.
