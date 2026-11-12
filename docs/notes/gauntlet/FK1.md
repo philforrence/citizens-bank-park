@@ -1,6 +1,6 @@
 # FK1: the seats, the Deck's portals and end, the dugouts' roofs (step 12, round 1)
 
-Fixer FK1, 2026-11-12, on branch `worktree-agent-a265194306130bb85`, off `ballpark` at 159da9d. The tickets are step 11's FX2 (its saved edits, `.claude/gauntlet/s12/FX2-wip.patch`: SC1-1, SC1-5, SC1-12, SC1-16), breaker AD1's AD1-7, AD1-12 and AD1-16 (WA2-10), FA3's rail over the dugouts' roofs and the one-sided hall wall. The usage limit cut the round short: the hall wall is not done (below, "What's left").
+Fixer FK1, 2026-11-12, on branch `worktree-agent-a265194306130bb85`, off `ballpark` at 159da9d. The tickets are step 11's FX2 (its saved edits, `.claude/gauntlet/s12/FX2-wip.patch`: SC1-1, SC1-5, SC1-12, SC1-16), breaker AD1's AD1-7, AD1-12 and AD1-16 (WA2-10), FA3's rail over the dugouts' roofs and the one-sided hall wall. The usage limit cut the round short: the hall wall has its outer face but no doors or lights on it, and the rows behind the dugouts still sit too high (below, "What's left").
 
 ## How it was checked
 
@@ -53,9 +53,17 @@ Read before applying; all of it kept (commit fb06466).
 
 **What I changed:** a tier may call an end open (`openEnd: [ start, end ]`; Bowl.js sets `[ true, false ]` on the Deck, a marked line). An open end is the stepped units' ends in a band 0.3 m under the steps' inner corners (pale concrete, the stands' material), and under them the maroon raker they sit on (the edge beam's steel) down to the deck's underside, with its flanges and a stiffener every 1.5 m. Other tiers' ends are unchanged.
 
+### The one-sided hall wall (partly done)
+
+**What was wrong:** `ConcourseSteel._hallWall`'s brick faced the field only. From the ring behind it (the back of house, reached from the gates' ends 61-77 m from the plate) it was see-through onto the stands' backs and the concourse; the standard view `walk-concourse3b` (eye (-40, 8.6, 60)) stands in that ring.
+
+**What I changed:** its outer face, 0.3 m behind the inner one, and both ends, in the same block material (`concourse-brick`: red ground-face block over its dark base, as the 2008 concourse's walls, pompomflipflop 2591541163). One mesh as before, a few hundred more triangles. **Colliders:** unchanged (`concourse-wall`, 0.4 m thick on the inner face's line).
+
+**For the coordinator (don't edit `standard-views.json` here):** `walk-concourse3b` looks from inside that ring. A view of the concourse itself: eye (-36, 8.6, 46) looking at (-20, 8.6, 30), fov 60, play 60 (shot as `concourse-proper` in j1 and j2).
+
 ## What's left
 
-- **The one-sided hall wall** (`ConcourseSteel._hallWall`): not started. The plan: an outer face to the 2008 concourse's red ground-face block over a dark base (pompomflipflop 2591541163; hcwoodward 2983666367 for the concourse), its service doors and wall packs, then the standard view `walk-concourse3b` replaced by eye (-36, 8.6, 46) looking at (-20, 8.6, 30) (shot as `concourse-proper` in j1/j2). j1's js gives the wall's polyline: OUT from (78, 14.8) round home to (-78, 14.8), closed over s 25.7-172.4.
+- **The hall wall's outer face is plain block:** no service doors, wall packs or signs on the ring side yet.
 - **The rows behind the dugouts sit too high.** In 83824852, 112874141 and 83434999 the roof's top is at the waist of a fan standing in the first row behind it (the floor ~0.9 m under the roof); here row 4 is 0.12 m under it, so from the field the first rows' legs show over the roof. Lowering the dugout sections' rows 4-8 (a `rowY` like the Diamond Club's) needs the joints with the neighbouring sections walled and railed, and the people who walk those rows from `rowHeights` (People.js's aisle walkers and security, the Phanatic's walk down to the roof, places/phanatic/Ways.js) moved onto `rowY`. Not started.
 - **AD1-7's portals beside the aisles.** In 2372036920 the wells look to be at the aisles (the 400s' `atAisle`), not mid-section; FA1's stairs (PavilionWays.js) are laid from `_portals`, so moving them is a Bowl.js setting plus a walk audit.
 - **The walk audit** was not run (`test/walk-audit.mjs`): run it on the merge for the Deck's portals.
