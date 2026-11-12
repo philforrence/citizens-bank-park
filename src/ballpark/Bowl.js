@@ -1963,7 +1963,31 @@ ${ open ? `	s.albedo = vec3f( 0.01 );
 				kq( C( - 1, - 1, y1 ), C( 1, - 1, y1 ), C( 1, 1, y1 ), C( - 1, 1, y1 ), [ 0, 1, 0 ], top );
 
 			};
-			let run = 13, k = 0;
+			// (FK3 repair) a unit's spot is clear when every corner of its curbs is inside the footprint and
+			// 1.5 m from its edges (the rail, the precast edge, the brick's head), and each casing's centre 9 m
+			// from a gate's light tower (its legs 12.4 m across, 3.5 deep: Bowl._portalTower)
+			const towers = ( this.gateTowers || [] ).flatMap( ( g ) => g.pair );
+			const roofClear = ( cs, t, hl, hw ) => cs.every( ( cc ) => {
+
+				if ( towers.some( ( [ tx, tz ] ) => Math.hypot( cc[ 0 ] - tx, cc[ 1 ] - tz ) < 9 ) ) return false;
+				return [ [ - 1, - 1 ], [ 1, - 1 ], [ 1, 1 ], [ - 1, 1 ] ].every( ( [ i, j ] ) => {
+
+					const px = cc[ 0 ] + t[ 0 ] * hl * i - t[ 1 ] * hw * j, pz = cc[ 1 ] + t[ 1 ] * hl * i + t[ 0 ] * hw * j;
+					let inside = false, near = Infinity;
+					for ( let a = 0, b = F.length - 1; a < F.length; b = a ++ ) {
+
+						const [ ax, az ] = F[ a ], [ bx, bz ] = F[ b ];
+						if ( ( az > pz ) !== ( bz > pz ) && px < ( bx - ax ) * ( pz - az ) / ( bz - az ) + ax ) inside = ! inside;
+						const ex = bx - ax, ez = bz - az, u = Math.max( 0, Math.min( 1, ( ( px - ax ) * ex + ( pz - az ) * ez ) / ( ex * ex + ez * ez ) ) );
+						near = Math.min( near, Math.hypot( ax + ex * u - px, az + ez * u - pz ) );
+
+					}
+					return inside && near >= 1.5;
+
+				} );
+
+			} );
+			let run = 13, k = 0, arc = 0, at0 = null;
 			for ( let i = 0; i < S.length - 1; i ++ ) {
 
 				const A = S[ i ], B = S[ i + 1 ];
@@ -1977,18 +2001,33 @@ ${ open ? `	s.albedo = vec3f( 0.01 );
 				kq( [ ax[ 0 ], y + 0.1, ax[ 1 ] ], [ bx[ 0 ], y + 0.1, bx[ 1 ] ], [ bx[ 0 ], y + 0.27, bx[ 1 ] ], [ ax[ 0 ], y + 0.27, ax[ 1 ] ], en, 3 );
 				kq( [ bi[ 0 ], y, bi[ 1 ] ], [ ai[ 0 ], y, ai[ 1 ] ], [ ai[ 0 ], y + 0.27, ai[ 1 ] ], [ bi[ 0 ], y + 0.27, bi[ 1 ] ], en.map( ( v ) => - v ), 3 );
 				// a unit every ~21 m where the roof is 8 m deep, 60 % of the way out; its conduit back in
-				run += Math.hypot( B.p[ 0 ] - A.p[ 0 ], B.p[ 1 ] - A.p[ 1 ] );
+				const seg = Math.hypot( B.p[ 0 ] - A.p[ 0 ], B.p[ 1 ] - A.p[ 1 ] );
+				run += seg;
+				arc += seg;
 				if ( run < 21 || A.d < 8 || B.d < 8 ) continue;
-				run = 0;
 				const l = Math.hypot( B.p[ 0 ] - A.p[ 0 ], B.p[ 1 ] - A.p[ 1 ] ), t = [ ( B.p[ 0 ] - A.p[ 0 ] ) / l, ( B.p[ 1 ] - A.p[ 1 ] ) / l ];
 				const c = [ A.p[ 0 ] + A.n[ 0 ] * A.d * 0.6, A.p[ 1 ] + A.n[ 1 ] * A.d * 0.6 ];
 				const big = k % 3 === 0, hl = big ? 2.1 : 0.95, hw = big ? 1.0 : 0.6, h = big ? 1.55 : 1.05;
+				const c2 = [ c[ 0 ] + t[ 0 ] * 2.4, c[ 1 ] + t[ 1 ] * 2.4 ];
+				// (FK3 repair) clear of the facade and of the gates' light towers, or the next spot along: the
+				// first base air handler hung 1.9 m past the footprint over the facade's head; at the Third Base
+				// Gate a condenser stood in a leg of the left field side's tower, and two against the home plate
+				// side's, one of them in the brick's head. And not across a bend in the frame's line (a casing on
+				// its chord sat skew, its conduit's riser inside it)
+				// (the ones after it keep their places: the next counts from where this one was due)
+				if ( A.n[ 0 ] * B.n[ 0 ] + A.n[ 1 ] * B.n[ 1 ] < 0.98 || ! roofClear( big ? [ c ] : [ c, c2 ], t, hl + 0.12, hw + 0.12 ) ) {
+
+					if ( at0 === null ) at0 = arc;
+					continue;
+
+				}
+				run = at0 === null ? 0 : Math.min( arc - at0, 12 );
+				at0 = null;
 				unit( c, t, hl + 0.12, hw + 0.12, y, y + 0.3, 2, 2 );
 				unit( c, t, hl, hw, y + 0.3, y + 0.3 + h, 0, big ? 5 : 1 );
 				if ( ! big ) {
 
 					// a second condenser beside it
-					const c2 = [ c[ 0 ] + t[ 0 ] * 2.4, c[ 1 ] + t[ 1 ] * 2.4 ];
 					unit( c2, t, hl + 0.12, hw + 0.12, y, y + 0.3, 2, 2 );
 					unit( c2, t, hl, hw, y + 0.3, y + 0.3 + h, 0, 1 );
 
