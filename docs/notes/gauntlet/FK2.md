@@ -85,3 +85,117 @@ Low. The near figure's face paint adds a few dozen ALU ops in the fragment for t
 ## Noticed elsewhere
 
 - The desk was busy (SP4's exclusive profiling, three jobs ahead): a fixer's job can wait 15-20 minutes for its turn.
+
+## Repair (round 1, after SK-FK2 and RV-FK2)
+
+Repairer for FK2, 2026-11-12, branch `worktree-wf_e827367a-b28-2` (FK2's branch merged into a fresh worktree off `ballpark`, then the commits below). The skeptic sent the bundle back for one thing, the champions' cap reading CHAMPION; that and its follow-ups are here, in the brief's order.
+
+**The shots** (main checkout, 1280 × 800, full park, no console errors in any job):
+- **Before:** the skeptic's own shots of FK2's tree, `.claude/gauntlet/s12/r1/SK-FK2/a1/<name>.jpg` (its extras `C1`-`C3`, `W1`-`W6`, `Z2`, `S14` in `SK-FK2/a2/`). This repair started from exactly that tree, and every after below is the skeptic's framing by the same name.
+- **After:** `.claude/gauntlet/s12/r1/FK2-repair/a4/<name>.jpg`, the last job: 81 shots, each item's after, TV center at play 20 (`T0`) with the counts. `a1/`, `a2/`, `a3/` are the earlier passes (a1 after the first round, a2 after the second, a3 before the jacket's collar was right).
+- **Sheets:** `FK2-repair/sheets/` (before beside after, cut with `tools/sheet.mjs`). **The recipe:** `FK2-repair/mkjob.mjs` (SK-FK2's, pointed at this tree: `node mkjob.mjs <tag> after [prefixes]`), each job's result in `result-<tag>.txt`.
+- **On the CPU:** `FK2-repair/tools/` and `FK2-repair/cpu/`. `prev.mjs` with `paint.mjs` is a software raster of the near figure's head with the face's paint ported by hand (the beards, the collar, the mouth's inside, the catchlight, the cap's cord): it reproduced the skeptic's defects before anything was rendered (`cpu/feliz-old-f.jpg`, `cpu/lidge-old-shout.jpg`, `cpu/nk-old.jpg`), so each repair was shaped there first. `capclear.mjs`, `capn.mjs`, `jaw.mjs`, `mouth.mjs`, `mouth2.mjs`, `nrm.mjs`, `ease.mjs` are the measurements quoted below.
+
+### Blocking 1. The champions' cap reads CHAMPIONS: fixed (bbf6cef, f33c2e7)
+
+- **The cause, as RV-FK2 found it:** the side logo's test (`Nb.x < -0.5 && abs( Nb.y ) < 0.6`) is true on the crown's front from 3.5 cm to the wearer's left of centre, and took the cell there without drawing anything. `tools/capn.mjs` maps it on the crown's own normals: every sample of the front between 3.5 and 6.5 cm to his left, at every height.
+- **What changed:** the Series logo is on the champions' cap's **back**, low and 6 cm across, where Getty 83485940 (the cap from behind), 83486314 (Hamels) and 83912493 (Werth, both on backwards) have it; the champions' cap is out of the side logo's test again; and that test now holds only where its own cell reaches (`L.z > -0.065`, the reviewer's condition), so no cap's front can lose pixels to it. The arch is back at 10.5 cm (FK2 narrowed it to 9.5 on the wrong diagnosis; 83485940 has it from seam to seam).
+- **The logo's art:** the patch cell was a navy disc with WORLD SERIES 2008. It's now the 2008 Series logo as 83485940 shows it close: the diamond edged navy and gold on a green field, WORLD over SERIES in white edged navy across it, the batterman in its top corner, 2008 and the base under the words. The same cell is the sleeve's patch and the everyday caps' side logo, so those are the real logo too (`a4/X1-utley-right-sleeve.jpg`, `a4/X5-lidge-cap-side-patch.jpg` against 83485858, Lidge's cap). The atlas' two cells as drawn: `a4/X6-atlas-cells.png`.
+- **Rendered:** `SK-FK2/a1/M09-ruiz-cap-top.jpg` | `a4/M09-ruiz-cap-top.jpg` (square on: CHAMPIONS, whole); `SK-FK2/a1/M05-manuel-cap.jpg` | `a4/M05-manuel-cap.jpg`; `SK-FK2/a2/C1-howard-cel-cap.jpg` | `a4/C1-howard-cel-cap.jpg`; and Utley from both sides (`a4/C2`, `C3`), Hamels (`a4/M12`), Manuel at arm's length (`a4/M01`): the word whole on six men. The back: `SK-FK2/a1/M08-ruiz-cap-behind.jpg` | `a4/M08-ruiz-cap-behind.jpg`, `a4/X7-howard-cap-behind.jpg`, `a4/X8-manuel-cap-behind-34.jpg`. No logo on the left side: `a4/M07-ruiz-cap-other-side.jpg`. FOX's cut of the stage, the caps from behind: `a4/T10-tv-3640.jpg`. Sheets: `sheets/pair-caps.jpg`, `sheets/cap-back-a2.jpg`.
+
+### 1. Feliz's beard: fixed (5777620)
+
+- **What was wrong underneath:** FY3's chin strap was centred 4 mm over a line that runs 1.6 to 2.3 cm **under** the base head's jaw edge (`tools/jaw.mjs`: the surface turns under at 1.657 m 2 cm from the middle, 1.677 at 5.5 cm, then up the back of the jaw to the lobe), so it lay on the throat; FK2 swapped it for a full beard instead.
+- **What changed:** the strap (style 7) is on the face's side of the jaw's edge: from the sideburn down in front of the ear, round the jaw's angle in a curve, along the jaw to the chin, 1.3 cm wide at the side and 2 at the chin, with the patch under the lower lip; at full density its edge is clean (a barber's), not broken by the grain. Feliz: style 7, black, full, the moustache down round the mouth's corners, his cheeks clear (stubble 0.3) on FK2's olive-tan skin.
+- **Rendered:** `SK-FK2/a1/F07-feliz.jpg` | `a4/F07-feliz.jpg`; by day `N18-feliz-day`; under the helmet at his walk-up `SK-FK2/a2/W6-feliz-helmet-2843.jpg` | `a4/W6-feliz-helmet-2843.jpg`; at FOX's size `W1-tv-feliz-walkup-2843`. Against Getty 83483794 (`SK-FK2/ref-crops/getty-83483794-feliz-face.jpg`): `sheets/pair-feliz.jpg`. The CPU's four views: `cpu/feliz-n3.jpg`.
+
+### 2. The champions' cap's piping: fixed (ee7d3ab)
+
+The line across the front above the bill is gone; the cord comes down each front seam to the bill's corner and runs on round the bill's rim to its tip, 4 mm of white over the edge and just under it (the distance from the bill's middle in the lathed disc's own frame, Rig.js). Flickr 2993502271 (`SK-FK2/ref-crops/flickr-2993502271-caps-piping.jpg`), Getty 83485940 and 83571347. `a4/M09`, `M05`, `M06-ruiz-cap-side`, `C1`; `cpu/cap-sheet.jpg`.
+
+### 3. Strike three no longer steps: fixed (9f51caa)
+
+Every man's face now goes from the one he had to the champions' over 0.25 s from when he sees it: Lidge at once, the rest up to an eighth of a second after him, each his own; the crew's smile and the Rays' set jaws the same way. Lidge's bytes in the running app (`result-a4.txt`; open / smile of 255): K − 0.05: 10 / 0; K + 0.03: 27 / 10 (it was 71 / 152); + 0.07: 72 / 46; + 0.10: 114 / 75; + 0.17: 207 / 115; + 0.25: 255 / 115. `tools/ease.mjs` runs `expression()` frame by frame for Lidge, two other Phillies, a Ray and a crew man. `SK-FK2/a1/E-k*.jpg` | `a4/E-k*.jpg`; `sheets/pair-ease.jpg`.
+
+### 4. The collar an even ring: fixed (edafd1a, 52b9fbe, d38b2ee)
+
+- **What was wrong underneath:** both edges of the undershirt's band were heights (a plane tipped down to the front), cut off at 10 and 11 cm from the neck's axis. Over the flat of the shoulders a height is no edge: the skin ran out to the 10 cm circle, the band was the centimetre between the two circles with a square tab where each met the plane, and the line stepped from facet to facet.
+- **What changed:** both edges are a cone round the neck's axis: the old heights on the neck's own column, a centimetre higher for every centimetre further out, so they cross the trapezius' slope squarely and close round the neck's base. An even ring about a centimetre wide all the way round, the V in front as FK2 left it (Getty 83485929, Howard; 83485858, Lidge).
+- **The jackets:** the knit collar stopped 6 cm short of the middle on each side, the throat in a square notch; it now closes round the front, 2 cm lower under the chin (Getty 83571347: Manuel's stands all round his neck). And the chin's-underside rule is kept off the jersey's own front: below the collar the paint's position is the shaped cloth, stood 0.6 to 1.3 cm off the chest, which passed for a jutting chin and left a tab of skin over a jacket's zip once the neckline closed in (`sheets/jacket-zoom2-a3.jpg` has it; `a4` doesn't).
+- **Rendered:** `SK-FK2/a1/F03-utley.jpg` | `a4/F03-utley.jpg`; the arms up, where the torn edge was plainest: `S01-lidge-shout`, `S02-lidge-shout-34`, `S07-lidge-arms-up`; at 2.6 m `N19-lidge-body`; the far figure `L03-lidge-21m-far`; the jackets `N10-foley-3b-coach`, `N11-maddon-27`, `M02-manuel-body`, `M05-manuel-cap`; the plate umpire `N06-ump-plate`. `sheets/pair-collar.jpg`, `sheets/pair-jackets.jpg`; `cpu/nk-old.jpg` | `cpu/nk-new.jpg`.
+
+### 5. Beards thinned by hairs: fixed (5777620)
+
+- The density scaled the whole beard's opacity. It's now how much of the skin the hairs cover: each hair at full strength, the skin between them, the grain's threshold set by the density (about half the skin at 0.45, all of it at 1), and the cover's mean once a hair is under a pixel.
+- **Werth:** the strap at 0.55, sandy, his hair sandy: a light scruff along the jaw and on the chin, off the cheeks (Getty 83912493). `SK-FK2/a1/F08-werth.jpg` | `a4/F08-werth.jpg`; `N03-werth-helmet`; `W2-tv-werth-walkup-3146.7`.
+- **Navarro's sparse moustache** is fewer hairs (six tenths of his density), not the mask cut by the grain's threshold: `SK-FK2/a1/N02-navarro-mask.jpg` | `a4/N02-navarro-mask.jpg`; `sheets/pair-navarro.jpg`.
+- The men FK2 gave a density keep it, read as cover: Howard, Rollins, Ruiz, Victorino, Crawford, Hinske (`a4/F04`, `F05`, `F09`, `F06`, `F13`, `N04`). Everyone at the default (1) is as before.
+
+### 6. Lidge's shout: the dashes fixed; the muzzle lighter, and what's left (96e14a9, 8f7a2b9, 5777620)
+
+- **The dashes were geometry, not paint.** The bag the lips curl into runs 3.8 cm out behind the cheeks, and its upper side walls stay with the skull while the open jaw, the grin and the shout draw the cheek beside the mouth's corner back 4, 7 and 2 mm (`tools/mouth.mjs`, `mouth2.mjs`: the records' own moves). The walls stood out through the cheek, 7 mm wide and 2 cm tall, painted as the dark inside (`cpu/shout-dbg.jpg` shows the mark). They now go back a little further than the cheek does, by the expression's weights (vertex stage; the near and the middle figure).
+- **The last ticks at the corners:** the inside's depth was measured from the middle of the lips, so the rims by the corners (8.5 mm further back) were painted black; they're the lips' red. And the line between the lips, a shut mouth's, is gone by the time the mouth is a third open: it lay along both rims.
+- **The muzzle:** Lidge is the strap at 0.6 with a sparse moustache in a reddish blond (`H.strawberry`), stubble 0.45 (it was the goatee over stubble 0.7 across the whole beard's ground, in auburn); the fold from the nose round the mouth is 5 mm of shade at a fifth, not a 3 mm line at a third.
+- **Rendered:** `SK-FK2/a1/S01-lidge-shout.jpg` | `a4/S01-lidge-shout.jpg`, `S02-lidge-shout-34`, `S13-lidge-shout-low`; the middle figure forced on at 1 m, `SK-FK2/a2/Z2` | `a4/Z2-lidge-shout-1m-forced-mid.jpg`; the pile: `a4/S10-howard-shout.jpg`, `S14-shoutiest-k_2.5`. `sheets/pair-shout.jpg`, `sheets/pair-shout-zoom.jpg`; against Getty 83485858, `sheets/pair-shout-34-photo.jpg`.
+- **Left:** with his head thrown back at K + 1.2 the skin round the open mouth is still a shade darker than his cheeks. It isn't there with his head level at K + 0.25 (`a4/E-kp0.25.jpg`), and the shader's normals there are within 5 degrees of the moved surface's own on average (`tools/nrm.mjs`), so I take it for the scene's light on a face turned up under the bill, and the lips' own tint, not the stubble or the folds. I haven't proved that with a render that isolates it. The photo's face is lit by a flash.
+
+### 7. The catchlight can be seen: fixed (bdf6d28, 3448622, 118607b)
+
+11 degrees up and 9 out it sat under the upper lid at every man's resting lids (`cpu/eyes.jpg`, top row), and at a fifth of the light's strength it was dimmer than the lit white beside it. It's on the pupil's edge just under its middle, the same side in both eyes, 2 mm across and as bright as the light it mirrors; it fades out once a pixel covers more than 1.5 to 4 mm of him, so a far face doesn't spark (not seen to spark: a precaution, since it's five times brighter than it was). At 0.8 m by night: `a4/F10-burrell.jpg`, `F01-lidge`, `F11-hamels` (`sheets/eyes08-a4.jpg`: twice up, the befores above); at 0.45 m by night and day: `a4/X3-lidge-eyes.jpg`, `X4-hamels-eyes-day`.
+
+### 8. No pinpricks along Burrell's bill: fixed (e1b2839)
+
+The crown's facets cut up to 1.1 mm inside its own shell between their corners, so with every vertex held 1.2 mm in, the head's triangles still came through between them. `tools/capclear.mjs` samples every head triangle (not only its vertices) against the crown's own triangles: at FK2's margin 11 of 63 looks had points outside the crown (Burrell 48 samples, worst 0.68 mm; Utley 64; Longoria 80, worst 0.81 mm; Balfour 68; Dobbs 26; the first base umpire 22; Lidge 16; Pena 12; Durbin 8; Baldelli 4; Werth 2). (e1b2839's message says 12: a miscount.) At 2.5 mm at the band to 3.8 higher up, eased in over 9 mm under it: none of the 63 within 0.3 mm of the crown, at rest, in Lidge's shout or in a pile burst. `SK-FK2/a1/F10-burrell.jpg` | `a4/F10-burrell.jpg` (`sheets/pair-burrell-bill.jpg`).
+
+### 9. The reviewer's small things: done (5777620, 9f51caa, b6ccc5a)
+
+- Looks.js' skin and hair tables' closing braces are at column zero.
+- `plInfo`'s fifth vec4 is described as what it holds: x the shout, w the neck's thickness alone (0 to 62), y and z free. `packFace` and its fifteen retired numbers are gone (Looks.js still exports `FACE_PACK` for its own seeded faces); the shader reads the neck as it is.
+- `expression()` writes its packed weights and the shout into the slot's numbers itself (`info[ o + 1 ]`, `info[ o + 16 ]`); the `_shout` module variable is gone. It's exported, so the ease can be run on the CPU.
+- FieldFigures.js (FK2's marked note): the pinstripe's cover is measured from its middle, so both edges are antialiased, and it's worked out only `if ( pin )`. `a4/B01-bench-1b.jpg`.
+- The eye black's three pows run only for the men who wear it.
+
+### 10. test/players-shader.mjs: passes
+
+`node tools/gpu/lock.mjs run --owner "cbp FK2 repair" -- node test/players-shader.mjs` on this tree, after the last change to the shader: `players shader: ok {"draws":9,"triangles":407246,"pipelines":5,"occluded":0}` (the Phillie, the Ray and the Phanatic in the main and shadow passes through Dawn; the same counts FK2 reported).
+
+### 11. The five long pale faces: moved, modestly (4f2267e)
+
+Within what the rig allows (MakeHuman's modifiers and the paint):
+- **Utley:** dark hair and brows, the sun on his skin (`S.sun`), a day's dark stubble; the jaw's angle flared, the chin broad and cleft, the eyes narrower under a low brow.
+- **Hamels:** his hair and brows a dark brown, not light (Getty 83486314, `SK-FK2/ref-crops/getty-83486314-hamels-cap-backwards.jpg`); the long nose and chin, a wide mouth, the cheekbones.
+- **Longoria:** broader and heavier in the brow and the cheek. **Bartlett:** pointed (MakeHuman's inverted triangle; FF3's `shape-triangular` is a pear), the cheekbones out, a sharper nose, small eyes. **Kazmir:** round and boyish, full cheeks, a short chin.
+- No 2008 close-up of Utley, Longoria, Bartlett or Kazmir was looked at for this (the one Utley photo in `.claude/ref/rituals` wouldn't open here; none of the other three is there): those four are their well-known looks, kept plausible, not checked against a photo. Hamels is against 83486314.
+- `SK-FK2/a1/F03-utley`, `F11-hamels`, `F12-longoria`, `N16-bartlett`, `N12-kazmir-27` | the same names in `a4/`; `sheets/pair-five.jpg`; `cpu/five-old2.jpg` | `cpu/five-n2.jpg`. They read as five men now; none is a portrait.
+
+### Left, as the brief says
+
+CR1-6 (the shoulders balloon with the arms up: `a4/S07-lidge-arms-up.jpg`), CR1-15 (Manuel's jacket a ball, his face young) and CR1-13's roll at the belt: not touched.
+
+### The counts
+
+No geometry, draw, pipeline or pass was added: the repair is paint, a few vertex moves and JS.
+- **TV center at play 20** (`a4/T0`): 506 draws, 3,719,357 triangles, 783 pipelines, 18 occluded: FK2's figure to the triangle.
+- **Frame by frame** (`P-T0`, twelve frames in a row, the renderer's four-frame cadence; `result-a4.txt`), with 4 near, 21 middle and 0 far men: 381 draws and 2,844,324 triangles in the light phase, 506 and 3,681,229 in the middle one, 587 and 3,799,856 in the heavy one. SK-FK2's job 3 had FK2's tree at 381 and 2,846,488 in the light phase (ballpark 2,850,184): the same within the live crowd's noise.
+- Per frame on the CPU: `expression()` does one more smoothstep a slot. In the fragment: the beard's cover is one smoothstep more where there is a beard; the collar a `max`; the eye black's pows now skipped for most men. The frame time wasn't measured (the coordinator profiles).
+- `node test/continuity.mjs`: start hash 801248349, duration 3785.503. `npm test`: exit 0.
+
+### Walking
+
+No collider, and nothing a walker stands on, was added, moved or removed: the diff is `game/Players.js`, `game/Looks.js` and FK2's marked note in `FieldFigures.js`' fragment.
+
+### For the merger
+
+- **Files:** `src/ballpark/game/Players.js`, `src/ballpark/game/Looks.js`, `src/ballpark/FieldFigures.js` (inside FK2's marked AD1-10 note, in the pants' fragment), this file. `data/body.js`, `tools/build-body.mjs`, `Faces.js` and `Rig.js` are as FK2 left them: nothing was rebuilt.
+- **`plInfo`'s fifth vec4:** `w` is the neck alone now (0 to 62, was bits 12-17 of a packed number); `y` and `z` are free. Nothing outside Players.js reads it.
+- **The patch cell's art changed** (atlas cell 123): the sleeves and the everyday caps' sides carry the Series' diamond, not the navy disc.
+- **`expression( p, t, ch, info, o )`** is exported and writes into `info`; it returned the packed number before. Players.js is its only caller.
+- **Two new tones in Looks.js:** `S.sun` (with its entry in `ETH_OF`) and `H.strawberry`.
+- RV-FK2's notes for the merger still stand (the frame time after FK2 isn't measured; the main checkout's `tools/body/.cache` has 10 of the 220 MakeHuman files).
+
+### Noticed elsewhere (not this bundle's, not touched)
+
+- **Every batting helmet sits over the eyes, the batters' too, not only the coaches'** (`a4/N14-perez-helmet.jpg`, `N10-foley-3b-coach`, `N03-werth-helmet`; the same on FK2's tree, `SK-FK2/a1/`). From Rig.js, worked out by hand and not rendered: the shell's rim is cut at 0.62π and tipped 0.12, which puts its front edge at about 1.752 m, 1.5 cm **below** the eyes' centre (1.767; the cap's is at 1.80), and the bill hangs at 1.773, at the eyes' height. A rim tipped about 0.26 and cut near 0.56π (front at the brow, 1.79; the nape as now), the flaps' start moved to match, and the bill up at 1.795, should show the eyes in FOX's walk-ups. It needs its own before and after on every batter.
+- **The champions' tee's print** is a roundel over two bars; Getty 83571347 (Rollins on the stage) has the big WORLD SERIES CHAMPIONS 2008 crest across the chest.
+- **SK-FK2's `M13-rollins-cel` framing** is black on this tree too: the camera is inside another figure on the stage at 3640.
+- **The desk:** four jobs, at 18:20, 18:27, 18:34 and 18:50 UTC (50, 46, 81 and 81 shots; 65 to 100 s each), and `test/players-shader.mjs` five times under the lock (2 s each). The first three were seven minutes apart, closer than the brief's fifteen: I misjudged the time between them. The last waited its fifteen.
