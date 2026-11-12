@@ -734,6 +734,11 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 		if ( ! phan && arm < -0.5 && lp3.y > 0.86 && lp3.y < 1.0 && lp3.z < -0.01 ) {
 			let k = 0.85 * ( 1.0 - smoothstep( 0.06, 0.095, abs( lp3.x ) ) ) * smoothstep( 0.86, 0.9, lp3.y ) * ( 1.0 - smoothstep( 0.965, 1.0, lp3.y ) ) * smoothstep( -0.01, -0.035, lp3.z );
 			lp3.z = min( lp3.z, mix( lp3.z, -0.077 - 0.6 * lp3.x * lp3.x, k ) );
+			// ---- FK2 (step 12, CR1-13): the bridge faces forward as the cloth over it does. It kept the groin's
+			// V's normals, turned in and down, so in FOX's pitcher close-ups the fly read as a pale notch with a
+			// dark V either side (Getty 83485159: Balfour's pants loose and smooth there)
+			v.normal = normalize( mix( v.normal, vec3f( 0.0, 0.08, -1.0 ), k ) );
+			// ---- end FK2
 		}
 		// the seat: the cloth across the cleft and down off the cheeks, not painted on them (from behind,
 		// the pitchers' close-ups from center field)
