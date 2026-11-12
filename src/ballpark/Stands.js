@@ -2,6 +2,8 @@ import { Group, Mesh, InstancedMesh, BufferGeometry, Float32BufferAttribute, Mat
 import { triangulateShape } from '../engine/math/ShapeUtils.js';
 import { standard } from '../materials/Materials.js';
 import { beam, indexed } from './geo.js';
+import { DUGOUTS } from './layout.js'; // ---- FK1: the dugouts' roofs (the rail behind them)
+import { DUGOUT_ZONES, DUGOUT_ROOF, DUGOUT_WIDTH } from './Field.js'; // ---- FK1
 
 // Seating tiers, built the way real stands are: the front edge is a polyline of straight sections;
 // each section's rows are straight and parallel to its front, rising step by step away from the
@@ -203,7 +205,8 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		portals.push( { S, s: portalS( tier, S, k ), r0: PO.row, r1: PO.row + PO.rows } ); // ---- FA3: portalS
 
 	} );
-	const inPortal = ( S, s, r ) => portals.some( ( p ) => p.S === S && r >= p.r0 - 1 && r < p.r1 && Math.abs( s - p.s ) < PO.width / 2 + 0.35 );
+	// (---- FK1, AD1-7: beside an open portal's well the first seat is clear of its rail, not hung over the drop)
+	const inPortal = ( S, s, r ) => portals.some( ( p ) => p.S === S && r >= p.r0 - 1 && r < p.r1 && Math.abs( s - p.s ) < PO.width / 2 + ( PO.open ? 0.62 : 0.35 ) );
 	// ---- FA1 (step 10, WA2-1): an `open` portal is a way in: its rows are cut out between its cheeks (a floor
 	// at the mouth's level instead, walkable), the stair up to it comes from below (PavilionWays.js), and the
 	// tier's row colliders are only 0.6 m deep, so the stair passes under the rows. The portals are listed
@@ -434,6 +437,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	// ---- end FW3
 
 	// an upper deck's underside, parallel to the rake, and its two stepped end profiles
+	const fq = new Quads(), eq = new Quads();
 	if ( tier.soffit ) {
 
 		const t = tier.soffit, yB = ys[ ys.length - 1 ];
@@ -455,15 +459,46 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		profile.push( [ dB, yB - t ] );
 		const pts2 = profile.map( ( [ d, y ] ) => new Vector2( d, y ) );
 		const tris = triangulateShape( pts2.slice(), [] );
+		// ---- FK1 (AD1-16, WA2-10): an end the tier calls open (`openEnd: [ start, end ]`) is its precast and its
+		// steel, not one slab: the stepped units' ends in a band 0.3 m under the steps' inner corners, and
+		// under them the maroon raker they sit on, its stiffeners every 1.5 m, down to the deck's underside.
+		// The Pavilion Deck's NW end over the rooftop bleachers was a black wedge as the elevator let you out;
+		// 2008's (Commons 2008-03-29 2371236009) is pale stepped concrete with its rails on maroon steel
+		const slope = ( ys[ tier.rows - 1 ] - ys[ 0 ] ) / Math.max( D, ( tier.rows - 1 ) * D );
+		let inner = 0;
+		for ( let r = 1; r < tier.rows; r ++ ) inner = Math.min( inner, ys[ r - 1 ] - ( ys[ 0 ] + r * D * slope ) );
+		const bandY = ( d ) => ys[ 0 ] + ( d - S0 ) * slope + inner - 0.3, soffY = ( d ) => ys[ 0 ] - t + ( d - dF ) * ( yB - ys[ 0 ] ) / ( dB - dF );
+		const band = [ [ S0, bandY( S0 ) ] ];
+		for ( let r = 0; r < tier.rows; r ++ ) band.push( [ S0 + r * D, ys[ r ] ], [ S0 + ( r + 1 ) * D, ys[ r ] ] );
+		band.push( [ dB, bandY( dB ) ] );
+		const bandTris = triangulateShape( band.map( ( [ d, y ] ) => new Vector2( d, y ) ), [] );
+		// ---- end FK1
 		for ( const [ S, end ] of [ [ secs[ 0 ], false ], [ secs[ secs.length - 1 ], true ] ] ) {
 
 			const n = end ? [ S.ux, 0, S.uz ] : [ - S.ux, 0, - S.uz ];
-			const P3 = profile.map( ( [ d, y ] ) => {
+			const sAt = ( d ) => end ? Math.max( 0, S.len - S.m1 * d ) : Math.min( S.len, S.m0 * d );
+			const W3 = ( d, y, o = 0 ) => {
 
-				const s = end ? Math.max( 0, S.len - S.m1 * d ) : Math.min( S.len, S.m0 * d );
+				const s = sAt( d ) + ( end ? o : - o );
 				return [ S.a[ 0 ] + S.ux * s + S.nx * d, y, S.a[ 1 ] + S.uz * s + S.nz * d ];
 
-			} );
+			};
+			// ---- FK1 (AD1-16)
+			if ( tier.openEnd?.[ end ? 1 : 0 ] ) {
+
+				const P3 = band.map( ( [ d, y ] ) => W3( d, y ) );
+				for ( const [ i, j, k ] of bandTris ) q.tri( P3[ i ], P3[ j ], P3[ k ], n );
+				// the raker: its web from the band to the underside, set in 5 cm, its flanges along both edges
+				const d0 = Math.max( dF, S0 ), web = [ W3( d0, soffY( d0 ), - 0.05 ), W3( dB, soffY( dB ), - 0.05 ), W3( dB, bandY( dB ), - 0.05 ), W3( d0, bandY( d0 ), - 0.05 ) ];
+				eq.add( web[ 0 ], web[ 1 ], web[ 2 ], web[ 3 ], n );
+				beam( eq, W3( d0, bandY( d0 ) - 0.03, 0.02 ), W3( dB, bandY( dB ) - 0.03, 0.02 ), 0.05 );
+				beam( eq, W3( d0, soffY( d0 ) + 0.03, 0.02 ), W3( dB, soffY( dB ) + 0.03, 0.02 ), 0.05 );
+				for ( let d = d0 + 0.75; d < dB - 0.3; d += 1.5 ) beam( eq, W3( d, soffY( d ) + 0.06, 0.02 ), W3( d, bandY( d ) - 0.06, 0.02 ), 0.025 );
+				continue;
+
+			}
+			// ---- end FK1
+			const P3 = profile.map( ( [ d, y ] ) => W3( d, y ) );
 			for ( const [ i, j, k ] of tris ) q.tri( P3[ i ], P3[ j ], P3[ k ], n );
 
 		}
@@ -492,8 +527,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 
 	// the front wall / fascia and the back wall along the whole tier
 	// a deck's front: a light grey precast band along the top over a maroon steel edge beam, the rest
-	// of the front set back in the shade
-	const fq = new Quads(), eq = new Quads();
+	// of the front set back in the shade (---- FK1: fq and eq made before the soffit's ends, which use eq)
 	if ( tier.frontWall ) {
 
 		const top = tier.frontWall.top ?? ys[ 0 ];
@@ -600,6 +634,64 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	// glass at each aisle's foot in right (Commons 2008-03-29 2371427833). The free camera (F) still goes
 	// anywhere
 	const FR = tier.frontRail, fr = new Quads(), fm = new Quads(), fg = new Quads();
+	// ---- FK1: a dugout's roof along section S, [ s0, s1 ] along it (Field.js: the roof over the stretch between
+	// the wells, 0.2 m past each partition), or null
+	const roofSpan = ( S ) => {
+
+		for ( const [ A, B ] of Object.values( DUGOUTS ) ) {
+
+			const len = Math.hypot( B[ 0 ] - A[ 0 ], B[ 1 ] - A[ 1 ] ), ux = ( B[ 0 ] - A[ 0 ] ) / len, uz = ( B[ 1 ] - A[ 1 ] ) / len;
+			const mx = S.a[ 0 ] + S.ux * S.len / 2 - A[ 0 ], mz = S.a[ 1 ] + S.uz * S.len / 2 - A[ 1 ];
+			if ( Math.abs( S.ux * ux + S.uz * uz ) < 0.99 || Math.abs( mx * uz - mz * ux ) > 0.5 || mx * ux + mz * uz < 0 || mx * ux + mz * uz > len ) continue;
+			const sOf = ( t ) => ( A[ 0 ] + ux * t - S.a[ 0 ] ) * S.ux + ( A[ 1 ] + uz * t - S.a[ 1 ] ) * S.uz;
+			const u = sOf( DUGOUT_ZONES.home - 0.2 ), v = sOf( len - DUGOUT_ZONES.far + 0.2 );
+			return [ Math.min( u, v ), Math.max( u, v ) ];
+
+		}
+		return null;
+
+	};
+	// the rally towels left on the roof at its back edge, flat on the white or hung over it on the crowd's
+	// side, one every two or three metres (Getty 83824852: one under a boy's hands; the crowd's own, Crowd.js,
+	// white terry with the red square)
+	const tq = new Quads();
+	const towels = ( S, P, s0, s1, dE ) => {
+
+		const yR = DUGOUT_ROOF + 0.004, dEdge = Math.min( dE - 0.02, DUGOUT_WIDTH + 0.25 );
+		for ( let s = s0 + 0.6 + 1.6 * hash( S.a[ 0 ] * 3.1 + S.a[ 1 ] ); s < s1 - 0.4; s += 1.8 + 1.6 * hash( s * 7.3 + S.a[ 0 ] ) ) {
+
+			const h = hash( s * 13.7 + S.a[ 1 ] * 2.3 ), turn = ( h - 0.5 ) * ( h < 0.45 ? 1.2 : 0.2 );
+			const cu = Math.cos( turn ), su = Math.sin( turn ), hw = 0.19, hl = 0.23;
+			// a corner of the towel in the roof's frame: x along the edge, y back from it toward the field
+			const at = ( x, y, yy ) => P( s + x * cu - y * su, dEdge - ( x * su + y * cu ), yy );
+			const t = ( a, b, c, n, ua, ub, uc ) => tq.tri( a, b, c, n, ua, ub, uc );
+			if ( h < 0.45 ) {
+
+				// flat, 0.1-0.4 m in from the edge
+				const back = 0.1 + 0.3 * hash( s * 5.1 );
+				const c = [ at( - hw, back, yR ), at( hw, back, yR ), at( hw, back + 2 * hl, yR ), at( - hw, back + 2 * hl, yR ) ];
+				t( c[ 0 ], c[ 1 ], c[ 2 ], [ 0, 1, 0 ], [ 0, 0 ], [ 1, 0 ], [ 1, 1 ] );
+				t( c[ 0 ], c[ 2 ], c[ 3 ], [ 0, 1, 0 ], [ 0, 0 ], [ 1, 1 ], [ 0, 1 ] );
+
+			} else {
+
+				// over the edge: most of it on the roof, the end hanging down its back (the roof's only 12 cm over
+				// the ledge there)
+				const e = P( s, dEdge + 0.012, 0 ), nb = [ S.nx, 0, S.nz ];
+				const flat = [ at( - hw, 0, yR ), at( hw, 0, yR ), at( hw, 1.5 * hl, yR ), at( - hw, 1.5 * hl, yR ) ];
+				t( flat[ 0 ], flat[ 1 ], flat[ 2 ], [ 0, 1, 0 ], [ 0, 0.22 ], [ 1, 0.22 ], [ 1, 1 ] );
+				t( flat[ 0 ], flat[ 2 ], flat[ 3 ], [ 0, 1, 0 ], [ 0, 0.22 ], [ 1, 1 ], [ 0, 1 ] );
+				const k = ( x, yy ) => [ e[ 0 ] + S.ux * ( x * cu ), yy, e[ 2 ] + S.uz * ( x * cu ) ];
+				const hang = [ k( - hw, yR - 0.1 ), k( hw, yR - 0.1 ), k( hw, yR ), k( - hw, yR ) ];
+				t( hang[ 0 ], hang[ 1 ], hang[ 2 ], nb, [ 0, 0 ], [ 1, 0 ], [ 1, 0.22 ] );
+				t( hang[ 0 ], hang[ 2 ], hang[ 3 ], nb, [ 0, 0 ], [ 1, 0.22 ], [ 0, 0.22 ] );
+
+			}
+
+		}
+
+	};
+	// ---- end FK1
 	if ( FR ) {
 
 		for ( const S of secs ) {
@@ -628,7 +720,16 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 				}
 				// the rail on the roof's back edge and down the ends: dark green pipe, as the field's (Field.js)
 				const R0 = ( s, dd ) => P( s, dd, y ), yr = y + 0.95;
-				const runs = [ [ P( a0, dF, 0 ), P( a1, dF, 0 ) ] ];
+				// ---- FK1: not over the roof. 2008 had no rail there: the first row behind the Phillies' dugout
+				// leaned on the roof itself, elbows and towels on its white top (Getty 83824852, Oct 29; 112874141,
+				// strike three: nothing between the crowd and the roof's edge; 83434999, the Phanatic dancing on
+				// it over their heads). Behind the camera wells at the ends, where the ledge drops 2.3 m to a well's
+				// floor, the rail stays. The collider along the edge stays too (you stand at the roof's edge, not on it)
+				const roofS = roofSpan( S );
+				const backRuns = roofS ? [ [ a0, Math.min( a1, roofS[ 0 ] ) ], [ Math.max( a0, roofS[ 1 ] ), a1 ] ] : [ [ a0, a1 ] ];
+				const runs = backRuns.filter( ( [ u, v ] ) => v - u > 0.3 ).map( ( [ u, v ] ) => [ P( u, dF, 0 ), P( v, dF, 0 ) ] );
+				if ( roofS ) towels( S, P, Math.max( a0, roofS[ 0 ] ), Math.min( a1, roofS[ 1 ] ), dF );
+				// ---- end FK1
 				for ( const [ sF, sB ] of [ [ Math.min( S.len, S.m0 * ( S0 - 0.15 ) ), a0 ], [ Math.max( 0, S.len - S.m1 * ( S0 - 0.15 ) ), a1 ] ] ) {
 
 					const A = P( sF, S0 - 0.15, 0 ), B = P( sB, dF, 0 );
@@ -758,7 +859,7 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 			if ( ! m ) continue;
 			// the mouth: dark, its lintel the parapet's concrete over it, a light inside at the top
 			const ma = m.s - m.w + 0.2, mb = m.s + m.w - 0.2;
-			mq2.add( P( ma, dP - 0.2, yM ), P( mb, dP - 0.2, yM ), P( mb, dP - 0.2, yC - 0.18 ), P( ma, dP - 0.2, yC - 0.18 ), [ - S.nx, 0, - S.nz ] );
+			tunnelMouth( mq2, P( ma, dP - 0.2, 0 ), P( mb, dP - 0.2, 0 ), yM, yC - 0.18, [ - S.nx, 0, - S.nz ] ); // ---- FK1 (AD1-12)
 			q.add( P( ma, dP - 0.25, yC - 0.18 ), P( mb, dP - 0.25, yC - 0.18 ), P( mb, dP - 0.25, yC ), P( ma, dP - 0.25, yC ), [ - S.nx, 0, - S.nz ], RISER_UV, RISER_UV );
 			// its approach: steps down from row r0 - 1's tread to the mouth's floor, between walls the rows'
 			// cut ends make, a pipe rail along their tops
@@ -828,6 +929,14 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		group.add( m );
 
 	}
+	if ( tq.count && materials.towel ) { // ---- FK1
+
+		const m = new Mesh( tq.geometry(), materials.towel );
+		m.name = tier.name + '-dugout-towels';
+		m.receiveShadow = true;
+		group.add( m );
+
+	}
 	for ( const [ qq, mat, nm ] of [ [ fm, materials.frontMesh, '-front-mesh' ], [ fg, materials.frontGlass, '-front-glass' ] ] ) {
 
 		if ( ! qq.count || ! mat ) continue;
@@ -852,24 +961,53 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 		const yF = ys[ Math.max( 0, p.r0 - 1 ) ], yTop = ys[ Math.min( tier.rows - 1, p.r1 - 1 ) ] + ( PO.open ? 0.05 : 1.1 );
 		const at = ( s, d, y ) => [ S.a[ 0 ] + S.ux * s + S.nx * d, y, S.a[ 1 ] + S.uz * s + S.nz * d ];
 		const f = [ - S.nx, 0, - S.nz ];
-		// the face: concrete round the mouth (2.3 m high, the portal's width less the cheeks)
-		const m0 = p.s - PO.width / 2 + 0.2, m1 = p.s + PO.width / 2 - 0.2, mTop = Math.min( yTop - 0.3, yF + 2.3 );
-		pq.add( at( p.s - w, dF, yF ), at( m0, dF, yF ), at( m0, dF, yTop ), at( p.s - w, dF, yTop ), f );
-		pq.add( at( m1, dF, yF ), at( p.s + w, dF, yF ), at( p.s + w, dF, yTop ), at( m1, dF, yTop ), f );
-		pq.add( at( m0, dF, mTop ), at( m1, dF, mTop ), at( m1, dF, yTop ), at( m0, dF, yTop ), f );
-		if ( ! PO.open ) mq.add( at( m0, dF + 0.05, yF ), at( m1, dF + 0.05, yF ), at( m1, dF + 0.05, mTop ), at( m0, dF + 0.05, mTop ), f ); // ---- FA1: an open portal's mouth is open
-		// the cheeks and the top
-		for ( const e of [ - 1, 1 ] ) pq.add( at( p.s + e * w, dF, yF ), at( p.s + e * w, dB, yF ), at( p.s + e * w, dB, yTop ), at( p.s + e * w, dF, yTop ), [ S.ux * e, 0, S.uz * e ] );
-		pq.add( at( p.s - w, dF, yTop ), at( p.s + w, dF, yTop ), at( p.s + w, dB, yTop ), at( p.s - w, dB, yTop ), [ 0, 1, 0 ] );
-		// ---- FA1 (WA2-1): an open portal's floor at the mouth's level from the mouth back to where the stair comes
-		// up through it (PavilionWays.js: the stair along the section at the box's middle depth, its well left
-		// open), its back wall up to the row behind, the cheeks solid
+		// ---- FK1 (AD1-7): an open portal is a stairwell, open over it to the roof, not a box. FA1's had a lid
+		// level with its last row, a bare 3.4 x 4 m slab with a pipe rail round it, and a 2.8 m sheer face
+		// round its mouth beside row 7's fans: grey blocks standing in the Deck from across the field. 2008's
+		// Deck (Commons 2008-03-29 2372036920, the RF corner by day) has its rows unbroken between the aisles
+		// and, in them, only the pale concrete of a well's cut ends and the silver of its rails. So: the floor
+		// at the mouth's level round the stair's hole (PavilionWays.js), the rows' cut ends stepped down
+		// either side as its cheeks, the back up to the row behind, a guard rail along each cheek a metre over
+		// the nosings and one in front of the row behind; open in front onto the cross-aisle
 		if ( PO.open ) {
 
-			const dm = ( dF + dB ) / 2, hw = PO.stairWidth / 2 || 0.7;
+			const dm = ( dF + dB ) / 2, hw = PO.stairWidth / 2 || 0.7, yBack = ys[ p.r1 - 1 ], yRow = ys[ Math.min( tier.rows - 1, p.r1 ) ];
 			pq.add( at( p.s - w, dF, yF ), at( p.s + w, dF, yF ), at( p.s + w, dm - hw, yF ), at( p.s - w, dm - hw, yF ), [ 0, 1, 0 ] );
 			pq.add( at( p.s - w, dm + hw, yF ), at( p.s + w, dm + hw, yF ), at( p.s + w, dB, yF ), at( p.s - w, dB, yF ), [ 0, 1, 0 ] );
-			pq.add( at( p.s - w, dB, yF - 0.3 ), at( p.s + w, dB, yF - 0.3 ), at( p.s + w, dB, ys[ p.r1 - 1 ] ), at( p.s - w, dB, ys[ p.r1 - 1 ] ), f );
+			pq.add( at( p.s - w, dB, yF - 0.3 ), at( p.s + w, dB, yF - 0.3 ), at( p.s + w, dB, yBack ), at( p.s - w, dB, yBack ), f, 0, 2 * w );
+			for ( const e of [ - 1, 1 ] ) {
+
+				for ( let r = p.r0; r < p.r1; r ++ ) {
+
+					const d0 = S0 + r * D, d1 = S0 + ( r + 1 ) * D;
+					pq.add( at( p.s + e * w, d0, yF - 0.3 ), at( p.s + e * w, d1, yF - 0.3 ), at( p.s + e * w, d1, ys[ r ] ), at( p.s + e * w, d0, ys[ r ] ), [ - S.ux * e, 0, - S.uz * e ], d0, d1 );
+
+				}
+				// the rail: on the cut ends, a metre over the nosings' line, level over the last row, a mid rail,
+				// a post on every row
+				const sr = p.s + e * ( w + 0.05 ), dA = dF + 0.06, dZ = S0 + ( p.r1 - 1 ) * D, yA = ys[ p.r0 ], yZ = yBack;
+				const yAt = ( dd ) => yA + ( yZ - yA ) * Math.max( 0, Math.min( 1, ( dd - dA ) / ( dZ - dA ) ) );
+				for ( const k of [ 1.0, 0.5 ] ) {
+
+					beam( rq, at( sr, dA, yA + k ), at( sr, dZ, yZ + k ), k === 1 ? 0.024 : 0.018 );
+					beam( rq, at( sr, dZ, yZ + k ), at( sr, dB - 0.05, yZ + k ), k === 1 ? 0.024 : 0.018 );
+
+				}
+				beam( rq, at( sr, dA, yA ), at( sr, dA, yA + 1.0 ), 0.022 );
+				for ( let r = p.r0 + 1; r < p.r1; r ++ ) {
+
+					const dd = Math.min( dB - 0.05, S0 + ( r + 0.5 ) * D );
+					beam( rq, at( sr, dd, ys[ r ] ), at( sr, dd, yAt( dd ) + 1.0 ), 0.022 );
+
+				}
+				beam( rq, at( sr, dB - 0.05, yZ ), at( sr, dB - 0.05, yZ + 1.0 ), 0.022 );
+
+			}
+			// in front of the row behind: lower, under its fans' eyes
+			const dR = dB + 0.06, yR = yRow + 0.85;
+			beam( rq, at( p.s - w - 0.05, dR, yR ), at( p.s + w + 0.05, dR, yR ), 0.024 );
+			beam( rq, at( p.s - w - 0.05, dR, yRow + 0.42 ), at( p.s + w + 0.05, dR, yRow + 0.42 ), 0.018 );
+			for ( const t of [ - 1, 0, 1 ] ) beam( rq, at( p.s + t * ( w + 0.05 ), dR, yRow ), at( p.s + t * ( w + 0.05 ), dR, yR ), 0.022 );
 			if ( colliders ) {
 
 				const box = ( s0, s1, d0, d1, y0, y1, o ) => {
@@ -878,19 +1016,28 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 					colliders.addBox( new Vector3( W.x, ( y0 + y1 ) / 2, W.z ), new Vector3( ( s1 - s0 ) / 2, ( y1 - y0 ) / 2, ( d1 - d0 ) / 2 ), worldYaw - Math.atan2( S.uz, S.ux ), o );
 
 				};
+				// FA1's floor either side of the stair's hole; the cheeks and the back up to their rails (the lid,
+				// a walkable landing over the well, is gone with its rails)
 				box( p.s - w, p.s + w, dF, dm - hw, yF - 0.3, yF, { walkable: true, tag: tier.name + '-portal' } );
 				box( p.s - w, p.s + w, dm + hw, dB, yF - 0.3, yF, { walkable: true, tag: tier.name + '-portal' } );
-				for ( const e of [ - 1, 1 ] ) box( p.s + e * w - 0.1, p.s + e * w + 0.1, dF, dB, yF - 0.3, yTop, { tag: tier.name + '-portal-cheek' } );
-				box( p.s - w, p.s + w, dB, dB + 0.15, yF - 0.3, yTop, { tag: tier.name + '-portal-back' } );
-				// its top a landing in the rows (walkable), its rail over the mouth solid
-				box( p.s - w, p.s + w, dF, dB, yTop - 0.2, yTop, { walkable: true, tag: tier.name + '-portal-top' } );
-				box( p.s - w, p.s + w, dF, dF + 0.1, yTop, yTop + 1.1, { tag: tier.name + '-portal-rail' } );
-				for ( const e of [ - 1, 1 ] ) box( p.s + e * w - 0.05, p.s + e * w + 0.05, dF, dB, yTop, yTop + 1.1, { tag: tier.name + '-portal-rail' } );
+				for ( const e of [ - 1, 1 ] ) box( p.s + e * w - 0.1, p.s + e * w + 0.1, dF, dB, yF - 0.3, yBack + 1.1, { tag: tier.name + '-portal-cheek' } );
+				box( p.s - w - 0.1, p.s + w + 0.1, dB, dB + 0.15, yF - 0.3, yRow + 0.9, { tag: tier.name + '-portal-back' } );
 
 			}
+			continue;
 
 		}
-		// ---- end FA1
+		// ---- end FK1
+		// the face: concrete round the mouth (2.3 m high, the portal's width less the cheeks)
+		const m0 = p.s - PO.width / 2 + 0.2, m1 = p.s + PO.width / 2 - 0.2, mTop = Math.min( yTop - 0.3, yF + 2.3 );
+		pq.add( at( p.s - w, dF, yF ), at( m0, dF, yF ), at( m0, dF, yTop ), at( p.s - w, dF, yTop ), f );
+		pq.add( at( m1, dF, yF ), at( p.s + w, dF, yF ), at( p.s + w, dF, yTop ), at( m1, dF, yTop ), f );
+		pq.add( at( m0, dF, mTop ), at( m1, dF, mTop ), at( m1, dF, yTop ), at( m0, dF, yTop ), f );
+		if ( ! PO.open ) tunnelMouth( mq, at( m0, dF + 0.05, 0 ), at( m1, dF + 0.05, 0 ), yF, mTop, f ); // ---- FA1: an open portal's mouth is open (---- FK1, AD1-12: traced)
+		// the cheeks and the top
+		for ( const e of [ - 1, 1 ] ) pq.add( at( p.s + e * w, dF, yF ), at( p.s + e * w, dB, yF ), at( p.s + e * w, dB, yTop ), at( p.s + e * w, dF, yTop ), [ S.ux * e, 0, S.uz * e ] );
+		pq.add( at( p.s - w, dF, yTop ), at( p.s + w, dF, yTop ), at( p.s + w, dB, yTop ), at( p.s - w, dB, yTop ), [ 0, 1, 0 ] );
+		// (---- FA1's open portal, the box with its floor and lid, is FK1's stairwell above)
 		// the rail round its top edge
 		const yr = yTop + 1.0;
 		beam( rq, at( p.s - w, dF, yr ), at( p.s + w, dF, yr ), 0.05 );
@@ -956,6 +1103,8 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	if ( crowd?.idsBuf && ! crowd.off && ! materials.seat.bindings.cwIds ) {
 
 		materials.seat.bindings.cwIds = { storage: crowd.idsBuf, access: 'read' };
+		// ---- FX2 (SC1-1): and how far up each fan is (his pose, which the crowd's kernel writes every frame)
+		materials.seat.bindings.cwPoseBuf = { storage: crowd.poseBuf, access: 'read' };
 		materials.seat.setDefine( 'SEAT_FOLD', 1 );
 
 	}
@@ -1030,6 +1179,21 @@ function hash( x ) {
 
 }
 
+// ---- FK1 (AD1-12): a tunnel's mouth, one quad facing n from A to B (their x and z) between y0 and y1, its
+// uv saying where across and up the opening a point is (metres) over the opening's size (in tenths, x 100):
+// standsMaterials' portalMouth traces the tunnel behind it from that. Across runs along ( n.z, -n.x )
+export function tunnelMouth( Q, A, B, y0, y1, n ) {
+
+	if ( ( B[ 0 ] - A[ 0 ] ) * n[ 2 ] - ( B[ 2 ] - A[ 2 ] ) * n[ 0 ] < 0 ) [ A, B ] = [ B, A ];
+	const W = Math.hypot( B[ 0 ] - A[ 0 ], B[ 2 ] - A[ 2 ] ), H = y1 - y0;
+	const bu = 100 * Math.round( W * 10 ), bv = 100 * Math.round( H * 10 );
+	const p = ( P, y ) => [ P[ 0 ], y, P[ 2 ] ];
+	Q.tri( p( A, y0 ), p( B, y0 ), p( B, y1 ), n, [ bu, bv ], [ bu + W, bv ], [ bu + W, bv + H ] );
+	Q.tri( p( A, y0 ), p( B, y1 ), p( A, y1 ), n, [ bu, bv ], [ bu + W, bv + H ], [ bu, bv + H ] );
+
+}
+// ---- end FK1
+
 // The seat's back (FW1, C2W-3: the seated crowd leans against it, Crowd.js): its front face z0 behind
 // the seat's middle at its foot (y0 up), leaning back by `lean` radians to its top at y1
 export const SEAT_BACK = { z0: 0.14, y0: 0.44, y1: 0.8, lean: 0.21, t: 0.035 };
@@ -1040,10 +1204,19 @@ export function seatGeometry( down = false ) {
 
 	// An empty fold-down seat, facing -z, its origin on the tread under the seat's middle: a curved
 	// back (top 0.8 m up), the pan folded up in front of it, and a dark cast standard with an armrest
-	// on one side (the next seat's makes the other). Colours are per vertex: plastic blue, metal grey.
+	// on one side (the next seat's makes the other). Colours are per vertex: the plastic, the painted standard.
 	const q = new Quads(), col = [];
 	// (CB-12: a shade deeper and less saturated: the navy of the photos, Getty 84081873)
-	const BLUE = [ 0.032, 0.075, 0.25 ], GREY = [ 0.04, 0.045, 0.052 ];
+	// ---- FX2 (SC1-5): a dusky navy, not royal blue. Ten photos, measured on their seat pixels only: under
+	// the banks (Getty 83891095, 83458502, 83511062, 84081873, 84082684, AP 5516521282 at dusk) hue 222-260
+	// at 30-45% saturation, by the photographer's white balance (McIsaac's two read violet with his whites
+	// magenta; balanced, ~236); by day (Commons 2008-03-29 x4, Flickr 2007-05-29) hue 206-219 at 40-70%, the
+	// sky's blue in the shade. One plastic between them (hue ~230, 39%, a little lighter than it was), as it
+	// renders: under the banks hue ~231 at ~47% (it was 220 at 76-81%), by day in the roof's shade still the
+	// saturated blue of the day photos (it was 99%, a cobalt). The standards are painted the same navy, deeper
+	// (83511062: the aisle ends' "Phillies" castings in blue under the wet tops): they were a metal grey
+	const BLUE = [ 0.042, 0.05, 0.115 ], GREY = [ 0.014, 0.021, 0.062 ];
+	// ---- end FX2
 	const add = ( c, ...args ) => {
 
 		q.add( ...args );
@@ -1128,7 +1301,8 @@ export function standsMaterials() {
 	let nk = smoothstep( 0.15, 0.7, frame.night );
 	// ---- FW3 (C2W-22): the steps read as steps (Getty 83458502, 27 Oct 2008: every tread's edge a line).
 	// A tread: its front edge worn paler, a dark line of grime where the riser behind meets it, and in the
-	// aisle the nosing painted a dull safety yellow; a riser in the tread's shade; a step light lit
+	// aisle an anti-slip strip behind the edge (---- FX2, SC1-12: it was painted safety yellow); a riser in
+	// the tread's shade; a step light lit
 	var lens = 0.0;
 	if ( in.uv.x > ${ STEPLIGHT_UV - 1 }.0 ) {
 		lens = 1.0;
@@ -1138,9 +1312,17 @@ export function standsMaterials() {
 		let fv = fwidth( in.uv.y ) + 0.002;
 		let nose = 1.0 - smoothstep( 0.05, 0.05 + fv, in.uv.y );
 		let back = smoothstep( 0.6, 0.8, in.uv.y ) * ( 1.0 - clamp( fv * 6.0, 0.0, 1.0 ) );
-		let aisle = 1.0 - smoothstep( 0.58, 0.64, ad );
-		s.albedo = s.albedo * ( 1.0 + 0.18 * nose * ( 1.0 - aisle ) ) * ( 1.0 - 0.22 * back );
-		s.albedo = mix( s.albedo, vec3f( 0.42, 0.34, 0.08 ), nose * aisle * 0.85 * ( 1.0 - clamp( fv * 3.0, 0.0, 0.6 ) ) );
+		// ---- FX2 (SC1-12): no yellow. 2008's aisles (Commons 2008-03-29 2371427833, the RF 100s by day; the 3B
+		// decks from the LF corner the same day, the 300s and 400s; AP 5516521282 from the 400s, Oct 29) have a
+		// dark grit anti-slip strip on every step, ~3 cm back from the worn pale edge, ~5.5 cm wide, across
+		// the aisle and stopping short of the seats; a third the concrete's lightness, a little warm, worn a
+		// shade paler where the feet go, down the aisle's middle
+		let fx = fwidth( ad ) + 0.002;
+		let strip = smoothstep( 0.03, 0.03 + fv, in.uv.y ) * ( 1.0 - smoothstep( 0.085, 0.085 + fv, in.uv.y ) ) * ( 1.0 - smoothstep( 0.5, 0.5 + fx, ad ) );
+		s.albedo = s.albedo * ( 1.0 + 0.18 * nose ) * ( 1.0 - 0.22 * back );
+		let grit = mix( vec3f( 0.088, 0.086, 0.08 ), vec3f( 0.13, 0.126, 0.118 ), 1.0 - smoothstep( 0.08, 0.35, ad ) );
+		s.albedo = mix( s.albedo, grit, strip * ( 1.0 - clamp( fv * 4.0, 0.0, 0.7 ) ) );
+		// ---- end FX2
 	} else if ( in.uv.x > ${ RISER_UV - 1 }.0 && in.uv.x < ${ TREAD_UV - 1 }.0 && abs( in.N.y ) < 0.5 ) {
 		s.albedo = s.albedo * 0.68;
 	}
@@ -1163,19 +1345,33 @@ ${ SOFFIT_WGSL }
 		// half), read from the crowd's ids (bit 31) for the seats built sat on (buildTier: drawParams, the
 		// first fan + 1). They stayed down, a field of flat blue shelves where Getty 83511062 has every
 		// empty seat's pan up
+		// ---- FX2 (SC1-1): and a seat whose fan is on his feet folds up behind his calves (the 9th, strike three,
+		// every rally): CBP's are spring seats, and in Getty 83891095 (27 Oct 2008) everyone standing in the
+		// rows has his pan up behind him as the empty seats' are. It stayed down, and every standing fan's
+		// shins went through it. By his stand weight (the crowd's pose, r0.x: the kernel's `st`), from once his
+		// thighs are off it to all the way before his shins (the stand pose's feet are under the pan) reach
+		// it: turned about its back edge, which drops and comes forward as it goes, the 105 degrees from flat
+		// to seatGeometry()'s folded pan (15 degrees off upright, 0.26 m up in front of the back's foot)
 		vertex: /* wgsl */`
 #if SEAT_FOLD
 	if ( draw.params.y > 0.5 && v.normal.y > 0.9 && v.position.y < 0.5 ) {
 		let fan = u32( draw.params.y + 0.5 ) - 1u + v.instance;
-		if ( ( cwIds[ fan ].z >> 31u ) == 1u ) {
+		// (a fan's pose is arrayLength( pose ) / arrayLength( ids ) vec4s: Crowd.js's POSE_N * 2)
+		let st = cwPoseBuf[ fan * ( arrayLength( &cwPoseBuf ) / arrayLength( &cwIds ) ) ].x;
+		let up = select( smoothstep( 0.15, 0.6, st ), 1.0, ( cwIds[ fan ].z >> 31u ) == 1u );
+		if ( up > 0.0 ) {
 			let k = clamp( ( 0.14 - v.position.z ) / 0.44, 0.0, 1.0 );
-			v.position = vec3f( v.position.x, 0.26 + 0.36 * k, 0.02 + 0.0956 * k );
-			v.normal = vec3f( 0.0, 0.257, - 0.966 );
+			let a = up * 1.8553 - 0.0227;
+			let ca = cos( a );
+			let sa = sin( a );
+			let l = mix( 0.4401, 0.3725, up ) * k;
+			v.position = vec3f( v.position.x, mix( 0.44, 0.26, up ) + l * sa, mix( 0.14, 0.02, up ) - l * ca );
+			v.normal = vec3f( 0.0, ca, sa );
 		}
 	}
 #endif
 	o.vSeatY = v.position.y;
-`, // ---- end FS1
+`, // ---- end FS1, FX2
 		surface: /* wgsl */`
 	let y = in.vs.vSeatY;
 	let ao = mix( 0.38, 1.0, smoothstep( 0.2, 0.72, y ) );
@@ -1202,11 +1398,51 @@ ${ SOFFIT_WGSL }
 ` } );
 	const edgeBeam = standard( { name: 'deck-edge-beam', color: new Color( 0.155, 0.024, 0.018 ), roughness: 0.55, metalness: 0.3, side: 'double' } );
 	// a portal's mouth: the dark tunnel, a lit ceiling at its top, EXIT in green over it
-	const portalMouth = standard( { name: 'portal-mouth', color: new Color( 0.012, 0.012, 0.013 ), roughness: 0.9,
-		surface: `
-	let v = in.uv.y;
-	s.emissive = vec3f( 1.0, 0.88, 0.66 ) * 0.12 * mix( 0.5, 1.0, frame.night );
+	// ---- FK1 (AD1-12): traced, not painted. It was one flat panel a uniform warm glow, which read as a
+	// shallow lit beige box under the Diamond Club's parapet; 2008's mouths are deep and black (Commons
+	// 2008-03-29 2372257740, by 126-127). The ray from the eye goes on into a tunnel the opening's size
+	// (tunnelMouth()'s uv): its painted block walls, its floor and ceiling, a fixture on the ceiling a metre
+	// in lighting the first metre or two, the light from outside reaching about as far, and past six metres
+	// (where it turns) nothing
+	const portalMouth = standard( { name: 'portal-mouth', color: new Color( 1, 1, 1 ), roughness: 0.95,
+		surface: /* wgsl */`
+	let kx = floor( in.uv.x / 100.0 + 0.01 );
+	let ky = floor( in.uv.y / 100.0 + 0.01 );
+	let W = max( kx / 10.0, 0.2 );
+	let H = max( ky / 10.0, 0.2 );
+	let a0 = clamp( in.uv.x - kx * 100.0, 0.0, W );
+	let h0 = clamp( in.uv.y - ky * 100.0, 0.0, H );
+	let Nm = normalize( in.N );
+	let T = normalize( vec3f( Nm.z, 0.0, - Nm.x ) + vec3f( 1e-5, 0.0, 0.0 ) );
+	let R = normalize( in.P - frame.cameraPos );
+	let dz = max( - dot( R, Nm ), 0.03 );
+	let da = dot( R, T );
+	let dy = R.y;
+	let ta = select( select( 1e4, ( W - a0 ) / da, da > 1e-4 ), - a0 / da, da < - 1e-4 );
+	let ty = select( select( 1e4, ( H - h0 ) / dy, dy > 1e-4 ), - h0 / dy, dy < - 1e-4 );
+	let t = min( min( ta, ty ), 6.0 / dz );
+	let dep = t * dz;
+	let ha = a0 + da * t;
+	let hh = h0 + dy * t;
+	let wall = select( 0.0, 1.0, ta <= ty );
+	let ceil = ( 1.0 - wall ) * step( 0.0, dy );
+	// the faces: painted block on the walls (its courses and joints), the floor's concrete, the ceiling
+	let fw = fwidth( hh ) + fwidth( dep ) + 0.004;
+	let course = smoothstep( 0.0, fw, ( 0.5 - abs( fract( hh / 0.2 ) - 0.5 ) ) * 0.2 - 0.005 );
+	let joint = smoothstep( 0.0, fw, ( 0.5 - abs( fract( dep / 0.4 + 0.5 * floor( hh / 0.2 ) ) - 0.5 ) ) * 0.4 - 0.005 );
+	let alb = mix( mix( 0.2, 0.3, ceil ), 0.46 * mix( 0.8, 1.0, course * joint ), wall );
+	// the fixture: a lamp across the ceiling's middle 0.6 to 1.2 m in
+	let lp = vec3f( W * 0.5, H - 0.04, 0.9 );
+	let q = vec3f( ha, hh, dep ) - lp;
+	let lit = 0.22 / ( 1.0 + 0.9 * dot( q, q ) );
+	let lamp = ceil * step( abs( ha - W * 0.5 ), 0.09 ) * step( abs( dep - 0.9 ), 0.3 );
+	let away = select( 1.0, 0.0, t >= 6.0 / dz - 1e-3 );
+	let inside = exp( - dep * 1.6 ) * away;
+	s.albedo = vec3f( 0.98, 0.95, 0.9 ) * alb * inside * 0.8;
+	s.emissive = ( vec3f( 1.0, 0.9, 0.74 ) * alb * lit * away + vec3f( 2.4, 2.3, 2.1 ) * lamp ) * mix( 0.6, 1.0, frame.night );
+	s.specularIntensity = 0.0;
 ` } );
+	// ---- end FK1
 	// ---- FA3 (WA2-5): the field level's own rails (buildTier's frontRail: the right field seats' front, the
 	// rail over the dugouts' roofs): dark green painted pipe as the field wall's (Field.js), chain-link in
 	// the panels (5 cm diamonds, a veil when finer than a pixel, as the left field's), clear glass a little
@@ -1222,8 +1458,23 @@ ${ SOFFIT_WGSL }
 ` } );
 	const frontGlass = standard( { name: 'front-glass', color: new Color( 0.06, 0.09, 0.08 ), roughness: 0.05, metalness: 0.1, transparent: true, depthWrite: false, side: 'double',
 		surface: 's.alpha = 0.1 + 0.45 * pow( 1.0 - clamp( abs( dot( normalize( in.N ), normalize( frame.cameraPos - in.P ) ) ), 0.0, 1.0 ), 4.0 ); s.albedo = mat.color * ( 1.0 - 0.3 * frame.wet );' } );
-	for ( const m of [ concrete, seat, rail, portalMouth, fascia, edgeBeam, frontRail, frontMesh, frontGlass ] ) m.underwaterLighting = 'none';
-	return { concrete, seat, rail, portalMouth, fascia, edgeBeam, frontRail, frontMesh, frontGlass, seatGeometry: seatGeometry(), seatDownGeometry: seatGeometry( true ) };
+	// ---- FK1: the rally towels left on the dugouts' roofs: the crowd's (Crowd.js), white terry, the red square
+	// with the white script across it, soaked a shade darker in the rain
+	const towel = standard( { name: 'dugout-towels', color: new Color( 1, 1, 1 ), roughness: 0.95, side: 'double',
+		surface: /* wgsl */`
+	let L = in.uv;
+	var c = vec3f( 0.78, 0.77, 0.74 );
+	if ( abs( L.x - 0.5 ) < 0.3 && abs( L.y - 0.5 ) < 0.26 ) {
+		c = vec3f( 0.36, 0.02, 0.03 );
+		if ( abs( L.y - 0.5 ) < 0.05 && abs( L.x - 0.5 ) < 0.22 && sin( L.x * 90.0 ) > - 0.3 ) { c = vec3f( 0.78, 0.77, 0.74 ); }
+	}
+	let tf = 1.0 - smoothstep( 0.01, 0.05, length( fwidth( L ) ) );
+	c *= ( 0.9 + 0.1 * sin( L.x * 230.0 ) * sin( L.y * 250.0 ) * tf ) * ( 0.92 + 0.08 * sin( L.x * 21.0 + L.y * 11.0 ) );
+	s.albedo = c * ( 1.0 - 0.25 * frame.wet );
+	s.normal = normalize( s.normal + 0.25 * vec3f( sin( L.x * 17.0 + L.y * 9.0 ), 0.0, cos( L.y * 15.0 - L.x * 6.0 ) ) );
+` } );
+	for ( const m of [ concrete, seat, rail, portalMouth, fascia, edgeBeam, frontRail, frontMesh, frontGlass, towel ] ) m.underwaterLighting = 'none';
+	return { concrete, seat, rail, portalMouth, fascia, edgeBeam, frontRail, frontMesh, frontGlass, towel, seatGeometry: seatGeometry(), seatDownGeometry: seatGeometry( true ) };
 	// ---- end FA3
 
 }

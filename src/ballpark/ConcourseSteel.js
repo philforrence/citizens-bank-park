@@ -28,6 +28,13 @@ const PALETTE = [
 	[ 'dome', [ 0.72, 0.72, 0.7 ], 0.3, 0, [ 1.6, 1.52, 1.38 ] ], [ 'hid', [ 0.9, 0.9, 0.86 ], 0.3, 0, [ 9.0, 8.6, 7.6 ] ],
 	[ 'can', [ 0.8, 0.78, 0.72 ], 0.3, 0, [ 4.0, 3.5, 2.8 ] ], [ 'trim', [ 0.05, 0.05, 0.055 ], 0.5, 0.3 ], [ 'grate', [ 0.16, 0.165, 0.17 ], 0.6, 0.5 ],
 	[ 'concrete', [ 0.36, 0.35, 0.33 ], 0.75, 0 ],
+	// ---- FX2 (SC1-16): a handrail's galvanizing, worn by hands and weather to a duller, rougher grey than
+	// the treads' and the deck's (Getty 83485581: silver-grey under the lights): at 0.42 a dome 2 m off
+	// lit the whole top facet of the Terrace's stair rails white, end to end
+	[ 'railGalv', [ 0.4, 0.405, 0.41 ], 0.68, 0.4 ],
+	// ---- end FX2
+	// ---- FK1: a back-of-house door's grey paint
+	[ 'doorGrey', [ 0.2, 0.205, 0.21 ], 0.55, 0.15 ],
 ];
 const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
 const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;
@@ -479,6 +486,19 @@ export class ConcourseSteel {
 
 			const a = pts[ i ], b = pts[ i + 1 ], l = Math.hypot( b.x - a.x, b.z - a.z );
 			brick.add( [ a.x, STREET, a.z ], [ b.x, STREET, b.z ], [ b.x, yU, b.z ], [ a.x, yU, a.z ], [ a.nx, 0, a.nz ], u, u + l );
+			// ---- FK1 (the one-sided wall): its outer face, 0.3 m behind, the same block (the ring behind it is the
+			// back of house you reach from the gates' ends: from there the wall was a see-through nothing onto
+			// the stands' backs and the concourse)
+			const T = 0.3, ao = [ a.x - a.nx * T, a.z - a.nz * T ], bo = [ b.x - b.nx * T, b.z - b.nz * T ];
+			brick.add( [ ao[ 0 ], STREET, ao[ 1 ] ], [ bo[ 0 ], STREET, bo[ 1 ] ], [ bo[ 0 ], yU, bo[ 1 ] ], [ ao[ 0 ], yU, ao[ 1 ] ], [ - a.nx, 0, - a.nz ], u, u + l );
+			if ( i === 0 || i === pts.length - 2 ) {
+
+				// its ends, where the open ring meets it
+				const e = i === 0 ? a : b, eo = i === 0 ? ao : bo, sg = i === 0 ? - 1 : 1;
+				brick.add( [ e.x, STREET, e.z ], [ eo[ 0 ], STREET, eo[ 1 ] ], [ eo[ 0 ], yU, eo[ 1 ] ], [ e.x, yU, e.z ], [ ( b.x - a.x ) / l * sg, 0, ( b.z - a.z ) / l * sg ], 0, T );
+
+			}
+			// ---- end FK1
 			u += l;
 			if ( this.colliders && this.field ) {
 
@@ -489,6 +509,31 @@ export class ConcourseSteel {
 
 		}
 
+		// ---- FK1: on its outer face the back of house's doors (grey hollow metal in a dark frame, a kick plate)
+		// every 20-odd metres, a wall pack over each lit warm (the ring's only light)
+		{
+
+			const q = this.q, up = [ 0, 1, 0 ];
+			for ( let c = w0 + 9; c < w1 - 6; c += 21 + 6 * Math.abs( Math.sin( c * 1.7 ) ) ) {
+
+				const p = WL.at( c ), o = - 0.3, n = [ - p.nx, 0, - p.nz ], t = [ p.ux, 0, p.uz ];
+				const at = ( dy, out ) => [ p.x + p.nx * ( o - out ), STREET + dy, p.z + p.nz * ( o - out ) ];
+				q.use( 'trim' );
+				obox( q, at( 1.08, 0.025 ), t, 1.12, up, 2.2, n, 0.05 );
+				q.use( 'doorGrey' );
+				obox( q, at( 1.06, 0.05 ), t, 0.96, up, 2.1, n, 0.03 );
+				q.use( 'galv' );
+				obox( q, at( 0.16, 0.068 ), t, 0.92, up, 0.25, n, 0.006 );
+				obox( q, at( 1.02, 0.09 ).map( ( v, i ) => v + t[ i ] * 0.36 ), t, 0.04, up, 0.16, n, 0.05 );
+				q.use( 'trim' );
+				obox( q, at( 2.62, 0.09 ), t, 0.3, up, 0.22, n, 0.16 );
+				q.use( 'can' );
+				obox( q, at( 2.55, 0.175 ), t, 0.22, up, 0.07, n, 0.01 );
+
+			}
+
+		}
+		// ---- end FK1
 		// ---- FI1 (CI-23): a tile mosaic on the brick by the Third Base Gate (the 2008 guide: 'Unique tile
 		// mosaics by local artist Jonathan Mandell are on the Main Concourse'; a 6 x 8 ft piece, a 2004 note;
 		// where and what they showed isn't on record: this design is invented, a batter in pinstripes at the
