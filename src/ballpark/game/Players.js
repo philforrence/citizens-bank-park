@@ -1358,9 +1358,13 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			// at the temple broken by the grain; the sideburns to the ear's middle (Getty 83485858: Lidge's
 			// reddish hair over the ears; 83483794: Feliz's black sideburns into the beard; 83483743:
 			// Manuel's white hair over the ears)
-			let temple2 = smoothstep( 0.046, 0.058, ax ) * smoothstep( eye.y - 0.004, eye.y + 0.006, L.y ) * smoothstep( eye.z + 0.034 + 0.006 * g2, eye.z + 0.046 + 0.006 * g2, L.z );
-			let burn2 = smoothstep( 0.05, 0.06, ax ) * smoothstep( eye.z + 0.032, eye.z + 0.044, L.z ) * smoothstep( eye.y - 0.03, eye.y - 0.02, L.y );
-			let hairK = clamp( max( max( hairBack, burn ), max( temple2, burn2 * 0.9 ) ) * ( 1.0 - earK ) * ( 0.95 + 0.25 * g2 ), 0.0, 1.0 );
+			// (a2/M06: the ear's mask reaches 2 cm in front of the ear, so the temple's hair stood off it as a
+			// grainy patch with skin between: the temple's hair starts further back, and only the ear's own
+			// protruding part is kept clear of it)
+			let temple2 = smoothstep( 0.046, 0.058, ax ) * smoothstep( eye.y - 0.004, eye.y + 0.006, L.y ) * smoothstep( eye.z + 0.046 + 0.006 * g2, eye.z + 0.058 + 0.006 * g2, L.z );
+			let burn2 = smoothstep( 0.05, 0.06, ax ) * smoothstep( eye.z + 0.048, eye.z + 0.06, L.z ) * smoothstep( eye.y - 0.03, eye.y - 0.02, L.y );
+			let earOwn = earK * smoothstep( 0.067, 0.073, ax );
+			let hairK = clamp( max( max( hairBack, burn ) * ( 1.0 - earK ), max( temple2, burn2 * 0.9 ) * ( 1.0 - earOwn ) ) * ( 0.95 + 0.25 * g2 ), 0.0, 1.0 );
 			// ---- end FK2
 			if ( hairK > 0.0 ) {
 				let temple = smoothstep( 0.05, 0.075, ax ) * smoothstep( eye.z + 0.13, eye.z + 0.06, L.z ) * age;

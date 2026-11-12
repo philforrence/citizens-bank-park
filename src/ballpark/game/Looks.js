@@ -191,7 +191,9 @@ Object.assign( LOOKS[ 434563 ], { skin: S.olivetan, beardD: 0.85 } );
 Object.assign( LOOKS[ 150289 ], { skin: S.olivetan, mous: 2 } );
 Object.assign( LOOKS[ 425900 ], { skin: S.olivetan, mous: 3, beardD: 0.7 } );
 Object.assign( LOOKS[ 276519 ], { skin: S.mbrown, beardD: 0.6, mous: 1 } );
-Object.assign( LOOKS[ 400058 ], { skin: S.ruddy, hair: H.auburn, beard: 5, beardD: 0.7, stubble: 0.5 } );
+// (Lidge: the full short beard covered his cheeks to the bone in a2/F01-F02, a mask; the photo's cheeks are
+// stubble, the chin darker: the goatee thinned over heavy stubble)
+Object.assign( LOOKS[ 400058 ], { skin: S.ruddy, hair: H.auburn, beard: 3, beardD: 0.7, stubble: 0.7 } );
 Object.assign( LOOKS[ 429667 ], { beard: 4, beardD: 0.65, mous: 1 } );
 Object.assign( LOOKS[ 150029 ], { beardD: 0.75 } );
 Object.assign( LOOKS[ 425664 ], { mous: 2, beardD: 0.8 } );
