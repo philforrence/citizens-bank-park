@@ -2109,7 +2109,8 @@ function drawChest( ctx, i, home, jacket = false ) {
 // arch of CHAMPIONS in red letters edged in white, WORLD SERIES small over it, and under the arch's middle
 // the Phillies' red roundel with the white P, 20 and 08 in gold either side (Getty 83571347, Manuel on the
 // stage, and Rollins beside him; 83485940, Manuel on the field). The cell spans 12 cm of the front (the
-// fragment maps it so for this cap), the logo its upper half: the arch about 10.5 cm across
+// fragment maps it so for this cap), the logo its upper half: the arch about 9.5 cm across (at 10.5 its
+// last S went round the side, out of the front's cell, on a turned head: a5/M01)
 function drawChampCap( ctx, i ) {
 
 	const [ x, y ] = cellXY( i );
@@ -2152,8 +2153,8 @@ function drawChampCap( ctx, i ) {
 	ctx.stroke();
 	arc( 'WORLD SERIES', 106, 78, 0.052, '800 6px "Helvetica Neue", Arial, sans-serif', '#eceae4', null, 0, 1 );
 	// CHAMPIONS: red, edged white, a dark keyline outside the white
-	arc( 'CHAMPIONS', 86, 70, 0.142, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#101012', 7, 0.74 );
-	arc( 'CHAMPIONS', 86, 70, 0.142, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#f2f0ea', 4.2, 0.74 );
+	arc( 'CHAMPIONS', 86, 70, 0.13, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#101012', 7, 0.7 );
+	arc( 'CHAMPIONS', 86, 70, 0.13, '900 17px "Arial Black", "Helvetica Neue", Arial, sans-serif', '#c8102e', '#f2f0ea', 4.2, 0.7 );
 	// the roundel: white ring, the red disc, the white P
 	ctx.fillStyle = '#f2f0ea';
 	ctx.beginPath();
