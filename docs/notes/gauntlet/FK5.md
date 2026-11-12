@@ -257,3 +257,207 @@ The views' own frames, after only (f2, read after 8 frames of their own):
 - **The NACHOS cart stands in front of the 3B elevators** (`f1/el-3b-walkin.jpg`): its back is to the doors, a metre or two out, right where you would wait. It isn't mine, and I didn't touch it.
 - **The render desk reads a shot's `js` before its still frames,** so a value read straight after a seek is the shot before's. Wrap it as `( async () => { await __qa.still( { frames: 8 } ); return … } )()` to read the shot's own.
 - **The Node park build** (`stub.mjs`) throws `.then is not a function` from GPU.js:165; the tests here catch it.
+
+## Repair
+
+FK5 repair, 2026-11-12, branch `worktree-wf_ea58af0a-f20-11` (FK5's branch merged in c1b7716). The skeptic sent FK5 back for two defects. The code reviewer passed it with follow-ups. Still only `Cast.js` and `People.js`, in "FK5 repair" blocks. No colliders were added, moved or removed.
+
+**The commits:**
+- 9547c32: wet vinyl;
+- cd4b042 and 03d4e54: nobody stands in anybody, and the arms;
+- 226ed96 and 8473c45: the hats ride the face's morph (8473c45 for a cap worn backwards);
+- 310f55d: the ways up;
+- aa28560 and 49fbb1a: the stands' staff (49fbb1a takes the Alley's back to 4 cm behind the window, after r3).
+
+**The evidence:**
+- **Renders**, all through the desk and owned by "cbp FK5 repair":
+  - `.claude/gauntlet/s12/r1/FK5-repair/r1/` and `r2/` are on the full park at 1280 × 800;
+  - `r3/` is scoped (`only=concourse,landmarks,people,leftfield,bowl`), with no console errors, so the shader with 8473c45's change compiles;
+  - the crops are in `FK5-repair/crops/`.
+- **The befores** are the skeptic's, in `.claude/gauntlet/s12/r1/SK-FK5/`: `b1/` is before FK5, and `a1/` and `a3/` are FK5 as it was sent.
+- **The Node scripts** are in the session's scratchpad: `fk5r/r-ranks2.mjs` and `r-knotsizes.mjs`, and `fk5r2/capfit2.mjs`, `capfit2c.mjs` (caps worn backwards), `ways3.mjs` and `pairs-cam.mjs`.
+
+**The checks:**
+- `npm test` passes;
+- `node test/continuity.mjs` gives start hash 801248349 and duration 3785.503.
+
+### Defect 1 (blocking): gathered people stood inside one another
+
+This covers the skeptic's defects 1, 2, 10 and 11, and the reviewer's rail-proxy, armIK and `_thrPlace` items.
+
+**Why.** Rail ranks were dealt into 0.56 m slots, so two with the same slot and rank stood about 0.1 m apart. Everyone in a 3.4 m cell who went to a knot went to the same ring, 0.36–0.50 m across. Behind home, two figures 0.04 m apart were drawn as one, with four hands (`SK-FK5/a3/ov-pair-home.jpg`).
+
+**What changed** (People.js, the same for the GPU pass and its CPU mirror):
+- **`_thrGatherPlan`** works out where each person goes, once, as they stop (in `thrWho`, after everyone's two).
+  - **The ranks** behind the rail take one person to a place: the nearest free place, the front rank first, the 9th's choosers first.
+  - **The knots** are up to 5 people who stopped near each other at the same share. Each knot's hash wants 2 to 5; one left without anyone near stands alone (the sizes are below).
+    - A ring stands face to face, a shoulder's width between neighbours (radius 0.31/sin(π/n)).
+    - A row stands side by side, turned to the field.
+  - **Each is placed** clear of everyone placed before it (a metre grid), and where no column pushes one person into another.
+- **The rail** (03d4e54):
+  - Where a line turns, the inside of the corner closed up: behind home and at both ends of the infield's arc, pairs stood 7–14 cm apart. In order along each line, anyone at the rail all night who would stand in someone there now steps on along it until he's clear.
+  - The columns are found by 4 m cells.
+- **The arms** (`thrArms`, on the GPU and the CPU alike):
+  - **In the 9th**, the far figure takes the proxy's pose (folded, pockets, a beer, blowing, clapping). It used to reach out 0.35, which popped at the swap.
+  - **At strike three**, the arms come off the rail before they go up. They used to drop from 0.55 to 0 in a frame.
+  - **20 to 40 s later** they come down into clapping, filming, a phone at the ear, an arm round the next one, hugs, or back on the rail. About one in seven keep them up. Before, they stayed up for the whole five minutes.
+  - **The rail's all-night proxies** keep FW4's lean in the 9th.
+  - **The armIK targets** (hug, high five, overhead clap, the stair rail's hand) are solved once at module scope (`FK5_ARMS`).
+  - **`_thrPlace`** no longer allocates closures or arrays per call.
+
+**Evidence, in Node** (`r-ranks2.mjs`: the plan as the park makes it, with the skeptic's shares and moments):
+
+| Moment | Pairs under 0.10 m | Under 0.30 m | Under 0.40 m |
+|---|---|---|---|
+| Celebration (t 500, 1787 shown), FK5 | 251 | 699 | – |
+| Celebration, repaired | **0** | 3 | 6 |
+| The 9th (1564 shown), FK5 | 204 | 553 | – |
+| The 9th, repaired | **0** | 0 | 0 |
+
+The three under 0.30 m at the celebration are each a stroller (role 0) beside a gathered person.
+
+People within 12 m of the views who overlap someone (under 0.25 m), at the celebration:
+
+| View | FK5 | Repaired |
+|---|---|---|
+| 136-137 | 27 of 89 | **0 of 91** |
+| 3B loop | 30 of 97 | **0 of 98** |
+| Home | 48 of 126 | **0 of 125** |
+| 1B | 35 of 116 | **2 of 117** (a stroller and the gathered one beside him) |
+
+**The knots** (`r-knotsizes.mjs`): 370 knots holding 872 people. By size:
+
+| Size | Knots |
+|---|---|
+| 1 | 106 |
+| 2 | 112 |
+| 3 | 83 |
+| 4 | 52 |
+| 5 | 17 |
+
+FK5 had 158 knots, sized 1 to 12, with 557 of 831 people in knots of six or more, each on one ring under 0.5 m across. A knot of one now stands alone, turned to the field like a row. It no longer faces an empty ring.
+
+**The arms:** at the celebration, 60 s after strike three, 204 of 1787 still have them up. The skeptic's `s06-lf-3770` value (`cheerUp`, 83 of 83 in r2) counts `out.cheer`, which records how far up the arms went and never falls. It isn't evidence that the arms are still up. `r2/s06-lf-3770.jpg` at 3770 shows a mix: a few still up, others clapping or at their sides.
+
+**The plan's cost:** 3.3–3.7 ms, once, as they stop.
+
+**Evidence, in the page** (r2):
+- **`ov-pair-home`**, the skeptic's framing for the fused pair: "no pair of 150". Compare `SK-FK5/a3/ov-pair-home.jpg`.
+- **`ov-pair-home-fixed` and `knot-top-home-fixed`** use fixed eyes behind home, so before and after are the same view. Pairs under 0.10 m: 0 and 0. Under 0.25 m: 3 and 2. The closest are 0.151 and 0.115 m.
+- **`r2/knot-top-home-fixed.jpg`**, against `SK-FK5/a3/knot-top-home.jpg`: distinct figures, two face to face, no bodies run together.
+- **The last few close pairs in the page** (`pairs-cam.mjs`) aren't the plan's:
+  - One is a stroller beside a knot, 0.116 m apart.
+  - Others come from the camera's own push. The pass steps people round the eye, by up to 1 m when it's low. In `ov-pair-home-fixed` the closest pair is 0.264 m apart with that push and 0.439 m without it.
+
+### Defect 2 (blocking): wet vinyl no longer looked wet
+
+This covers the skeptic's defects 3 and 6.
+
+**Why.** FK5 raised the coloured ponchos to roughness 0.3 and the raincoat to 0.32. That crossed FW1's 0.32 line for nylon, so in the rain they came out rougher than dry and darkened like cloth.
+
+**What changed** (Cast.js, 9547c32):
+- The ponchos' film, their hoods and a raincoat (top and skirt) are now vinyl, slick in the rain whatever their sheen when dry. The trash bag (poncho 6) stays dull, as FW1 had it.
+- A raincoat's skirt is 0.32, like its top.
+- A poncho's hood takes its body's sheen. At 0.25 and 0.26, the skirt and hood had been glossier than the garment they hang from.
+- Poncho 7's crinkle tilt is back at 0.8. FK5 had cut it to 0.45, which the notes above didn't say.
+
+**Evidence:** `FK5-repair/crops/a1-poncho-rain-1.png` (FK5) against `r1-poncho-rain-1.png` and `r1-poncho-rain-3.png`: the long wet highlights are back down the red poncho's folds. The same holds in `r2/poncho-rain-1.jpg` and `poncho-rain-3.jpg`.
+
+### The follow-ups done
+
+**The caps' crowns, the bills and the pom-pom follow the face's morph** (skeptic's defect 4; Cast.js, 226ed96 and 8473c45).
+- **How:** each of their vertices carries the record of the skull vertex under it (`skullRec`). That is the nearest vertex in that direction on the near or middle head's skull. A cap carries two records in its one float: its own way, and turned half round for a cap worn backwards. The shader moves the vertex by that record's morph, as it moves the head under it. Only the shape moves: the normal and the paint are untouched.
+- **A cap worn backwards** is turned half round (FP2) after the morph is added. So the morph's move is turned with it first (8473c45), and comes out as the skull's own.
+  - In 226ed96 it was added unturned. Where the skull came out at the sides, front and back, the cap went in.
+  - That was worse than not following at all: over 1000 faces the near crown came through the skull on 748, by more than 4 mm on 516. FK5 had 607 and 223.
+  - The Node check, `capfit2c.mjs` (set `BUG=1` for 226ed96's order), now gives the rows below.
+  - Not seen in a render: r3's `capback-side` and `capback-front` framed the worst backwards cap in the park (seed 4896, top +24.9 mm) from 0.9 m, but others stood between.
+- **Over 1000 faces** (`capfit2.mjs`):
+
+| Measure | FK5 | Repaired |
+|---|---|---|
+| Near crown through the skull | 757 | 73 |
+| …by more than 2 mm | 558 | 3 |
+| …by more than 4 mm | 422 | 0 |
+| Near crown worn backwards, through | 607 | 19 |
+| …by more than 2 mm | 393 | 1 |
+| Middle crown worn backwards, through | 459 | 1 |
+| …by more than 2 mm | 304 | 1 |
+| Middle crown through | 804 | 254 |
+| …by more than 2 mm | 635 | 71 |
+| Pom-pom floating over the knit top (near) | 216 | 0 |
+| Pom-pom floating over the knit top (middle) | 243 | 0 |
+
+- The pom-pom's lowest point now sits 6.9 mm above the skull's top on every face, seated into the knit (whose top is at 16 mm). Under FK5 that point ran from 20 mm into the head to 36 mm over it.
+- **Renders** of the worst faces in the park (r2): `knit-worst-side` and `knit-worst-front` (the top morphed −35.9 mm), and `cap-worst-side` and `cap-worst-back` (+30.8 mm). The crown sits on the head and the pom-pom on the knit.
+
+**The ways up** (reviewer's queue and switchback items, skeptic's defect 7; People.js, 310f55d):
+- **The landings** (`_waysLanding`). A landing where the way turns gets the points you'd walk across it by: where the flights' lines meet, at a corner; at a switchback, two points at the landing's height. The route used to run from one flight's top tread straight to the next flight's first, through the rails and stringers between them.
+- **Keeping right.** The offset is mitred at each point, so it's the same on either side of a corner. Each climber faces along the route ±0.3 m either side of him.
+  - At the Alley's switchback (`ways3.mjs`), the largest move in 2 cm of route was 18–58 cm. It is now 2–3 cm.
+  - Route points within 12 cm of a rail or side were 26 (at 0.12 m and 0.25 m right). They are now 0.
+  - A climber turns at most 3.8° in 2 cm of route. He used to snap round at each corner.
+  - In the page: `r2/landing-switchback.jpg` shows three on the landing.
+  - Every route in the page (r3's `landing-porch` value, 16 routes):
+    - The Alley's switchback and both of the Porch's towers each get two corners (a U-turn landing).
+    - The largest move in 2 cm of route at 0.4 m right is 2.0–2.9 cm, and the largest turn 3.8°.
+    - The Alley's three straight stairs and the 400s' ten get no corners: 2.0 cm and 0°.
+    - `r3/landing-porch.jpg` shows the Porch east tower's landing from the flight above, clear of its rails. Nobody was on it at that moment.
+    - The Deck's portal stairs weren't in r3's scope.
+- **The queue.** Someone coming up to an end that's in sight now stops where the line ahead of him ends, 0.75 m back for each one holding there. He used to walk through them to the end, then jump back.
+  - Watching the switchback's top for 120 s: no step back.
+  - Four sent up together stop 0.75 m apart.
+- **What counts as "in sight."** It used to be 20 m for a stair's end and 45 m for a door, whatever the lens. It is now an end where a figure would be over 2.5% of the frame's height and in front of the camera (`WAYS_SEEN`). That is about 60 m at 60°, and further down a TV camera's long lens.
+
+**`dry` for the waiters and the covered stairs** (skeptic's defect 8): it comes from the rain cover's heights, by most of a route's points or by a door's spot.
+- `r2/el-waiter-27`: `dry: true`. In a1 he had a wet cap and a glossy poncho indoors.
+- `r2/ad-climb-rain` is on the open switchback: `dry: false`, which is right.
+- In r3, the routes under cover are dry: the Alley's three straight stairs and the 400s' ten. The switchback and the Porch's towers are out in the rain.
+
+**The stands' staff** (skeptic's defect 9, reviewer's staff item; People.js, aa28560):
+- **The step.** At strike three they step to 15 cm behind the stand's front and no further: inset − 0.15, at most a food stand's 0.36. That is 0.1 at a ticket window and 0.15 at a shop.
+  - At the window: `r2/cel-staff-window`'s `staffOut` is −0.15. It was +0.11, through the wall.
+- **The Alley's staff** (inset 0) used to stand at the stand's mid, 10 cm out on the customers' side of the counter's panel, with the ledge through their waists. Then they stepped 0.36 further out.
+  - They now stand in the window, their middle 4 cm behind its plane, and they lean out over the ledge without a step.
+    - `r2/cel-staff-alley.jpg` and `staff-alley-side.jpg` (`staffOut` −0.14): face, cap and arms whole, the ledge at the belt.
+    - Their toes show at the panel's foot.
+  - I tried 7 cm to hide the toes (aa28560). In `r3/cel-staff-alley.jpg`, `staff-alley-side.jpg` and `staff-alley-steep.jpg` the painted kitchen took the head as well, all but the face's front. 49fbb1a put it back to 4 cm.
+
+### Corrections to the notes above
+
+- **The elevators' evidence was misattributed** (skeptic's defect 12).
+  - The figures I pointed at in `f2/el-home-walkin.jpg` and `f1/el-3b-walkin.jpg` (the UTLEY 26, the white jacket, the grey poncho) are in the before too. They are the throng's or the places' people.
+  - The waiters are the two at the home bank's doors: one facing the left door, one the right (`SK-FK5/a1/el-home-walkin.jpg` against `b1/`).
+- **"No flare at the hem" isn't so** (skeptic's defect 5).
+  - The loft's hem is unchanged: 0.292 against 0.29.
+  - The bell you see from behind comes from the arm rig spreading the poncho, not from the loft. It is still there (see "Left").
+- **"Twice as hard" was the other way round.** Poncho 7 (the clear poncho for two) had its crinkle cut from 0.8 to 0.45. It is back at 0.8.
+- **"Knots of two to five"** was false in FK5. Now it's 1 to 5 by construction. Two is the commonest size, not three or four as cd4b042's message says.
+- **The celebration's throng triangles** were +219k on the 3B loop, above the 120–200k given in perfRisk above. The figures are under "The costs" below.
+
+### The costs
+
+The stats are read as the desk does, at the shot's first frame (a) and after its own frames (b).
+
+| View (r2) | Draws (a / b) | Triangles (a / b) | Compared with |
+|---|---|---|---|
+| `cost-tv-center` | 506 / 505 | 3,690,531 / 3,679,721 | FK5 (a1): 3,726,633 / 3,715,823; before FK5 (b1): 3,673,613 |
+| `cost-cel-loop3b` | 661 / 660 | 4,660,961 / 4,644,431 | FK5 (a1, from the skeptic's report): 408k throng triangles |
+
+- On `cost-cel-loop3b` the throng shows 978 figures and 404,892 triangles. Those are not in the stats.
+- On the stroll before FK5 (b1), the throng had about 189k. The celebration's shares add about 216k: some 4% of that frame's 5.07M triangles (stats plus throng).
+- **New per-vertex work in Cast.js:** the crown, bill and pom-pom vertices now run the morph (`fhBlend`) as the head's do. That is the crown's 49 vertices, the bill's, and the pom-pom's 140 on the near figure (31 crown and 63 pom-pom on the middle one), and only on figures wearing those hats. The far LOD carries none.
+- **The ways:** each climber now makes three `_waysAt` lookups per Tempo step, against one segment walk before.
+
+### Left
+
+- **The speed track.** Get frame times for the 3B loop's and behind home's celebration views at the next profiling wave. By the rules I didn't profile.
+- **The page's last few close pairs** come from strollers beside the gathered, the camera's own push near a low eye, and the places' people pushing the throng. None of them is the plan's.
+- **Knots of one.** 106 people stand alone on the floor, turned to the field. They are realistic but many; they could walk to the nearest knot with room.
+- **The poncho's bell from behind** comes from the arm rig, not the loft.
+- **The middle LOD's crown** still sags 2–4 mm into the skull on 7% of faces. That head's skull is coarser under the rim.
+- **On the treads,** those holding a step behind stand at the route's linear height, up to half a riser off a tread.
+- **Watch a stair's end for minutes** and nobody new comes from it. Those who arrive wait there a step apart.
+- **The Alley's painted kitchen** is a plane 1 cm behind the window's, and the counter is built against it. So there's no room behind the counter for a person. The staffer's back is cut off, which shows from a steep side, and his toes show at the panel's foot. A real fix is a shallow kitchen behind the window (FK3's `places/alley`, or Landmarks.js), not the staff's inset.
+- **Two climbers can start a trip from the same end in the same step** and walk at the same s. In r3, two were at 0.4 m up the Porch's east stair. Their keep-right offsets are 0–0.2 m apart, so they may stand in each other. That is unchecked, and it was FK5's dealing before this repair.
+- **The 3B bank's waiters** ignore Concourse3B's own people.
