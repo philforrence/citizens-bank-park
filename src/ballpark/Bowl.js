@@ -621,6 +621,9 @@ export class Bowl {
 		// below (PavilionWays.js)
 		tiers.push( { name: 'pavilion-deck', front: dk, parts: { rf: dk.slice( 0, 2 ), line: dk.slice( 1 ) }, outward: [ 0, - 40 ], y0: pdY, rows: ROWS.pavilionDeck, depth: ROW, rise: 0.55, section: 14, aisle: 1.2, soffit: 1.2, frontWall: { top: pdY + 1.0 }, base: pdY - 1.1, portals: { every: 2, row: 7, rows: 5, width: 3.4, open: true, stairWidth: 1.4 } } );
 		// ---- end FA1
+		// ---- FK1 (AD1-16, WA2-10): its NW end over the rooftop bleachers its precast and steel (Stands.js openEnd)
+		tiers[ tiers.length - 1 ].openEnd = [ true, false ];
+		// ---- end FK1
 
 		this.upper = tiers;
 		for ( const t of tiers ) this.group.add( buildTier( t, this.ctx ) );
