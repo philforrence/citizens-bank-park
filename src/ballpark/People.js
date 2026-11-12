@@ -710,6 +710,9 @@ RANK_TRY.sort( ( a, b ) => a[ 2 ] - b[ 2 ] );
 // the arms the gathering and the stairs use, solved once as GESTURE's are (armIK takes 0.1 ms, and a seek
 // into the celebration dresses up to 72 at once): a hug, a high five, clapping over the head, an arm round
 // the next one's shoulders, a hand on a stair's rail
+// a stair's end, an elevator's door, in sight: a person there stands over this share of the screen's height
+// (People._waysSeen: 20 px of 800, from 60 m at the walk's 60 degrees)
+const WAYS_SEEN = 0.025;
 const FK5_ARMS = {
 	hug: [ armIK( - 1, [ - 0.2, 1.36, - 0.26 ] ), armIK( 1, [ 0.17, 1.3, - 0.27 ] ) ],
 	five: [ null, armIK( 1, [ 0.13, 1.86, - 0.36 ] ) ],
@@ -2724,12 +2727,45 @@ export class People {
 			const put = ( x, y, z ) => { const [ fx, fz ] = F.toField( x, z ); pts.push( [ fx, y - F.y0, fz ] ); };
 			const t0 = chain[ 0 ].t, a = t0[ 0 ], b = t0[ 1 ], ux = a[ 0 ] - b[ 0 ], uz = a[ 2 ] - b[ 2 ], ul = Math.hypot( ux, uz ) || 1;
 			put( a[ 0 ] + ux / ul * 1.4, a[ 1 ] - ( b[ 1 ] - a[ 1 ] ), a[ 2 ] + uz / ul * 1.4 );
-			for ( const c of chain ) for ( const q of c.t ) put( q[ 0 ], q[ 1 ], q[ 2 ] );
+			for ( const [ ci, c ] of chain.entries() ) {
+
+				// (FK5 repair: the landing between two flights where the way turns: on along the last one's way
+				// onto it, then across it to the next one's foot, on its floor. The route went straight from one's
+				// top tread to the next one's first: at the Alley's switchback through the rails between them)
+				if ( ci > 0 ) this._waysLanding( chain[ ci - 1 ].t, c.t, put );
+				for ( const q of c.t ) put( q[ 0 ], q[ 1 ], q[ 2 ] );
+
+			}
+
 			const tl = chain[ chain.length - 1 ].t, e = tl[ tl.length - 1 ], e1 = tl[ tl.length - 2 ], vx = e[ 0 ] - e1[ 0 ], vz = e[ 2 ] - e1[ 2 ], vl = Math.hypot( vx, vz ) || 1;
 			put( e[ 0 ] + vx / vl * 1.2, e[ 1 ], e[ 2 ] + vz / vl * 1.2 );
 			const s = [ 0 ];
 			for ( let k = 1; k < pts.length; k ++ ) s.push( s[ k - 1 ] + Math.hypot( pts[ k ][ 0 ] - pts[ k - 1 ][ 0 ], pts[ k ][ 2 ] - pts[ k - 1 ][ 2 ] ) );
-			this._ways.routes.push( { pts, s, L: s[ s.length - 1 ], w: Math.max( 0.45, w ), tag: f.tag } );
+			// (FK5 repair: each stretch's way (from the foot), and at each point the way to keep right of going
+			// up, between the stretches either side (mitred, so a corner isn't cut or stepped over): kept right
+			// by each stretch's own, the climber jumped across at a turn, 0.31 to 0.64 m at the Alley's)
+			const dir = [ [ 0, 1 ] ], mit = [];
+			for ( let k = 1; k < pts.length; k ++ ) {
+
+				const dx = pts[ k ][ 0 ] - pts[ k - 1 ][ 0 ], dz = pts[ k ][ 2 ] - pts[ k - 1 ][ 2 ], dl = Math.hypot( dx, dz );
+				dir.push( dl > 1e-3 ? [ dx / dl, dz / dl ] : dir[ k - 1 ] );
+
+			}
+
+			dir[ 0 ] = dir[ 1 ];
+			for ( let k = 0; k < pts.length; k ++ ) {
+
+				const A = dir[ Math.max( 1, k ) ], B = dir[ Math.min( pts.length - 1, k + 1 ) ];
+				let mx = - A[ 1 ] - B[ 1 ], mz = A[ 0 ] + B[ 0 ];
+				const ml = Math.hypot( mx, mz );
+				if ( ml < 1e-3 ) { mit.push( [ - A[ 1 ], A[ 0 ] ] ); continue; }
+				mx /= ml; mz /= ml;
+				const c = Math.max( 0.5, mx * - A[ 1 ] + mz * A[ 0 ] );
+				mit.push( [ mx / c, mz / c ] );
+
+			}
+
+			this._ways.routes.push( { pts, s, L: s[ s.length - 1 ], w: Math.max( 0.45, w ), tag: f.tag, mit } );
 
 		}
 
@@ -2821,6 +2857,40 @@ export class People {
 
 	}
 
+	// (FK5 repair) the way across the landing between a flight (its treads `lo`, the world's frame, foot to top)
+	// and the next one (`hi`), into `put`: nothing if the next goes straight on; where it turns back (the
+	// Alley's switchback, the Porch's towers), on along the last flight to the landing's middle (its far edge
+	// found on the colliders), across it, and back to the next one's foot; where it turns a corner, the corner.
+	// On the landing's floor. (The route went from one's top tread straight to the next one's first, through
+	// the stringers and rails between them, and never on the landing)
+	_waysLanding( lo, hi, put ) {
+
+		const T1 = lo[ lo.length - 1 ], T2 = hi[ 0 ], a = lo[ 0 ], b = hi[ hi.length - 1 ];
+		const dir = ( p, q ) => { const x = q[ 0 ] - p[ 0 ], z = q[ 2 ] - p[ 2 ], l = Math.hypot( x, z ) || 1; return [ x / l, z / l ]; };
+		const u1 = dir( a, T1 ), u2 = dir( T2, b ), c = u1[ 0 ] * u2[ 0 ] + u1[ 1 ] * u2[ 1 ];
+		if ( c > 0.7 ) return;
+		// the landing's floor, and how far on it goes past the top tread (to 3 m)
+		const C = this._bowl?.colliders, top = T2[ 1 ] - 0.03;
+		const floorAt = ( t ) => C ? C.groundHeightAt( T1[ 0 ] + u1[ 0 ] * t, T1[ 2 ] + u1[ 1 ] * t, top ) : - Infinity;
+		let yL = floorAt( 0.45 );
+		if ( ! ( yL > T1[ 1 ] - 0.05 && yL < top ) ) yL = Math.max( T1[ 1 ], ( T1[ 1 ] + T2[ 1 ] ) / 2 - 0.09 );
+		let e = 0.3;
+		while ( e < 3 && Math.abs( floorAt( e + 0.05 ) - yL ) < 0.08 ) e += 0.05;
+		const m = ( 0.14 + e ) / 2;
+		if ( c > - 0.7 ) {
+
+			// a corner: where the two flights' lines meet, if they meet on the landing
+			const den = u1[ 0 ] * u2[ 1 ] - u1[ 1 ] * u2[ 0 ];
+			const t = ( ( T2[ 0 ] - T1[ 0 ] ) * u2[ 1 ] - ( T2[ 2 ] - T1[ 2 ] ) * u2[ 0 ] ) / den;
+			if ( t > 0.1 && t < 3 ) { put( T1[ 0 ] + u1[ 0 ] * t, yL, T1[ 2 ] + u1[ 1 ] * t ); return; }
+
+		}
+
+		put( T1[ 0 ] + u1[ 0 ] * m, yL, T1[ 2 ] + u1[ 1 ] * m );
+		put( T2[ 0 ] - u2[ 0 ] * m, yL, T2[ 2 ] - u2[ 1 ] * m );
+
+	}
+
 	_waysUpdate( dt, d ) {
 
 		if ( ! this._ways ) this._waysBuild();
@@ -2835,7 +2905,9 @@ export class People {
 		this.climbers.update();
 		if ( ! sdt ) return;
 		this._waysView();
-		const seen = ( q, far ) => this._waysSeen( q[ 0 ], q[ 1 ], q[ 2 ], far );
+		// (FK5 repair: a stair's end in sight while someone there stands over 2.5% of the screen's height: 20 px
+		// of 800, from 60 m at the walk's 60 degrees, and all of a TV camera's frame; it was 20 m whatever the lens)
+		const seen = ( q ) => this._waysSeen( q[ 0 ], q[ 1 ], q[ 2 ], WAYS_SEEN );
 		// how many are on the stairs, and which way most of them are going, by the moment
 		const ns = nightState( d );
 		let dens = ns.top ? 0.3 : 0.2, up = 0.5;
@@ -2863,12 +2935,16 @@ export class People {
 				S.rail = h() < 0.3;
 				S.wait = 1 + h() * 7;
 				// (nobody appears before your eyes: a trip starts from a stair's end only while that end's out of
-				// sight or 20 m off; at a jump, anywhere along)
-				if ( S.on && ! W.jump && seen( S.up ? R.pts[ 0 ] : R.pts[ R.pts.length - 1 ], 20 ) ) S.on = false;
+				// sight or too small on the screen to see it; at a jump, anywhere along)
+				if ( S.on && ! W.jump && seen( S.up ? R.pts[ 0 ] : R.pts[ R.pts.length - 1 ] ) ) S.on = false;
 				if ( ! S.on ) { p.visible = false; continue; }
-				// (dressed for the night: a poncho on the 27th's rainy hours, as the throng has them)
+				// (dressed for the night: a poncho on the 27th's rainy hours, as the throng has them; dry on a
+				// stair under a roof or a deck, as the throng is under the concourse's: FK5 repair, they were
+				// wet indoors on the 27th)
 				const L = { ...S.look };
 				if ( ! ( rain > 0.45 && h() < 0.35 ) ) L.poncho = 0; else if ( ! L.poncho ) L.poncho = 1;
+				R.dry ??= R.pts.filter( ( q, j ) => j % 2 === 0 && this._coveredAt( q[ 0 ], q[ 1 ], q[ 2 ] ) ).length * 2 > R.pts.length / 2;
+				L.dry = R.dry;
 				this.climbers.setLook( p, L );
 				Object.assign( a, restPose() );
 				if ( S.rail ) a.armR = FK5_ARMS.rail.slice();
@@ -2876,32 +2952,42 @@ export class People {
 
 			}
 
+			// (nor goes: at the end of his trip, if you can see it, he stops there, waiting for someone, till you
+			// can't; the next one to finish there a step behind him, and so on back. FK5 repair: he stops at
+			// the back of that queue as he comes to it: he went on to the end through those waiting and was put
+			// back a step behind them in a frame, 0.75 m for each one ahead of him)
 			if ( ! ( S.hold >= 0 ) ) S.s += sdt * S.speed * ( S.up ? 1 : 1.18 );
-			// (nor goes: at the end of his trip, if you can see it from under 20 m, he stops there, waiting for
-			// someone, till you can't; the next one to finish there a step behind him, and so on back)
-			if ( S.hold >= 0 || S.s >= R.L ) {
+			const ahead = S.hold >= 0 ? S.hold : S.s > R.L - 6 ? W.slots.filter( ( o ) => o !== S && o.R === R && o.on && o.hold >= 0 && o.up === S.up ).length : 0;
+			if ( S.hold >= 0 || S.s >= R.L - 0.75 * ahead ) {
 
-				if ( W.jump || ! seen( S.up ? R.pts[ R.pts.length - 1 ] : R.pts[ 0 ], 20 ) ) { S.on = false; S.hold = - 1; p.visible = false; continue; }
-				if ( ! ( S.hold >= 0 ) ) S.hold = W.slots.filter( ( o ) => o !== S && o.R === R && o.on && o.hold >= 0 && o.up === S.up ).length;
-				S.s = Math.max( 0, R.L - 0.75 * S.hold );
+				const end = ! W.jump && seen( S.up ? R.pts[ R.pts.length - 1 ] : R.pts[ 0 ] );
+				if ( ! end && ( S.hold >= 0 || S.s >= R.L ) ) { S.on = false; S.hold = - 1; p.visible = false; continue; }
+				if ( end ) {
+
+					if ( ! ( S.hold >= 0 ) ) S.hold = ahead;
+					S.s = Math.max( 0, R.L - 0.75 * S.hold );
+
+				}
 
 			}
 
 			const hold = S.hold >= 0;
-			// where he is: along the route (from its top coming down), kept right of the way he's going
-			const s = S.up ? S.s : R.L - S.s;
-			let k = 1;
-			while ( k < R.s.length - 1 && R.s[ k ] < s ) k ++;
-			const A = R.pts[ k - 1 ], B = R.pts[ k ], f = Math.max( 0, Math.min( 1, ( s - R.s[ k - 1 ] ) / Math.max( 1e-3, R.s[ k ] - R.s[ k - 1 ] ) ) );
-			let dx = B[ 0 ] - A[ 0 ], dz = B[ 2 ] - A[ 2 ];
+			// where he is: along the route (from its top coming down), kept right of the way he's going (FK5
+			// repair: by the route's mitred offsets, R.mit, so he goes round a landing's corners on his own
+			// side of it; and turned to the way his own path goes, 0.3 m either side, not snapped at a corner)
+			const lat = S.rail ? R.w - 0.3 : Math.min( R.w - 0.3, S.lat + 0.1 ), side = S.up ? lat : - lat;
+			const s = S.up ? S.s : R.L - S.s, Q = this._waysQ || ( this._waysQ = [ [ 0, 0, 0 ], [ 0, 0, 0 ], [ 0, 0, 0 ] ] );
+			const k = this._waysAt( R, s, side, Q[ 0 ] );
+			this._waysAt( R, Math.max( 0, s - 0.3 ), side, Q[ 1 ] );
+			this._waysAt( R, Math.min( R.L, s + 0.3 ), side, Q[ 2 ] );
+			let dx = Q[ 2 ][ 0 ] - Q[ 1 ][ 0 ], dz = Q[ 2 ][ 2 ] - Q[ 1 ][ 2 ];
 			const dl = Math.hypot( dx, dz ) || 1;
 			dx /= dl; dz /= dl;
 			if ( ! S.up ) { dx = - dx; dz = - dz; }
-			const lat = S.rail ? R.w - 0.3 : Math.min( R.w - 0.3, S.lat + 0.1 );
-			const climb = Math.abs( B[ 1 ] - A[ 1 ] ) > 0.05 && k > 1 && k < R.pts.length - 1;
-			p.x = A[ 0 ] + ( B[ 0 ] - A[ 0 ] ) * f - dz * lat;
-			p.z = A[ 2 ] + ( B[ 2 ] - A[ 2 ] ) * f + dx * lat;
-			p.y = A[ 1 ] + ( B[ 1 ] - A[ 1 ] ) * f;
+			const climb = Math.abs( R.pts[ k ][ 1 ] - R.pts[ k - 1 ][ 1 ] ) > 0.05 && k > 1 && k < R.pts.length - 1;
+			p.x = Q[ 0 ][ 0 ];
+			p.z = Q[ 0 ][ 2 ];
+			p.y = Q[ 0 ][ 1 ];
 			p.yaw = Math.atan2( - dx, - dz );
 			p.visible = true;
 			a.walk = hold ? 0 : 1;
@@ -2923,9 +3009,23 @@ export class People {
 
 	}
 
+	// (FK5 repair) the point `s` along route R (the field's frame), `side` metres to the right of going up by
+	// its mitred offsets, into o; the stretch it's on (its end's index)
+	_waysAt( R, s, side, o ) {
+
+		let k = 1;
+		while ( k < R.s.length - 1 && R.s[ k ] < s ) k ++;
+		const A = R.pts[ k - 1 ], B = R.pts[ k ], f = Math.max( 0, Math.min( 1, ( s - R.s[ k - 1 ] ) / Math.max( 1e-3, R.s[ k ] - R.s[ k - 1 ] ) ) );
+		const mA = R.mit[ k - 1 ], mB = R.mit[ k ];
+		o[ 0 ] = A[ 0 ] + ( B[ 0 ] - A[ 0 ] ) * f + ( mA[ 0 ] + ( mB[ 0 ] - mA[ 0 ] ) * f ) * side;
+		o[ 1 ] = A[ 1 ] + ( B[ 1 ] - A[ 1 ] ) * f;
+		o[ 2 ] = A[ 2 ] + ( B[ 2 ] - A[ 2 ] ) * f + ( mA[ 1 ] + ( mB[ 1 ] - mA[ 1 ] ) * f ) * side;
+		return k;
+
+	}
+
 	// where the view is this step (the field's frame), and whether a place there (its floor; a person's chest
-	// over it) is in sight from under `far` metres: in front of the camera, not just cut to (a cut is
-	// everyone's chance to move unseen)
+	// over it) is in sight: in front of the camera, not just cut to (a cut is everyone's chance to move unseen)
 	_waysView() {
 
 		const cam = this._waysCam, F = this.field, V = this._wv || ( this._wv = { on: false } );
@@ -2938,15 +3038,33 @@ export class People {
 		V.y = P.y - F.y0;
 		[ V.fx, V.fz ] = F.toField( Q.x, Q.z );
 		V.fy = Q.y;
+		// (FK5 repair: how tall a person there stands on the screen, by the lens: a fixed 20 m let them
+		// appear on a stair's end in plain view at 25 m, and in the TV's long lenses at a hundred)
+		V.focal = Math.abs( cam.projectionMatrix.elements[ 5 ] ) * 0.5;
 
 	}
 
-	_waysSeen( x, y, z, far ) {
+	// (FK5 repair: in sight when in front of the camera and a person there stands over `frac` of the screen's
+	// height (WAYS_SEEN), by the lens: it was under `far` metres, so a climber came or went at a stair's end in
+	// plain view past 20 m, and a door's waiters were dealt afresh in a TV camera's frame)
+	_waysSeen( x, y, z, frac ) {
 
 		const V = this._wv;
 		if ( ! V?.on ) return false;
 		const dx = x - V.x, dy = y + 1.2 - V.y, dz = z - V.z, dl = Math.hypot( dx, dy, dz ) || 1;
-		return dl < far && ( dx * V.fx + dy * V.fy + dz * V.fz ) / dl > 0.3;
+		return 1.75 * V.focal / dl > frac && ( dx * V.fx + dy * V.fy + dz * V.fz ) / dl > 0.3;
+
+	}
+
+	// (FK5 repair: whether there's a roof, a deck or a stand over (x, y, z) in the field's frame, over a head's
+	// height: the rain's map of what's overhead (RainCover.js, the app's), when the app's made it)
+	_coveredAt( x, y, z ) {
+
+		const C = globalThis.__app?.rainCover;
+		if ( ! C?.heights ) return false;
+		const ix = Math.floor( ( x - C.x0 ) / C.cell ), iz = Math.floor( ( z - C.z0 ) / C.cell );
+		if ( ix < 0 || iz < 0 || ix >= C.nx || iz >= C.nx ) return false;
+		return C.heights[ ix + iz * C.nx ] > y + 2.1;
 
 	}
 
@@ -2959,7 +3077,9 @@ export class People {
 
 		const W = this._ways;
 		if ( ! W.doors?.length ) return;
-		const unseen = ( st ) => W.jump || ! this._waysSeen( st.x, st.y, st.z, 45 );
+		// (a door's out of sight when a person there would stand under 2.5% of the screen's height: FK5 repair,
+		// it was 45 m whatever the lens)
+		const unseen = ( st ) => W.jump || ! this._waysSeen( st.x, st.y, st.z, WAYS_SEEN );
 
 		let want = ns.top ? 0.8 : 0.6;
 		if ( ns.seg?.kind === 'intro' || ( ns.inning === 1 && ns.half === 'top' && ( ns.snap?.outs || 0 ) === 0 ) ) want = 2.2;
@@ -2986,9 +3106,13 @@ export class People {
 					if ( ! p.visible ) continue;
 					const L = { ...Q.look };
 					if ( ! ( rain > 0.45 && h() < 0.35 ) ) L.poncho = 0; else if ( ! L.poncho ) L.poncho = 1;
+					// (FK5 repair: dry under the concourse's deck, as the throng beside them is; they were wet indoors on
+					// the 27th, the rain's dark shoulders and gloss on them)
+					const [ x, z ] = D.spots[ j ];
+					D.dry ??= this._coveredAt( x, st.y, z );
+					L.dry = D.dry;
 					this.climbers.setLook( p, L );
 					Object.assign( a, restPose() );
-					const [ x, z ] = D.spots[ j ];
 					p.x = x + ( h() - 0.5 ) * 0.24;
 					p.z = z + ( h() - 0.5 ) * 0.24;
 					p.y = st.y;
