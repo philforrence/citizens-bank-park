@@ -1067,7 +1067,16 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let nk = ${ v3( J.neck ) };
 			let r = length( vec2f( L.x, L.z - nk.z ) );
 			let cy = nk.y - 0.03 + 0.3 * clamp( L.z - nk.z, -0.08, 0.07 );
-			let vee = L.z < nk.z - 0.03 && L.y > cy - 0.05 && abs( L.x ) < 0.022 * clamp( ( L.y - cy + 0.05 ) / 0.045, 0.0, 1.0 );
+			// ---- FK2 (step 12, CR1-24): the jersey's V-neck, not a bib. The undershirt showed as a broad red
+			// crescent from the collarbones nearly to the sternum (its band 2.3 cm tall all round and a V 5 cm
+			// deep, 4.4 cm across); the 2008 jersey buttons to a small V and the undershirt shows as a crew
+			// collar about a centimetre tall and a narrow triangle above the top button (Getty 83485929,
+			// Howard; 83485858). The jersey's edge just under the collar's top line all round, dropping in
+			// front to a V 3.6 cm deep and 5 cm across at the top
+			let frontV = smoothstep( -0.035, -0.06, L.z - nk.z ) * max( 0.0, 1.0 - abs( L.x ) / 0.025 );
+			let yJ = cy + 0.001 - 0.036 * frontV;
+			let vee = frontV > 0.0 && L.y > yJ && L.y < cy;
+			// ---- end FK2
 			// ---- FY3: the underside of a jutting chin is skin (the ring round the neck took it for the jersey and
 			// the undershirt's collar: a white and red crescent under every jaw in the close-ups); the
 			// undershirt's collar rides up the neck, a crew neck's 1.2 cm for most, a mock turtleneck's 4 cm for
@@ -1077,7 +1086,7 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			let mock = select( select( 0.012, 0.038, fract( seed * 17.3 ) < 0.3 && ! crew && ! jacket && ! phan ), 0.03, ump );
 			if ( L.y > nk.y + 0.03 || chinU || ( L.y > cy + mock && r < 0.1 ) ) { part = ${ P.skin }; skinArea = 1; }
 			// ---- end FY3
-			else if ( ( L.y > cy - 0.011 && r < 0.11 ) || vee ) { part = select( ${ P.sleeve }, ${ P.jersey }, jacket ); }
+			else if ( ( L.y > yJ && r < 0.11 ) || vee ) { part = select( ${ P.sleeve }, ${ P.jersey }, jacket ); } // (---- FK2: yJ, was cy - 0.011)
 			else if ( L.y > ${ f( U.belt[ 1 ] ) } ) { part = ${ P.jersey }; }
 			else if ( L.y > ${ f( U.belt[ 0 ] ) } ) { part = ${ P.belt }; }
 			else { part = ${ P.pants }; }
