@@ -956,6 +956,8 @@ export function buildTier( tier, { toWorld, worldYaw, colliders, materials } ) {
 	if ( crowd?.idsBuf && ! crowd.off && ! materials.seat.bindings.cwIds ) {
 
 		materials.seat.bindings.cwIds = { storage: crowd.idsBuf, access: 'read' };
+		// ---- FX2 (SC1-1): and how far up each fan is (his pose, which the crowd's kernel writes every frame)
+		materials.seat.bindings.cwPoseBuf = { storage: crowd.poseBuf, access: 'read' };
 		materials.seat.setDefine( 'SEAT_FOLD', 1 );
 
 	}
@@ -1040,10 +1042,19 @@ export function seatGeometry( down = false ) {
 
 	// An empty fold-down seat, facing -z, its origin on the tread under the seat's middle: a curved
 	// back (top 0.8 m up), the pan folded up in front of it, and a dark cast standard with an armrest
-	// on one side (the next seat's makes the other). Colours are per vertex: plastic blue, metal grey.
+	// on one side (the next seat's makes the other). Colours are per vertex: the plastic, the painted standard.
 	const q = new Quads(), col = [];
 	// (CB-12: a shade deeper and less saturated: the navy of the photos, Getty 84081873)
-	const BLUE = [ 0.032, 0.075, 0.25 ], GREY = [ 0.04, 0.045, 0.052 ];
+	// ---- FX2 (SC1-5): a dusky navy, not royal blue. Ten photos, measured on their seat pixels only: under
+	// the banks (Getty 83891095, 83458502, 83511062, 84081873, 84082684, AP 5516521282 at dusk) hue 222-260
+	// at 30-45% saturation, by the photographer's white balance (McIsaac's two read violet with his whites
+	// magenta; balanced, ~236); by day (Commons 2008-03-29 x4, Flickr 2007-05-29) hue 206-219 at 40-70%, the
+	// sky's blue in the shade. One plastic between them (hue ~230, 39%, a little lighter than it was), as it
+	// renders: under the banks hue ~231 at ~47% (it was 220 at 76-81%), by day in the roof's shade still the
+	// saturated blue of the day photos (it was 99%, a cobalt). The standards are painted the same navy, deeper
+	// (83511062: the aisle ends' "Phillies" castings in blue under the wet tops): they were a metal grey
+	const BLUE = [ 0.042, 0.05, 0.115 ], GREY = [ 0.014, 0.021, 0.062 ];
+	// ---- end FX2
 	const add = ( c, ...args ) => {
 
 		q.add( ...args );
@@ -1128,7 +1139,8 @@ export function standsMaterials() {
 	let nk = smoothstep( 0.15, 0.7, frame.night );
 	// ---- FW3 (C2W-22): the steps read as steps (Getty 83458502, 27 Oct 2008: every tread's edge a line).
 	// A tread: its front edge worn paler, a dark line of grime where the riser behind meets it, and in the
-	// aisle the nosing painted a dull safety yellow; a riser in the tread's shade; a step light lit
+	// aisle an anti-slip strip behind the edge (---- FX2, SC1-12: it was painted safety yellow); a riser in
+	// the tread's shade; a step light lit
 	var lens = 0.0;
 	if ( in.uv.x > ${ STEPLIGHT_UV - 1 }.0 ) {
 		lens = 1.0;
@@ -1138,9 +1150,17 @@ export function standsMaterials() {
 		let fv = fwidth( in.uv.y ) + 0.002;
 		let nose = 1.0 - smoothstep( 0.05, 0.05 + fv, in.uv.y );
 		let back = smoothstep( 0.6, 0.8, in.uv.y ) * ( 1.0 - clamp( fv * 6.0, 0.0, 1.0 ) );
-		let aisle = 1.0 - smoothstep( 0.58, 0.64, ad );
-		s.albedo = s.albedo * ( 1.0 + 0.18 * nose * ( 1.0 - aisle ) ) * ( 1.0 - 0.22 * back );
-		s.albedo = mix( s.albedo, vec3f( 0.42, 0.34, 0.08 ), nose * aisle * 0.85 * ( 1.0 - clamp( fv * 3.0, 0.0, 0.6 ) ) );
+		// ---- FX2 (SC1-12): no yellow. 2008's aisles (Commons 2008-03-29 2371427833, the RF 100s by day; the 3B
+		// decks from the LF corner the same day, the 300s and 400s; AP 5516521282 from the 400s, Oct 29) have a
+		// dark grit anti-slip strip on every step, ~3 cm back from the worn pale edge, ~5.5 cm wide, across
+		// the aisle and stopping short of the seats; a third the concrete's lightness, a little warm, worn a
+		// shade paler where the feet go, down the aisle's middle
+		let fx = fwidth( ad ) + 0.002;
+		let strip = smoothstep( 0.03, 0.03 + fv, in.uv.y ) * ( 1.0 - smoothstep( 0.085, 0.085 + fv, in.uv.y ) ) * ( 1.0 - smoothstep( 0.5, 0.5 + fx, ad ) );
+		s.albedo = s.albedo * ( 1.0 + 0.18 * nose ) * ( 1.0 - 0.22 * back );
+		let grit = mix( vec3f( 0.088, 0.086, 0.08 ), vec3f( 0.13, 0.126, 0.118 ), 1.0 - smoothstep( 0.08, 0.35, ad ) );
+		s.albedo = mix( s.albedo, grit, strip * ( 1.0 - clamp( fv * 4.0, 0.0, 0.7 ) ) );
+		// ---- end FX2
 	} else if ( in.uv.x > ${ RISER_UV - 1 }.0 && in.uv.x < ${ TREAD_UV - 1 }.0 && abs( in.N.y ) < 0.5 ) {
 		s.albedo = s.albedo * 0.68;
 	}
@@ -1163,19 +1183,33 @@ ${ SOFFIT_WGSL }
 		// half), read from the crowd's ids (bit 31) for the seats built sat on (buildTier: drawParams, the
 		// first fan + 1). They stayed down, a field of flat blue shelves where Getty 83511062 has every
 		// empty seat's pan up
+		// ---- FX2 (SC1-1): and a seat whose fan is on his feet folds up behind his calves (the 9th, strike three,
+		// every rally): CBP's are spring seats, and in Getty 83891095 (27 Oct 2008) everyone standing in the
+		// rows has his pan up behind him as the empty seats' are. It stayed down, and every standing fan's
+		// shins went through it. By his stand weight (the crowd's pose, r0.x: the kernel's `st`), from once his
+		// thighs are off it to all the way before his shins (the stand pose's feet are under the pan) reach
+		// it: turned about its back edge, which drops and comes forward as it goes, the 105 degrees from flat
+		// to seatGeometry()'s folded pan (15 degrees off upright, 0.26 m up in front of the back's foot)
 		vertex: /* wgsl */`
 #if SEAT_FOLD
 	if ( draw.params.y > 0.5 && v.normal.y > 0.9 && v.position.y < 0.5 ) {
 		let fan = u32( draw.params.y + 0.5 ) - 1u + v.instance;
-		if ( ( cwIds[ fan ].z >> 31u ) == 1u ) {
+		// (a fan's pose is arrayLength( pose ) / arrayLength( ids ) vec4s: Crowd.js's POSE_N * 2)
+		let st = cwPoseBuf[ fan * ( arrayLength( &cwPoseBuf ) / arrayLength( &cwIds ) ) ].x;
+		let up = select( smoothstep( 0.15, 0.6, st ), 1.0, ( cwIds[ fan ].z >> 31u ) == 1u );
+		if ( up > 0.0 ) {
 			let k = clamp( ( 0.14 - v.position.z ) / 0.44, 0.0, 1.0 );
-			v.position = vec3f( v.position.x, 0.26 + 0.36 * k, 0.02 + 0.0956 * k );
-			v.normal = vec3f( 0.0, 0.257, - 0.966 );
+			let a = up * 1.8553 - 0.0227;
+			let ca = cos( a );
+			let sa = sin( a );
+			let l = mix( 0.4401, 0.3725, up ) * k;
+			v.position = vec3f( v.position.x, mix( 0.44, 0.26, up ) + l * sa, mix( 0.14, 0.02, up ) - l * ca );
+			v.normal = vec3f( 0.0, ca, sa );
 		}
 	}
 #endif
 	o.vSeatY = v.position.y;
-`, // ---- end FS1
+`, // ---- end FS1, FX2
 		surface: /* wgsl */`
 	let y = in.vs.vSeatY;
 	let ao = mix( 0.38, 1.0, smoothstep( 0.2, 0.72, y ) );

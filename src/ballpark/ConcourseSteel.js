@@ -28,6 +28,11 @@ const PALETTE = [
 	[ 'dome', [ 0.72, 0.72, 0.7 ], 0.3, 0, [ 1.6, 1.52, 1.38 ] ], [ 'hid', [ 0.9, 0.9, 0.86 ], 0.3, 0, [ 9.0, 8.6, 7.6 ] ],
 	[ 'can', [ 0.8, 0.78, 0.72 ], 0.3, 0, [ 4.0, 3.5, 2.8 ] ], [ 'trim', [ 0.05, 0.05, 0.055 ], 0.5, 0.3 ], [ 'grate', [ 0.16, 0.165, 0.17 ], 0.6, 0.5 ],
 	[ 'concrete', [ 0.36, 0.35, 0.33 ], 0.75, 0 ],
+	// ---- FX2 (SC1-16): a handrail's galvanizing, worn by hands and weather to a duller, rougher grey than
+	// the treads' and the deck's (Getty 83485581: silver-grey under the lights): at 0.42 a dome 2 m off
+	// lit the whole top facet of the Terrace's stair rails white, end to end
+	[ 'railGalv', [ 0.4, 0.405, 0.41 ], 0.68, 0.4 ],
+	// ---- end FX2
 ];
 const PAL = Object.fromEntries( PALETTE.map( ( p, i ) => [ p[ 0 ], i ] ) );
 const f3 = ( c ) => `vec3f( ${ c.map( ( v ) => v.toFixed( 3 ) ).join( ', ' ) } )`;

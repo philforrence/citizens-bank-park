@@ -402,8 +402,11 @@ export function buildTerrace( group, bowl ) {
 				const dd = dm + e * ( W / 2 + 0.04 );
 				q.use( 'maroon' );
 				wide( q, at( sFoot, dd, Y + 0.12 ), at( sTop, dd, yF - 0.12 ), [ - ux * 0.5, 1, - uz * 0.5 ], 0.3, 0.08, 0.012, 0.01 );
-				q.use( 'galv' );
-				pipe( q, at( sFoot - dir * 0.3, dd, Y + 0.95 ), at( sTop, dd, yF + 0.95 ), 0.022, 5 );
+				// ---- FX2 (SC1-16): the handrail and its posts in a handrail's duller galvanizing (ConcourseSteel's
+				// railGalv), the rail round in 8 (in 5 its top facet caught a dome's light whole, a white bar)
+				q.use( 'railGalv' );
+				pipe( q, at( sFoot - dir * 0.3, dd, Y + 0.95 ), at( sTop, dd, yF + 0.95 ), 0.022, 8 );
+				// ---- end FX2
 				for ( let t = 0; t <= 1.001; t += 0.25 ) {
 
 					const ss = sFoot + ( sTop - sFoot ) * t, yy = Y + rise * t;
@@ -454,8 +457,8 @@ export function buildTerrace( group, bowl ) {
 
 					const dd = dm + e * ( W / 2 + 0.06 ), ya = Y + rise * tWell - 0.3;
 					cbox( at( ( sa + sb ) / 2, dd, ( ya + yF + 1.05 ) / 2 ), u2, Math.abs( sb - sa ) + 0.05, yF + 1.05 - ya, 0.1, { tag: 'terrace-400-stair-rail' } );
-					q.use( 'galv' );
-					pipe( q, at( sa, dd, yF + 1.0 ), at( sb, dd, yF + 1.0 ), 0.022, 5 );
+					q.use( 'railGalv' ); // ---- FX2 (SC1-16)
+					pipe( q, at( sa, dd, yF + 1.0 ), at( sb, dd, yF + 1.0 ), 0.022, 8 );
 					for ( const ss of [ sa, ( sa + sb ) / 2, sb ] ) pipe( q, at( ss, dd, yF ), at( ss, dd, yF + 1.0 ), 0.02, 4 );
 
 				}
