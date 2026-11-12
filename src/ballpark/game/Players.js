@@ -1520,9 +1520,10 @@ function playerMaterial( bones, info, atlas, costume = false, slotted = costume,
 			// ---- FK2 (step 12, CR1-21): a greasy smear, not two holes: a rounded rectangle on the cheekbone's top,
 			// a little wider than tall and tipped down to the outside, its edge broken and thinning, the skin's
 			// sheen across it (it read as a second pair of empty sockets, round and pure black)
-			let ebq = vec2f( ( ax - 0.033 ) / 0.019, ( L.y - eye.y + 0.021 + 0.12 * ( ax - 0.033 ) ) / 0.0095 );
-			let ebk = pow( pow( abs( ebq.x ), 4.0 ) + pow( abs( ebq.y ), 4.0 ), 0.25 ) + 0.18 * g2;
-			if ( ( face & 8u ) != 0u && ebk < 1.0 ) {
+			// (---- FK2 repair: only for the men who wear it: the three pows ran for every face pixel)
+			if ( ( face & 8u ) != 0u ) {
+				let ebq = vec2f( ( ax - 0.033 ) / 0.019, ( L.y - eye.y + 0.021 + 0.12 * ( ax - 0.033 ) ) / 0.0095 );
+				let ebk = pow( pow( abs( ebq.x ), 4.0 ) + pow( abs( ebq.y ), 4.0 ), 0.25 ) + 0.18 * g2;
 				let eb = smoothstep( 1.0, 0.7, ebk ) * fw * ( 0.82 + 0.16 * g1 );
 				c = mix( c, vec3f( 0.022, 0.02, 0.019 ), eb );
 				rough = mix( rough, 0.36, eb );
